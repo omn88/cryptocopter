@@ -1,0 +1,6 @@
+pysimplegui==4.59.0
+python-binance==1.0.15
+black==22.3.0
+mypy==0.942
+pyyaml==6.0
+bta-lib==1.0.0
