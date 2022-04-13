@@ -27,10 +27,15 @@ def get_historical_data(symbol, interval, lookback):
 # print(df)
 
 
-def apply_technicals(df):
-    rsi = ta.rsi(df, period=14)  # default period is 30
-    macd = ta.macd(df)
+def apply_rsi(df, period):
+    rsi = ta.rsi(df, period=period)
     df["RSI"] = rsi.df
+
+    return df
+
+
+def apply_macd(df):
+    macd = ta.macd(df)
 
     df["MACD"] = macd.macd
     df["Signal"] = macd.signal

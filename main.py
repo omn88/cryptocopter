@@ -6,6 +6,9 @@ from datetime import datetime
 import logging.config
 import yaml
 import shutil
+import gui
+
+import strategy_script
 from socket_management import ticker_socket, user_socket
 from strategy_script import Strategy
 
@@ -31,22 +34,24 @@ async def main():
         api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
     )
     bm = BinanceSocketManager(client)
-    strategy = Strategy(client, bm)
+    # strategy = Strategy(client, bm)
 
     await asyncio.wait(
         [
-            ticker_socket(bm=bm, strategy=strategy),
+            # strategy_script.rsi_based_futures(period=14, interval="15m"),
+            # ticker_socket(bm=bm, strategy=strategy),
             # gui(strategy=strategy),
-            user_socket(bm, strategy),
+            # user_socket(bm, strategy),
+            gui.gui()
         ]
     )
 
     await client.close_connection()
-    shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
-    shutil.copyfile(
-        f"{os.getcwd()}/artifacts/list_of_orders.txt",
-        f"{artifacts_dir}/list_of_orders.txt",
-    )
+    # shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
+    # shutil.copyfile(
+    #     f"{os.getcwd()}/artifacts/list_of_orders.txt",
+    #     f"{artifacts_dir}/list_of_orders.txt",
+    # )
 
 
 if __name__ == "__main__":
