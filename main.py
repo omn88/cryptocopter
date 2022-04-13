@@ -36,8 +36,8 @@ async def main():
     bm = BinanceSocketManager(client)
     # strategy = Strategy(client, bm)
 
-    await asyncio.wait(
-        [
+    await asyncio.gather(
+        *[
             # strategy_script.rsi_based_futures(period=14, interval="15m"),
             # ticker_socket(bm=bm, strategy=strategy),
             # gui(strategy=strategy),

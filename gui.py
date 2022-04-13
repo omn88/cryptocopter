@@ -17,7 +17,8 @@ layout = [
         sg.TabGroup(
             [
                 [
-                    elem.tab_orders,
+                    elem.tab_position,
+                    elem.tab_open_orders,
                     elem.tab_realized_orders,
                     elem.tab_logger,
                 ]
@@ -35,7 +36,7 @@ window = sg.Window(
     title="Cryptocopter",
     layout=layout,
     location=(250, 200),
-    size=(940, 400),
+    size=(880, 400),
     resizable=True,
     finalize=True,
 )
@@ -50,7 +51,7 @@ async def gui():
     # Event Loop to process "events" and get the "values" of the inputs
     while True:
         event, values = window.read(timeout=100)
-        print(f"Event: {event}, values: {values}")
-        if event in (sg.WIN_CLOSED, "Exit"):
+        # print(f"Event: {event}, values: {values}")
+        if event in (sg.WIN_CLOSED, "-EXIT_STRATEGY-"):
             logger.info("Exit")
             break

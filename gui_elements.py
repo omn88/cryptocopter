@@ -24,32 +24,32 @@ indicators = [
         sg.InputText(size=(4, 1), key="-INTERVAL-", default_text="15m"),
     ],
     [
-        sg.Checkbox("RSI", default=False),
+        sg.Checkbox("RSI", default=True),
         sg.Text("Period:"),
         sg.InputText(size=(3, 1), key="-RSI_PERIOD-", default_text="14"),
         sg.Text("Signal:"),
         sg.Text("Awaiting"),
     ],
 ]
-orders_headings = [
-    "Price Level",
+position_headings = [
     "Symbol",
-    "OrderId",
-    "Time in Force",
-    "Type",
-    "Side",
-    "Price",
-    "Quantity",
-    "Status",
+    "Amount",
+    "Entry Price",
+    "Mark Price",
+    "Liq Price",
+    "Margin",
+    "ROE",
+    "Target",
+    "Stop Loss",
 ]
 data = [[]]
 
-list_of_orders = [
+position = [
     [
         sg.Table(
             values=data,
-            headings=orders_headings,
-            col_widths=[8, 10, 12, 10, 12, 12, 12, 12, 12],
+            headings=position_headings,
+            col_widths=[10, 10, 10, 10, 10, 10, 10, 10, 10],
             auto_size_columns=False,
             justification="center",
             num_rows=10,
@@ -61,12 +61,40 @@ list_of_orders = [
         )
     ]
 ]
+
+orders_headings = [
+    "Time",
+    "Symbol",
+    "Type",
+    "Side",
+    "Price",
+    "Amount",
+    "Filled in",
+]
+
+open_orders = [
+    [
+        sg.Table(
+            values=data,
+            headings=orders_headings,
+            col_widths=[15, 13, 13, 13, 12, 12, 12, 13, 13],
+            auto_size_columns=False,
+            justification="center",
+            num_rows=10,
+            key="-REALIZED_ORDERS-",
+            # display_row_numbers=True,
+            row_height=25,
+            tooltip="Realized orders",
+            visible=True,
+        )
+    ]
+]
 realized_orders = [
     [
         sg.Table(
             values=data,
             headings=orders_headings,
-            col_widths=[8, 10, 12, 10, 12, 12, 12, 12, 12],
+            col_widths=[15, 13, 13, 13, 12, 12, 12, 13, 13],
             auto_size_columns=False,
             justification="center",
             num_rows=10,
@@ -85,7 +113,10 @@ logger = [
     ]
 ]
 
-tab_orders = sg.Tab("List of orders", list_of_orders, key="-TAB_ORDERS-")
+tab_position = sg.Tab("Position", position, key="-TAB_POSITION-")
+
+
+tab_open_orders = sg.Tab("Open orders", open_orders, key="-TAB-OPEN-ORDERS-")
 
 tab_realized_orders = sg.Tab(
     "Realized orders", realized_orders, key="-TAB-REALIZED-ORDERS-"
