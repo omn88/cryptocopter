@@ -17,7 +17,7 @@ class Backtest:
     def __init__(self, symbol):
         self.symbol = symbol
         self.df = indicators.get_historical_data(
-            symbol=self.symbol, interval="15m", lookback="36000"
+            symbol=self.symbol, interval="15m", lookback="360000"
         )
         if self.df.empty:
             print("No data pulled")
@@ -67,6 +67,8 @@ class Backtest:
     def loop_it(self):
         long_position = False
         short_position = False
+        special_long = False
+        special_short = False
         (
             buyprices_long,
             sellprices_long,
@@ -87,41 +89,61 @@ class Backtest:
         saldo = 0
         position = Order(price=0)
 
-        def long_position_open():
+        def long_position_open(mode: str = "DCA"):
             buy_price = row["Open"]
             buyprices_long.append(buy_price)
             depo_price = round(0.96 * buy_price, 2)
-            print(f"{index}: Long opened at price {buy_price}, depo is {depo_price}")
-            position = Order(price=buy_price, status="OPEN")
-            dca_orders = [
-                Order(
-                    price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
-                    status="NEW",
+            if mode == "DCA":
+                print(
+                    f"{index}: Long opened at price {buy_price}, depo is {depo_price}"
                 )
-                for order in range(number_of_dca_orders)
-            ]
+                position = Order(price=buy_price, status="OPEN")
+                dca_orders = [
+                    Order(
+                        price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
+                        status="NEW",
+                    )
+                    for order in range(number_of_dca_orders)
+                ]
+            else:
+                print(
+                    f"{index}: Long opened at price {buy_price}, depo is {depo_price}, FULL mode"
+                )
+                position = Order(price=sell_price, status="OPEN", quantity=400)
+                dca_orders = []
 
             return buy_price, depo_price, dca_orders, position
 
-        def short_position_open():
+        def short_position_open(mode: str = "DCA"):
             sell_price = row["Open"]
             sellprices_short.append(sell_price)
             depo_price = round(1.04 * sell_price)
-            print(f"{index}: Short opened at price {sell_price}, depo is {depo_price}")
-            position = Order(price=sell_price, status="OPEN")
-            dca_orders = [
-                Order(
-                    price=round((sell_price + (0.005 * (order + 1) * sell_price)), 2),
-                    status="NEW",
+            if mode == "DCA":
+                print(
+                    f"{index}: Short opened at price {sell_price}, depo is {depo_price}"
                 )
-                for order in range(number_of_dca_orders)
-            ]
+                position = Order(price=sell_price, status="OPEN")
+                dca_orders = [
+                    Order(
+                        price=round(
+                            (sell_price + (0.005 * (order + 1) * sell_price)), 2
+                        ),
+                        status="NEW",
+                    )
+                    for order in range(number_of_dca_orders)
+                ]
+            else:
+                print(
+                    f"{index}: Short opened at price {sell_price}, depo is {depo_price}, FULL mode"
+                )
+                position = Order(price=sell_price, status="OPEN", quantity=400)
+                dca_orders = []
 
             return sell_price, depo_price, dca_orders, position
 
         def short_position_close():
             buyprices_short.append(row["Open"])
-            net = round((sell_price - row["Open"]), 2)
+            net = round((sellprices_short[-1] - row["Open"]), 2)
             print(
                 f"{index}: Youve closed short as planned at price {row['Open']}, youve earned {net}"
             )
@@ -130,7 +152,7 @@ class Backtest:
 
         def long_position_close():
             sellprices_long.append(row["Open"])
-            net = round((row["Open"] - buy_price), 2)
+            net = round((row["Open"] - buyprices_long[-1]), 2)
             print(
                 f"{index}: Youve closed long as planned at price {row['Open']}!, youve earned: {net}"
             )
@@ -177,7 +199,23 @@ class Backtest:
                     sell_price, depo_price, dca_orders, position = short_position_open()
                     short_position = True
 
-            if long_position:
+            if special_short:
+                if 100 - row["RSI"] < 50:
+                    net = short_position_close()
+                    print("Youve just closed special short, GRATZ!")
+                    saldo += net
+                    short_position = False
+                    special_short = False
+
+            if special_long:
+                if 100 - row["RSI"] > 50:
+                    net = long_position_close()
+                    print("Youve just closed special long, GRATZ!")
+                    saldo += net
+                    long_position = False
+                    special_long = False
+
+            if long_position and not special_short and not special_long:
                 for order in dca_orders:
                     if order.status == "NEW" and row["Low"] < order.price:
                         position, depo_price = long_position_recalculate(
@@ -201,7 +239,18 @@ class Backtest:
                     sell_price, depo_price, dca_orders, position = short_position_open()
                     short_position = True
 
-            if short_position:
+                if row["RSI"] < 18:
+                    net = long_position_close()
+                    long_position = False
+                    saldo += net
+                    sell_price, depo_price, dca_orders, position = short_position_open(
+                        "FULL"
+                    )
+                    short_position = True
+                    special_short = True
+                    print("Youve just opened special short, Lets see what happens!")
+
+            if short_position and not special_short and not special_long:
                 for order in dca_orders:
                     if order.status == "NEW" and row["High"] > order.price:
                         position, depo_price = short_position_recalculate(
@@ -224,6 +273,17 @@ class Backtest:
                     short_position = False
                     buy_price, depo_price, dca_orders, position = long_position_open()
                     long_position = True
+
+                if row["RSI"] > 82:
+                    net = short_position_close()
+                    short_position = False
+                    saldo += net
+                    sell_price, depo_price, dca_orders, position = long_position_open(
+                        "FULL"
+                    )
+                    long_position = True
+                    special_long = True
+                    print("Youve just opened special long, Lets see what happens!")
 
         self.buy_arr_long = buyprices_long
         self.sell_arr_long = sellprices_long
