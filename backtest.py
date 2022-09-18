@@ -10,14 +10,16 @@ import pandas as pd
 class Order:
     price: float
     status: str = "NEW"
-    quantity: float = 100
+    quantity: float = 200
 
 
 class Backtest:
     def __init__(self, symbol):
         self.symbol = symbol
         self.df = indicators.get_historical_data(
-            symbol=self.symbol, interval="15m", lookback="360000"
+            symbol=self.symbol,
+            interval="15m",
+            lookback="88000",  # 44000 is approximately one month
         )
         if self.df.empty:
             print("No data pulled")
@@ -26,11 +28,6 @@ class Backtest:
             self.generate_signals()
             self.loop_it()
             # print(self.df[14:].to_string())
-            self.profit_long = self.calc_profit_long()
-            self.profit_short = self.calc_profit_short()
-            print(f"Profit Long \n{25 * self.profit_long}")
-            print(f"Profit Short \n{25 * self.profit_short}")
-            self.total_profit = self.calc_total_profit()
 
     def calc_indicators(self):
         rsi = ta.rsi(self.df, period=14)
@@ -65,6 +62,11 @@ class Backtest:
         self.df.dropna(inplace=True)
 
     def loop_it(self):
+        saldo = 1000
+        leverage = 25
+        print(
+            f"{self.df.index[0]}: Start looping over rows, starting with {saldo} USDT, single order quantity: {Order.quantity}, leverage: {leverage}"
+        )
         long_position = False
         short_position = False
         special_long = False
@@ -86,7 +88,6 @@ class Backtest:
         buy_price = 0
         sell_price = 0
         depo_price = 0
-        saldo = 0
         position = Order(price=0)
 
         def long_position_open(mode: str = "DCA"):
@@ -109,7 +110,7 @@ class Backtest:
                 print(
                     f"{index}: Long opened at price {buy_price}, depo is {depo_price}, FULL mode"
                 )
-                position = Order(price=sell_price, status="OPEN", quantity=400)
+                position = Order(price=sell_price, status="OPEN", quantity=800)
                 dca_orders = []
 
             return buy_price, depo_price, dca_orders, position
@@ -119,9 +120,7 @@ class Backtest:
             sellprices_short.append(sell_price)
             depo_price = round(1.04 * sell_price)
             if mode == "DCA":
-                print(
-                    f"{index}: Short opened at price {sell_price}, depo is {depo_price}"
-                )
+                print(f"{index}: Short opened. Price: {sell_price}, depo: {depo_price}")
                 position = Order(price=sell_price, status="OPEN")
                 dca_orders = [
                     Order(
@@ -133,31 +132,53 @@ class Backtest:
                     for order in range(number_of_dca_orders)
                 ]
             else:
-                print(
-                    f"{index}: Short opened at price {sell_price}, depo is {depo_price}, FULL mode"
-                )
-                position = Order(price=sell_price, status="OPEN", quantity=400)
+                position = Order(price=sell_price, status="OPEN", quantity=800)
                 dca_orders = []
+                print(
+                    f"{index}: Short opened in FULL mode. Price: {position.price}, depo: {depo_price}, quantity: {position.quantity}"
+                )
 
             return sell_price, depo_price, dca_orders, position
 
-        def short_position_close():
-            buyprices_short.append(row["Open"])
-            net = round((sellprices_short[-1] - row["Open"]), 2)
+        def short_position_close(saldo: float):
+            buy_price = row["Open"]
+            buyprices_short.append(buy_price)
+            net = round((sellprices_short[-1] - buy_price), 2)
+            net_percent = round(
+                100 * round((sellprices_short[-1] / buy_price - 1), 4), 2
+            )
             print(
-                f"{index}: Youve closed short as planned at price {row['Open']}, youve earned {net}"
+                f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {net_percent}%"
             )
 
-            return net
+            real_earn = round((position.quantity * leverage / buy_price) * net, 2)
+            saldo = round(saldo + real_earn, 2)
 
-        def long_position_close():
-            sellprices_long.append(row["Open"])
-            net = round((row["Open"] - buyprices_long[-1]), 2)
             print(
-                f"{index}: Youve closed long as planned at price {row['Open']}!, youve earned: {net}"
+                f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
             )
 
-            return net
+            return saldo
+
+        def long_position_close(saldo: float):
+            sell_price = row["Open"]
+            sellprices_long.append(sell_price)
+            net = round((sell_price - buyprices_long[-1]), 2)
+            net_percent = round(
+                100 * round((sell_price / buyprices_long[-1] - 1), 4), 2
+            )
+            print(
+                f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {net_percent}%"
+            )
+
+            real_earn = round((position.quantity * leverage / sell_price) * net, 2)
+            saldo = round(saldo + real_earn, 2)
+
+            print(
+                f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
+            )
+
+            return saldo
 
         def long_position_recalculate(position, order):
             new_quantity = position.quantity + order.quantity
@@ -169,7 +190,7 @@ class Backtest:
             )
             depo_price = round(0.96 * new_position.price, 2)
             print(
-                f"{index}: You added to long at price {round(order.price, 2)}, new price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
+                f"{index}: Added to long. Price: {round(order.price, 2)}, new buy price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
             )
             buyprices_long[-1] = new_price
             return new_position, depo_price
@@ -184,10 +205,53 @@ class Backtest:
             )
             depo_price = round(1.04 * new_position.price, 2)
             print(
-                f"{index}: You added to short at price {round(order.price, 2)}, new price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
+                f"{index}: Added to short. Price: {round(order.price, 2)}, new sell price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
             )
             sellprices_short[-1] = new_price
             return new_position, depo_price
+
+        def long_profit_calculate():
+            if len(self.buy_arr_long) > len(self.sell_arr_long):
+                self.buy_arr_long = self.buy_arr_long[:-1]
+
+            df_buy_long = pd.DataFrame(self.buy_arr_long, columns=["price"])
+            df_sell_long = pd.DataFrame(self.sell_arr_long, columns=["price"])
+
+            return (df_sell_long.values - df_buy_long.values) / df_buy_long.values
+
+        def short_profit_calculate():
+            if len(self.sell_arr_short) > len(self.buy_arr_short):
+                self.sell_arr_short = self.sell_arr_short[:-1]
+
+            df_buy_short = pd.DataFrame(self.buy_arr_short, columns=["price"])
+            df_sell_short = pd.DataFrame(self.sell_arr_short, columns=["price"])
+
+            return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
+
+        def calc_total_profit():
+
+            total_profit_long = 0
+            total_profit_short = 0
+
+            for profit in self.profit_long:
+                total_profit_long += profit
+
+            for profit in self.profit_short:
+                total_profit_short += profit
+
+            print(f"Total profit long: {total_profit_long}")
+            print(f"Total profit short: {total_profit_short}")
+
+            return (total_profit_long + total_profit_short) / 2
+
+        def show_statistics():
+            self.profit_long = long_profit_calculate()
+            self.profit_short = short_profit_calculate()
+            self.total_profit = calc_total_profit()
+
+            print(f"Profit Long \n{self.profit_long}")
+            print(f"Profit Short \n{self.profit_short}")
+            print(f"Total profit \n{self.total_profit}")
 
         for index, row in self.df.iterrows():
             if not long_position and not short_position:
@@ -201,18 +265,14 @@ class Backtest:
 
             if special_short:
                 if 100 - row["RSI"] < 50:
-                    net = short_position_close()
-                    print("Youve just closed special short, GRATZ!")
-                    saldo += net
-                    short_position = False
+                    saldo = short_position_close(saldo)
+                    print(f"{index}: Youve just closed special short, GRATZ!")
                     special_short = False
 
             if special_long:
                 if 100 - row["RSI"] > 50:
-                    net = long_position_close()
-                    print("Youve just closed special long, GRATZ!")
-                    saldo += net
-                    long_position = False
+                    saldo = long_position_close(saldo)
+                    print(f"{index}: Youve just closed special long, GRATZ!")
                     special_long = False
 
             if long_position and not special_short and not special_long:
@@ -226,29 +286,29 @@ class Backtest:
                 if row["Low"] < depo_price:
                     long_position = False
                     net = round((depo_price - buy_price), 2)
-                    saldo += net
+                    saldo -= position.quantity
                     print(
-                        f"{index}: your long has been stopped at price {depo_price}, you lost: {net}"
+                        f"{index}: your long has been stopped at price {depo_price}, difference of {net} USDT, but you've lost {position.quantity}, new saldo is: {saldo}"
                     )
                     sellprices_long.append(depo_price)
 
                 if row["signal"] == "Sell":
-                    net = long_position_close()
+                    saldo = long_position_close(saldo)
                     long_position = False
-                    saldo += net
                     sell_price, depo_price, dca_orders, position = short_position_open()
                     short_position = True
 
                 if row["RSI"] < 18:
-                    net = long_position_close()
+                    print(
+                        f"{index}: Condition for Special Short triggered! Closing Long immediately and opening Special Short"
+                    )
+                    saldo = long_position_close(saldo)
                     long_position = False
-                    saldo += net
                     sell_price, depo_price, dca_orders, position = short_position_open(
                         "FULL"
                     )
-                    short_position = True
                     special_short = True
-                    print("Youve just opened special short, Lets see what happens!")
+                    print(f"{index}: Special short opened, Lets see what happens!")
 
             if short_position and not special_short and not special_long:
                 for order in dca_orders:
@@ -261,29 +321,29 @@ class Backtest:
                 if row["High"] > depo_price:
                     short_position = False
                     net = round((sell_price - depo_price), 2)
-                    saldo += net
+                    saldo -= position.quantity
                     print(
-                        f"{index}: your short has been stopped at price {depo_price}, youve lost {net}"
+                        f"{index}: your short has been stopped at price {depo_price}, difference of {net} USDT, but you've lost {position.quantity}, new saldo is: {saldo}"
                     )
                     buyprices_short.append(depo_price)
 
                 if row["signal"] == "Buy":
-                    net = short_position_close()
-                    saldo += net
+                    saldo = short_position_close(saldo)
                     short_position = False
                     buy_price, depo_price, dca_orders, position = long_position_open()
                     long_position = True
 
                 if row["RSI"] > 82:
-                    net = short_position_close()
+                    print(
+                        f"{index}: Condition for Special Long triggered! Closing Short immediately and opening Special Long"
+                    )
+                    saldo = short_position_close(saldo)
                     short_position = False
-                    saldo += net
                     sell_price, depo_price, dca_orders, position = long_position_open(
                         "FULL"
                     )
-                    long_position = True
                     special_long = True
-                    print("Youve just opened special long, Lets see what happens!")
+                    print(f"{index}: Special Long opened, Lets see what happens!")
 
         self.buy_arr_long = buyprices_long
         self.sell_arr_long = sellprices_long
@@ -291,70 +351,9 @@ class Backtest:
         self.buy_arr_short = buyprices_short
         self.sell_arr_short = sellprices_short
 
-        # print("Buy Long")
-        # for item in self.buy_arr_long:
-        #     print(item)
-        #
-        # print("Sell Long")
-        # for item in self.sell_arr_long:
-        #     print(item)
-        #
-        # print("Buy Short")
-        # for item in self.buy_arr_short:
-        #     print(item)
-        #
-        # print("Sell Short")
-        # for item in self.sell_arr_short:
-        #     print(item)
-
         print(f"Saldo to {round(saldo, 2)}")
 
-    def calc_profit_long(self):
-        if len(self.buy_arr_long) > len(self.sell_arr_long):
-            self.buy_arr_long = self.buy_arr_long[:-1]
-
-        df_buy_long = pd.DataFrame(self.buy_arr_long, columns=["price"])
-        df_sell_long = pd.DataFrame(self.sell_arr_long, columns=["price"])
-
-        # df_buy_long['price'].astype('int')
-        # df_sell_long['price'].astype('int')
-
-        # print(df_buy_long.values)
-        # print(df_sell_long.values)
-
-        return (df_sell_long.values - df_buy_long.values) / df_buy_long.values
-
-    def calc_profit_short(self):
-        if len(self.sell_arr_short) > len(self.buy_arr_short):
-            self.sell_arr_short = self.sell_arr_short[:-1]
-
-        df_buy_short = pd.DataFrame(self.buy_arr_short, columns=["price"])
-        df_sell_short = pd.DataFrame(self.sell_arr_short, columns=["price"])
-
-        # df_buy_short['price'].astype('int')
-        # df_sell_short['price'].astype('int')
-
-        return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
-
-    def calc_total_profit(self):
-
-        total_profit_long = 0
-        total_profit_short = 0
-
-        for profit in self.profit_long:
-            total_profit_long += profit
-
-        for profit in self.profit_short:
-            total_profit_short += profit
-
-        print(f"Total profit long: {total_profit_long}")
-        print(f"Total profit short: {total_profit_short}")
-
-        total_profit = total_profit_long + total_profit_short
-
-        print(f"Total profit {total_profit}")
-
-        return total_profit
+        show_statistics()
 
     # def plot_chart(self):
     #     plt.figure(figsize=(10, 5))
@@ -376,10 +375,4 @@ class Backtest:
 
 
 instance = Backtest(symbol="BTCUSDT")
-
-# print(instance.buy_arr)
-# print(instance.sell_arr)
-# print(instance.profit)
-#
-#
 # instance.plot_chart()

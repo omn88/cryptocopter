@@ -25,6 +25,8 @@ class Strategy:
 
 
 class RsiSignal(indicators.Signal):
+
+    # Buy when RSI was lower than 30 and right now is above 30 for 2 consecutive candles or RSI crossed 20
     def get_buy_trigger(self):
         dfx = pd.DataFrame()
         for i in range(self.lags + 1):
@@ -33,6 +35,7 @@ class RsiSignal(indicators.Signal):
 
         return dfx.sum(axis=0)
 
+    # Sell when RSI was above 70 and right now is below 70 for 2 consecutive candles or RSI crossed 80
     def get_sell_trigger(self):
         dfx = pd.DataFrame()
         for i in range(self.lags + 1):
@@ -47,10 +50,12 @@ class RsiSignal(indicators.Signal):
         self.df["Sell"] = np.where(self.get_sell_trigger(), 1, 0)
 
 
-async def rsi_based_futures(period, interval: str):
+def rsi_based_futures(
+    symbol: str = "BTCUSDT", period=14, interval: str = "15m", lookback: int = "1440"
+):
 
     df = indicators.get_historical_data(
-        symbol="BTCUSDT", interval=interval, lookback="1440"
+        symbol=symbol, interval=interval, lookback=lookback
     )
     df = indicators.apply_rsi(df, period=period)
 
@@ -59,6 +64,6 @@ async def rsi_based_futures(period, interval: str):
     rsi_signal.decide()
 
     print(df.to_string())
-    #
-    # while True:
-    #     if
+
+
+rsi_based_futures()
