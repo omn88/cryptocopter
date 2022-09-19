@@ -282,14 +282,14 @@ class Backtest:
             if special_short:
                 if 100 - row["RSI"] < 50:
                     short_position_close()
-                    print(f"{index}: Youve just closed special short, GRATZ!")
                     special_short = False
+                    short_position = False
 
             if special_long:
                 if 100 - row["RSI"] > 50:
                     long_position_close()
-                    print(f"{index}: Youve just closed special long, GRATZ!")
                     special_long = False
+                    long_position = False
 
             if long_position and not special_short and not special_long:
                 for order in dca_orders:
@@ -306,13 +306,13 @@ class Backtest:
                     )
                     sellprices_long.append(self.depo_price)
 
-                if row["signal"] == "Sell":
+                if long_position and row["signal"] == "Sell":
                     long_position_close()
                     long_position = False
                     sell_price, dca_orders, position = short_position_open()
                     short_position = True
 
-                if row["RSI"] < 18:
+                if long_position and row["RSI"] < 18:
                     print(
                         f"{index}: Condition for Special Short triggered! Closing Long immediately and opening Special Short"
                     )
@@ -320,7 +320,7 @@ class Backtest:
                     long_position = False
                     sell_price, dca_orders, position = short_position_open("FULL")
                     special_short = True
-                    print(f"{index}: Special short opened, Lets see what happens!")
+                    short_position = True
 
             if short_position and not special_short and not special_long:
                 for order in dca_orders:
@@ -337,13 +337,13 @@ class Backtest:
                     )
                     buyprices_short.append(self.depo_price)
 
-                if row["signal"] == "Buy":
+                if short_position and row["signal"] == "Buy":
                     short_position_close()
                     short_position = False
                     buy_price, dca_orders, position = long_position_open()
                     long_position = True
 
-                if row["RSI"] > 82:
+                if short_position and row["RSI"] > 82:
                     print(
                         f"{index}: Condition for Special Long triggered! Closing Short immediately and opening Special Long"
                     )
@@ -351,7 +351,7 @@ class Backtest:
                     short_position = False
                     sell_price, dca_orders, position = long_position_open("FULL")
                     special_long = True
-                    print(f"{index}: Special Long opened, Lets see what happens!")
+                    long_position = True
 
         self.buy_arr_long = buyprices_long
         self.sell_arr_long = sellprices_long
