@@ -1,11 +1,8 @@
-from typing import Optional, List
-
-import numpy as np
-import btalib as ta
-import matplotlib.pyplot as plt
 import indicators
 from dataclasses import dataclass
 import pandas as pd
+
+import lib
 
 
 @dataclass
@@ -20,7 +17,7 @@ class Backtest:
         self.symbol = symbol
         self.saldo = 3200
         self.leverage = 25
-        self.order_quantity = 200
+        self.order_quantity = 0
         self.profit_long = []
         self.profit_short = []
         self.total_profit = 0
@@ -34,43 +31,10 @@ class Backtest:
         if self.df.empty:
             print("No data pulled")
         else:
-            self.calc_indicators()
-            self.generate_signals()
+            lib.calc_indicators(df=self.df)
+            lib.generate_signals(df=self.df)
             self.loop_it()
             # print(self.df[14:].to_string())
-
-    def calc_indicators(self):
-        rsi = ta.rsi(self.df, period=14)
-        self.df["RSI"] = rsi.df
-        self.df["RSIbTwenty"] = np.where(self.df["RSI"] < 20, 1, 0)
-        self.df["RSIbThirty"] = np.where(self.df["RSI"] < 30, 1, 0)
-        self.df["RSIaSeventy"] = np.where(self.df["RSI"] > 70, 1, 0)
-        self.df["RSIaEighty"] = np.where(self.df["RSI"] > 80, 1, 0)
-        self.df["RSIBuyTw"] = np.where(self.df.RSIbTwenty.diff() == -1, 1, 0)
-        self.df["RSIBuy"] = np.where(self.df.RSIbThirty.diff() == 0, 1, 0) & np.where(
-            self.df.RSIbThirty.diff(periods=2) == -1, 1, 0
-        )
-        self.df["RSISell"] = np.where(self.df.RSIaSeventy.diff() == 0, 1, 0) & np.where(
-            self.df.RSIaSeventy.diff(periods=2) == -1, 1, 0
-        )
-        self.df["RSISellEi"] = np.where(self.df.RSIaEighty.diff() == -1, 1, 0)
-        self.df["Saldo"] = 0
-        self.df.dropna(inplace=True)
-
-    def generate_signals(self):
-        conditions = [
-            (self.df.RSIbTwenty.diff() == -1)
-            | (self.df.RSIbThirty.diff() == 0)
-            & (self.df.RSIbThirty.diff(periods=2) == -1),
-            (self.df.RSIaEighty.diff() == -1)
-            | (self.df.RSIaSeventy.diff() == 0)
-            & (self.df.RSIaSeventy.diff(periods=2) == -1),
-        ]
-
-        choices = ["Buy", "Sell"]
-        self.df["signal"] = np.select(conditions, choices)
-        self.df.signal = self.df.signal.shift()
-        self.df.dropna(inplace=True)
 
     def loop_it(self):
         print(
@@ -98,77 +62,15 @@ class Backtest:
         number_of_dca_orders = 3
         position = Order(price=0, quantity=self.order_quantity)
 
-        def order_quantity_list_prepare(
-            number_of_dca_orders: int = 3,
-            order_values: Optional[List[float]] = None,
-            losses_per_level: int = 4,
-        ) -> pd.DataFrame:
-
-            order_values = (
-                [
-                    12.5,
-                    25,
-                    50,
-                    100,
-                    200,
-                    300,
-                    400,
-                    500,
-                    600,
-                    700,
-                    800,
-                    900,
-                    1000,
-                    1250,
-                    1500,
-                    1750,
-                    2000,
-                    2500,
-                    3000,
-                    3500,
-                    4000,
-                    5000,
-                    6000,
-                    7000,
-                    8000,
-                    9000,
-                    10000,
-                ]
-                if order_values is None
-                else order_values
-            )
-
-            # OVC stands for order value calculator
-            ovc = pd.DataFrame(order_values, columns=["order_value"])
-            ovc.set_index(pd.Index([i for i in range(len(order_values))]))
-            ovc["sum_of_all_losses"] = (
-                ovc.order_value * (number_of_dca_orders + 1) * losses_per_level
-            )
-            ovc["threshold"] = ovc.sum_of_all_losses + ovc.sum_of_all_losses.shift(1)
-            ovc.threshold.iloc[0] = ovc.sum_of_all_losses.iloc[0]
-
-            return ovc
-
-        ovc = order_quantity_list_prepare()
-
-        def order_quantity_check():
-            index_list = []
-
-            [
-                index_list.append(thrshld)
-                for thrshld in ovc.threshold
-                if self.saldo > thrshld
-            ]
-
-            selected_order_value = ovc.order_value[len(index_list) - 1]
-            print(f"{index}: Selected new order value: {selected_order_value}")
-            self.order_quantity = selected_order_value
+        ovc = lib.order_quantity_list_prepare()
 
         def long_position_open(mode: str = "DCA"):
             buy_price = row["Open"]
             buyprices_long.append(buy_price)
-            order_quantity_check()
-            target_depo_price_calculate("LONG", price=buy_price)
+            self.order_quantity = lib.order_quantity_check(saldo=self.saldo, ovc=ovc)
+            self.target_price, self.depo_price = lib.target_depo_price_calculate(
+                "LONG", price=buy_price, leverage=self.leverage
+            )
             if mode == "DCA":
                 print(
                     f"{index}: Long opened at price {buy_price}, depo is {self.depo_price}"
@@ -196,8 +98,10 @@ class Backtest:
         def short_position_open(mode: str = "DCA"):
             sell_price = row["Open"]
             sellprices_short.append(sell_price)
-            order_quantity_check()
-            target_depo_price_calculate(side="SHORT", price=sell_price)
+            self.order_quantity = lib.order_quantity_check(saldo=self.saldo, ovc=ovc)
+            self.target_price, self.depo_price = lib.target_depo_price_calculate(
+                side="SHORT", price=sell_price, leverage=self.leverage
+            )
             if mode == "DCA":
                 print(
                     f"{index}: Short opened. Price: {sell_price}, depo: {self.depo_price}"
@@ -269,7 +173,9 @@ class Backtest:
             new_position = Order(
                 price=new_price, status=position.status, quantity=new_quantity
             )
-            target_depo_price_calculate(side="LONG", price=new_price)
+            self.target_price, self.depo_price = lib.target_depo_price_calculate(
+                side="LONG", price=new_price, leverage=self.leverage
+            )
             print(
                 f"{index}: Added to long. Price: {round(order.price, 2)}, new buy price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {self.depo_price}"
             )
@@ -284,7 +190,9 @@ class Backtest:
             new_position = Order(
                 price=new_price, status=position.status, quantity=new_quantity
             )
-            target_depo_price_calculate("SHORT", price=new_price)
+            self.target_price, self.depo_price = lib.target_depo_price_calculate(
+                "SHORT", price=new_price, leverage=self.leverage
+            )
             print(
                 f"{index}: Added to short. Price: {round(order.price, 2)}, new sell price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {self.depo_price}"
             )
@@ -308,22 +216,6 @@ class Backtest:
             df_sell_short = pd.DataFrame(self.sell_arr_short, columns=["price"])
 
             return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
-
-        def target_depo_price_calculate(side: str, price):
-            if side == "LONG":
-                depo_price = round((1 - (100 / self.leverage / 100)) * price, 2)
-                target_price = round((1 + (100 / self.leverage / 100)) * price, 2)
-                self.target_price, self.depo_price = target_price, depo_price
-
-            if side == "SHORT":
-                target_price = round((1 - (100 / self.leverage / 100)) * price, 2)
-                depo_price = round((1 + (100 / self.leverage / 100)) * price, 2)
-                self.target_price, self.depo_price = target_price, depo_price
-
-        def plot_saldo():
-            plt.figure(figsize=(10, 5))
-            plt.plot(self.df.Saldo)
-            plt.show()
 
         def show_statistics():
             self.profit_long = long_profit_calculate()
@@ -384,7 +276,8 @@ class Backtest:
                 f"Average Profit Short From All Positions: {round(100 * round(float(avg_profit_short_all), 5), 2)}%"
             )
 
-            plot_saldo()
+            lib.plot_saldo(df=self.df)
+            lib.plot_saldo_log(df=self.df)
 
         for index, row in self.df.iterrows():
 
