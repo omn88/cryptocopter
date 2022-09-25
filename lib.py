@@ -127,3 +127,86 @@ def plot_saldo_log(df: pd.DataFrame):
     plt.plot(df.Saldo)
     plt.yscale("log")
     plt.show()
+
+
+def long_profit_calculate(buy_arr_long, sell_arr_long):
+    if len(buy_arr_long) > len(sell_arr_long):
+        buy_arr_long = buy_arr_long[:-1]
+
+    df_buy_long = pd.DataFrame(buy_arr_long, columns=["price"])
+    df_sell_long = pd.DataFrame(sell_arr_long, columns=["price"])
+
+    return (df_sell_long.values - df_buy_long.values) / df_buy_long.values
+
+
+def short_profit_calculate(sell_arr_short, buy_arr_short):
+    if len(sell_arr_short) > len(buy_arr_short):
+        sell_arr_short = sell_arr_short[:-1]
+
+    df_buy_short = pd.DataFrame(buy_arr_short, columns=["price"])
+    df_sell_short = pd.DataFrame(sell_arr_short, columns=["price"])
+
+    return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
+
+
+def show_statistics(
+    df: pd.DataFrame, buy_arr_long, sell_arr_long, sell_arr_short, buy_arr_short
+):
+    profit_long = long_profit_calculate(
+        buy_arr_long=buy_arr_long, sell_arr_long=sell_arr_long
+    )
+    profit_short = short_profit_calculate(
+        sell_arr_short=sell_arr_short, buy_arr_short=buy_arr_short
+    )
+
+    avg_profit_long_all = sum(profit_long) / len(profit_long)
+    avg_profit_short_all = sum(profit_short) / len(profit_short)
+
+    success_longs = []
+    unsuccess_longs = []
+    [success_longs.append(long) for long in profit_long if long > 0]
+    [unsuccess_longs.append(long) for long in profit_long if long < 0]
+
+    avg_profit_long_success = (
+        sum(success_longs) / len(success_longs) if len(success_longs) > 0 else 0
+    )
+    avg_loss_long = (
+        (sum(unsuccess_longs) / len(unsuccess_longs)) if len(unsuccess_longs) > 0 else 0
+    )
+
+    print(f"Longs! \nTotal: {len(profit_long)}\nSuccessful longs: {len(success_longs)}")
+    print(f"Unsuccessful longs: {len(unsuccess_longs)}")
+    print(
+        f"Average Profit Long From Successful Positions: {round(100 * round(float(avg_profit_long_success), 5), 2)}%"
+    )
+    print(f"Average Loss: {round(100 * round(float(avg_loss_long), 4), 2)}%")
+    print(
+        f"Average Profit Long From All Positions: {round(100 * round(float(avg_profit_long_all), 5), 2)}%"
+    )
+
+    success_shorts = []
+    unsuccess_shorts = []
+    [success_shorts.append(short) for short in profit_short if short > 0]
+    [unsuccess_shorts.append(short) for short in profit_short if short < 0]
+    avg_profit_short_success = (
+        (sum(success_shorts) / len(success_shorts)) if len(success_shorts) > 0 else 0
+    )
+    avg_loss_short = (
+        (sum(unsuccess_shorts) / len(unsuccess_shorts))
+        if len(unsuccess_shorts) > 0
+        else 0
+    )
+    print(
+        f"Shorts! \nTotal: {len(profit_short)}\nSuccessful shorts: {len(success_shorts)}"
+    )
+    print(f"Unsuccessful shorts: {len(unsuccess_shorts)}")
+    print(
+        f"Average Profit Short From Successful Positions: {round(100 * round(float(avg_profit_short_success), 5), 2)}%"
+    )
+    print(f"Average Loss: {round(100 * round(float(avg_loss_short), 4), 2)}%")
+    print(
+        f"Average Profit Short From All Positions: {round(100 * round(float(avg_profit_short_all), 5), 2)}%"
+    )
+
+    plot_saldo(df=df)
+    plot_saldo_log(df=df)

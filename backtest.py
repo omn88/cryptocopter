@@ -1,7 +1,5 @@
 import indicators
 from dataclasses import dataclass
-import pandas as pd
-
 import lib
 
 
@@ -199,86 +197,6 @@ class Backtest:
             sellprices_short[-1] = new_price
             return new_position
 
-        def long_profit_calculate():
-            if len(self.buy_arr_long) > len(self.sell_arr_long):
-                self.buy_arr_long = self.buy_arr_long[:-1]
-
-            df_buy_long = pd.DataFrame(self.buy_arr_long, columns=["price"])
-            df_sell_long = pd.DataFrame(self.sell_arr_long, columns=["price"])
-
-            return (df_sell_long.values - df_buy_long.values) / df_buy_long.values
-
-        def short_profit_calculate():
-            if len(self.sell_arr_short) > len(self.buy_arr_short):
-                self.sell_arr_short = self.sell_arr_short[:-1]
-
-            df_buy_short = pd.DataFrame(self.buy_arr_short, columns=["price"])
-            df_sell_short = pd.DataFrame(self.sell_arr_short, columns=["price"])
-
-            return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
-
-        def show_statistics():
-            self.profit_long = long_profit_calculate()
-            self.profit_short = short_profit_calculate()
-
-            avg_profit_long_all = sum(self.profit_long) / len(self.profit_long)
-            avg_profit_short_all = sum(self.profit_short) / len(self.profit_short)
-
-            success_longs = []
-            unsuccess_longs = []
-            [success_longs.append(long) for long in self.profit_long if long > 0]
-            [unsuccess_longs.append(long) for long in self.profit_long if long < 0]
-
-            avg_profit_long_success = (
-                sum(success_longs) / len(success_longs) if len(success_longs) > 0 else 0
-            )
-            avg_loss_long = (
-                (sum(unsuccess_longs) / len(unsuccess_longs))
-                if len(unsuccess_longs) > 0
-                else 0
-            )
-
-            print(
-                f"Longs! \nTotal: {len(self.profit_long)}\nSuccessful longs: {len(success_longs)}"
-            )
-            print(f"Unsuccessful longs: {len(unsuccess_longs)}")
-            print(
-                f"Average Profit Long From Successful Positions: {round(100 * round(float(avg_profit_long_success), 5), 2)}%"
-            )
-            print(f"Average Loss: {round(100 * round(float(avg_loss_long), 4), 2)}%")
-            print(
-                f"Average Profit Long From All Positions: {round(100 * round(float(avg_profit_long_all), 5), 2)}%"
-            )
-
-            success_shorts = []
-            unsuccess_shorts = []
-            [success_shorts.append(short) for short in self.profit_short if short > 0]
-            [unsuccess_shorts.append(short) for short in self.profit_short if short < 0]
-            avg_profit_short_success = (
-                (sum(success_shorts) / len(success_shorts))
-                if len(success_shorts) > 0
-                else 0
-            )
-            avg_loss_short = (
-                (sum(unsuccess_shorts) / len(unsuccess_shorts))
-                if len(unsuccess_shorts) > 0
-                else 0
-            )
-            print(
-                f"Shorts! \nTotal: {len(self.profit_short)}\nSuccessful shorts: {len(success_shorts)}"
-            )
-            print(f"Unsuccessful shorts: {len(unsuccess_shorts)}")
-            print(
-                f"Average Profit Short From Successful Positions: {round(100 * round(float(avg_profit_short_success), 5), 2)}%"
-            )
-            print(f"Average Loss: {round(100 * round(float(avg_loss_short), 4), 2)}%")
-            print(
-                f"Average Profit Short From All Positions: {round(100 * round(float(avg_profit_short_all), 5), 2)}%"
-            )
-
-            lib.plot_saldo(df=self.df)
-            lib.plot_saldo_log(df=self.df)
-
         for index, row in self.df.iterrows():
 
             self.df.at[index, "Saldo"] = self.saldo
@@ -383,15 +301,15 @@ class Backtest:
                     sell_price, dca_orders, position = short_position_open()
                     short_position = True
 
-        self.buy_arr_long = buyprices_long
-        self.sell_arr_long = sellprices_long
-
-        self.buy_arr_short = buyprices_short
-        self.sell_arr_short = sellprices_short
-
         print(f"Saldo to {round(self.saldo, 2)}")
 
-        show_statistics()
+        lib.show_statistics(
+            df=self.df,
+            buy_arr_long=buyprices_long,
+            sell_arr_long=sellprices_long,
+            buy_arr_short=buyprices_short,
+            sell_arr_short=sellprices_short,
+        )
 
     # def plot_chart(self):
     #     plt.figure(figsize=(10, 5))
@@ -414,4 +332,3 @@ class Backtest:
 
 
 instance = Backtest(symbol="BTCUSDT")
-# instance.plot_chart()
