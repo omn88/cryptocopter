@@ -331,12 +331,12 @@ def short_position_close(
     saldo: float,
 ) -> float:
     net = round((sellprices_short[-1] - buy_price), 2)
-    net_percent = round(100 * round((sellprices_short[-1] / buy_price - 1), 4), 2)
+    net_percent = round((sellprices_short[-1] / buy_price - 1), 4)
     print(
-        f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {net_percent}%"
+        f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {100 * net_percent}%"
     )
 
-    real_earn = round((position.quantity * leverage / buy_price) * net, 2)
+    real_earn = round((position.quantity * leverage * net_percent), 2)
     saldo = round(saldo + real_earn, 2)
 
     print(
@@ -355,12 +355,12 @@ def long_position_close(
     saldo: float,
 ) -> float:
     net = round((sell_price - buyprices_long[-1]), 2)
-    net_percent = round(100 * round((sell_price / buyprices_long[-1] - 1), 4), 2)
+    net_percent = round((sell_price / buyprices_long[-1] - 1), 4)
     print(
-        f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {net_percent}%"
+        f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {100 * net_percent}%"
     )
 
-    real_earn = round((position.quantity * leverage / sell_price) * net, 2)
+    real_earn = round((position.quantity * leverage * net_percent), 2)
     saldo = round(saldo + real_earn, 2)
 
     print(

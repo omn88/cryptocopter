@@ -15,7 +15,7 @@ class Backtest:
         self.df = lib.get_historical_data(
             symbol=self.symbol,
             interval="15m",
-            lookback="2112000",  # 44000 is approximately one month
+            lookback="528000",  # 44000 is approximately one month
         )
         if self.df.empty:
             print("No data pulled")
