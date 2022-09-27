@@ -1,12 +1,19 @@
 from typing import Optional, List, Tuple
-
+from dataclasses import dataclass
 import btalib as ta
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def calc_indicators(df):
+@dataclass
+class Order:
+    price: float
+    quantity: float
+    status: str = "NEW"
+
+
+def calc_indicators(df: pd.DataFrame) -> None:
     rsi = ta.rsi(df, period=14)
     df["RSI"] = rsi.df
     df["RSIbTwenty"] = np.where(df["RSI"] < 20, 1, 0)
@@ -25,7 +32,7 @@ def calc_indicators(df):
     df.dropna(inplace=True)
 
 
-def generate_signals(df):
+def generate_signals(df: pd.DataFrame):
     conditions = [
         (df.RSIbTwenty.diff() == -1)
         | (df.RSIbThirty.diff() == 0) & (df.RSIbThirty.diff(periods=2) == -1),
@@ -73,6 +80,16 @@ def order_quantity_list_prepare(
             8000,
             9000,
             10000,
+            12500,
+            15000,
+            17500,
+            20000,
+            25000,
+            30000,
+            35000,
+            40000,
+            45000,
+            50000,
         ]
         if order_values is None
         else order_values
@@ -90,13 +107,13 @@ def order_quantity_list_prepare(
     return ovc
 
 
-def order_quantity_check(ovc: pd.DataFrame, saldo: float) -> float:
+def order_quantity_check(ovc: pd.DataFrame, saldo: float, index: str) -> float:
     index_list = []
 
     [index_list.append(thrshld) for thrshld in ovc.threshold if saldo > thrshld]
 
     selected_order_value = ovc.order_value[len(index_list) - 1]
-    # print(f"{index}: Selected new order value: {selected_order_value}")
+    print(f"{index}: Selected new order value: {selected_order_value}")
     order_quantity = selected_order_value
 
     return order_quantity
@@ -127,6 +144,14 @@ def plot_saldo_log(df: pd.DataFrame):
     plt.plot(df.Saldo)
     plt.yscale("log")
     plt.show()
+
+
+# def plot_price_and_rsi(df: pd.DataFrame):
+#     plt.figure(num=1, figsize=(10, 5))
+#     plt.plot(df.Saldo)
+#     plt.figure(num=2, figsize=(10, 5))
+#     plt.plot(df.RSI)
+#     plt.show()
 
 
 def long_profit_calculate(buy_arr_long, sell_arr_long):
@@ -210,3 +235,179 @@ def show_statistics(
 
     plot_saldo(df=df)
     plot_saldo_log(df=df)
+    # plot_price_and_rsi(df=df)
+
+
+def long_position_open(
+    buy_price: float,
+    buyprices_long: List[float],
+    saldo: float,
+    ovc: pd.DataFrame,
+    leverage: int,
+    number_of_dca_orders: int,
+    index: str,
+    mode: str = "DCA",
+) -> Tuple[List[Order], Order, float, float, float]:
+    buyprices_long.append(buy_price)
+    order_quantity = order_quantity_check(saldo=saldo, ovc=ovc, index=index)
+    target_price, depo_price = target_depo_price_calculate(
+        "LONG", price=buy_price, leverage=leverage
+    )
+    if mode == "DCA":
+        print(f"{index}: Long opened at price {buy_price}, depo is {depo_price}")
+        position = Order(price=buy_price, quantity=order_quantity)
+        dca_orders = [
+            Order(
+                price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
+                quantity=order_quantity,
+            )
+            for order in range(number_of_dca_orders)
+        ]
+    else:
+        position = Order(
+            price=buy_price,
+            quantity=(number_of_dca_orders + 1) * order_quantity,
+        )
+        dca_orders = []
+        print(
+            f"{index}: Long opened in FULL mode. Price: {position.price}, depo: {depo_price}, quantity: {position.quantity}"
+        )
+
+    return dca_orders, position, target_price, depo_price, order_quantity
+
+
+def short_position_open(
+    sell_price: float,
+    sellprices_short: List[float],
+    saldo: float,
+    ovc: pd.DataFrame,
+    leverage: int,
+    index: str,
+    number_of_dca_orders: int,
+    mode: str = "DCA",
+) -> Tuple[List[Order], Order, float, float, float]:
+    sellprices_short.append(sell_price)
+    order_quantity = order_quantity_check(saldo=saldo, ovc=ovc, index=index)
+    target_price, depo_price = target_depo_price_calculate(
+        side="SHORT", price=sell_price, leverage=leverage
+    )
+    if mode == "DCA":
+        print(f"{index}: Short opened. Price: {sell_price}, depo: {depo_price}")
+        position = Order(price=sell_price, quantity=order_quantity)
+        dca_orders = [
+            Order(
+                price=round((sell_price + (0.005 * (order + 1) * sell_price)), 2),
+                quantity=order_quantity,
+            )
+            for order in range(number_of_dca_orders)
+        ]
+    else:
+        position = Order(
+            price=sell_price,
+            status="OPEN",
+            quantity=(number_of_dca_orders + 1) * order_quantity,
+        )
+        dca_orders = []
+        print(
+            f"{index}: Short opened in FULL mode. Price: {position.price}, depo: {depo_price}, quantity: {position.quantity}"
+        )
+
+    return dca_orders, position, target_price, depo_price, order_quantity
+
+
+def short_position_close(
+    buy_price: float,
+    buyprices_short: List[float],
+    sellprices_short: List[float],
+    index: str,
+    position: Order,
+    leverage: int,
+    saldo: float,
+):
+    buyprices_short.append(buy_price)
+    net = round((sellprices_short[-1] - buy_price), 2)
+    net_percent = round(100 * round((sellprices_short[-1] / buy_price - 1), 4), 2)
+    print(
+        f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {net_percent}%"
+    )
+
+    real_earn = round((position.quantity * leverage / buy_price) * net, 2)
+    saldo = round(saldo + real_earn, 2)
+
+    print(
+        f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
+    )
+
+    return saldo, buyprices_short
+
+
+def long_position_close(
+    sell_price: float,
+    sellprices_long: List[float],
+    buyprices_long: List[float],
+    index: str,
+    position: Order,
+    leverage: int,
+    saldo: float,
+):
+    sellprices_long.append(sell_price)
+    net = round((sell_price - buyprices_long[-1]), 2)
+    net_percent = round(100 * round((sell_price / buyprices_long[-1] - 1), 4), 2)
+    print(
+        f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {net_percent}%"
+    )
+
+    real_earn = round((position.quantity * leverage / sell_price) * net, 2)
+    saldo = round(saldo + real_earn, 2)
+
+    print(
+        f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
+    )
+
+    return saldo, sellprices_long
+
+
+def long_position_recalculate(
+    position: Order,
+    order_quantity: float,
+    order: Order,
+    leverage: int,
+    index: str,
+    buyprices_long: List[float],
+):
+    new_quantity = position.quantity + order_quantity
+    new_price = (
+        position.price * position.quantity + order.price * order_quantity
+    ) / new_quantity
+    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    target_price, depo_price = target_depo_price_calculate(
+        side="LONG", price=new_price, leverage=leverage
+    )
+    print(
+        f"{index}: Added to long. Price: {round(order.price, 2)}, new buy price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
+    )
+    buyprices_long[-1] = new_price
+    return new_position, target_price, depo_price, buyprices_long
+
+
+def short_position_recalculate(
+    position: Order,
+    order_quantity: float,
+    order: Order,
+    leverage: int,
+    index: str,
+    sellprices_short: List[float],
+):
+    new_quantity = position.quantity + order_quantity
+    new_price = (
+        position.price * position.quantity + order.price * order_quantity
+    ) / new_quantity
+    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    target_price, depo_price = target_depo_price_calculate(
+        "SHORT", price=new_price, leverage=leverage
+    )
+    print(
+        f"{index}: Added to short. Price: {round(order.price, 2)}, new sell price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
+    )
+    sellprices_short[-1] = new_price
+    return new_position, target_price, depo_price, sellprices_short
