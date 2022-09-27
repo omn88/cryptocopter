@@ -4,6 +4,13 @@ import btalib as ta
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import binance
+
+
+client = binance.Client(
+    api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
+    api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
+)
 
 
 @dataclass
@@ -11,6 +18,20 @@ class Order:
     price: float
     quantity: float
     status: str = "NEW"
+
+
+def get_historical_data(symbol, interval, lookback):
+    pd.Timedelta(hours=2)
+    frame = pd.DataFrame(
+        client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
+    )
+
+    frame = frame.iloc[:, :7]
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
+    frame = frame.set_index("Date")
+    frame.index = pd.to_datetime(frame.index, unit="ms") + np.timedelta64(2, "h")
+    frame = frame.astype(float)
+    return frame
 
 
 def calc_indicators(df: pd.DataFrame) -> None:
@@ -310,12 +331,12 @@ def short_position_close(
     saldo: float,
 ) -> float:
     net = round((sellprices_short[-1] - buy_price), 2)
-    net_percent = round(100 * round((sellprices_short[-1] / buy_price - 1), 4), 2)
+    net_percent = round((sellprices_short[-1] / buy_price - 1), 4)
     print(
-        f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {net_percent}%"
+        f"{index}: Short closed. Price {buy_price}, it's {net} USDT and {100 * net_percent}%"
     )
 
-    real_earn = round((position.quantity * leverage / buy_price) * net, 2)
+    real_earn = round((position.quantity * leverage * net_percent), 2)
     saldo = round(saldo + real_earn, 2)
 
     print(
@@ -334,12 +355,12 @@ def long_position_close(
     saldo: float,
 ) -> float:
     net = round((sell_price - buyprices_long[-1]), 2)
-    net_percent = round(100 * round((sell_price / buyprices_long[-1] - 1), 4), 2)
+    net_percent = round((sell_price / buyprices_long[-1] - 1), 4)
     print(
-        f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {net_percent}%"
+        f"{index}: Long closed. Price: {sell_price}, it's: {net} USDT and {100 * net_percent}%"
     )
 
-    real_earn = round((position.quantity * leverage / sell_price) * net, 2)
+    real_earn = round((position.quantity * leverage * net_percent), 2)
     saldo = round(saldo + real_earn, 2)
 
     print(
