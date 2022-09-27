@@ -32,7 +32,7 @@ def calc_indicators(df: pd.DataFrame) -> None:
     df.dropna(inplace=True)
 
 
-def generate_signals(df: pd.DataFrame):
+def generate_signals(df: pd.DataFrame) -> None:
     conditions = [
         (df.RSIbTwenty.diff() == -1)
         | (df.RSIbThirty.diff() == 0) & (df.RSIbThirty.diff(periods=2) == -1),
@@ -176,7 +176,7 @@ def short_profit_calculate(sell_arr_short, buy_arr_short):
 
 def show_statistics(
     df: pd.DataFrame, buy_arr_long, sell_arr_long, sell_arr_short, buy_arr_short
-):
+) -> None:
     profit_long = long_profit_calculate(
         buy_arr_long=buy_arr_long, sell_arr_long=sell_arr_long
     )
@@ -240,19 +240,12 @@ def show_statistics(
 
 def long_position_open(
     buy_price: float,
-    buyprices_long: List[float],
-    saldo: float,
-    ovc: pd.DataFrame,
-    leverage: int,
     number_of_dca_orders: int,
     index: str,
+    order_quantity,
+    depo_price: float,
     mode: str = "DCA",
-) -> Tuple[List[Order], Order, float, float, float]:
-    buyprices_long.append(buy_price)
-    order_quantity = order_quantity_check(saldo=saldo, ovc=ovc, index=index)
-    target_price, depo_price = target_depo_price_calculate(
-        "LONG", price=buy_price, leverage=leverage
-    )
+) -> Tuple[List[Order], Order]:
     if mode == "DCA":
         print(f"{index}: Long opened at price {buy_price}, depo is {depo_price}")
         position = Order(price=buy_price, quantity=order_quantity)
@@ -273,24 +266,17 @@ def long_position_open(
             f"{index}: Long opened in FULL mode. Price: {position.price}, depo: {depo_price}, quantity: {position.quantity}"
         )
 
-    return dca_orders, position, target_price, depo_price, order_quantity
+    return dca_orders, position
 
 
 def short_position_open(
     sell_price: float,
-    sellprices_short: List[float],
-    saldo: float,
-    ovc: pd.DataFrame,
-    leverage: int,
+    depo_price: float,
     index: str,
     number_of_dca_orders: int,
+    order_quantity: float,
     mode: str = "DCA",
-) -> Tuple[List[Order], Order, float, float, float]:
-    sellprices_short.append(sell_price)
-    order_quantity = order_quantity_check(saldo=saldo, ovc=ovc, index=index)
-    target_price, depo_price = target_depo_price_calculate(
-        side="SHORT", price=sell_price, leverage=leverage
-    )
+) -> Tuple[List[Order], Order]:
     if mode == "DCA":
         print(f"{index}: Short opened. Price: {sell_price}, depo: {depo_price}")
         position = Order(price=sell_price, quantity=order_quantity)
@@ -312,19 +298,17 @@ def short_position_open(
             f"{index}: Short opened in FULL mode. Price: {position.price}, depo: {depo_price}, quantity: {position.quantity}"
         )
 
-    return dca_orders, position, target_price, depo_price, order_quantity
+    return dca_orders, position
 
 
 def short_position_close(
     buy_price: float,
-    buyprices_short: List[float],
     sellprices_short: List[float],
     index: str,
     position: Order,
     leverage: int,
     saldo: float,
-):
-    buyprices_short.append(buy_price)
+) -> float:
     net = round((sellprices_short[-1] - buy_price), 2)
     net_percent = round(100 * round((sellprices_short[-1] / buy_price - 1), 4), 2)
     print(
@@ -338,19 +322,17 @@ def short_position_close(
         f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
     )
 
-    return saldo, buyprices_short
+    return saldo
 
 
 def long_position_close(
     sell_price: float,
-    sellprices_long: List[float],
     buyprices_long: List[float],
     index: str,
     position: Order,
     leverage: int,
     saldo: float,
-):
-    sellprices_long.append(sell_price)
+) -> float:
     net = round((sell_price - buyprices_long[-1]), 2)
     net_percent = round(100 * round((sell_price / buyprices_long[-1] - 1), 4), 2)
     print(
@@ -364,7 +346,7 @@ def long_position_close(
         f"{index}: Summary: quantity: {position.quantity}, leverage: {leverage}, earned: {real_earn}, new saldo is: {saldo}"
     )
 
-    return saldo, sellprices_long
+    return saldo
 
 
 def long_position_recalculate(
@@ -373,8 +355,7 @@ def long_position_recalculate(
     order: Order,
     leverage: int,
     index: str,
-    buyprices_long: List[float],
-):
+) -> Tuple[Order, float, float]:
     new_quantity = position.quantity + order_quantity
     new_price = (
         position.price * position.quantity + order.price * order_quantity
@@ -386,8 +367,7 @@ def long_position_recalculate(
     print(
         f"{index}: Added to long. Price: {round(order.price, 2)}, new buy price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
     )
-    buyprices_long[-1] = new_price
-    return new_position, target_price, depo_price, buyprices_long
+    return new_position, target_price, depo_price
 
 
 def short_position_recalculate(
@@ -396,8 +376,7 @@ def short_position_recalculate(
     order: Order,
     leverage: int,
     index: str,
-    sellprices_short: List[float],
-):
+) -> Tuple[Order, float, float]:
     new_quantity = position.quantity + order_quantity
     new_price = (
         position.price * position.quantity + order.price * order_quantity
@@ -409,5 +388,4 @@ def short_position_recalculate(
     print(
         f"{index}: Added to short. Price: {round(order.price, 2)}, new sell price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
     )
-    sellprices_short[-1] = new_price
-    return new_position, target_price, depo_price, sellprices_short
+    return new_position, target_price, depo_price
