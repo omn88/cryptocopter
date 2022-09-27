@@ -4,6 +4,13 @@ import btalib as ta
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import binance
+
+
+client = binance.Client(
+    api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
+    api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
+)
 
 
 @dataclass
@@ -11,6 +18,20 @@ class Order:
     price: float
     quantity: float
     status: str = "NEW"
+
+
+def get_historical_data(symbol, interval, lookback):
+    pd.Timedelta(hours=2)
+    frame = pd.DataFrame(
+        client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
+    )
+
+    frame = frame.iloc[:, :7]
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
+    frame = frame.set_index("Date")
+    frame.index = pd.to_datetime(frame.index, unit="ms") + np.timedelta64(2, "h")
+    frame = frame.astype(float)
+    return frame
 
 
 def calc_indicators(df: pd.DataFrame) -> None:

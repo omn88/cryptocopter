@@ -1,35 +1,8 @@
-import asyncio
 import time
-
-import binance
 import logging
 import btalib as ta
-import pandas as pd
 import numpy as np
-
-client = binance.Client(
-    api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
-    api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
-)
-
-
-def get_historical_data(symbol, interval, lookback):
-    pd.Timedelta(hours=2)
-    frame = pd.DataFrame(
-        client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
-    )
-
-    frame = frame.iloc[:, :7]
-    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    frame = frame.set_index("Date")
-    frame.index = pd.to_datetime(frame.index, unit="ms") + np.timedelta64(2, "h")
-    frame = frame.astype(float)
-    return frame
-
-
-# df = get_historical_data("BTCUSDT", "15m", "1440")
-#
-# print(df)
+import lib
 
 
 def apply_rsi(df, period):
@@ -53,7 +26,7 @@ def rsi_based_futures(
     symbol: str = "BTCUSDT", period=14, interval: str = "15m", lookback: str = "6720"
 ):
 
-    df = get_historical_data(symbol=symbol, interval=interval, lookback=lookback)
+    df = lib.get_historical_data(symbol=symbol, interval=interval, lookback=lookback)
     df = apply_rsi(df=df, period=period)
     # df = apply_macd(df=df)
 
@@ -95,7 +68,7 @@ def rsi_based_futures(
 
     while long_position:
         time.sleep(15)
-        df = get_historical_data(symbol=symbol, interval=interval, lookback=1)
+        df = lib.get_historical_data(symbol=symbol, interval=interval, lookback=1)
         logging.info(f"Current close {df.Close.iloc[-1]}")
         logging.info(f"Current margin {margin}")
         logging.info(f"Target RSI reached? {df.RSISell.iloc[-1]}")
@@ -116,7 +89,7 @@ def rsi_based_futures(
 
     while short_position:
         time.sleep(15)
-        df = get_historical_data(symbol=symbol, interval=interval, lookback=1)
+        df = lib.get_historical_data(symbol=symbol, interval=interval, lookback=1)
         logging.info(f"Current close {df.Close.iloc[-1]}")
         logging.info(f"Current margin {margin}")
         logging.info(f"Target RSI reached? {df.RSIBuy.iloc[-1]}")

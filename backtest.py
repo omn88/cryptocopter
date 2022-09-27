@@ -1,4 +1,3 @@
-import indicators
 import lib
 
 
@@ -13,10 +12,10 @@ class Backtest:
         self.total_profit = 0
         self.depo_price = 0
         self.target_price = 0
-        self.df = indicators.get_historical_data(
+        self.df = lib.get_historical_data(
             symbol=self.symbol,
             interval="15m",
-            lookback="528000",  # 44000 is approximately one month
+            lookback="2112000",  # 44000 is approximately one month
         )
         if self.df.empty:
             print("No data pulled")
@@ -28,7 +27,8 @@ class Backtest:
 
     def loop_it(self):
         print(
-            f"{self.df.index[0]}: Start looping over rows, starting with {self.saldo} USDT, single order quantity: {self.order_quantity}, leverage: {self.leverage}"
+            f"{self.df.index[0]}: Start looping over rows, starting with {self.saldo} USDT, "
+            f"single order quantity: {self.order_quantity}, leverage: {self.leverage}"
         )
         long_position = False
         short_position = False
@@ -110,7 +110,8 @@ class Backtest:
                     net = round((self.depo_price - buy_price), 2)
                     self.saldo = round(self.saldo - position.quantity, 2)
                     print(
-                        f"{index}: your long has been stopped at price {self.depo_price}, difference of {net} USDT, you've lost {position.quantity}, new saldo is: {self.saldo}"
+                        f"{index}: your long has been stopped at price {self.depo_price}, difference of {net} USDT, "
+                        f"you've lost {position.quantity}, new saldo is: {self.saldo}"
                     )
                     sellprices_long.append(self.depo_price)
 
@@ -119,7 +120,8 @@ class Backtest:
                     net = round((self.target_price - buy_price), 2)
                     self.saldo += position.quantity
                     print(
-                        f"{index}: target of {100 / self.leverage}% reached at price {self.target_price}, difference of {net} USDT, you've earned {position.quantity}, new saldo is: {self.saldo}"
+                        f"{index}: target of {100 / self.leverage}% reached at price {self.target_price}, "
+                        f"difference of {net} USDT, you've earned {position.quantity}, new saldo is: {self.saldo}"
                     )
                     sellprices_long.append(self.target_price)
 
@@ -156,7 +158,8 @@ class Backtest:
 
                 if long_position and row["RSI"] < 18:
                     print(
-                        f"{index}: Condition for Special Short triggered! Closing Long immediately and opening Special Short"
+                        f"{index}: Condition for Special Short triggered! Closing Long immediately "
+                        f"and opening Special Short"
                     )
                     sell_price = row["Open"]
                     sellprices_long.append(sell_price)
@@ -212,7 +215,8 @@ class Backtest:
                     net = round((sell_price - self.depo_price), 2)
                     self.saldo = round(self.saldo - position.quantity, 2)
                     print(
-                        f"{index}: your short has been stopped at price {self.depo_price}, difference of {net} USDT, but you've lost {position.quantity}, new saldo is: {self.saldo}"
+                        f"{index}: your short has been stopped at price {self.depo_price}, difference of {net} USDT, "
+                        f"but you've lost {position.quantity}, new saldo is: {self.saldo}"
                     )
                     buyprices_short.append(self.depo_price)
 
@@ -221,7 +225,8 @@ class Backtest:
                     net = round((sell_price - self.target_price), 2)
                     self.saldo += position.quantity
                     print(
-                        f"{index}: target of {100 / self.leverage}% reached at price {self.target_price}, difference of {net} USDT, you've earned {position.quantity}, new saldo is: {self.saldo}"
+                        f"{index}: target of {100 / self.leverage}% reached at price {self.target_price}, "
+                        f"difference of {net} USDT, you've earned {position.quantity}, new saldo is: {self.saldo}"
                     )
                     buyprices_short.append(self.target_price)
 
@@ -258,7 +263,8 @@ class Backtest:
 
                 if short_position and row["RSI"] > 82:
                     print(
-                        f"{index}: Condition for Special Long triggered! Closing Short immediately and opening Special Long"
+                        f"{index}: Condition for Special Long triggered! Closing Short immediately "
+                        f"and opening Special Long"
                     )
                     buy_price = row["Open"]
                     buyprices_short.append(buy_price)
