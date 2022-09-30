@@ -1,6 +1,22 @@
-# symbol = 'BTCUSDT'
-# interval = '15m'
-# lookback = '528000'
+from src.lib import get_historical_data
+import binance
+import json
+import pandas
+import mock
+
+@mock.patch("binance.Client")
+def test_get_historical_data(mock_binance_Client):
+    # WIP
+    # with open("tests\data\historical_short.txt") as file: 
+    #     mock_binance_Client.return_value = json.load(file)
+    # one_year='528000'
+    historical_data = get_historical_data(symbol='BTCUSDT', interval='15m', lookback='4000')
+    # WIP
+    # I don't know why 267
+    assert len(historical_data) == 267
+    assert isinstance(historical_data, pandas.DataFrame)
+    assert historical_data is not None
+
 
 # (Pdb) frame.values[14]
 # array([1632814200000, '41857.68000000', '41950.74000000',

@@ -22,10 +22,8 @@ class Order:
 
 def get_historical_data(symbol, interval, lookback):
     pd.Timedelta(hours=2)
-    frame = pd.DataFrame(
-        client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
-    )
-
+    historical_data = client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
+    frame = pd.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
     frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
     frame = frame.set_index("Date")
