@@ -7,12 +7,6 @@ import matplotlib.pyplot as plt
 import binance
 
 
-client = binance.Client(
-    api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
-    api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
-)
-
-
 @dataclass
 class Order:
     price: float
@@ -21,6 +15,10 @@ class Order:
 
 
 def get_historical_data(symbol, interval, lookback):
+    client = binance.Client(
+        api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
+        api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
+    )
     pd.Timedelta(hours=2)
     historical_data = client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
     frame = pd.DataFrame(historical_data)

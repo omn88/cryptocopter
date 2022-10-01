@@ -1,19 +1,19 @@
+# from src.lib import get_historical_data
 from src.lib import get_historical_data
 import binance
 import json
 import pandas
-import mock
+from unittest.mock import patch
 
-@mock.patch("binance.Client")
-def test_get_historical_data(mock_binance_Client):
-    # WIP
-    # with open("tests\data\historical_short.txt") as file: 
-    #     mock_binance_Client.return_value = json.load(file)
+@patch("binance.Client.get_historical_klines", return_value=None)
+def test_get_historical_data(mock_get_historical_klines):
+    with open("tests/data/historical_short.json") as file:
+        mock_get_historical_klines.return_value = json.load(file)
+
     # one_year='528000'
     historical_data = get_historical_data(symbol='BTCUSDT', interval='15m', lookback='4000')
-    # WIP
-    # I don't know why 267
-    assert len(historical_data) == 267
+    assert mock_get_historical_klines.called
+    assert len(historical_data) == 15
     assert isinstance(historical_data, pandas.DataFrame)
     assert historical_data is not None
 
