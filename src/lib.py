@@ -1,9 +1,9 @@
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
-import btalib as ta
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
+import btalib
+import numpy
+import pandas
+from matplotlib import pyplot
 import binance
 
 
@@ -19,37 +19,37 @@ def get_historical_data(symbol, interval, lookback):
         api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
         api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
     )
-    pd.Timedelta(hours=2)
+    pandas.Timedelta(hours=2)
     historical_data = client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
-    frame = pd.DataFrame(historical_data)
+    frame = pandas.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
     frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
     frame = frame.set_index("Date")
-    frame.index = pd.to_datetime(frame.index, unit="ms") + np.timedelta64(2, "h")
+    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(2, "h")
     frame = frame.astype(float)
     return frame
 
 
-def calc_indicators(df: pd.DataFrame) -> None:
-    rsi = ta.rsi(df, period=14)
+def calc_indicators(df: pandas.DataFrame) -> None:
+    rsi = btalib.rsi(df, period=14)
     df["RSI"] = rsi.df
-    df["RSIbTwenty"] = np.where(df["RSI"] < 20, 1, 0)
-    df["RSIbThirty"] = np.where(df["RSI"] < 30, 1, 0)
-    df["RSIaSeventy"] = np.where(df["RSI"] > 70, 1, 0)
-    df["RSIaEighty"] = np.where(df["RSI"] > 80, 1, 0)
-    df["RSIBuyTw"] = np.where(df.RSIbTwenty.diff() == -1, 1, 0)
-    df["RSIBuy"] = np.where(df.RSIbThirty.diff() == 0, 1, 0) & np.where(
+    df["RSIbTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
+    df["RSIbThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
+    df["RSIaSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
+    df["RSIaEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
+    df["RSIBuyTw"] = numpy.where(df.RSIbTwenty.diff() == -1, 1, 0)
+    df["RSIBuy"] = numpy.where(df.RSIbThirty.diff() == 0, 1, 0) & numpy.where(
         df.RSIbThirty.diff(periods=2) == -1, 1, 0
     )
-    df["RSISell"] = np.where(df.RSIaSeventy.diff() == 0, 1, 0) & np.where(
+    df["RSISell"] = numpy.where(df.RSIaSeventy.diff() == 0, 1, 0) & numpy.where(
         df.RSIaSeventy.diff(periods=2) == -1, 1, 0
     )
-    df["RSISellEi"] = np.where(df.RSIaEighty.diff() == -1, 1, 0)
+    df["RSISellEi"] = numpy.where(df.RSIaEighty.diff() == -1, 1, 0)
     df["Saldo"] = 0
     df.dropna(inplace=True)
 
 
-def generate_signals(df: pd.DataFrame) -> None:
+def generate_signals(df: pandas.DataFrame) -> None:
     conditions = [
         (df.RSIbTwenty.diff() == -1)
         | (df.RSIbThirty.diff() == 0) & (df.RSIbThirty.diff(periods=2) == -1),
@@ -58,7 +58,7 @@ def generate_signals(df: pd.DataFrame) -> None:
     ]
 
     choices = ["Buy", "Sell"]
-    df["signal"] = np.select(conditions, choices)
+    df["signal"] = numpy.select(conditions, choices)
     df.signal = df.signal.shift()
     df.dropna(inplace=True)
 
@@ -67,7 +67,7 @@ def order_quantity_list_prepare(
     number_of_dca_orders: int = 3,
     order_values: Optional[List[float]] = None,
     losses_per_level: int = 4,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     order_values = (
         [
             12.5,
@@ -113,8 +113,8 @@ def order_quantity_list_prepare(
     )
 
     # OVC stands for order value calculator
-    ovc = pd.DataFrame(order_values, columns=["order_value"])
-    ovc.set_index(pd.Index([i for i in range(len(order_values))]))
+    ovc = pandas.DataFrame(order_values, columns=["order_value"])
+    ovc.set_index(pandas.Index([i for i in range(len(order_values))]))
     ovc["sum_of_all_losses"] = (
         ovc.order_value * (number_of_dca_orders + 1) * losses_per_level
     )
@@ -124,7 +124,7 @@ def order_quantity_list_prepare(
     return ovc
 
 
-def order_quantity_check(ovc: pd.DataFrame, saldo: float, index: str) -> float:
+def order_quantity_check(ovc: pandas.DataFrame, saldo: float, index: str) -> float:
     index_list = []
 
     [index_list.append(thrshld) for thrshld in ovc.threshold if saldo > thrshld]
@@ -150,33 +150,33 @@ def target_depo_price_calculate(
         return target_price, depo_price
 
 
-def plot_saldo(df: pd.DataFrame):
-    plt.figure(figsize=(10, 5))
-    plt.plot(df.Saldo)
-    plt.show()
+def plot_saldo(df: pandas.DataFrame):
+    pyplot.figure(figsize=(10, 5))
+    pyplot.plot(df.Saldo)
+    pyplot.show()
 
 
-def plot_saldo_log(df: pd.DataFrame):
-    plt.figure(figsize=(10, 5))
-    plt.plot(df.Saldo)
-    plt.yscale("log")
-    plt.show()
+def plot_saldo_log(df: pandas.DataFrame):
+    pyplot.figure(figsize=(10, 5))
+    pyplot.plot(df.Saldo)
+    pyplot.yscale("log")
+    pyplot.show()
 
 
 # def plot_price_and_rsi(df: pd.DataFrame):
-#     plt.figure(num=1, figsize=(10, 5))
-#     plt.plot(df.Saldo)
-#     plt.figure(num=2, figsize=(10, 5))
-#     plt.plot(df.RSI)
-#     plt.show()
+#     pyplot.figure(num=1, figsize=(10, 5))
+#     pyplot.plot(df.Saldo)
+#     pyplot.figure(num=2, figsize=(10, 5))
+#     pyplot.plot(df.RSI)
+#     pyplot.show()
 
 
 def long_profit_calculate(buy_arr_long, sell_arr_long):
     if len(buy_arr_long) > len(sell_arr_long):
         buy_arr_long = buy_arr_long[:-1]
 
-    df_buy_long = pd.DataFrame(buy_arr_long, columns=["price"])
-    df_sell_long = pd.DataFrame(sell_arr_long, columns=["price"])
+    df_buy_long = pandas.DataFrame(buy_arr_long, columns=["price"])
+    df_sell_long = pandas.DataFrame(sell_arr_long, columns=["price"])
 
     return (df_sell_long.values - df_buy_long.values) / df_buy_long.values
 
@@ -185,14 +185,14 @@ def short_profit_calculate(sell_arr_short, buy_arr_short):
     if len(sell_arr_short) > len(buy_arr_short):
         sell_arr_short = sell_arr_short[:-1]
 
-    df_buy_short = pd.DataFrame(buy_arr_short, columns=["price"])
-    df_sell_short = pd.DataFrame(sell_arr_short, columns=["price"])
+    df_buy_short = pandas.DataFrame(buy_arr_short, columns=["price"])
+    df_sell_short = pandas.DataFrame(sell_arr_short, columns=["price"])
 
     return (df_sell_short.values - df_buy_short.values) / df_buy_short.values
 
 
 def show_statistics(
-    df: pd.DataFrame, buy_arr_long, sell_arr_long, sell_arr_short, buy_arr_short
+    df: pandas.DataFrame, buy_arr_long, sell_arr_long, sell_arr_short, buy_arr_short
 ) -> None:
     profit_long = long_profit_calculate(
         buy_arr_long=buy_arr_long, sell_arr_long=sell_arr_long
