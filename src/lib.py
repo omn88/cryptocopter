@@ -5,6 +5,7 @@ import numpy
 import pandas
 from matplotlib import pyplot
 import binance
+from decouple import config
 
 
 @dataclass
@@ -15,12 +16,11 @@ class Order:
 
 
 def get_historical_data(symbol, interval, lookback):
-    client = binance.Client(
-        api_key="oA6bheAMqRK8DGAKNnj2duGzIQepkOhhjz2OIJjgwRDVMbvF1uwuFOXhMA2Au8Lk",
-        api_secret="i1C5VVg6W17vHTo5rQ6FJqZaP0e6eXc9k9NYZh0sUq6lRb4yN6mj1CKSw9jLld84",
-    )
+    client = binance.Client(config("API_KEY"), config("API_SECRET"))
     pandas.Timedelta(hours=2)
-    historical_data = client.get_historical_klines(symbol, interval, lookback + "min ago UTC")
+    historical_data = client.get_historical_klines(
+        symbol, interval, lookback + "min ago UTC"
+    )
     frame = pandas.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
     frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
