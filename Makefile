@@ -4,15 +4,20 @@ SHELL=/bin/bash
 VIRTUALENV_PATH=.venv
 PYTHON=${VIRTUALENV_PATH}/bin/python
 
-prepare_venv:
+prepare_prod_venv:
 	@echo "Virtual env does not exist"
 	python3 -m venv ${VIRTUALENV_PATH}
-	${PYTHON} -m pip install -r requirements.txt
+
+prod_venv: prepare_prod_venv
+	${PYTHON} -m pip install -r requirements/production.txt
+
+develop_venv: prepare_prod_venv
+	${PYTHON} -m pip install -r requirements/develop.txt
 
 clean_pyc:
 	find . -not -path ".venv/*" -name "*.pyc" -exec rm -f {} \;
-	find . -type d -name "__pycache__" -exec rm -rf {} +;
-	find . -type d -name ".pytest_cache" -exec rm -rf {} +;
+	find . -not -path ".venv/*" -type d -name "__pycache__" -exec rm -rf {} +;
+	find . -not -path ".venv/*" -type d -name ".pytest_cache" -exec rm -rf {} +;
 
 clean_venv:
 	rm -rf ${VIRTUALENV_PATH}
