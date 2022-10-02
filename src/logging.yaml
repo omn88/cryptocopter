@@ -1,0 +1,46 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+    standard:
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    error:
+        format: "%(levelname)s <PID %(process)d:%(processName)s> %(name)s.%(funcName)s(): %(message)s"
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: DEBUG
+        formatter: standard
+        stream: ext://sys.stdout
+
+    file_handler:
+        class: logging.FileHandler
+        level: DEBUG
+        formatter: standard
+        filename: artifacts/info.log
+        encoding: utf8
+        mode: w
+
+root:
+    level: NOTSET
+    handlers: [console]
+    propagate: no
+
+loggers:
+    main:
+        level: DEBUG
+        handlers: [console, file_handler]
+        propagate: no
+    funcs:
+        level: DEBUG
+        handlers: [console, file_handler]
+        propagate: no
+    gui:
+        level: DEBUG
+        handlers: [ console, file_handler ]
+        propagate: no
+    socket:
+        level: DEBUG
+        handlers: [ console, file_handler ]
+        propagate: no
