@@ -1,4 +1,4 @@
-from src.lib import get_historical_data, calc_indicators
+from src.lib import get_historical_data, calc_indicators, order_quantity_list_prepare
 import json
 import pandas
 import numpy
@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 @patch("binance.Client.get_historical_klines")
 def test_get_historical_data(mock_get_historical_klines):
-    with open("tests/data/historical_data_form_socet_short_version.json") as file:
+    with open("tests/data/result_of_client.get_historical_klines.json") as file:
         mock_get_historical_klines.return_value = json.load(file)
 
     # one_year = '528000'
@@ -32,7 +32,7 @@ def test_calc_indicators():
     OpenInterest = []
 
     with open(
-        "tests/data/historical_data_after_get_historical_data_short_version.json"
+        "tests/data/result_of_lib.get_historical_data.json"
     ) as file:
         frames_historical_data = json.load(file)
 
@@ -63,7 +63,7 @@ def test_calc_indicators():
         "Close": 42140.98,
         "Volume": 251.21745,
         "OpenInterest": 1.632892e12,
-        "RSI":  numpy.float64(numpy.array([71.88830689226394], dtype=numpy.float64)),
+        "RSI": numpy.float64(numpy.array([71.88830689226394], dtype=numpy.float64)),
         "RSIbTwenty": 0,
         "RSIbThirty": 0,
         "RSIaSeventy": 1,
@@ -81,4 +81,37 @@ def test_calc_indicators():
 
     calc_indicators(historical_data)
 
-    assert expected.equals(historical_data) is True
+    pandas.testing.assert_frame_equal(historical_data, expected)
+
+
+def test_order_quantity_list_prepare():
+    expected_data = {
+        "order_value": [1.0],
+        "sum_of_all_losses": 16.0,
+        "threshold": 16.0,
+    }
+    expected_ovc = pandas.DataFrame(data=expected_data)
+
+    ovc = order_quantity_list_prepare(
+        number_of_dca_orders=3, order_values=[1.0], losses_per_level=4
+    )
+
+    pandas.testing.assert_frame_equal(
+        left=ovc,
+        right=expected_ovc,
+    )
+
+
+def test_order_quantity_list_prepare_default_values():
+    data_expected_boundaries = {
+        "order_value": [12.5, 3000.0, 50000.0],
+        "sum_of_all_losses": [200.0, 48000.0, 800000.0],
+        "threshold": [200.0, 88000.0, 1520000.0],
+    }
+    expected_ovc = pandas.DataFrame(data=data_expected_boundaries)
+    ovc = order_quantity_list_prepare()
+    min_ = (0, 0)
+    average = (18, 1)
+    max_ = (36, 2)
+    for index_ovc, index_expected_ovc in (min_, average, max_):
+        assert ovc.iloc[index_ovc].equals(expected_ovc.iloc[index_expected_ovc])
