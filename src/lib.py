@@ -129,9 +129,12 @@ def order_quantity_check(ovc: pandas.DataFrame, saldo: float, index: str) -> flo
 
     [index_list.append(thrshld) for thrshld in ovc.threshold if saldo > thrshld]
 
-    selected_order_value = ovc.order_value[len(index_list) - 1]
-    print(f"{index}: Selected new order value: {selected_order_value}")
-    order_quantity = selected_order_value
+    order_quantity = (
+        ovc.order_value[len(index_list) - 1]
+        if len(index_list) > 0
+        else ovc.order_value[0]
+    )
+    print(f"{index}: Selected new order value: {order_quantity}")
 
     return order_quantity
 
