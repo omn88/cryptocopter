@@ -11,6 +11,7 @@ from src.lib import (
     order_quantity_list_prepare,
     order_quantity_check,
     generate_signals,
+    target_depo_price_calculate,
 )
 
 
@@ -165,4 +166,26 @@ def test_order_quantity_check(saldo, order_quantity):
     ovc = order_quantity_list_prepare()
     assert order_quantity == order_quantity_check(
         ovc=ovc, saldo=saldo, index="2021-09-29 07:00:00"
+    )
+
+
+@pytest.mark.parametrize(
+    "side, price, leverage, target_price, depo_price",
+    [
+        ("LONG", 100, 25, 104, 96),
+        ("SHORT", 100, 25, 96, 104),
+        ("LONG", 100, 10, 110, 90),
+        ("SHORT", 100, 10, 90, 110),
+        ("LONG", 100, 5, 120, 80),
+        ("SHORT", 100, 5, 80, 120),
+        ("LONG", 100, 50, 102, 98),
+        ("SHORT", 100, 50, 98, 102),
+    ],
+)
+def test_target_depo_price_calculations(
+    side: str, price: float, leverage: int, target_price: float, depo_price: float
+):
+
+    assert target_price, depo_price == target_depo_price_calculate(
+        side=side, price=price, leverage=leverage
     )
