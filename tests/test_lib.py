@@ -22,7 +22,6 @@ def test_get_historical_data(mock_get_historical_klines):
 
 
 def test_calc_indicators():
-    frame_historical_data = None
     Date = []
     Open = []
     High = []
@@ -31,9 +30,7 @@ def test_calc_indicators():
     Volume = []
     OpenInterest = []
 
-    with open(
-        "tests/data/result_of_lib.get_historical_data.json"
-    ) as file:
+    with open("tests/data/result_of_lib.get_historical_data.json") as file:
         frames_historical_data = json.load(file)
 
     for date, open_, high, low, close, volume, open_interest in frames_historical_data:
@@ -115,3 +112,15 @@ def test_order_quantity_list_prepare_default_values():
     max_ = (36, 2)
     for index_ovc, index_expected_ovc in (min_, average, max_):
         assert ovc.iloc[index_ovc].equals(expected_ovc.iloc[index_expected_ovc])
+
+
+def test_rsi_calculations():
+    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_data = test_data.set_index("Date")
+
+    expected_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculated.csv")
+    expected_data = expected_data.set_index("Date")
+
+    calc_indicators(test_data)
+
+    pandas.testing.assert_frame_equal(test_data, expected_data)
