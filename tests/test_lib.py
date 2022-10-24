@@ -1,4 +1,9 @@
-from src.lib import get_historical_data, calc_indicators, order_quantity_list_prepare
+from src.lib import (
+    get_historical_data,
+    calc_indicators,
+    order_quantity_list_prepare,
+    generate_signals,
+)
 import json
 import pandas
 import numpy
@@ -122,5 +127,19 @@ def test_rsi_calculations():
     expected_data = expected_data.set_index("Date")
 
     calc_indicators(test_data)
+
+    pandas.testing.assert_frame_equal(test_data, expected_data)
+
+
+def test_rsi_signals_generation():
+    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculated.csv")
+    test_data = test_data.set_index("Date")
+
+    expected_data = pandas.read_csv(
+        "tests/data/sample_data_for_rsi_signals_generated.csv"
+    )
+    expected_data = expected_data.set_index("Date")
+
+    generate_signals(test_data)
 
     pandas.testing.assert_frame_equal(test_data, expected_data)
