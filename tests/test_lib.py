@@ -1,14 +1,17 @@
-from src.lib import (
-    get_historical_data,
-    calc_indicators,
-    order_quantity_list_prepare,
-    generate_signals,
-)
+import pytest
 import json
 import pandas
 import numpy
 
 from unittest.mock import patch
+
+from src.lib import (
+    get_historical_data,
+    calc_indicators,
+    order_quantity_list_prepare,
+    order_quantity_check,
+    generate_signals,
+)
 
 
 @patch("binance.Client.get_historical_klines")
@@ -143,3 +146,23 @@ def test_rsi_signals_generation():
     generate_signals(test_data)
 
     pandas.testing.assert_frame_equal(test_data, expected_data)
+
+
+@pytest.mark.parametrize(
+    "saldo, order_quantity",
+    [
+        (199.9, 12.5),
+        (200.1, 12.5),
+        (599.9, 12.5),
+        (600.1, 25),
+        (1359999.9, 40000),
+        (1360000.1, 45000),
+        (1519999.9, 45000),
+        (1520000.1, 50000),
+    ],
+)
+def test_order_quantity_check(saldo, order_quantity):
+    ovc = order_quantity_list_prepare()
+    assert order_quantity == order_quantity_check(
+        ovc=ovc, saldo=saldo, index="2021-09-29 07:00:00"
+    )
