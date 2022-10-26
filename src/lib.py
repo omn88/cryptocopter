@@ -310,7 +310,6 @@ def short_position_open(
     else:
         position = Order(
             price=sell_price,
-            status="OPEN",
             quantity=(number_of_dca_orders + 1) * order_quantity,
         )
         dca_orders = []
