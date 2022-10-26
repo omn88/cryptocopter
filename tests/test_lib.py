@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 
 import json
@@ -14,6 +16,8 @@ from src.lib import (
     generate_signals,
     target_depo_price_calculate,
     long_position_open,
+    long_position_close,
+    short_position_close,
     short_position_open,
     Order,
 )
@@ -301,3 +305,107 @@ def test_opening_position_short(
 
     assert test_dca_orders == dca_orders
     assert test_position == position
+
+
+@pytest.mark.parametrize(
+    "sell_price, buyprices_long, index, position, leverage, saldo, new_saldo",
+    [
+        (
+            11000,
+            [10000],
+            "2021-09-29 07:00:00",
+            Order(price=10000, quantity=100),
+            25,
+            3200,
+            3450,
+        ),
+        (
+            11000,
+            [10000],
+            "2021-09-29 07:00:00",
+            Order(price=10000, quantity=200),
+            50,
+            3200,
+            4200,
+        ),
+        (
+            9800,
+            [10000],
+            "2021-09-29 07:00:00",
+            Order(price=10000, quantity=100),
+            25,
+            3200,
+            3150,
+        ),
+    ],
+)
+def test_closing_position_long(
+    sell_price: float,
+    buyprices_long: List[float],
+    index: str,
+    position: Order,
+    leverage: int,
+    saldo: float,
+    new_saldo: float,
+):
+
+    assert new_saldo == long_position_close(
+        sell_price=sell_price,
+        buyprices_long=buyprices_long,
+        index=index,
+        position=position,
+        leverage=leverage,
+        saldo=saldo,
+    )
+
+
+@pytest.mark.parametrize(
+    "buy_price, sellprices_short, index, position, leverage, saldo, new_saldo",
+    [
+        (
+            10000,
+            [11000],
+            "2021-09-29 07:00:00",
+            Order(price=11000, quantity=100),
+            25,
+            3200,
+            3450,
+        ),
+        (
+            10000,
+            [11000],
+            "2021-09-29 07:00:00",
+            Order(price=11000, quantity=200),
+            50,
+            3200,
+            4200,
+        ),
+        (
+            10200,
+            [10000],
+            "2021-09-29 07:00:00",
+            Order(price=10000, quantity=100),
+            25,
+            3200,
+            3151,
+        ),
+    ],
+)
+def test_closing_position_short(
+    buy_price: float,
+    sellprices_short: List[float],
+    index: str,
+    position: Order,
+    leverage: int,
+    saldo: float,
+    new_saldo: float,
+):
+
+    assert new_saldo == short_position_close(
+        buy_price=buy_price,
+        sellprices_short=sellprices_short,
+        index=index,
+        position=position,
+        leverage=leverage,
+        saldo=saldo,
+    )
