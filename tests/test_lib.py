@@ -1,4 +1,5 @@
 import pytest
+
 import json
 import pandas
 import numpy
@@ -12,6 +13,9 @@ from src.lib import (
     order_quantity_check,
     generate_signals,
     target_depo_price_calculate,
+    long_position_open,
+    short_position_open,
+    Order,
 )
 
 
@@ -186,6 +190,114 @@ def test_target_depo_price_calculations(
     side: str, price: float, leverage: int, target_price: float, depo_price: float
 ):
 
-    assert target_price, depo_price == target_depo_price_calculate(
+    target, depo = target_depo_price_calculate(
         side=side, price=price, leverage=leverage
     )
+
+    assert (target, depo) == (target_price, depo_price)
+
+
+@pytest.mark.parametrize(
+    "buy_price, number_of_dca_orders, index, order_quantity, depo_price, mode, dca_orders, position",
+    [
+        (
+            10000,
+            3,
+            "2021-09-29 07:00:00",
+            100,
+            9600,
+            "DCA",
+            [
+                Order(price=9950, quantity=100),
+                Order(price=9900, quantity=100),
+                Order(price=9850, quantity=100),
+            ],
+            Order(price=10000, quantity=100),
+        ),
+        (
+            10000,
+            3,
+            "2021-09-29 07:00:00",
+            100,
+            9600,
+            "FULL",
+            [],
+            Order(price=10000, quantity=400),
+        ),
+    ],
+)
+def test_opening_position_long(
+    buy_price,
+    number_of_dca_orders,
+    index,
+    order_quantity,
+    depo_price,
+    mode,
+    dca_orders,
+    position,
+):
+
+    do, p = long_position_open(
+        buy_price=buy_price,
+        number_of_dca_orders=number_of_dca_orders,
+        index=index,
+        order_quantity=order_quantity,
+        depo_price=depo_price,
+        mode=mode,
+    )
+
+    assert do == dca_orders
+    assert p == position
+
+
+@pytest.mark.parametrize(
+    "sell_price, number_of_dca_orders, index, order_quantity, depo_price, mode, dca_orders, position",
+    [
+        (
+            10000,
+            3,
+            "2021-09-29 07:00:00",
+            100,
+            10400,
+            "DCA",
+            [
+                Order(price=10050, quantity=100),
+                Order(price=10100, quantity=100),
+                Order(price=10150, quantity=100),
+            ],
+            Order(price=10000, quantity=100),
+        ),
+        (
+            10000,
+            3,
+            "2021-09-29 07:00:00",
+            100,
+            10400,
+            "FULL",
+            [],
+            Order(price=10000, quantity=400),
+        ),
+    ],
+)
+def test_opening_position_short(
+    sell_price,
+    number_of_dca_orders,
+    index,
+    order_quantity,
+    depo_price,
+    mode,
+    dca_orders,
+    position,
+):
+
+    test_dca_orders, test_position = short_position_open(
+        sell_price=sell_price,
+        number_of_dca_orders=number_of_dca_orders,
+        index=index,
+        order_quantity=order_quantity,
+        depo_price=depo_price,
+        mode=mode,
+    )
+
+    assert test_dca_orders == dca_orders
+    assert test_position == position
