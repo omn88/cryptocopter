@@ -23,7 +23,11 @@ from src.lib import (
     Order,
 )
 
-from src.features import rsi_indicator_apply, rsi_signal_extended_generate, basic_rsi_signal_generate
+from src.features import (
+    rsi_indicator_apply,
+    rsi_signal_extended_generate,
+    rsi_signal_basic_generate,
+)
 
 
 @patch("binance.Client.get_historical_klines")
@@ -421,24 +425,56 @@ def test_basic_rsi_signal_generate():
     expected_data = pandas.read_csv("tests/data/signals_for_basic_rsi_generated.csv")
     expected_data = expected_data.set_index("Date")
 
-    rsi_applied = rsi_indicator_apply(df=test_data)
-    assert "RSI" in rsi_applied.columns
+    test_data = rsi_indicator_apply(df=test_data)
+    assert "RSI" in test_data.columns
 
-    signals_generated = basic_rsi_signal_generate(rsi_applied)
-    assert "RSIbelowThirty" in signals_generated.columns
-    assert "RSIaboveSeventy" in signals_generated.columns
-    assert "RSIBuy" in signals_generated.columns
-    assert "RSISell" in signals_generated.columns
+    test_data = rsi_signal_basic_generate(df=test_data)
+    assert "RSIbelowThirty" in test_data.columns
+    assert "RSIaboveSeventy" in test_data.columns
+    assert "RSIBuy" in test_data.columns
+    assert "RSISell" in test_data.columns
 
-    logging.info(f"{signals_generated.to_string()}")
+    f = open("tests/data/signals_for_basic_rsi_generated.csv", "w")
+    f.close()
+    test_data.to_csv("tests/data/signals_for_basic_rsi_generated.csv")
+    test_data_from_csv = pandas.read_csv(
+        "tests/data/signals_for_basic_rsi_generated.csv"
+    )
+    test_data_from_csv = test_data_from_csv.set_index("Date")
 
-    logging.info(f"{expected_data.to_string()}")
-
-    pandas.testing.assert_frame_equal(signals_generated, expected_data)
-
-    # signals_generated.to_csv("tests/data/signals_for_basic_rsi_generated.csv")
+    pandas.testing.assert_frame_equal(left=test_data_from_csv, right=expected_data)
+    assert test_data_from_csv.equals(expected_data)
 
 
+def test_rsi_signal_extended_generate():
+    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_data = test_data.set_index("Date")
 
-# def test_rsi_signal_extended_generate(df):
-#     pass
+    expected_data = pandas.read_csv("tests/data/signals_for_extended_rsi_generated.csv")
+    expected_data = expected_data.set_index("Date")
+
+    test_data = rsi_indicator_apply(df=test_data)
+    assert "RSI" in test_data.columns
+
+    test_data = rsi_signal_basic_generate(df=test_data)
+    assert "RSIbelowThirty" in test_data.columns
+    assert "RSIaboveSeventy" in test_data.columns
+    assert "RSIBuy" in test_data.columns
+    assert "RSISell" in test_data.columns
+
+    test_data = rsi_signal_extended_generate(df=test_data)
+    assert "RSIbelowTwenty" in test_data.columns
+    assert "RSIaboveEighty" in test_data.columns
+    assert "RSIBuyTwenty" in test_data.columns
+    assert "RSISellEighty" in test_data.columns
+
+    f = open("tests/data/signals_for_extended_rsi_generated.csv", "w")
+    f.close()
+    test_data.to_csv("tests/data/signals_for_extended_rsi_generated.csv")
+    test_data_from_csv = pandas.read_csv(
+        "tests/data/signals_for_extended_rsi_generated.csv"
+    )
+    test_data_from_csv = test_data_from_csv.set_index("Date")
+
+    pandas.testing.assert_frame_equal(left=test_data_from_csv, right=expected_data)
+    assert test_data_from_csv.equals(expected_data)

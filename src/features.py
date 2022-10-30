@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, auto
 import btalib
 import numpy
 import pandas
@@ -22,7 +22,7 @@ def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
     return df
 
 
-def basic_rsi_signal_generate(df: pandas.DataFrame) -> pandas.DataFrame:
+def rsi_signal_basic_generate(df: pandas.DataFrame) -> pandas.DataFrame:
     assert "RSI" in df.columns
 
     df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
@@ -42,22 +42,17 @@ def basic_rsi_signal_generate(df: pandas.DataFrame) -> pandas.DataFrame:
 
     signals = [Signals.LONG, Signals.SHORT]
     df["signal"] = numpy.select(conditions, signals)
+    df.dropna(inplace=True)
 
     return df
 
 
 def rsi_signal_extended_generate(df: pandas.DataFrame) -> pandas.DataFrame:
-    assert "RSI" in df.columns
-    assert "RSIbelowThirty" in df.columns
-    assert "RSIaboveSeventy" in df.columns
-    assert "RSIBuy" in df.columns
-    assert "RSISell" in df.columns
-
     df["RSIbelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
     df["RSIaboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
 
-    df["RSIBuyTwenty"] = numpy.where(df.RSIbTwenty.diff() == -1, 1, 0)
-    df["RSISellEighty"] = numpy.where(df.RSIaEighty.diff() == -1, 1, 0)
+    df["RSIBuyTwenty"] = numpy.where(df.RSIbelowTwenty.diff() == -1, 1, 0)
+    df["RSISellEighty"] = numpy.where(df.RSIaboveEighty.diff() == -1, 1, 0)
 
     conditions = [
         (df.RSIbelowThirty.diff() == 0) & (df.RSIbelowThirty.diff(periods=2) == -1),
