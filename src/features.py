@@ -28,11 +28,11 @@ def basic_rsi_signal_generate(df: pandas.DataFrame) -> pandas.DataFrame:
     df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
     df["RSIaboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
 
-    df["RSIBuy"] = numpy.where(df.RSIbThirty.diff() == 0, 1, 0) & numpy.where(
-        df.RSIbThirty.diff(periods=2) == -1, 1, 0
+    df["RSIBuy"] = numpy.where(df.RSIbelowThirty.diff() == 0, 1, 0) & numpy.where(
+        df.RSIbelowThirty.diff(periods=2) == -1, 1, 0
     )
-    df["RSISell"] = numpy.where(df.RSIaSeventy.diff() == 0, 1, 0) & numpy.where(
-        df.RSIaSeventy.diff(periods=2) == -1, 1, 0
+    df["RSISell"] = numpy.where(df.RSIaboveSeventy.diff() == 0, 1, 0) & numpy.where(
+        df.RSIaboveSeventy.diff(periods=2) == -1, 1, 0
     )
 
     conditions = [

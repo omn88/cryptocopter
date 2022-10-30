@@ -15,7 +15,7 @@ class Order:
     status: str = "NEW"
 
 
-def get_historical_data(symbol, interval, lookback):
+def get_historical_data(symbol, interval, lookback) -> pandas.DataFrame:
     client = binance.Client(config("API_KEY"), config("API_SECRET"))
     pandas.Timedelta(hours=2)
     historical_data = client.get_historical_klines(

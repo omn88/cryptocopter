@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 import pytest
@@ -21,6 +22,8 @@ from src.lib import (
     short_position_open,
     Order,
 )
+
+from src.features import rsi_indicator_apply, rsi_signal_extended_generate, basic_rsi_signal_generate
 
 
 @patch("binance.Client.get_historical_klines")
@@ -409,3 +412,33 @@ def test_closing_position_short(
         leverage=leverage,
         saldo=saldo,
     )
+
+
+def test_basic_rsi_signal_generate():
+    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_data = test_data.set_index("Date")
+
+    expected_data = pandas.read_csv("tests/data/signals_for_basic_rsi_generated.csv")
+    expected_data = expected_data.set_index("Date")
+
+    rsi_applied = rsi_indicator_apply(df=test_data)
+    assert "RSI" in rsi_applied.columns
+
+    signals_generated = basic_rsi_signal_generate(rsi_applied)
+    assert "RSIbelowThirty" in signals_generated.columns
+    assert "RSIaboveSeventy" in signals_generated.columns
+    assert "RSIBuy" in signals_generated.columns
+    assert "RSISell" in signals_generated.columns
+
+    logging.info(f"{signals_generated.to_string()}")
+
+    logging.info(f"{expected_data.to_string()}")
+
+    pandas.testing.assert_frame_equal(signals_generated, expected_data)
+
+    # signals_generated.to_csv("tests/data/signals_for_basic_rsi_generated.csv")
+
+
+
+# def test_rsi_signal_extended_generate(df):
+#     pass
