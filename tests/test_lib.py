@@ -474,7 +474,6 @@ def test_basic_rsi_signal_generate():
     ].copy()
 
     pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected)
-    assert test_data_shortened.equals(expected)
 
 
 def test_rsi_signal_extended_generate():
@@ -551,4 +550,3 @@ def test_rsi_signal_extended_generate():
     ].copy()
 
     pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected)
-    assert test_data_shortened.equals(expected)
