@@ -1,8 +1,5 @@
-import logging
 from typing import List
-
 import pytest
-
 import json
 import pandas
 import numpy
