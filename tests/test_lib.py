@@ -421,21 +421,74 @@ def test_basic_rsi_signal_generate():
     test_data = test_data.set_index("Date")
 
     expected_data = [
+        ["2022-10-18 10:30:00", 49.76, 0, 0, 0],
+        ["2022-10-18 10:45:00", 30.98, 0, 0, 0],
+        ["2022-10-18 11:00:00", 21.27, 1, 0, 0],
+        ["2022-10-18 11:15:00", 19.13, 1, 0, 0],
+        ["2022-10-18 11:30:00", 27.05, 1, 0, 0],
+        ["2022-10-18 11:45:00", 34.04, 0, 0, 0],
+        ["2022-10-18 12:00:00", 54.43, 0, 0, Signals.LONG],
+        ["2022-10-18 12:15:00", 66.42, 0, 0, 0],
+        ["2022-10-18 12:30:00", 74.24, 0, 1, 0],
+        ["2022-10-18 12:45:00", 82.86, 0, 1, 0],
+        ["2022-10-18 13:00:00", 70.23, 0, 1, 0],
+        ["2022-10-18 13:15:00", 62.05, 0, 0, 0],
+        ["2022-10-18 13:30:00", 70.39, 0, 1, 0],
+        ["2022-10-18 13:45:00", 54.61, 0, 0, 0],
+        ["2022-10-18 14:00:00", 48.25, 0, 0, Signals.SHORT],
+        ["2022-10-18 14:15:00", 54.02, 0, 0, 0],
+        ["2022-10-18 14:30:00", 51.93, 0, 0, 0],
+        ["2022-10-18 14:45:00", 46.42, 0, 0, 0],
+        ["2022-10-18 15:00:00", 46.16, 0, 0, 0],
+    ]
+
+    expected = pandas.DataFrame(data=expected_data)
+    expected = expected.iloc[:, :5]
+    expected.columns = [
+        "Date",
+        "RSI",
+        "RSIbelowThirty",
+        "RSIaboveSeventy",
+        "signal",
+    ]
+    expected = expected.set_index("Date")
+
+    test_data = rsi_indicator_apply(df=test_data)
+    assert "RSI" in test_data.columns
+    test_data.RSI = test_data.RSI.round(2)
+
+    test_data = rsi_signal_basic_generate(df=test_data)
+    assert "RSIbelowThirty" in test_data.columns
+    assert "RSIaboveSeventy" in test_data.columns
+    assert "signal" in test_data.columns
+
+    test_data_shortened = test_data[
+        ["RSI", "RSIbelowThirty", "RSIaboveSeventy", "signal"]
+    ].copy()
+
+    pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected, check_dtype=False)
+
+
+def test_rsi_signal_extended_generate():
+    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_data = test_data.set_index("Date")
+
+    expected_data = [
         ["2022-10-18 10:30:00", 49.76, 0, 0, 0, 0, 0],
         ["2022-10-18 10:45:00", 30.98, 0, 0, 0, 0, 0],
         ["2022-10-18 11:00:00", 21.27, 1, 0, 0, 0, 0],
-        ["2022-10-18 11:15:00", 19.13, 1, 0, 0, 0, 0],
-        ["2022-10-18 11:30:00", 27.05, 1, 0, 0, 0, 0],
+        ["2022-10-18 11:15:00", 19.13, 1, 0, 1, 0, 0],
+        ["2022-10-18 11:30:00", 27.05, 1, 0, 0, 0, Signals.LONG_20],
         ["2022-10-18 11:45:00", 34.04, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:00:00", 54.43, 0, 0, 1, 0, Signals.LONG],
+        ["2022-10-18 12:00:00", 54.43, 0, 0, 0, 0, Signals.LONG],
         ["2022-10-18 12:15:00", 66.42, 0, 0, 0, 0, 0],
         ["2022-10-18 12:30:00", 74.24, 0, 1, 0, 0, 0],
-        ["2022-10-18 12:45:00", 82.86, 0, 1, 0, 0, 0],
-        ["2022-10-18 13:00:00", 70.23, 0, 1, 0, 0, 0],
+        ["2022-10-18 12:45:00", 82.86, 0, 1, 0, 1, 0],
+        ["2022-10-18 13:00:00", 70.23, 0, 1, 0, 0, Signals.SHORT_80],
         ["2022-10-18 13:15:00", 62.05, 0, 0, 0, 0, 0],
         ["2022-10-18 13:30:00", 70.39, 0, 1, 0, 0, 0],
         ["2022-10-18 13:45:00", 54.61, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:00:00", 48.25, 0, 0, 0, 1, Signals.SHORT],
+        ["2022-10-18 14:00:00", 48.25, 0, 0, 0, 0, Signals.SHORT],
         ["2022-10-18 14:15:00", 54.02, 0, 0, 0, 0, 0],
         ["2022-10-18 14:30:00", 51.93, 0, 0, 0, 0, 0],
         ["2022-10-18 14:45:00", 46.42, 0, 0, 0, 0, 0],
@@ -449,69 +502,8 @@ def test_basic_rsi_signal_generate():
         "RSI",
         "RSIbelowThirty",
         "RSIaboveSeventy",
-        "RSIBuy",
-        "RSISell",
-        "signal",
-    ]
-    expected = expected.set_index("Date")
-
-    test_data = rsi_indicator_apply(df=test_data)
-    assert "RSI" in test_data.columns
-    test_data.RSI = test_data.RSI.round(2)
-
-    test_data = rsi_signal_basic_generate(df=test_data)
-    assert "RSIbelowThirty" in test_data.columns
-    assert "RSIaboveSeventy" in test_data.columns
-    assert "RSIBuy" in test_data.columns
-    assert "RSISell" in test_data.columns
-    assert "signal" in test_data.columns
-
-    test_data_shortened = test_data[
-        ["RSI", "RSIbelowThirty", "RSIaboveSeventy", "RSIBuy", "RSISell", "signal"]
-    ].copy()
-
-    pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected)
-
-
-def test_rsi_signal_extended_generate():
-    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_data = test_data.set_index("Date")
-
-    expected_data = [
-        ["2022-10-18 10:30:00", 49.76, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 10:45:00", 30.98, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 11:00:00", 21.27, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 11:15:00", 19.13, 1, 0, 0, 0, 1, 0, 0, 0, 0],
-        ["2022-10-18 11:30:00", 27.05, 1, 0, 0, 0, 0, 0, 1, 0, Signals.LONG_20],
-        ["2022-10-18 11:45:00", 34.04, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:00:00", 54.43, 0, 0, 1, 0, 0, 0, 0, 0, Signals.LONG],
-        ["2022-10-18 12:15:00", 66.42, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:30:00", 74.24, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:45:00", 82.86, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-        ["2022-10-18 13:00:00", 70.23, 0, 1, 0, 0, 0, 0, 0, 1, Signals.SHORT_80],
-        ["2022-10-18 13:15:00", 62.05, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 13:30:00", 70.39, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 13:45:00", 54.61, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:00:00", 48.25, 0, 0, 0, 1, 0, 0, 0, 0, Signals.SHORT],
-        ["2022-10-18 14:15:00", 54.02, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:30:00", 51.93, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:45:00", 46.42, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2022-10-18 15:00:00", 46.16, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ]
-
-    expected = pandas.DataFrame(data=expected_data)
-    expected = expected.iloc[:, :11]
-    expected.columns = [
-        "Date",
-        "RSI",
-        "RSIbelowThirty",
-        "RSIaboveSeventy",
-        "RSIBuy",
-        "RSISell",
         "RSIbelowTwenty",
         "RSIaboveEighty",
-        "RSIBuyTwenty",
-        "RSISellEighty",
         "signal",
     ]
     expected = expected.set_index("Date")
@@ -523,12 +515,8 @@ def test_rsi_signal_extended_generate():
     test_data = rsi_signal_extended_generate(df=test_data)
     assert "RSIbelowTwenty" in test_data.columns
     assert "RSIaboveEighty" in test_data.columns
-    assert "RSIBuyTwenty" in test_data.columns
-    assert "RSISellEighty" in test_data.columns
     assert "RSIbelowThirty" in test_data.columns
     assert "RSIaboveSeventy" in test_data.columns
-    assert "RSIBuy" in test_data.columns
-    assert "RSISell" in test_data.columns
     assert "signal" in test_data.columns
 
     test_data_shortened = test_data[
@@ -536,12 +524,8 @@ def test_rsi_signal_extended_generate():
             "RSI",
             "RSIbelowThirty",
             "RSIaboveSeventy",
-            "RSIBuy",
-            "RSISell",
             "RSIbelowTwenty",
             "RSIaboveEighty",
-            "RSIBuyTwenty",
-            "RSISellEighty",
             "signal",
         ]
     ].copy()

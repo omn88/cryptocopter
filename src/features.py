@@ -27,12 +27,6 @@ def rsi_signal_basic_generate(df: pandas.DataFrame) -> pandas.DataFrame:
 
     df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
     df["RSIaboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
-    df["RSIBuy"] = numpy.where(df.RSIbelowThirty.diff() == 0, 1, 0) & numpy.where(
-        df.RSIbelowThirty.diff(periods=2) == -1, 1, 0
-    )
-    df["RSISell"] = numpy.where(df.RSIaboveSeventy.diff() == 0, 1, 0) & numpy.where(
-        df.RSIaboveSeventy.diff(periods=2) == -1, 1, 0
-    )
 
     conditions = [
         (df.RSIbelowThirty.diff() == 0) & (df.RSIbelowThirty.diff(periods=2) == -1),
@@ -51,17 +45,8 @@ def rsi_signal_extended_generate(df: pandas.DataFrame) -> pandas.DataFrame:
 
     df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
     df["RSIaboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
-    df["RSIBuy"] = numpy.where(df.RSIbelowThirty.diff() == 0, 1, 0) & numpy.where(
-        df.RSIbelowThirty.diff(periods=2) == -1, 1, 0
-    )
-    df["RSISell"] = numpy.where(df.RSIaboveSeventy.diff() == 0, 1, 0) & numpy.where(
-        df.RSIaboveSeventy.diff(periods=2) == -1, 1, 0
-    )
     df["RSIbelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
     df["RSIaboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
-
-    df["RSIBuyTwenty"] = numpy.where(df.RSIbelowTwenty.diff() == -1, 1, 0)
-    df["RSISellEighty"] = numpy.where(df.RSIaboveEighty.diff() == -1, 1, 0)
 
     conditions = [
         (df.RSIbelowThirty.diff() == 0) & (df.RSIbelowThirty.diff(periods=2) == -1),
