@@ -25,6 +25,7 @@ from src.features import (
     rsi_signal_extended_generate,
     rsi_signal_basic_generate,
     Signals,
+    signals_generate,
 )
 
 
@@ -417,8 +418,8 @@ def test_closing_position_short(
 
 
 def test_basic_rsi_signal_generate():
-    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_data = test_data.set_index("Date")
+    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_df = test_df.set_index("Date")
 
     expected_data = [
         ["2022-10-18 10:30:00", 49.76, 0, 0, 0],
@@ -442,36 +443,41 @@ def test_basic_rsi_signal_generate():
         ["2022-10-18 15:00:00", 46.16, 0, 0, 0],
     ]
 
-    expected = pandas.DataFrame(data=expected_data)
-    expected = expected.iloc[:, :5]
-    expected.columns = [
+    expected_df = pandas.DataFrame(data=expected_data)
+    expected_df = expected_df.iloc[:, :5]
+    expected_df.columns = [
         "Date",
         "RSI",
         "RSIbelowThirty",
         "RSIaboveSeventy",
         "signal",
     ]
-    expected = expected.set_index("Date")
+    expected_df = expected_df.set_index("Date")
 
-    test_data = rsi_indicator_apply(df=test_data)
-    assert "RSI" in test_data.columns
-    test_data.RSI = test_data.RSI.round(2)
+    test_df = rsi_indicator_apply(df=test_df)
+    assert "RSI" in test_df.columns
+    test_df.RSI = test_df.RSI.round(2)
 
-    test_data = rsi_signal_basic_generate(df=test_data)
-    assert "RSIbelowThirty" in test_data.columns
-    assert "RSIaboveSeventy" in test_data.columns
-    assert "signal" in test_data.columns
+    test_df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=test_df)
+    assert "RSIbelowThirty" in test_df.columns
+    assert "RSIaboveSeventy" in test_df.columns
 
-    test_data_shortened = test_data[
+    test_df = signals_generate(
+        df=test_df, condition_lists=[conditions_basic], choice_lists=[signals_basic]
+    )
+
+    test_df_shortened = test_df[
         ["RSI", "RSIbelowThirty", "RSIaboveSeventy", "signal"]
     ].copy()
 
-    pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected, check_dtype=False)
+    pandas.testing.assert_frame_equal(
+        left=test_df_shortened, right=expected_df, check_dtype=False
+    )
 
 
 def test_rsi_signal_extended_generate():
-    test_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_data = test_data.set_index("Date")
+    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_df = test_df.set_index("Date")
 
     expected_data = [
         ["2022-10-18 10:30:00", 49.76, 0, 0, 0, 0, 0],
@@ -495,9 +501,9 @@ def test_rsi_signal_extended_generate():
         ["2022-10-18 15:00:00", 46.16, 0, 0, 0, 0, 0],
     ]
 
-    expected = pandas.DataFrame(data=expected_data)
-    expected = expected.iloc[:, :7]
-    expected.columns = [
+    expected_df = pandas.DataFrame(data=expected_data)
+    expected_df = expected_df.iloc[:, :7]
+    expected_df.columns = [
         "Date",
         "RSI",
         "RSIbelowThirty",
@@ -506,20 +512,29 @@ def test_rsi_signal_extended_generate():
         "RSIaboveEighty",
         "signal",
     ]
-    expected = expected.set_index("Date")
+    expected_df = expected_df.set_index("Date")
 
-    test_data = rsi_indicator_apply(df=test_data)
-    assert "RSI" in test_data.columns
-    test_data.RSI = test_data.RSI.round(2)
+    test_df = rsi_indicator_apply(df=test_df)
+    assert "RSI" in test_df.columns
+    test_df.RSI = test_df.RSI.round(2)
 
-    test_data = rsi_signal_extended_generate(df=test_data)
-    assert "RSIbelowTwenty" in test_data.columns
-    assert "RSIaboveEighty" in test_data.columns
-    assert "RSIbelowThirty" in test_data.columns
-    assert "RSIaboveSeventy" in test_data.columns
-    assert "signal" in test_data.columns
+    test_df, conditions_basic, choices_basic = rsi_signal_basic_generate(df=test_df)
+    assert "RSIbelowThirty" in test_df.columns
+    assert "RSIaboveSeventy" in test_df.columns
 
-    test_data_shortened = test_data[
+    test_df, conditions_extended, choices_extended = rsi_signal_extended_generate(
+        df=test_df
+    )
+    assert "RSIbelowTwenty" in test_df.columns
+    assert "RSIaboveEighty" in test_df.columns
+
+    test_df = signals_generate(
+        df=test_df,
+        condition_lists=[conditions_basic, conditions_extended],
+        choice_lists=[choices_basic, choices_extended],
+    )
+
+    test_df_shortened = test_df[
         [
             "RSI",
             "RSIbelowThirty",
@@ -530,4 +545,4 @@ def test_rsi_signal_extended_generate():
         ]
     ].copy()
 
-    pandas.testing.assert_frame_equal(left=test_data_shortened, right=expected)
+    pandas.testing.assert_frame_equal(left=test_df_shortened, right=expected_df)

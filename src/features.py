@@ -1,4 +1,6 @@
 from enum import Enum, auto
+from typing import Tuple, List
+
 import btalib
 import numpy
 import pandas
@@ -22,7 +24,9 @@ def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
     return df
 
 
-def rsi_signal_basic_generate(df: pandas.DataFrame) -> pandas.DataFrame:
+def rsi_signal_basic_generate(
+    df: pandas.DataFrame,
+) -> Tuple[pandas.DataFrame, List, List[Signals]]:
     assert "RSI" in df.columns
 
     df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
@@ -34,29 +38,39 @@ def rsi_signal_basic_generate(df: pandas.DataFrame) -> pandas.DataFrame:
     ]
 
     signals = [Signals.LONG, Signals.SHORT]
-    df["signal"] = numpy.select(conditions, signals)
-    df.dropna(inplace=True)
 
-    return df
+    return df, conditions, signals
 
 
-def rsi_signal_extended_generate(df: pandas.DataFrame) -> pandas.DataFrame:
+def rsi_signal_extended_generate(
+    df: pandas.DataFrame,
+) -> Tuple[pandas.DataFrame, List, List[Signals]]:
     assert "RSI" in df.columns
 
-    df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
-    df["RSIaboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
     df["RSIbelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
     df["RSIaboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
 
     conditions = [
-        (df.RSIbelowThirty.diff() == 0) & (df.RSIbelowThirty.diff(periods=2) == -1),
-        (df.RSIaboveSeventy.diff() == 0) & (df.RSIaboveSeventy.diff(periods=2) == -1),
         (df.RSIbelowTwenty.diff() == -1),
         (df.RSIaboveEighty.diff() == -1),
     ]
 
-    signals = [Signals.LONG, Signals.SHORT, Signals.LONG_20, Signals.SHORT_80]
-    df["signal"] = numpy.select(conditions, signals)
-    df.dropna(inplace=True)
+    signals = [Signals.LONG_20, Signals.SHORT_80]
+
+    return df, conditions, signals
+
+
+def signals_generate(df: pandas.DataFrame, condition_lists: List, choice_lists: List):
+
+    conditions = []
+    choices = []
+
+    [
+        [conditions.append(condition) for condition in condition_list]
+        for condition_list in condition_lists
+    ]
+    [[choices.append(choice) for choice in choice_list] for choice_list in choice_lists]
+
+    df["signal"] = numpy.select(conditions, choices)
 
     return df
