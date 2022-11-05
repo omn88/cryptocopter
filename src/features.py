@@ -60,7 +60,9 @@ def rsi_signal_extended_generate(
     return df, conditions, signals
 
 
-def signals_generate(df: pandas.DataFrame, condition_lists: List, choice_lists: List):
+def combined_signals_generate(
+    df: pandas.DataFrame, condition_lists: List, choice_lists: List
+):
 
     conditions = []
     choices = []
