@@ -59,20 +59,10 @@ async def kline_futures_socket(
             index = pandas.to_datetime(msg["k"]["t"], unit="ms") + numpy.timedelta64(
                 1, "h"
             )
-            # time_of_event = pandas.to_datetime(msg['E'], unit="ms") + numpy.timedelta64(1, "h")
-            # logger.info("msg: %s" % msg)
             if index != last_index:
                 await queue.put(Event(name=EventName.Kline, content=msg))
                 logger.info("New index: %s" % index)
                 last_index = index
-            # else:
-            #     continue
-            # logger.info("Time from epoch: %s" % round(time.time()))
-            # logger.info("Start Time: %s" % round(msg['k']['t'] / 1000))
-            # logger.info("End time: %s" % round(msg['k']['T'] / 1000))
-            # logger.info("Time of event %s" % time_of_event)
-            # logger.info("Time till new kline: %s" % (round(msg['k']['T'] / 1000) - round(time.time())))
-            # logger.info("Ten sam, index: %s, last_index %s" % (index, last_index))
             await asyncio.sleep(0.1)
 
 

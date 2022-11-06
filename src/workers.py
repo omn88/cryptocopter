@@ -12,7 +12,9 @@ import producers
 logger = logging.getLogger("worker")
 
 
-async def signal_handle(df: pandas.DataFrame, signal: features.Signals):
+async def signal_handle(
+    df: pandas.DataFrame, signal: features.Signals
+) -> pandas.DataFrame:
 
     if signal == features.Signals.FLAT:
         if df.position == features.Signals.FLAT:
@@ -77,6 +79,8 @@ async def signal_handle(df: pandas.DataFrame, signal: features.Signals):
                 % (df.position, signal)
             )
 
+    return df
+
 
 async def user_socket_data_handle():
     pass
@@ -90,10 +94,8 @@ async def worker(
     interval: str,
 ):
     while True:
-        # Get a "work item" out of the queue.
         task = await queue.get()
 
-        # logger.info(f"New task: {task}")
         if isinstance(task, producers.Event):
             logger.info(task)
             if producers.EventName.Kline == task.name:
@@ -104,50 +106,17 @@ async def worker(
                     lookback="3360",  # 44000 is approximately one month
                 )
                 temp_df = features.signals_from_features_generate(df=temp_df)
-                logger.info("Kline event last row: %s" % df.iloc[-1])
-                logger.info("Temp DF last row: %s" % temp_df.iloc[-1])
-                df_length = len(df)
+                temp_df["position"] = df.at[df.index[-1], "position"]
+                if temp_df.iloc[-1, "signal"] != 0:
+                    temp_df = await signal_handle(
+                        df=temp_df, signal=temp_df.iloc[-1]["signal"]
+                    )
                 df = df.append(temp_df.iloc[-1])
-                logger.info("Kline event after append: %s" % df.iloc[-1])
 
-                assert len(df) == df_length + 1
-
-                # if df.iloc[-1, 'signal'] != 0:
-                #     await signal_handle(df.iloc[-1])
             elif producers.EventName.User == producers.Event.name:
                 await user_socket_data_handle()
         elif isinstance(task, features.Signals):
             logger.info(task)
-            await signal_handle(df, task)
+            df = await signal_handle(df=df, signal=task)
 
-        # if isinstance(task, features.Signals):
-        #     logger.info("Wlazl do srodka, nie jest signalsem")
-        #     task = json.loads(task)
-        #
-        #     assert task['e'] == 'continuous_kline'
-        #     if task['e'] == 'continuous_kline':
-        #         temp_df = await lib.get_futures_historical_data(
-        #             client=client,
-        #             symbol=symbol,
-        #             interval=interval,
-        #             lookback="3360",  # 44000 is approximately one month
-        #         )
-        #         temp_df = features.signals_from_features_generate(df=df)
-        #         logger.info(f'Before append {df.iloc[-1]}')
-        #         df = df.append(temp_df.tail(1))
-        #         logger.info(f'After append {df.iloc[-1]}')
-        # else:
-        #     match task:
-        #         case features.Signals.LONG:
-        #             pass
-        #         case features.Signals.LONG_20:
-        #             pass
-        #         case features.Signals.SHORT:
-        #             pass
-        #         case features.Signals.SHORT_80:
-        #             pass
-        #         case features.Signals.FLAT:
-        #             pass
-
-        # Notify the queue that the "work item" has been processed.
         queue.task_done()
