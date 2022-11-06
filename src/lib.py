@@ -1,18 +1,10 @@
 from typing import Optional, List, Tuple
-from dataclasses import dataclass
 import btalib
 import numpy
 import pandas
 from matplotlib import pyplot
 import binance
 from decouple import config
-
-
-@dataclass
-class Order:
-    price: float
-    quantity: float
-    status: str = "NEW"
 
 
 async def get_historical_data(
@@ -132,29 +124,28 @@ def order_quantity_list_prepare(
         else order_values
     )
 
-    # OVC stands for order value calculator
-    ovc = pandas.DataFrame(order_values, columns=["order_value"])
-    ovc.set_index(pandas.Index([i for i in range(len(order_values))]))
-    ovc["sum_of_all_losses"] = (
-        ovc.order_value * (number_of_dca_orders + 1) * losses_per_level
+    # OQL stands for order quantity list
+    oql = pandas.DataFrame(order_values, columns=["order_value"])
+    oql.set_index(pandas.Index([i for i in range(len(order_values))]))
+    oql["sum_of_all_losses"] = (
+        oql.order_value * (number_of_dca_orders + 1) * losses_per_level
     )
-    ovc["threshold"] = ovc.sum_of_all_losses + ovc.sum_of_all_losses.shift(1)
-    ovc.threshold.iloc[0] = ovc.sum_of_all_losses.iloc[0]
+    oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
+    oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
 
-    return ovc
+    return oql
 
 
-def order_quantity_check(ovc: pandas.DataFrame, saldo: float, index: str) -> float:
+def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
     index_list = []
 
-    [index_list.append(thrshld) for thrshld in ovc.threshold if saldo > thrshld]
+    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
 
     order_quantity = (
-        ovc.order_value[len(index_list) - 1]
+        oql.order_value[len(index_list) - 1]
         if len(index_list) > 0
-        else ovc.order_value[0]
+        else oql.order_value[0]
     )
-    print(f"{index}: Selected new order value: {order_quantity}")
 
     return order_quantity
 
