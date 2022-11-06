@@ -56,6 +56,8 @@ async def main():
     )
     bm = BinanceSocketManager(client)
 
+    saldo = await client.get_asset_balance(asset=symbol)
+
     # logger.info("Server time %s" % await client.get_server_time())
     #
     # logger.info("My time %s" % time.time())
@@ -97,9 +99,15 @@ async def main():
 
     workers = [
         asyncio.create_task(
-            worker(df=df, queue=queue, client=client, symbol=symbol, interval=interval)
+            worker(
+                df=df,
+                queue=queue,
+                client=client,
+                symbol=symbol,
+                interval=interval,
+                saldo=saldo,
+            )
         )
-        for _ in range(len(producers))
     ]
 
     # with both producers and consumers running, wait for

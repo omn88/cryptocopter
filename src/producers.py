@@ -74,7 +74,6 @@ def determine_start_position(df: pandas.DataFrame) -> features.Signals:
         if row["signal"] != 0:
             last_signal = row["signal"]
             last_signal_close_price = row["Close"]
-
             break
         else:
             last_signal = features.Signals.FLAT
