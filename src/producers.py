@@ -1,8 +1,25 @@
 import asyncio
 import logging
+from enum import Enum, auto
+from typing import Dict, NamedTuple
+import features
 from binance import BinanceSocketManager
+import pandas
+import numpy
+import time
 
 logger = logging.getLogger("producer")
+
+
+class EventName(Enum):
+    Kline = "Kline"
+    User = "User"
+    Signal = "Signal"
+
+
+class Event(NamedTuple):
+    name: EventName
+    content: Dict
 
 
 async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
@@ -18,23 +35,73 @@ async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
 async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
-    futures_user_socket = bm.futures_user_socket()
-    async with futures_user_socket:
+    fus = bm.futures_user_socket()
+    async with fus:
         while True:
-            msg = await futures_user_socket.recv()
-            await queue.put(msg)
+            msg = await fus.recv()
+            await queue.put(Event(name=EventName.User, content=msg))
             logger.info(msg)
             await asyncio.sleep(0.1)
 
 
 async def kline_futures_socket(
-    bm: BinanceSocketManager, symbol: str, interval: str, queue: asyncio.Queue
+    bm: BinanceSocketManager,
+    symbol: str,
+    interval: str,
+    queue: asyncio.Queue,
+    last_index,
 ):
 
-    kline_futures_socket = bm.kline_futures_socket(symbol=symbol, interval=interval)
-    async with kline_futures_socket:
+    kfs = bm.kline_futures_socket(symbol=symbol, interval=interval)
+    async with kfs:
         while True:
-            msg = await kline_futures_socket.recv()
-            await queue.put(msg)
-            logger.info(msg)
+            msg = await kfs.recv()
+            index = pandas.to_datetime(msg["k"]["t"], unit="ms") + numpy.timedelta64(
+                1, "h"
+            )
+            # time_of_event = pandas.to_datetime(msg['E'], unit="ms") + numpy.timedelta64(1, "h")
+            # logger.info("msg: %s" % msg)
+            if index != last_index:
+                await queue.put(Event(name=EventName.Kline, content=msg))
+                logger.info("New index: %s" % index)
+                last_index = index
+            # else:
+            #     continue
+            # logger.info("Time from epoch: %s" % round(time.time()))
+            # logger.info("Start Time: %s" % round(msg['k']['t'] / 1000))
+            # logger.info("End time: %s" % round(msg['k']['T'] / 1000))
+            # logger.info("Time of event %s" % time_of_event)
+            # logger.info("Time till new kline: %s" % (round(msg['k']['T'] / 1000) - round(time.time())))
+            # logger.info("Ten sam, index: %s, last_index %s" % (index, last_index))
             await asyncio.sleep(0.1)
+
+
+def determine_start_position(df: pandas.DataFrame) -> features.Signals:
+    last_signal = None
+    last_signal_close_price = 0
+
+    for index, row in df[::-1].iterrows():
+        if row["signal"] != 0:
+            last_signal = row["signal"]
+            last_signal_close_price = row["Close"]
+
+            break
+        else:
+            last_signal = features.Signals.FLAT
+
+    latest_close = df.iloc[-1]["Close"]
+
+    if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
+        if latest_close < last_signal_close_price:
+            signal = last_signal
+        else:
+            signal = features.Signals.FLAT
+    elif last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
+        if latest_close > last_signal_close_price:
+            signal = last_signal
+        else:
+            signal = features.Signals.FLAT
+    else:
+        signal = features.Signals.FLAT
+
+    return signal

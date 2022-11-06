@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pandas
 from binance import AsyncClient, BinanceSocketManager
@@ -13,7 +14,11 @@ import lib
 
 import features
 
-from producers import futures_user_socket, kline_futures_socket
+from producers import (
+    futures_user_socket,
+    kline_futures_socket,
+    determine_start_position,
+)
 from workers import worker
 
 
@@ -28,51 +33,6 @@ def create_directory_with_timestamp():
             raise  # This was not a "directory exist" error..
 
     return mydir
-
-
-def signals_from_features_generate(df: pandas.DataFrame) -> pandas.DataFrame:
-    df = features.rsi_indicator_apply(df=df)
-    df, conditions_basic, signals_basic = features.rsi_signal_basic_generate(df=df)
-    df, conditions_extended, signals_extended = features.rsi_signal_extended_generate(
-        df=df
-    )
-
-    return features.combined_signals_generate(
-        df=df,
-        condition_lists=[conditions_basic, conditions_extended],
-        choice_lists=[signals_basic, signals_extended],
-    )
-
-
-def determine_start_position(df: pandas.DataFrame) -> features.Signals:
-    signal = None
-    last_signal = None
-    last_signal_close_price = 0
-
-    for index, row in df[::-1].iterrows():
-        if row["signal"] != 0:
-            last_signal = row["signal"]
-            last_signal_close_price = row["Close"]
-
-            break
-        else:
-            last_signal = features.Signals.FLAT
-
-    latest_close = df.iloc[-1]["Close"]
-
-    if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
-        if latest_close < last_signal_close_price:
-            signal = last_signal
-        else:
-            signal = features.Signals.FLAT
-
-    if last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
-        if latest_close > last_signal_close_price:
-            signal = last_signal
-        else:
-            signal = features.Signals.FLAT
-
-    return signal
 
 
 async def main():
@@ -96,19 +56,27 @@ async def main():
     )
     bm = BinanceSocketManager(client)
 
+    # logger.info("Server time %s" % await client.get_server_time())
+    #
+    # logger.info("My time %s" % time.time())
+
     df = await lib.get_futures_historical_data(
         client=client,
         symbol=symbol,
         interval=interval,
-        lookback="1680",  # 44000 is approximately one month
+        lookback="3360",  # 44000 is approximately one month
     )
-    df = signals_from_features_generate(df=df)
+    df = features.signals_from_features_generate(df=df)
+
+    df["position"] = features.Signals.FLAT
 
     first_signal = determine_start_position(df=df)
 
+    assert isinstance(first_signal, features.Signals)
+
     # logger.info(df.to_string())
-    #
-    # logger.info(signal)
+
+    logger.info(first_signal)
 
     queue = asyncio.Queue()
 
@@ -116,13 +84,23 @@ async def main():
 
     producers = [
         asyncio.create_task(
-            kline_futures_socket(symbol=symbol, bm=bm, queue=queue, interval=interval)
+            kline_futures_socket(
+                symbol=symbol,
+                bm=bm,
+                queue=queue,
+                interval=interval,
+                last_index=df.index[-1],
+            )
         ),
         asyncio.create_task(futures_user_socket(bm=bm, queue=queue)),
-        asyncio.create_task(send_log()),
     ]
 
-    workers = [asyncio.create_task(worker(queue)) for _ in range(len(producers))]
+    workers = [
+        asyncio.create_task(
+            worker(df=df, queue=queue, client=client, symbol=symbol, interval=interval)
+        )
+        for _ in range(len(producers))
+    ]
 
     # with both producers and consumers running, wait for
     # the producers to finish
@@ -132,7 +110,6 @@ async def main():
     # wait for the remaining tasks to be processed
     await queue.join()
 
-    # cancel the consumers, which are now idle
     await asyncio.gather(*workers)
 
     await client.close_connection()

@@ -76,3 +76,15 @@ def combined_signals_generate(
     df["signal"] = numpy.select(conditions, choices)
 
     return df
+
+
+def signals_from_features_generate(df: pandas.DataFrame) -> pandas.DataFrame:
+    df = rsi_indicator_apply(df=df)
+    df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=df)
+    df, conditions_extended, signals_extended = rsi_signal_extended_generate(df=df)
+
+    return combined_signals_generate(
+        df=df,
+        condition_lists=[conditions_basic, conditions_extended],
+        choice_lists=[signals_basic, signals_extended],
+    )
