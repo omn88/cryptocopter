@@ -24,6 +24,7 @@ class PositionMode(Enum):
 
 async def futures_long_position_open(
     client: binance.AsyncClient,
+    symbol: str,
     saldo: float,
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
@@ -33,8 +34,14 @@ async def futures_long_position_open(
     logger.info("Order quantity for new trade: %d" % order_quantity)
 
     if mode == PositionMode.DCA:
-        await client.futures_create_order()
-        logger.info("Long opened at price %s" % buy_price)
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            order_quantity=order_quantity,
+            side=client.SIDE_BUY,
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+        )
+        logger.info("Long opened, DCA, resp %s" % resp)
+        buy_price = resp["price"]
         position = Order(price=buy_price, quantity=order_quantity)
         dca_orders = [
             Order(
@@ -44,6 +51,14 @@ async def futures_long_position_open(
             for order in range(number_of_dca_orders)
         ]
     elif mode == PositionMode.FULL:
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            order_quantity=(number_of_dca_orders + 1) * order_quantity,
+            side=client.SIDE_BUY,
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+        )
+        logger.info("Long opened, DCA, resp %s" % resp)
+        buy_price = resp["price"]
         position = Order(
             price=buy_price,
             quantity=(number_of_dca_orders + 1) * order_quantity,
