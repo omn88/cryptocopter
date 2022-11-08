@@ -4,7 +4,7 @@ import numpy
 import pandas
 from matplotlib import pyplot
 import binance
-from decouple import config
+from orders import Order
 
 
 async def get_historical_data(
@@ -390,7 +390,7 @@ def long_position_recalculate(
     new_price = (
         position.price * position.quantity + order.price * order_quantity
     ) / new_quantity
-    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    new_position = Order(price=new_price, quantity=new_quantity)
     target_price, depo_price = target_depo_price_calculate(
         side="LONG", price=new_price, leverage=leverage
     )
@@ -411,7 +411,7 @@ def short_position_recalculate(
     new_price = (
         position.price * position.quantity + order.price * order_quantity
     ) / new_quantity
-    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    new_position = Order(price=new_price, quantity=new_quantity)
     target_price, depo_price = target_depo_price_calculate(
         "SHORT", price=new_price, leverage=leverage
     )

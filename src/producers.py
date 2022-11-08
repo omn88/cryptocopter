@@ -1,12 +1,11 @@
 import asyncio
 import logging
-from enum import Enum, auto
+from enum import Enum
 from typing import Dict, NamedTuple
 import features
 from binance import BinanceSocketManager
 import pandas
 import numpy
-import time
 
 logger = logging.getLogger("producer")
 

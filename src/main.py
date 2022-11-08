@@ -1,7 +1,4 @@
 import asyncio
-import time
-
-import pandas
 from binance import AsyncClient, BinanceSocketManager
 import errno
 import os
