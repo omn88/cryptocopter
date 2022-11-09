@@ -34,7 +34,9 @@ def create_directory_with_timestamp():
 
 async def main():
 
+    logger.info("Start")
     symbol = "BTCUSDT"
+    asset = "USDT"
     interval = "15m"
 
     # Choose params, symbol, interval, saldo, FEATURES
@@ -47,13 +49,13 @@ async def main():
     # In general output from new row will create signals as well as real time data from user socket.
     # Worker will manage
 
-    logger.info("Start")
     client = await AsyncClient.create(
         api_key=config("API_KEY"), api_secret=config("API_SECRET")
     )
     bm = BinanceSocketManager(client)
 
-    saldo = await client.get_asset_balance(asset=symbol)
+    saldo = await client.get_subaccount_futures_details(asset=asset)
+    logger.info("Saldo: %s " % saldo)
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
@@ -67,19 +69,19 @@ async def main():
     )
     df = features.signals_from_features_generate(df=df)
 
-    df["position"] = features.Signals.FLAT
+    df, start_position = determine_start_position(df=df)
 
-    first_signal = determine_start_position(df=df)
+    df["position"] = start_position
 
-    assert isinstance(first_signal, features.Signals)
+    assert isinstance(start_position, features.Signals)
 
     # logger.info(df.to_string())
 
-    logger.info(first_signal)
+    logger.info(start_position)
 
     queue = asyncio.Queue()
 
-    await queue.put(first_signal)
+    await queue.put(start_position)
 
     producers = [
         asyncio.create_task(
@@ -97,7 +99,7 @@ async def main():
     workers = [
         asyncio.create_task(
             worker(
-                df=df,
+                start_df=df,
                 queue=queue,
                 client=client,
                 symbol=symbol,

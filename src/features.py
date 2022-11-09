@@ -14,6 +14,7 @@ class Signals(Enum):
     LONG_SPECIAL = "LONG_SPECIAL"
     SHORT_SPECIAL = "SHORT_SPECIAL"
     FLAT = "FLAT"
+    NULL = "NULL"
 
 
 def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:

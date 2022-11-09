@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import Dict, NamedTuple
+from typing import Dict, NamedTuple, Tuple
 import features
 from binance import BinanceSocketManager
 import pandas
@@ -65,7 +65,9 @@ async def kline_futures_socket(
             await asyncio.sleep(0.1)
 
 
-def determine_start_position(df: pandas.DataFrame) -> features.Signals:
+def determine_start_position(
+    df: pandas.DataFrame,
+) -> Tuple[pandas.DataFrame, features.Signals]:
     last_signal = None
     last_signal_close_price = 0
 
@@ -76,6 +78,12 @@ def determine_start_position(df: pandas.DataFrame) -> features.Signals:
             break
         else:
             last_signal = features.Signals.FLAT
+
+    for index, row in df[::-1].iterrows():
+        if row["signal"] == 0:
+            row["signal"] = last_signal
+        else:
+            break
 
     latest_close = df.iloc[-1]["Close"]
 
@@ -92,4 +100,4 @@ def determine_start_position(df: pandas.DataFrame) -> features.Signals:
     else:
         signal = features.Signals.FLAT
 
-    return signal
+    return df, signal
