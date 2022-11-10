@@ -65,8 +65,8 @@ async def kline_futures_socket(
             await asyncio.sleep(0.1)
 
 
-def determine_start_position(
-    df: pandas.DataFrame,
+async def determine_start_position(
+    df: pandas.DataFrame, queue: asyncio.Queue
 ) -> Tuple[pandas.DataFrame, features.Signals]:
     last_signal = None
     last_signal_close_price = 0
@@ -96,5 +96,7 @@ def determine_start_position(
 
     df.at[df.index[-1], "signal"] = signal
     df.at[df.index[-1], "position"] = features.Signals.FLAT
+    await queue.put(signal)
+    logger.info("Latest signal: %s" % signal)
 
     return df, signal

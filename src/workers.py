@@ -22,11 +22,7 @@ async def signal_handle(
     position: orders.Position,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
 
-    logger.info("Entering signal handle")
-
     current_position = position.status
-
-    logger.info("Position status %s" % current_position)
 
     if current_position == features.Signals.FLAT:
         if signal == features.Signals.LONG:
@@ -269,8 +265,6 @@ async def signal_handle(
             df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
     else:
         logger.info("You fucked up something big!")
-
-    logger.info("Exiting signal handle")
 
     return df, position
 

@@ -18,6 +18,10 @@ from producers import (
 )
 from workers import worker
 
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 
 def create_directory_with_timestamp():
     mydir = os.path.join(
@@ -54,6 +58,8 @@ async def main():
     )
     bm = BinanceSocketManager(client)
 
+    queue = asyncio.Queue()
+
     balance = await client.futures_account_balance(asset=asset)
     assert asset == balance[6]["asset"]
     saldo = float(balance[6]["balance"])
@@ -74,17 +80,13 @@ async def main():
 
     df["position"] = 0
 
-    df, start_position = determine_start_position(df=df)
+    df, start_position = await determine_start_position(df=df, queue=queue)
 
     assert isinstance(start_position, features.Signals)
 
-    logger.info("Start df: %s" % df.to_string())
-
-    logger.info("Start position: %s" % start_position)
-
-    queue = asyncio.Queue()
-
-    await queue.put(start_position)
+    # logger.info("Start df: %s" % df.to_string())
+    #
+    # logger.info("Start position: %s" % start_position)
 
     producers = [
         asyncio.create_task(
