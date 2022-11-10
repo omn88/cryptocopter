@@ -79,12 +79,6 @@ def determine_start_position(
         else:
             last_signal = features.Signals.FLAT
 
-    for index, row in df[::-1].iterrows():
-        if row["signal"] == 0:
-            row["signal"] = last_signal
-        else:
-            break
-
     latest_close = df.iloc[-1]["Close"]
 
     if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
@@ -99,5 +93,8 @@ def determine_start_position(
             signal = features.Signals.FLAT
     else:
         signal = features.Signals.FLAT
+
+    df.at[df.index[-1], "signal"] = signal
+    df.at[df.index[-1], "position"] = features.Signals.FLAT
 
     return df, signal

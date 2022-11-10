@@ -54,8 +54,11 @@ async def main():
     )
     bm = BinanceSocketManager(client)
 
-    saldo = await client.get_subaccount_futures_details(asset=asset)
-    logger.info("Saldo: %s " % saldo)
+    balance = await client.futures_account_balance(asset=asset)
+    assert asset == balance[6]["asset"]
+    saldo = float(balance[6]["balance"])
+
+    logger.info("Asset to: %s, Saldo: %d " % (balance[6]["asset"], saldo))
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
@@ -69,15 +72,15 @@ async def main():
     )
     df = features.signals_from_features_generate(df=df)
 
-    df, start_position = determine_start_position(df=df)
+    df["position"] = 0
 
-    df["position"] = start_position
+    df, start_position = determine_start_position(df=df)
 
     assert isinstance(start_position, features.Signals)
 
-    # logger.info(df.to_string())
+    logger.info("Start df: %s" % df.to_string())
 
-    logger.info(start_position)
+    logger.info("Start position: %s" % start_position)
 
     queue = asyncio.Queue()
 

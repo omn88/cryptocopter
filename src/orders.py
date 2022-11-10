@@ -43,12 +43,14 @@ async def futures_long_position_open(
 
     if mode == PositionMode.DCA:
         orders = []
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            order_quantity=order_quantity,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
+        # resp = await client.futures_create_order(
+        #     symbol=symbol,
+        #     order_quantity=order_quantity,
+        #     side=client.SIDE_BUY,
+        #     type=client.FUTURE_ORDER_TYPE_MARKET,
+        # )
+
+        resp = {"price": 100}
         logger.info("Long opened, DCA, resp %s" % resp)
         buy_price = resp["price"]
         current_position = Order(
@@ -69,12 +71,13 @@ async def futures_long_position_open(
         )
 
     elif mode == PositionMode.FULL:
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            order_quantity=(number_of_dca_orders + 1) * order_quantity,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
+        # resp = await client.futures_create_order(
+        #     symbol=symbol,
+        #     order_quantity=(number_of_dca_orders + 1) * order_quantity,
+        #     side=client.SIDE_BUY,
+        #     type=client.FUTURE_ORDER_TYPE_MARKET,
+        # )
+        resp = {"price": 100}
         logger.info("Long opened, DCA, resp %s" % resp)
         buy_price = resp["price"]
         current_position = Order(
@@ -118,12 +121,13 @@ async def futures_short_position_open(
 
     if mode == PositionMode.DCA:
         orders = []
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            order_quantity=order_quantity,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
+        # resp = await client.futures_create_order(
+        #     symbol=symbol,
+        #     order_quantity=order_quantity,
+        #     side=client.SIDE_SELL,
+        #     type=client.FUTURE_ORDER_TYPE_MARKET,
+        # )
+        resp = {"price": 100}
         logger.info("Short opened, DCA, resp %s" % resp)
         buy_price = resp["price"]
         current_position = Order(price=buy_price, quantity=order_quantity)
@@ -140,12 +144,13 @@ async def futures_short_position_open(
             current_position=current_position, orders=orders, status=signal
         )
     elif mode == PositionMode.FULL:
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            order_quantity=(number_of_dca_orders + 1) * order_quantity,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
+        # resp = await client.futures_create_order(
+        #     symbol=symbol,
+        #     order_quantity=(number_of_dca_orders + 1) * order_quantity,
+        #     side=client.SIDE_SELL,
+        #     type=client.FUTURE_ORDER_TYPE_MARKET,
+        # )
+        resp = {"price": 100}
         logger.info("Short opened, FULL, resp %s" % resp)
         buy_price = resp["price"]
         current_position = Order(
@@ -176,19 +181,21 @@ async def futures_short_position_open(
 
 async def futures_long_position_close(client: binance.AsyncClient, symbol: str):
 
-    resp = await client.futures_create_order(
-        symbol=symbol,
-        side=client.SIDE_SELL,
-        type=client.FUTURE_ORDER_TYPE_MARKET,
-    )
+    # resp = await client.futures_create_order(
+    #     symbol=symbol,
+    #     side=client.SIDE_SELL,
+    #     type=client.FUTURE_ORDER_TYPE_MARKET,
+    # )
+    resp = {"price": 100}
     logger.info("Long closed, resp %s" % resp)
 
 
 async def futures_short_position_close(client: binance.AsyncClient, symbol: str):
 
-    resp = await client.futures_create_order(
-        symbol=symbol,
-        side=client.SIDE_BUY,
-        type=client.FUTURE_ORDER_TYPE_MARKET,
-    )
+    # resp = await client.futures_create_order(
+    #     symbol=symbol,
+    #     side=client.SIDE_BUY,
+    #     type=client.FUTURE_ORDER_TYPE_MARKET,
+    # )
+    resp = {"price": 100}
     logger.info("Short closed, resp %s" % resp)

@@ -22,7 +22,11 @@ async def signal_handle(
     position: orders.Position,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
 
+    logger.info("Entering signal handle")
+
     current_position = position.status
+
+    logger.info("Position status %s" % current_position)
 
     if current_position == features.Signals.FLAT:
         if signal == features.Signals.LONG:
@@ -266,6 +270,8 @@ async def signal_handle(
     else:
         logger.info("You fucked up something big!")
 
+    logger.info("Exiting signal handle")
+
     return df, position
 
 
@@ -285,7 +291,7 @@ async def worker(
 ):
     df = start_df
     position = orders.Position(
-        orders.Order(price=0, quantity=0), orders=[], status=features.Signals.NULL
+        orders.Order(price=0, quantity=0), orders=[], status=features.Signals.FLAT
     )
 
     while True:
@@ -318,6 +324,7 @@ async def worker(
                 )
                 df = new_df
                 position = new_position
+                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
         elif isinstance(task, features.Signals):
             logger.info(task)
             new_df, new_position = await signal_handle(
@@ -330,4 +337,6 @@ async def worker(
             )
             df = new_df
             position = new_position
+
+            # logger.info("New DF: %s, new position: %s" % (new_df, new_position))
         queue.task_done()
