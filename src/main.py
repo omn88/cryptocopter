@@ -1,4 +1,6 @@
 import asyncio
+
+import pandas
 from binance import AsyncClient, BinanceSocketManager
 import errno
 import os
@@ -38,10 +40,13 @@ def create_directory_with_timestamp():
 
 async def main():
 
-    logger.info("Start")
+    logger.info("RSI Based Futures: Start")
     symbol = "BTCUSDT"
     asset = "USDT"
     interval = "15m"
+    logger.info(
+        "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
+    )
 
     # Choose params, symbol, interval, saldo, FEATURES
     # Download data for 15min intervals 1050 intervals back
@@ -56,15 +61,17 @@ async def main():
     client = await AsyncClient.create(
         api_key=config("API_KEY"), api_secret=config("API_SECRET")
     )
+    logger.info("Async client created")
     bm = BinanceSocketManager(client)
-
+    logger.info("Binance socket manager ready")
     queue = asyncio.Queue()
+    logger.info("FIFO Queue started")
 
     balance = await client.futures_account_balance(asset=asset)
     assert asset == balance[6]["asset"]
     saldo = float(balance[6]["balance"])
 
-    logger.info("Asset to: %s, Saldo: %d " % (balance[6]["asset"], saldo))
+    logger.info("Asset: %s, Saldo: %d " % (balance[6]["asset"], saldo))
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
@@ -78,9 +85,15 @@ async def main():
     )
     df = features.signals_from_features_generate(df=df)
 
-    df["position"] = 0
+    df["position"] = features.Signals.NULL
 
     df, start_position = await determine_start_position(df=df, queue=queue)
+
+    last_rows = 5
+    logger.info(
+        "Last %d rows from main df: %s"
+        % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+    )
 
     assert isinstance(start_position, features.Signals)
 

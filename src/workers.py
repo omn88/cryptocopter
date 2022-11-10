@@ -22,6 +22,8 @@ async def signal_handle(
     position: orders.Position,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
 
+    logger.info("Entering signal handle")
+
     current_position = position.status
 
     if current_position == features.Signals.FLAT:
@@ -79,6 +81,8 @@ async def signal_handle(
             )
         elif signal == features.Signals.NULL:
             df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
+        elif signal == features.Signals.FLAT:
+            df.at[df.index[-1], "position"] = signal
 
     elif current_position == features.Signals.LONG:
         if signal == features.Signals.LONG:
@@ -292,7 +296,7 @@ async def worker(
         task = await queue.get()
 
         if isinstance(task, producers.Event):
-            logger.info(task)
+            logger.info("New event came: %s" % task.name)
             if producers.EventName.Kline == task.name:
                 temp_df = await lib.get_futures_historical_data(
                     client=client,
@@ -310,9 +314,21 @@ async def worker(
                     symbol=symbol,
                     position=position,
                 )
+                last_rows = 5
+                logger.info(
+                    "Last %d rows from main df: %s"
+                    % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+                )
                 df = df.append(temp_df.iloc[-1])
 
+                last_rows = 5
+                logger.info(
+                    "Last %d rows from main df after new row append: %s"
+                    % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+                )
+
             elif producers.EventName.User == producers.Event.name:
+                logger.info("Some data from user socket came: %s" % task.content)
                 new_df, new_position = await user_socket_data_handle(
                     df=df, position=position
                 )
@@ -320,7 +336,14 @@ async def worker(
                 position = new_position
                 logger.info("New DF: %s, new position: %s" % (new_df, new_position))
         elif isinstance(task, features.Signals):
-            logger.info(task)
+            logger.info("New signal came: %s" % task)
+
+            last_rows = 5
+            logger.info(
+                "Last %d rows from main df: %s"
+                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+            )
+
             new_df, new_position = await signal_handle(
                 client=client,
                 df=df,
@@ -331,6 +354,12 @@ async def worker(
             )
             df = new_df
             position = new_position
+
+            last_rows = 5
+            logger.info(
+                "Last %d rows from main df after signal handle: %s"
+                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+            )
 
             # logger.info("New DF: %s, new position: %s" % (new_df, new_position))
         queue.task_done()

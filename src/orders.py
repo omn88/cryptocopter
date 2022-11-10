@@ -37,18 +37,19 @@ async def futures_long_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
+    logger.info("Opening long, saldo: %d" % saldo)
     order_quantity_list = lib.order_quantity_list_prepare()
     order_quantity = lib.order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info("Order quantity for new trade: %d" % order_quantity)
 
     if mode == PositionMode.DCA:
         orders = []
-        # resp = await client.futures_create_order(
-        #     symbol=symbol,
-        #     order_quantity=order_quantity,
-        #     side=client.SIDE_BUY,
-        #     type=client.FUTURE_ORDER_TYPE_MARKET,
-        # )
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            order_quantity=order_quantity,
+            side=client.SIDE_BUY,
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+        )
 
         resp = {"price": 100}
         logger.info("Long opened, DCA, resp %s" % resp)
