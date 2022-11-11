@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, NamedTuple
@@ -15,6 +16,8 @@ logger = logging.getLogger("order")
 class Order:
     price: float
     quantity: float
+    order_id: int
+    time_in_force: str = binance.client.BaseClient.TIME_IN_FORCE_GTC
     status: str = binance.client.BaseClient.ORDER_STATUS_NEW
 
 
@@ -27,6 +30,31 @@ class Position(NamedTuple):
 class PositionMode(Enum):
     DCA = "DCA"
     FULL = "FULL"
+
+
+async def send_dca_orders(
+    client: binance.AsyncClient,
+    side: str,
+    dca_orders: List[Order],
+    symbol: str,
+    order_quantity: float,
+) -> List[Order]:
+
+    for order in dca_orders:
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            price=order.price,
+            order_quantity=order_quantity,
+            side=side,
+            type=client.FUTURE_ORDER_TYPE_LIMIT,
+        )
+        order.order_id = resp["orderId"]
+        logger.info(
+            "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
+            % (order.price, order_quantity, side, order.order_id)
+        )
+
+    return dca_orders
 
 
 async def futures_long_position_open(
@@ -51,25 +79,53 @@ async def futures_long_position_open(
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
 
-        resp = {"price": 100}
-        logger.info("Long opened, DCA, resp %s" % resp)
         buy_price = resp["price"]
+        order_id = resp["order_id"]
+        logger.info("Long opened, DCA, resp %s" % resp)
         current_position = Order(
-            price=buy_price, quantity=order_quantity, status=client.ORDER_STATUS_FILLED
+            price=buy_price,
+            quantity=order_quantity,
+            status=client.ORDER_STATUS_FILLED,
+            order_id=order_id,
         )
+        logger.info("Current position %s" % current_position)
         dca_orders = [
             Order(
                 price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
                 quantity=order_quantity,
+                order_id=0,
             )
             for order in range(number_of_dca_orders)
         ]
+
+        logger.info("DCA orders created")
+        for order in dca_orders:
+            logger.info("Order: %s" % order)
+
+        dca_orders = await asyncio.gather(
+            *[
+                send_dca_orders(
+                    client=client,
+                    dca_orders=dca_orders,
+                    symbol=symbol,
+                    order_quantity=order_quantity,
+                    side=client.SIDE_BUY,
+                )
+            ]
+        )
+
+        logger.info("DCA orders send")
+        for order in dca_orders:
+            logger.info("Order: %s" % order)
+
         orders.append(current_position)
         orders.append(dca_orders)
 
         position = Position(
             current_position=current_position, orders=orders, status=signal
         )
+
+        logger.info("Position: %s" % position)
 
     elif mode == PositionMode.FULL:
         # resp = await client.futures_create_order(
@@ -100,7 +156,7 @@ async def futures_long_position_open(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
         )
         position = Position(
-            current_position=Order(price=0, quantity=0),
+            current_position=Order(price=0, quantity=0, order_id=0),
             orders=[],
             status=features.Signals.NULL,
         )
