@@ -325,9 +325,106 @@ async def signal_handle(
     return df, position
 
 
-async def user_socket_data_handle(
+async def update_current_position(
+    client: binance.AsyncClient,
+    current_position: orders.CurrentPosition,
+    order_price: float,
+    order_quantity: float,
+    leverage: int,
+    symbol: str,
+    saldo: float,
+) -> Tuple[orders.CurrentPosition, float]:
+
+    new_order_quantity = order_quantity + current_position.quantity
+    weighted_avg_price = (
+        current_position.price * current_position.quantity
+        + order_price * order_quantity
+    ) / new_order_quantity
+
+    liquidation_price, target_price = orders.liquidation_target_price_calculate(
+        side=current_position.side, price=weighted_avg_price, leverage=leverage
+    )
+
+    take_profit_order = await orders.update_take_profit_order(
+        client=client,
+        old_take_profit_order=current_position.take_profit_order,
+        price=target_price,
+        order_quantity=new_order_quantity,
+        side=current_position.side,
+        symbol=symbol,
+    )
+
+    current_position = orders.CurrentPosition(
+        price=weighted_avg_price,
+        quantity=new_order_quantity,
+        liquidation_price=liquidation_price,
+        target_price=target_price,
+        side=current_position.side,
+        take_profit_order=take_profit_order,
+    )
+
+    return current_position, saldo
+
+
+async def order_handle(
+    client: binance.AsyncClient, position: orders.Position, order_update: dict
+) -> Tuple[pandas.DataFrame, orders.Position]:
+
+    updated_order = order_update["o"]
+    order_status = updated_order["X"]
+    order_type = updated_order["o"]
+    order_side = updated_order["S"]
+    order_price = updated_order["p"]
+    order_quantity = updated_order["q"]
+
+    # HANDLE WHEN LIQUIDATION OR TAKE PROFIT
+
+    for order in position.orders:
+        if order.status in [
+            client.ORDER_STATUS_NEW,
+            client.ORDER_STATUS_PARTIALLY_FILLED,
+        ]:
+            if order.price == round(order_price, 2):
+                if order_status == client.ORDER_STATUS_PARTIALLY_FILLED:
+                    order.realized_quantity = order.realized_quantity + order_quantity
+                    order.status = order_status
+                    logger.info(
+                        "Order partially filled, price: %s, quantity: %s"
+                        % (order_price, order_quantity)
+                    )
+                elif order_status == client.ORDER_STATUS_FILLED:
+                    order.realized_quantity = order.quantity
+                    order.status = order_status
+                    logger.info(
+                        "Order filled, price: %s, quantity: %s"
+                        % (order_price, order_quantity)
+                    )
+                    (
+                        position.current_position,
+                        position.saldo,
+                    ) = await update_current_position(
+                        client=client,
+                        current_position=position.current_position,
+                        order_price=order_price,
+                        order_quantity=order_quantity,
+                        leverage=position.leverage,
+                        symbol=position.symbol,
+                        saldo=position.saldo,
+                    )
+                elif order_status == client.ORDER_STATUS_NEW:
+                    logger.info("New order created")
+                elif order_status == client.ORDER_STATUS_CANCELED:
+                    logger.info("Order cancelled")
+                elif order_status == client.ORDER_STATUS_EXPIRED:
+                    logger.info("Order expired")
+
+    return position
+
+
+async def account_handle(
     df: pandas.DataFrame, position: orders.Position
 ) -> Tuple[pandas.DataFrame, orders.Position]:
+
     return df, position
 
 
@@ -341,7 +438,14 @@ async def worker(
 ):
     df = start_df
     position = orders.Position(
-        current_position=orders.Order(price=0, quantity=0, order_id=0),
+        current_position=orders.CurrentPosition(
+            price=0,
+            quantity=0,
+            target_price=0,
+            liquidation_price=0,
+            side=orders.PositionSide.FLAT,
+            take_profit_order=orders.Order(price=0, quantity=0, order_id=0),
+        ),
         orders=[],
         status=features.Signals.FLAT,
         saldo=saldo,
@@ -381,11 +485,17 @@ async def worker(
                     % (last_rows, "\n%s" % df.tail(last_rows).to_string())
                 )
 
-            elif producers.EventName.User == producers.Event.name:
-                logger.info("Some data from user socket came: %s" % task.content)
-                new_df, new_position = await user_socket_data_handle(
-                    df=df, position=position
+            elif producers.EventName.Order == producers.Event.name:
+                logger.info("Order update: %s" % task.content)
+                new_df, new_position = await order_handle(
+                    client=client, position=position, order_update=task.content
                 )
+                df = new_df
+                position = new_position
+                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+            elif producers.EventName.Account == producers.Event.name:
+                logger.info("Account update: %s" % task.content)
+                new_df, new_position = await account_handle(df=df, position=position)
                 df = new_df
                 position = new_position
                 logger.info("New DF: %s, new position: %s" % (new_df, new_position))

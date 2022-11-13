@@ -12,7 +12,8 @@ logger = logging.getLogger("producer")
 
 class EventName(Enum):
     Kline = "Kline"
-    User = "User"
+    Account = "Account"
+    Order = "Order"
     Signal = "Signal"
 
 
@@ -38,8 +39,16 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
     async with fus:
         while True:
             msg = await fus.recv()
-            await queue.put(Event(name=EventName.User, content=msg))
-            logger.info(msg)
+            if msg["e"] == "ACCOUNT_UPDATE":
+                await queue.put(Event(name=EventName.Account, content=msg))
+                logger.info("Account update msg: %s" % msg)
+            elif msg["e"] == "ORDER_TRADE_UPDATE":
+                await queue.put(Event(name=EventName.Order, content=msg))
+                logger.info("Order trade update msg: %s" % msg)
+            else:
+                logger.info(
+                    "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s" % msg
+                )
             await asyncio.sleep(0.1)
 
 
