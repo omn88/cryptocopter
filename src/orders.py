@@ -7,6 +7,8 @@ import logging
 import features
 import binance
 
+from binance import exceptions
+
 import lib
 
 
@@ -106,13 +108,19 @@ async def futures_long_position_open(
     logger.info("Order quantity for new trade: %d" % order_quantity)
 
     if mode == PositionMode.DCA:
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            order_quantity=order_quantity,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
-        logger.info("Long opened, DCA, resp %s" % resp)
+        logger.info("Entering DCA")
+        try:
+            btc_price = await client.get_avg_price(symbol=position.symbol)
+            resp = await client.futures_create_order(
+                symbol=position.symbol,
+                quantity=round(order_quantity, 2) / btc_price["price"],
+                side=client.SIDE_BUY,
+                type=client.FUTURE_ORDER_TYPE_MARKET,
+                newOrderRespType="RESULT",
+            )
+            logger.info("Long opened, DCA, resp %s" % resp)
+        except exceptions.BinanceAPIException as e:
+            logger.info("Tej kurwa co jest: %s" % e)
 
         buy_price = resp["price"]
         liquidation_price, target_price = liquidation_target_price_calculate(

@@ -82,7 +82,7 @@ def order_quantity_list_prepare(
 ) -> pandas.DataFrame:
     order_values = (
         [
-            12.5,
+            20,
             25,
             50,
             100,

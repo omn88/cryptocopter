@@ -82,16 +82,21 @@ async def determine_start_position(
 
     last_signal = None
     last_signal_close_price = 0
+    signal_index = None
 
     for index, row in df[::-1].iterrows():
         if row["signal"] != 0:
             last_signal = row["signal"]
             last_signal_close_price = row["Close"]
+            signal_index = index
             break
         else:
-            last_signal = features.Signals.FLAT
+            last_signal = features.Signals.NULL
 
-    logger.info("Last signal was: %s" % last_signal)
+    logger.info(
+        "Last signal was: %s, price: %s, index: %s"
+        % (last_signal, last_signal_close_price, signal_index)
+    )
 
     latest_close = df.iloc[-1]["Close"]
     logger.info("Last row's price close was: %s" % latest_close)
@@ -100,17 +105,16 @@ async def determine_start_position(
         if latest_close < last_signal_close_price:
             signal = last_signal
         else:
-            signal = features.Signals.FLAT
+            signal = features.Signals.NULL
     elif last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
         if latest_close > last_signal_close_price:
             signal = last_signal
         else:
-            signal = features.Signals.FLAT
+            signal = features.Signals.NULL
     else:
-        signal = features.Signals.FLAT
+        signal = features.Signals.NULL
 
     df.at[df.index[-1], "signal"] = signal
-    df.at[df.index[-1], "position"] = features.Signals.FLAT
     await queue.put(signal)
     if last_signal != signal:
         logger.info(

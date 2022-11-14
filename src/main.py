@@ -59,7 +59,7 @@ async def main():
     # Worker will manage
 
     client = await AsyncClient.create(
-        api_key=config("API_KEY"), api_secret=config("API_SECRET")
+        api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
     logger.info("Async client created")
     bm = BinanceSocketManager(client)
@@ -85,21 +85,10 @@ async def main():
     )
     df = features.signals_from_features_generate(df=df)
 
-    df["position"] = features.Signals.NULL
+    df["position"] = features.Signals.FLAT
 
     df, start_position = await determine_start_position(df=df, queue=queue)
-
-    last_rows = 5
-    logger.info(
-        "Last %d rows from main df: %s"
-        % (last_rows, "\n%s" % df.tail(last_rows).to_string())
-    )
-
     assert isinstance(start_position, features.Signals)
-
-    # logger.info("Start df: %s" % df.to_string())
-    #
-    # logger.info("Start position: %s" % start_position)
 
     producers = [
         asyncio.create_task(
