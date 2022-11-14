@@ -59,21 +59,20 @@ async def send_dca_orders(
     side: str,
     dca_orders: List[Order],
     symbol: str,
-    order_quantity: float,
 ) -> List[Order]:
 
     for order in dca_orders:
         resp = await client.futures_create_order(
             symbol=symbol,
             price=order.price,
-            order_quantity=order_quantity,
+            quantity=order.quantity,
             side=side,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
         )
         order.order_id = resp["orderId"]
         logger.info(
             "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
-            % (order.price, order_quantity, side, order.order_id)
+            % (order.price, order.quantity, side, order.order_id)
         )
 
     return dca_orders
@@ -131,7 +130,6 @@ async def futures_long_position_open(
 
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            quantity=quantity,
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=target_price,
@@ -181,7 +179,6 @@ async def futures_long_position_open(
             client=client,
             dca_orders=dca_orders,
             symbol=position.symbol,
-            order_quantity=order_quantity,
             side=client.SIDE_BUY,
         )
 
@@ -206,9 +203,12 @@ async def futures_long_position_open(
     elif mode == PositionMode.FULL:
         orders = []
         full_order_quantity = (number_of_dca_orders + 1) * order_quantity
+
+        quantity = round(full_order_quantity / float(btc_price["price"]), 5)
+
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=full_order_quantity,
+            quantity=quantity,
             side=client.SIDE_BUY,
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
@@ -218,7 +218,7 @@ async def futures_long_position_open(
         orders.append(
             Order(
                 price=buy_price,
-                quantity=full_order_quantity,
+                quantity=quantity,
                 status=client.ORDER_STATUS_FILLED,
                 order_id=0,
             )
@@ -230,7 +230,6 @@ async def futures_long_position_open(
 
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=full_order_quantity,
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=target_price,
@@ -303,17 +302,17 @@ async def futures_short_position_open(
     )
     logger.info("Order quantity for new trade: %d" % order_quantity)
 
+    btc_price = await client.get_avg_price(symbol=position.symbol)
+
     if mode == PositionMode.DCA:
-        orders = []
+        quantity = round(order_quantity / float(btc_price["price"]), 5)
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=order_quantity,
+            quantity=quantity,
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
         sell_price = resp["price"]
-        order_id = resp["order_id"]
-        status = resp["status"]
         logger.info("Short opened, DCA, resp %s" % resp)
 
         liquidation_price, target_price = liquidation_target_price_calculate(
@@ -321,7 +320,6 @@ async def futures_short_position_open(
         )
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=order_quantity,
             side=client.SIDE_BUY,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             closePosition=True,
@@ -331,12 +329,12 @@ async def futures_short_position_open(
 
         current_position = CurrentPosition(
             price=sell_price,
-            quantity=order_quantity,
+            quantity=quantity,
             target_price=target_price,
             liquidation_price=liquidation_price,
             side=PositionSide.SHORT,
             take_profit_order=Order(
-                price=sell_price, quantity=order_quantity, order_id=resp["orderId"]
+                price=sell_price, quantity=quantity, order_id=resp["orderId"]
             ),
         )
         logger.info("Current position %s" % current_position)
@@ -344,7 +342,7 @@ async def futures_short_position_open(
         orders = [
             Order(
                 price=sell_price,
-                quantity=order_quantity,
+                quantity=quantity,
                 status=client.ORDER_STATUS_FILLED,
                 order_id=0,
             )
@@ -352,7 +350,11 @@ async def futures_short_position_open(
         dca_orders = [
             Order(
                 price=round((sell_price + (0.005 * (order + 1) * sell_price)), 2),
-                quantity=order_quantity,
+                quantity=round(
+                    order_quantity
+                    / (round((sell_price + (0.005 * (order + 1) * sell_price)), 2)),
+                    5,
+                ),
                 order_id=0,
             )
             for order in range(number_of_dca_orders)
@@ -366,7 +368,6 @@ async def futures_short_position_open(
             client=client,
             dca_orders=dca_orders,
             symbol=position.symbol,
-            order_quantity=order_quantity,
             side=client.SIDE_SELL,
         )
         logger.info("DCA orders send")
@@ -390,9 +391,11 @@ async def futures_short_position_open(
     elif mode == PositionMode.FULL:
         orders = []
         full_order_quantity = (number_of_dca_orders + 1) * order_quantity
+        quantity = round(full_order_quantity / float(btc_price["price"]), 5)
+
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=full_order_quantity,
+            quantity=quantity,
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
@@ -402,7 +405,7 @@ async def futures_short_position_open(
         orders.append(
             Order(
                 price=sell_price,
-                quantity=full_order_quantity,
+                quantity=quantity,
                 status=client.ORDER_STATUS_FILLED,
                 order_id=0,
             )
@@ -414,7 +417,6 @@ async def futures_short_position_open(
 
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=order_quantity,
             side=client.SIDE_BUY,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             closePosition=True,
@@ -424,12 +426,12 @@ async def futures_short_position_open(
 
         current_position = CurrentPosition(
             price=sell_price,
-            quantity=full_order_quantity,
+            quantity=quantity,
             liquidation_price=liquidation_price,
             target_price=target_price,
             side=PositionSide.LONG,
             take_profit_order=Order(
-                price=sell_price, quantity=full_order_quantity, order_id=resp["orderId"]
+                price=sell_price, quantity=quantity, order_id=resp["orderId"]
             ),
         )
 
