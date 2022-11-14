@@ -107,13 +107,15 @@ async def futures_long_position_open(
     )
     logger.info("Order quantity for new trade: %d" % order_quantity)
 
+    btc_price = await client.get_avg_price(symbol=position.symbol)
+
     if mode == PositionMode.DCA:
         logger.info("Entering DCA")
+        quantity = round(order_quantity / float(btc_price["price"]), 5)
         try:
-            btc_price = await client.get_avg_price(symbol=position.symbol)
             resp = await client.futures_create_order(
                 symbol=position.symbol,
-                quantity=round(order_quantity, 2) / btc_price["price"],
+                quantity=quantity,
                 side=client.SIDE_BUY,
                 type=client.FUTURE_ORDER_TYPE_MARKET,
                 newOrderRespType="RESULT",
@@ -129,7 +131,7 @@ async def futures_long_position_open(
 
         resp = await client.futures_create_order(
             symbol=position.symbol,
-            order_quantity=order_quantity,
+            quantity=quantity,
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=target_price,
@@ -140,12 +142,12 @@ async def futures_long_position_open(
 
         current_position = CurrentPosition(
             price=buy_price,
-            quantity=order_quantity,
+            quantity=quantity,
             target_price=target_price,
             liquidation_price=liquidation_price,
             side=PositionSide.LONG,
             take_profit_order=Order(
-                price=target_price, quantity=order_quantity, order_id=resp["orderId"]
+                price=target_price, quantity=quantity, order_id=resp["orderId"]
             ),
         )
         logger.info("Current position %s" % current_position)
@@ -153,7 +155,7 @@ async def futures_long_position_open(
         orders = [
             Order(
                 price=buy_price,
-                quantity=order_quantity,
+                quantity=quantity,
                 status=client.ORDER_STATUS_FILLED,
                 order_id=0,
             )
@@ -161,7 +163,11 @@ async def futures_long_position_open(
         dca_orders = [
             Order(
                 price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
-                quantity=order_quantity,
+                quantity=round(
+                    order_quantity
+                    / (round((buy_price - (0.005 * (order + 1) * buy_price)), 2)),
+                    5,
+                ),
                 order_id=0,
             )
             for order in range(number_of_dca_orders)
@@ -171,16 +177,12 @@ async def futures_long_position_open(
         for order in orders:
             logger.info("Order: %s" % order)
 
-        dca_orders = await asyncio.gather(
-            *[
-                send_dca_orders(
-                    client=client,
-                    dca_orders=dca_orders,
-                    symbol=position.symbol,
-                    order_quantity=order_quantity,
-                    side=client.SIDE_BUY,
-                )
-            ]
+        dca_orders = await send_dca_orders(
+            client=client,
+            dca_orders=dca_orders,
+            symbol=position.symbol,
+            order_quantity=order_quantity,
+            side=client.SIDE_BUY,
         )
 
         orders.append(dca_orders)
@@ -360,16 +362,12 @@ async def futures_short_position_open(
         for order in dca_orders:
             logger.info("Order: %s" % order)
 
-        dca_orders = await asyncio.gather(
-            *[
-                send_dca_orders(
-                    client=client,
-                    dca_orders=dca_orders,
-                    symbol=position.symbol,
-                    order_quantity=order_quantity,
-                    side=client.SIDE_SELL,
-                )
-            ]
+        dca_orders = await send_dca_orders(
+            client=client,
+            dca_orders=dca_orders,
+            symbol=position.symbol,
+            order_quantity=order_quantity,
+            side=client.SIDE_SELL,
         )
         logger.info("DCA orders send")
         for order in dca_orders:
