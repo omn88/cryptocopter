@@ -44,6 +44,7 @@ async def main():
     symbol = "BTCUSDT"
     asset = "USDT"
     interval = "15m"
+    leverage = 25
     logger.info(
         "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
     )
@@ -72,6 +73,9 @@ async def main():
     saldo = float(balance[6]["balance"])
 
     logger.info("Asset: %s, Saldo: %d " % (balance[6]["asset"], saldo))
+
+    await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
+    await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
