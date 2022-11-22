@@ -31,7 +31,8 @@ class Order:
     status: str = binance.client.BaseClient.ORDER_STATUS_NEW
 
 
-class CurrentPosition(NamedTuple):
+@dataclass()
+class CurrentPosition:
     price: float
     quantity: float
     side: PositionSide
@@ -576,17 +577,17 @@ async def futures_short_position_close(
 async def update_take_profit_order(
     client: binance.AsyncClient,
     symbol: str,
-    old_take_profit_order: Order,
+    take_profit_order: Order,
     price: float,
     order_quantity: float,
     side: PositionSide,
 ) -> Order:
 
-    resp = await client.futures_cancel_order(order_id=old_take_profit_order.order_id)
+    resp = await client.futures_cancel_order(order_id=take_profit_order.order_id)
 
     logger.info(
         "Order with order_id: %s should be cancelled and is: %s"
-        % (old_take_profit_order.order_id, resp["status"])
+        % (take_profit_order.order_id, resp["status"])
     )
 
     resp = await client.futures_create_order(

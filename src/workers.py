@@ -406,47 +406,6 @@ async def signal_handle(
     return df, position
 
 
-async def update_current_position(
-    client: binance.AsyncClient,
-    current_position: orders.CurrentPosition,
-    order_price: float,
-    order_quantity: float,
-    leverage: int,
-    symbol: str,
-    saldo: float,
-) -> Tuple[orders.CurrentPosition, float]:
-
-    new_order_quantity = order_quantity + current_position.quantity
-    weighted_avg_price = (
-        current_position.price * current_position.quantity
-        + order_price * order_quantity
-    ) / new_order_quantity
-
-    liquidation_price, target_price = orders.liquidation_target_price_calculate(
-        side=current_position.side, price=weighted_avg_price, leverage=leverage
-    )
-
-    take_profit_order = await orders.update_take_profit_order(
-        client=client,
-        old_take_profit_order=current_position.take_profit_order,
-        price=target_price,
-        order_quantity=new_order_quantity,
-        side=current_position.side,
-        symbol=symbol,
-    )
-
-    current_position = orders.CurrentPosition(
-        price=weighted_avg_price,
-        quantity=new_order_quantity,
-        liquidation_price=liquidation_price,
-        target_price=target_price,
-        side=current_position.side,
-        take_profit_order=take_profit_order,
-    )
-
-    return current_position, saldo
-
-
 async def order_handle(
     client: binance.AsyncClient, position: orders.Position, order_update: dict
 ) -> Tuple[pandas.DataFrame, orders.Position]:
@@ -476,22 +435,20 @@ async def order_handle(
                 elif order_status == client.ORDER_STATUS_FILLED:
                     order.realized_quantity = order.quantity
                     order.status = order_status
+
                     logger.info(
                         "Order filled, price: %s, quantity: %s"
                         % (order_price, order_quantity)
                     )
-                    (
-                        position.current_position,
-                        position.saldo,
-                    ) = await update_current_position(
+                    position.current_position.take_profit_order = await orders.update_take_profit_order(
                         client=client,
-                        current_position=position.current_position,
-                        order_price=order_price,
+                        take_profit_order=position.current_position.take_profit_order,
+                        price=order_price,
                         order_quantity=order_quantity,
-                        leverage=position.leverage,
                         symbol=position.symbol,
-                        saldo=position.saldo,
+                        side=position.current_position.side,
                     )
+
                 elif order_status == client.ORDER_STATUS_NEW:
                     logger.info("New order created")
                 elif order_status == client.ORDER_STATUS_CANCELED:
@@ -515,30 +472,22 @@ async def worker(
     client: binance.AsyncClient,
     symbol: str,
     interval: str,
-    saldo: float,
+    position: orders.Position,
 ):
     df = start_df
-    position = orders.Position(
-        current_position=orders.CurrentPosition(
-            price=0,
-            quantity=0,
-            target_price=0,
-            liquidation_price=0,
-            side=orders.PositionSide.FLAT,
-            take_profit_order=orders.Order(price=0, quantity=0, order_id=0),
-        ),
-        orders=[],
-        status=features.Signals.FLAT,
-        saldo=saldo,
-        symbol=symbol,
-    )
 
     while True:
+
+        logger.info("Czekom na nowy task")
+        logger.info("queue size: %s" % queue.qsize())
         task = await queue.get()
+        logger.info("queue size: %s" % queue.qsize())
+        # logger.info("New task arrived: %s" % task)
 
         if isinstance(task, producers.Event):
             logger.info("New event came: %s" % task.name)
-            if producers.EventName.Kline == task.name:
+            if producers.EventName.KLINE == task.name:
+                logger.info("Entering Kline handling")
                 temp_df = await lib.get_futures_historical_data(
                     client=client,
                     symbol=symbol,
@@ -551,7 +500,7 @@ async def worker(
                 if kline_signal == 0:
                     kline_signal = features.Signals.NULL
 
-                logger.info("Kline produced new signal: %s" % kline_signal)
+                logger.info("Kline produced new signal: %s" % kline_signal.value)
 
                 temp_df, position = await signal_handle(
                     client=client,
@@ -572,7 +521,7 @@ async def worker(
                     % (last_rows, "\n%s" % df.tail(last_rows).to_string())
                 )
 
-            elif producers.EventName.Order == producers.Event.name:
+            elif producers.EventName.ORDER == task.name:
                 logger.info("Order update: %s" % task.content)
                 new_df, new_position = await order_handle(
                     client=client, position=position, order_update=task.content
@@ -580,9 +529,20 @@ async def worker(
                 df = new_df
                 position = new_position
                 logger.info("New DF: %s, new position: %s" % (new_df, new_position))
-            elif producers.EventName.Account == producers.Event.name:
+            elif producers.EventName.ACCOUNT == producers.Event.name:
                 logger.info("Account update: %s" % task.content)
                 new_df, new_position = await account_handle(df=df, position=position)
+                df = new_df
+                position = new_position
+                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+            elif producers.EventName.SIGNAL == producers.Event.name:
+                logger.info("Event signal update: %s" % task.content)
+                new_df, new_position = await signal_handle(
+                    client=client,
+                    df=df,
+                    signal=task.content["last_signal"],
+                    position=position,
+                )
                 df = new_df
                 position = new_position
                 logger.info("New DF: %s, new position: %s" % (new_df, new_position))

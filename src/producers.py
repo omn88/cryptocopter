@@ -11,10 +11,10 @@ logger = logging.getLogger("producer")
 
 
 class EventName(Enum):
-    Kline = "Kline"
-    Account = "Account"
-    Order = "Order"
-    Signal = "Signal"
+    KLINE = "Kline"
+    ACCOUNT = "Account"
+    ORDER = "Order"
+    SIGNAL = "Signal"
 
 
 class Event(NamedTuple):
@@ -30,7 +30,7 @@ async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
             msg = await ticker.recv()
             await queue.put(msg)
             logger.info(msg)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
 
 async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
@@ -39,17 +39,19 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
     async with fus:
         while True:
             msg = await fus.recv()
+            logger.info("user")
             if msg["e"] == "ACCOUNT_UPDATE":
-                await queue.put(Event(name=EventName.Account, content=msg))
+                await queue.put(Event(name=EventName.ACCOUNT, content=msg))
                 logger.info("Account update msg: %s" % msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
-                await queue.put(Event(name=EventName.Order, content=msg))
+                await queue.put(Event(name=EventName.ORDER, content=msg))
+                await queue.join()
                 logger.info("Order trade update msg: %s" % msg)
             else:
                 logger.info(
                     "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s" % msg
                 )
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
 
 async def kline_futures_socket(
@@ -68,10 +70,11 @@ async def kline_futures_socket(
                 1, "h"
             )
             if index != last_index:
-                await queue.put(Event(name=EventName.Kline, content=msg))
+                await queue.put(Event(name=EventName.KLINE, content=msg))
                 logger.info("New index: %s" % index)
                 last_index = index
-            await asyncio.sleep(0.1)
+
+            await asyncio.sleep(0.01)
 
 
 async def determine_start_position(
@@ -93,37 +96,48 @@ async def determine_start_position(
         else:
             last_signal = features.Signals.NULL
 
+    content = {
+        "last_signal": last_signal,
+        "last_signal_close_price": last_signal_close_price,
+    }
+
     logger.info(
-        "Last signal was: %s, price: %s, index: %s"
-        % (last_signal, last_signal_close_price, signal_index)
+        "Last signal: %s, ls close price: %s" % (last_signal, last_signal_close_price)
     )
+    await queue.put(Event(name=EventName.SIGNAL, content=content))
+    logger.info("Event name signal send")
 
-    latest_close = df.iloc[-1]["Close"]
-    logger.info("Last row's price close was: %s" % latest_close)
+    # logger.info(
+    #     "Last signal was: %s, price: %s, index: %s"
+    #     % (last_signal, last_signal_close_price, signal_index)
+    # )
+    #
+    # latest_close = df.iloc[-1]["Close"]
+    # logger.info("Last row's price close was: %s" % latest_close)
+    #
+    # if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
+    #     if latest_close < last_signal_close_price:
+    #         signal = last_signal
+    #     else:
+    #         signal = features.Signals.NULL
+    # elif last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
+    #     if latest_close > last_signal_close_price:
+    #         signal = last_signal
+    #     else:
+    #         signal = features.Signals.NULL
+    # else:
+    #     signal = features.Signals.NULL
+    #
+    # df.at[df.index[-1], "signal"] = signal
+    # await queue.put(signal)
+    # if last_signal != signal:
+    #     logger.info(
+    #         "It seems the train is gone, let's start Flat and wait for another opportunity, signal: %s"
+    #         % signal
+    #     )
+    # else:
+    #     logger.info(
+    #         "It seems to be good opportunity. Let's start now, signal: %s" % signal
+    #     )
 
-    if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
-        if latest_close < last_signal_close_price:
-            signal = last_signal
-        else:
-            signal = features.Signals.NULL
-    elif last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
-        if latest_close > last_signal_close_price:
-            signal = last_signal
-        else:
-            signal = features.Signals.NULL
-    else:
-        signal = features.Signals.NULL
-
-    df.at[df.index[-1], "signal"] = signal
-    await queue.put(signal)
-    if last_signal != signal:
-        logger.info(
-            "It seems the train is gone, let's start Flat and wait for another opportunity, signal: %s"
-            % signal
-        )
-    else:
-        logger.info(
-            "It seems to be good opportunity. Let's start now, signal: %s" % signal
-        )
-
-    return df, signal
+    return df, last_signal

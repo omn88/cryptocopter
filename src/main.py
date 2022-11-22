@@ -1,5 +1,6 @@
 import asyncio
 
+import binance.exceptions
 import pandas
 from binance import AsyncClient, BinanceSocketManager
 import errno
@@ -10,6 +11,7 @@ import yaml
 import shutil
 from decouple import config
 import lib
+import orders
 
 import features
 
@@ -74,8 +76,26 @@ async def main():
 
     logger.info("Asset: %s, Saldo: %d " % (balance[6]["asset"], saldo))
 
-    await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
+    try:
+        await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
+    except binance.exceptions.BinanceAPIException as e:
+        logger.info("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
+
+    position = orders.Position(
+        current_position=orders.CurrentPosition(
+            price=0,
+            quantity=0,
+            target_price=0,
+            liquidation_price=0,
+            side=orders.PositionSide.FLAT,
+            take_profit_order=orders.Order(price=0, quantity=0, order_id=0),
+        ),
+        orders=[],
+        status=features.Signals.FLAT,
+        saldo=saldo,
+        symbol=symbol,
+    )
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
@@ -115,20 +135,26 @@ async def main():
                 client=client,
                 symbol=symbol,
                 interval=interval,
-                saldo=saldo,
+                position=position,
             )
         )
     ]
 
-    # with both producers and consumers running, wait for
-    # the producers to finish
-    await asyncio.gather(*producers)
-    print("---- done producing")
+    cancelled = False
 
-    # wait for the remaining tasks to be processed
-    await queue.join()
+    while True:
+        if cancelled:
+            break
+        else:
+            # with both producers and consumers running, wait for
+            # the producers to finish
+            await asyncio.gather(*producers)
+            logger.info("---- done producing")
 
-    await asyncio.gather(*workers)
+            # wait for the remaining tasks to be processed
+            await queue.join()
+
+            await asyncio.gather(*workers)
 
     await client.close_connection()
     # shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
