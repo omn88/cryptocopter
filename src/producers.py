@@ -79,32 +79,43 @@ async def kline_futures_socket(
 
 async def determine_start_position(
     df: pandas.DataFrame, queue: asyncio.Queue
-) -> Tuple[pandas.DataFrame, features.Signals]:
-
+) -> pandas.DataFrame:
     logger.info("Checking start position")
 
     last_signal = None
-    last_signal_open_price = 0
-    signal_index = None
+    last_signal_close_price = 0
+    signal_index = 0
+    date_index = None
 
     for index, row in df[::-1].iterrows():
         if row["signal"] != 0:
             last_signal = row["signal"]
-            last_signal_open_price = row["Open"]
-            signal_index = index
+            last_signal_close_price = row["Close"]
+            # Adding extra lines to see what happened before signal
+            signal_index += 4
+            date_index = index
             break
         else:
             last_signal = features.Signals.NULL
+            signal_index += 1
+
+    try:
+        assert signal_index <= len(df.index)
+        df = df.iloc[len(df.index) - signal_index : :]
+        logger.info("New DF: \n%s" % df.to_string())
+    except AssertionError as e:
+        logger.info("That was long time without signal, leaving df as is")
 
     content = {
         "last_signal": last_signal,
-        "last_signal_open_price": last_signal_open_price,
+        "last_signal_close_price": last_signal_close_price,
     }
 
-    logger.info(
-        "Last signal: %s, ls close price: %s" % (last_signal, last_signal_open_price)
-    )
     await queue.put(Event(name=EventName.SIGNAL, content=content))
-    logger.info("Event name signal send")
 
-    return df, last_signal
+    logger.info(
+        "Added signal to queue: on %s signal: %s, price: %s"
+        % (date_index, last_signal, last_signal_close_price)
+    )
+
+    return df

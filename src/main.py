@@ -98,8 +98,7 @@ async def main():
 
     df["position"] = features.Signals.FLAT
 
-    df, start_position = await determine_start_position(df=df, queue=queue)
-    assert isinstance(start_position, features.Signals)
+    df = await determine_start_position(df=df, queue=queue)
 
     producers = [
         asyncio.create_task(

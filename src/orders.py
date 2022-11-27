@@ -1,7 +1,6 @@
-import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, NamedTuple, Tuple, Optional
+from typing import List, Tuple, Optional
 import logging
 import features
 import binance
@@ -55,28 +54,28 @@ class PositionMode(Enum):
     FULL = "FULL"
 
 
-async def send_dca_orders(
-    client: binance.AsyncClient,
-    side: str,
-    dca_orders: List[Order],
-    symbol: str,
-) -> List[Order]:
-
-    for order in dca_orders:
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            price=order.price,
-            quantity=order.quantity,
-            side=side,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-        )
-        order.order_id = resp["orderId"]
-        logger.info(
-            "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
-            % (order.price, order.quantity, side, order.order_id)
-        )
-
-    return dca_orders
+# async def send_dca_orders(
+#     client: binance.AsyncClient,
+#     side: str,
+#     dca_orders: List[Order],
+#     symbol: str,
+# ) -> List[Order]:
+#
+#     for order in dca_orders:
+#         resp = await client.futures_create_order(
+#             symbol=symbol,
+#             price=order.price,
+#             quantity=order.quantity,
+#             side=side,
+#             type=client.FUTURE_ORDER_TYPE_LIMIT,
+#         )
+#         order.order_id = resp["orderId"]
+#         logger.info(
+#             "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
+#             % (order.price, order.quantity, side, order.order_id)
+#         )
+#
+#     return dca_orders
 
 
 def liquidation_target_price_calculate(
@@ -93,6 +92,34 @@ def liquidation_target_price_calculate(
         return liquidation_price, target_price
 
 
+def prepare_orders():
+
+    orders = [
+        Order(
+            price=buy_price,
+            quantity=quantity,
+            status=client.ORDER_STATUS_FILLED,
+            order_id=0,
+        )
+    ]
+    dca_orders = [
+        Order(
+            price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
+            quantity=round(
+                order_quantity
+                / (round((buy_price - (0.005 * (order + 1) * buy_price)), 2)),
+                5,
+            ),
+            order_id=0,
+        )
+        for order in range(number_of_dca_orders)
+    ]
+    logger.info("DCA orders created")
+
+    for order in orders:
+        logger.info("Order: %s" % order)
+
+
 async def futures_long_position_open(
     client: binance.AsyncClient,
     position: Position,
@@ -100,84 +127,62 @@ async def futures_long_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Opening long, saldo: %d" % position.saldo)
+    logger.info("Long! Checking order quantity, saldo: %d" % position.saldo)
     order_quantity_list = lib.order_quantity_list_prepare()
     order_quantity = lib.order_quantity_check(
         oql=order_quantity_list, saldo=position.saldo
     )
-    logger.info("Order quantity for new trade: %d" % order_quantity)
+    logger.info("Order quantity: %d" % order_quantity)
 
-    btc_price = await client.get_avg_price(symbol=position.symbol)
+    # btc_price = await client.get_avg_price(symbol=position.symbol)
+    # quantity = round(order_quantity / float(btc_price["price"]), 5)
 
     if mode == PositionMode.DCA:
         logger.info("Entering DCA mode")
+
+        position.orders = prepare_orders()
+
         # prepare orders
         # send orders
 
-        quantity = round(order_quantity / float(btc_price["price"]), 5)
-        try:
-            resp = await client.futures_create_order(
-                symbol=position.symbol,
-                quantity=quantity,
-                side=client.SIDE_BUY,
-                type=client.FUTURE_ORDER_TYPE_MARKET,
-                newOrderRespType="RESULT",
-            )
-            logger.info("Long opened, DCA, resp %s" % resp)
-        except exceptions.BinanceAPIException as e:
-            logger.info("Tej kurwa co jest: %s" % e)
+        # try:
+        #     resp = await client.futures_create_order(
+        #         symbol=position.symbol,
+        #         quantity=quantity,
+        #         side=client.SIDE_BUY,
+        #         type=client.FUTURE_ORDER_TYPE_MARKET,
+        #         newOrderRespType="RESULT",
+        #     )
+        #     logger.info("Long opened, DCA, resp %s" % resp)
+        # except exceptions.BinanceAPIException as e:
+        #     logger.info("Tej kurwa co jest: %s" % e)
 
-        buy_price = resp["price"]
-        liquidation_price, target_price = liquidation_target_price_calculate(
-            side=resp["positionSide"], price=buy_price, leverage=position.leverage
-        )
+        # buy_price = resp["price"]
+        # liquidation_price, target_price = liquidation_target_price_calculate(
+        #     side=resp["positionSide"], price=buy_price, leverage=position.leverage
+        # )
 
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            price=target_price,
-            closePosition=True,
-        )
-
-        logger.info("Take profit sell order send, price: %s" % target_price)
-
-        current_position = CurrentPosition(
-            price=buy_price,
-            quantity=quantity,
-            target_price=target_price,
-            liquidation_price=liquidation_price,
-            side=PositionSide.LONG,
-            take_profit_order=Order(
-                price=target_price, quantity=quantity, order_id=resp["orderId"]
-            ),
-        )
-        logger.info("Current position %s" % current_position)
-
-        orders = [
-            Order(
-                price=buy_price,
-                quantity=quantity,
-                status=client.ORDER_STATUS_FILLED,
-                order_id=0,
-            )
-        ]
-        dca_orders = [
-            Order(
-                price=round((buy_price - (0.005 * (order + 1) * buy_price)), 2),
-                quantity=round(
-                    order_quantity
-                    / (round((buy_price - (0.005 * (order + 1) * buy_price)), 2)),
-                    5,
-                ),
-                order_id=0,
-            )
-            for order in range(number_of_dca_orders)
-        ]
-        logger.info("DCA orders created")
-
-        for order in orders:
-            logger.info("Order: %s" % order)
+        # resp = await client.futures_create_order(
+        #     symbol=position.symbol,
+        #     side=client.SIDE_SELL,
+        #     type=client.FUTURE_ORDER_TYPE_LIMIT,
+        #     price=target_price,
+        #     closePosition=True,
+        # )
+        #
+        # logger.info("Take profit sell order send, price: %s" % target_price)
+        #
+        # current_position = CurrentPosition(
+        #     price=buy_price,
+        #     quantity=quantity,
+        #     target_price=target_price,
+        #     liquidation_price=liquidation_price,
+        #     side=PositionSide.LONG,
+        #     take_profit_order=Order(
+        #         price=target_price, quantity=quantity, order_id=resp["orderId"]
+        #     ),
+        # )
+        # logger.info("Current position %s" % current_position)
 
         dca_orders = await send_dca_orders(
             client=client,
