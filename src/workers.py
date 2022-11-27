@@ -478,91 +478,74 @@ async def worker(
 
     while True:
 
-        logger.info("Czekom na nowy task")
+        logger.info("Entering worker")
         logger.info("queue size: %s" % queue.qsize())
-        task = await queue.get()
-        logger.info("queue size: %s" % queue.qsize())
-        # logger.info("New task arrived: %s" % task)
+        event = await queue.get()
+        logger.info(
+            "New event arrived, name: %s, content: %s" % (event.name, event.content)
+        )
+        assert isinstance(event, producers.Event)
 
-        if isinstance(task, producers.Event):
-            logger.info("New event came: %s" % task.name)
-            if producers.EventName.KLINE == task.name:
-                logger.info("Entering Kline handling")
-                temp_df = await lib.get_futures_historical_data(
-                    client=client,
-                    symbol=symbol,
-                    interval=interval,
-                    lookback="3360",  # 44000 is approximately one month
-                )
-                temp_df = features.signals_from_features_generate(df=temp_df)
-                temp_df["position"] = df.at[df.index[-1], "position"]
-                kline_signal = temp_df.iloc[-1]["signal"]
-                if kline_signal == 0:
-                    kline_signal = features.Signals.NULL
+        logger.info("New event came: %s" % event.name)
+        if producers.EventName.KLINE == event.name:
+            logger.info("Entering Kline handling")
+            temp_df = await lib.get_futures_historical_data(
+                client=client,
+                symbol=symbol,
+                interval=interval,
+                lookback="3360",  # 44000 is approximately one month
+            )
+            temp_df = features.signals_from_features_generate(df=temp_df)
+            temp_df["position"] = df.at[df.index[-1], "position"]
+            kline_signal = temp_df.iloc[-1]["signal"]
+            if kline_signal == 0:
+                kline_signal = features.Signals.NULL
 
-                logger.info("Kline produced new signal: %s" % kline_signal.value)
+            logger.info("Kline produced new signal: %s" % kline_signal.value)
 
-                temp_df, position = await signal_handle(
-                    client=client,
-                    df=temp_df,
-                    signal=kline_signal,
-                    position=position,
-                )
-                last_rows = 5
-                logger.info(
-                    "Last %d rows from main df: %s"
-                    % (last_rows, "\n%s" % df.tail(last_rows).to_string())
-                )
-                df = df.append(temp_df.iloc[-1])
-
-                last_rows = 5
-                logger.info(
-                    "Last %d rows from main df after new row append: %s"
-                    % (last_rows, "\n%s" % df.tail(last_rows).to_string())
-                )
-
-            elif producers.EventName.ORDER == task.name:
-                logger.info("Order update: %s" % task.content)
-                new_df, new_position = await order_handle(
-                    client=client, position=position, order_update=task.content
-                )
-                df = new_df
-                position = new_position
-                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
-            elif producers.EventName.ACCOUNT == producers.Event.name:
-                logger.info("Account update: %s" % task.content)
-                new_df, new_position = await account_handle(df=df, position=position)
-                df = new_df
-                position = new_position
-                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
-            elif producers.EventName.SIGNAL == producers.Event.name:
-                logger.info("Event signal update: %s" % task.content)
-                new_df, new_position = await signal_handle(
-                    client=client,
-                    df=df,
-                    signal=task.content["last_signal"],
-                    position=position,
-                )
-                df = new_df
-                position = new_position
-                logger.info("New DF: %s, new position: %s" % (new_df, new_position))
-        elif isinstance(task, features.Signals):
-            logger.info("New signal came: %s" % task)
-
+            temp_df, position = await signal_handle(
+                client=client,
+                df=temp_df,
+                signal=kline_signal,
+                position=position,
+            )
             last_rows = 5
             logger.info(
                 "Last %d rows from main df: %s"
                 % (last_rows, "\n%s" % df.tail(last_rows).to_string())
             )
+            df = df.append(temp_df.iloc[-1])
 
+            last_rows = 5
+            logger.info(
+                "Last %d rows from main df after new row append: %s"
+                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+            )
+        elif producers.EventName.ORDER == event.name:
+            logger.info("Order update: %s" % event.content)
+            new_df, new_position = await order_handle(
+                client=client, position=position, order_update=event.content
+            )
+            df = new_df
+            position = new_position
+            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+        elif producers.EventName.ACCOUNT == producers.Event.name:
+            logger.info("Account update: %s" % event.content)
+            new_df, new_position = await account_handle(df=df, position=position)
+            df = new_df
+            position = new_position
+            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+        elif producers.EventName.SIGNAL == producers.Event.name:
+            logger.info("Event signal update: %s" % event.content)
             new_df, new_position = await signal_handle(
                 client=client,
                 df=df,
-                signal=task,
+                signal=event.content["last_signal"],
                 position=position,
             )
             df = new_df
             position = new_position
+            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
 
             last_rows = 5
             logger.info(

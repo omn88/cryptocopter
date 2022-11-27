@@ -79,23 +79,10 @@ async def main():
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
     except binance.exceptions.BinanceAPIException as e:
-        logger.info("All: %s" % e)
+        logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
-    position = orders.Position(
-        current_position=orders.CurrentPosition(
-            price=0,
-            quantity=0,
-            target_price=0,
-            liquidation_price=0,
-            side=orders.PositionSide.FLAT,
-            take_profit_order=orders.Order(price=0, quantity=0, order_id=0),
-        ),
-        orders=[],
-        status=features.Signals.FLAT,
-        saldo=saldo,
-        symbol=symbol,
-    )
+    position = orders.Position(symbol=symbol)
 
     # logger.info("Server time %s" % await client.get_server_time())
     #

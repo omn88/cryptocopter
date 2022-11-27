@@ -84,13 +84,13 @@ async def determine_start_position(
     logger.info("Checking start position")
 
     last_signal = None
-    last_signal_close_price = 0
+    last_signal_open_price = 0
     signal_index = None
 
     for index, row in df[::-1].iterrows():
         if row["signal"] != 0:
             last_signal = row["signal"]
-            last_signal_close_price = row["Close"]
+            last_signal_open_price = row["Open"]
             signal_index = index
             break
         else:
@@ -98,46 +98,13 @@ async def determine_start_position(
 
     content = {
         "last_signal": last_signal,
-        "last_signal_close_price": last_signal_close_price,
+        "last_signal_open_price": last_signal_open_price,
     }
 
     logger.info(
-        "Last signal: %s, ls close price: %s" % (last_signal, last_signal_close_price)
+        "Last signal: %s, ls close price: %s" % (last_signal, last_signal_open_price)
     )
     await queue.put(Event(name=EventName.SIGNAL, content=content))
     logger.info("Event name signal send")
-
-    # logger.info(
-    #     "Last signal was: %s, price: %s, index: %s"
-    #     % (last_signal, last_signal_close_price, signal_index)
-    # )
-    #
-    # latest_close = df.iloc[-1]["Close"]
-    # logger.info("Last row's price close was: %s" % latest_close)
-    #
-    # if last_signal in [features.Signals.LONG, features.Signals.LONG_20]:
-    #     if latest_close < last_signal_close_price:
-    #         signal = last_signal
-    #     else:
-    #         signal = features.Signals.NULL
-    # elif last_signal in [features.Signals.SHORT, features.Signals.SHORT_80]:
-    #     if latest_close > last_signal_close_price:
-    #         signal = last_signal
-    #     else:
-    #         signal = features.Signals.NULL
-    # else:
-    #     signal = features.Signals.NULL
-    #
-    # df.at[df.index[-1], "signal"] = signal
-    # await queue.put(signal)
-    # if last_signal != signal:
-    #     logger.info(
-    #         "It seems the train is gone, let's start Flat and wait for another opportunity, signal: %s"
-    #         % signal
-    #     )
-    # else:
-    #     logger.info(
-    #         "It seems to be good opportunity. Let's start now, signal: %s" % signal
-    #     )
 
     return df, last_signal

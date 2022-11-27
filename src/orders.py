@@ -1,8 +1,7 @@
 import asyncio
-import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple, Optional
 import logging
 import features
 import binance
@@ -15,7 +14,7 @@ import lib
 logger = logging.getLogger("order")
 
 
-class PositionSide(enum.Enum):
+class PositionSide(Enum):
     LONG = "LONG"
     SHORT = "SHORT"
     FLAT = "FLAT"
@@ -33,20 +32,21 @@ class Order:
 
 @dataclass()
 class CurrentPosition:
-    price: float
-    quantity: float
-    side: PositionSide
-    liquidation_price: float
-    target_price: float
-    take_profit_order: Order
+    price: float = 0
+    quantity: float = 0
+    side: PositionSide = PositionSide.FLAT
+    liquidation_price: float = 0
+    target_price: float = 0
+    take_profit_order: Optional[Order] = None
 
 
-class Position(NamedTuple):
+@dataclass
+class Position:
     symbol: str
-    current_position: CurrentPosition
-    orders: List[Order]
-    status: features.Signals
-    saldo: float
+    current_position: CurrentPosition = CurrentPosition()
+    orders: List[Order] = field(default_factory=list)
+    status: features.Signals = features.Signals.NULL
+    saldo: float = 0
     leverage: int = 25
 
 
@@ -110,7 +110,10 @@ async def futures_long_position_open(
     btc_price = await client.get_avg_price(symbol=position.symbol)
 
     if mode == PositionMode.DCA:
-        logger.info("Entering DCA")
+        logger.info("Entering DCA mode")
+        # prepare orders
+        # send orders
+
         quantity = round(order_quantity / float(btc_price["price"]), 5)
         try:
             resp = await client.futures_create_order(
