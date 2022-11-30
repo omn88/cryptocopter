@@ -466,26 +466,22 @@ async def account_handle(
 
 
 async def worker(
-    start_df: pandas.DataFrame,
+    df: pandas.DataFrame,
     queue: asyncio.Queue,
     client: binance.AsyncClient,
     symbol: str,
     interval: str,
     position: orders.Position,
 ):
-    df = start_df
-
     while True:
-
         logger.info("Entering worker")
         logger.info("queue size: %s" % queue.qsize())
         event = await queue.get()
         logger.info(
-            "New event arrived, name: %s, content: %s" % (event.name, event.content)
+            "New event arrived, name: %s, \ncontent: %s" % (event.name, event.content)
         )
         assert isinstance(event, producers.Event)
 
-        logger.info("New event came: %s" % event.name)
         if producers.EventName.KLINE == event.name:
             logger.info("Entering Kline handling")
             temp_df = await lib.get_futures_historical_data(

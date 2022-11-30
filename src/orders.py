@@ -182,10 +182,10 @@ def prepare_orders(
     return orders
 
 
+# ToDo: WRONG QUANTITY SEND
 async def futures_long_position_open(
     client: binance.AsyncClient,
     position: Position,
-    signal: features.Signals,
     entry_price: float,
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
@@ -201,7 +201,7 @@ async def futures_long_position_open(
     # quantity = round(order_quantity / float(btc_price["price"]), 5)
 
     if mode == PositionMode.DCA:
-        logger.info("Entering DCA mode")
+        logger.info("Entering mode: %s" % mode)
 
         position.orders = prepare_orders(
             side=PositionSide.LONG,
@@ -211,7 +211,7 @@ async def futures_long_position_open(
             number_of_dca_orders=number_of_dca_orders,
         )
 
-        orders = await send_orders(
+        position.orders = await send_orders(
             client=client,
             orders=position.orders,
             symbol=position.symbol,
@@ -220,99 +220,32 @@ async def futures_long_position_open(
 
         position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
-        position = Position(
-            current_position=current_position,
-            orders=orders,
-            status=signal,
-            saldo=position.saldo,
-            symbol=position.symbol,
-        )
-
         logger.info("Position: %s" % position)
 
     elif mode == PositionMode.FULL:
-        orders = []
-        full_order_quantity = (number_of_dca_orders + 1) * order_quantity
+        logger.info("Entering mode: %s" % mode)
 
-        quantity = round(full_order_quantity / float(btc_price["price"]), 5)
-
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            quantity=quantity,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
-        buy_price = resp["price"]
-        logger.info("Long opened, FULL, resp %s" % resp)
-
-        orders.append(
-            Order(
-                price=buy_price,
-                quantity=quantity,
-                status=client.ORDER_STATUS_FILLED,
-                order_id=0,
-            )
-        )
-
-        liquidation_price, target_price = liquidation_target_price_calculate(
-            side=resp["positionSide"], price=buy_price, leverage=position.leverage
-        )
-
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            price=target_price,
-            closePosition=True,
-        )
-
-        logger.info("Take profit sell order send, price: %s" % target_price)
-
-        current_position = CurrentPosition(
-            price=buy_price,
-            quantity=full_order_quantity,
-            liquidation_price=liquidation_price,
-            target_price=target_price,
+        position.orders = prepare_orders(
             side=PositionSide.LONG,
-            take_profit_order=Order(
-                price=target_price,
-                quantity=full_order_quantity,
-                order_id=resp["orderId"],
-            ),
+            mode=mode,
+            entry_price=entry_price,
+            saldo=position.saldo,
+            number_of_dca_orders=number_of_dca_orders,
+        )
+
+        position.orders = await send_orders(
+            client=client,
+            orders=position.orders,
+            symbol=position.symbol,
+            side=client.SIDE_BUY,
         )
 
         position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
-        position = Position(
-            current_position=current_position,
-            orders=orders,
-            status=signal,
-            saldo=position.saldo,
-            symbol=position.symbol,
-        )
         logger.info("Position: %s" % position)
-
-        logger.info(
-            "Long opened in FULL mode. Price: %d, quantity: %d"
-            % (current_position.price, current_position.quantity)
-        )
     else:
         logger.info(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
-        )
-        position = Position(
-            current_position=CurrentPosition(
-                price=0,
-                quantity=0,
-                target_price=0,
-                liquidation_price=0,
-                side=PositionSide.FLAT,
-                take_profit_order=Order(price=0, quantity=0, order_id=0),
-            ),
-            orders=[],
-            status=features.Signals.NULL,
-            saldo=position.saldo,
-            symbol=position.symbol,
         )
 
     return position
@@ -321,182 +254,66 @@ async def futures_long_position_open(
 async def futures_short_position_open(
     client: binance.AsyncClient,
     position: Position,
-    signal: features.Signals,
+    entry_price: float,
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Opening long, saldo: %d" % position.saldo)
+    logger.info("Short! Checking order quantity, saldo: %d" % position.saldo)
     order_quantity_list = lib.order_quantity_list_prepare()
     order_quantity = lib.order_quantity_check(
         oql=order_quantity_list, saldo=position.saldo
     )
-    logger.info("Order quantity for new trade: %d" % order_quantity)
+    logger.info("Order quantity: %d" % order_quantity)
 
-    btc_price = await client.get_avg_price(symbol=position.symbol)
+    # btc_price = await client.get_avg_price(symbol=position.symbol)
+    # quantity = round(order_quantity / float(btc_price["price"]), 5)
 
     if mode == PositionMode.DCA:
-        quantity = round(order_quantity / float(btc_price["price"]), 5)
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            quantity=quantity,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
-        sell_price = resp["price"]
-        logger.info("Short opened, DCA, resp %s" % resp)
+        logger.info("Entering mode: %s" % mode)
 
-        liquidation_price, target_price = liquidation_target_price_calculate(
-            side=resp["positionSide"], price=sell_price, leverage=position.leverage
-        )
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            closePosition=True,
-            price=target_price,
-        )
-        logger.info("Take profit buy order send, price: %s" % target_price)
-
-        current_position = CurrentPosition(
-            price=sell_price,
-            quantity=quantity,
-            target_price=target_price,
-            liquidation_price=liquidation_price,
+        position.orders = prepare_orders(
             side=PositionSide.SHORT,
-            take_profit_order=Order(
-                price=sell_price, quantity=quantity, order_id=resp["orderId"]
-            ),
+            mode=mode,
+            entry_price=entry_price,
+            saldo=position.saldo,
+            number_of_dca_orders=number_of_dca_orders,
         )
-        logger.info("Current position %s" % current_position)
 
-        orders = [
-            Order(
-                price=sell_price,
-                quantity=quantity,
-                status=client.ORDER_STATUS_FILLED,
-                order_id=0,
-            )
-        ]
-        dca_orders = [
-            Order(
-                price=round((sell_price + (0.005 * (order + 1) * sell_price)), 2),
-                quantity=round(
-                    order_quantity
-                    / (round((sell_price + (0.005 * (order + 1) * sell_price)), 2)),
-                    5,
-                ),
-                order_id=0,
-            )
-            for order in range(number_of_dca_orders)
-        ]
-        logger.info("DCA orders created")
-
-        for order in dca_orders:
-            logger.info("Order: %s" % order)
-
-        dca_orders = await send_dca_orders(
+        position.orders = await send_orders(
             client=client,
-            dca_orders=dca_orders,
+            orders=position.orders,
             symbol=position.symbol,
             side=client.SIDE_SELL,
         )
-        logger.info("DCA orders send")
-        for order in dca_orders:
-            logger.info("Order: %s" % order)
-
-        orders.append(dca_orders)
 
         position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
-
-        position = Position(
-            current_position=current_position,
-            orders=orders,
-            status=signal,
-            saldo=position.saldo,
-            symbol=position.symbol,
-        )
 
         logger.info("Position: %s" % position)
 
     elif mode == PositionMode.FULL:
-        orders = []
-        full_order_quantity = (number_of_dca_orders + 1) * order_quantity
-        quantity = round(full_order_quantity / float(btc_price["price"]), 5)
+        logger.info("Entering mode: %s" % mode)
 
-        resp = await client.futures_create_order(
+        position.orders = prepare_orders(
+            side=PositionSide.SHORT,
+            mode=mode,
+            entry_price=entry_price,
+            saldo=position.saldo,
+            number_of_dca_orders=number_of_dca_orders,
+        )
+
+        position.orders = await send_orders(
+            client=client,
+            orders=position.orders,
             symbol=position.symbol,
-            quantity=quantity,
             side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
-        sell_price = resp["price"]
-        logger.info("Long opened, FULL, resp %s" % resp)
-
-        orders.append(
-            Order(
-                price=sell_price,
-                quantity=quantity,
-                status=client.ORDER_STATUS_FILLED,
-                order_id=0,
-            )
-        )
-
-        liquidation_price, target_price = liquidation_target_price_calculate(
-            side=resp["positionSide"], price=sell_price, leverage=position.leverage
-        )
-
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_BUY,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            closePosition=True,
-            price=target_price,
-        )
-        logger.info("Take profit buy order send, price: %s" % target_price)
-
-        current_position = CurrentPosition(
-            price=sell_price,
-            quantity=quantity,
-            liquidation_price=liquidation_price,
-            target_price=target_price,
-            side=PositionSide.LONG,
-            take_profit_order=Order(
-                price=sell_price, quantity=quantity, order_id=resp["orderId"]
-            ),
         )
 
         position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
-        position = Position(
-            current_position=current_position,
-            orders=orders,
-            status=signal,
-            saldo=position.saldo,
-            symbol=position.symbol,
-        )
         logger.info("Position: %s" % position)
-
-        logger.info(
-            "Short opened in FULL mode. Price: %d, quantity: %d"
-            % (current_position.price, current_position.quantity)
-        )
     else:
         logger.info(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
-        )
-        position = Position(
-            current_position=CurrentPosition(
-                price=0,
-                quantity=0,
-                target_price=0,
-                liquidation_price=0,
-                side=PositionSide.FLAT,
-                take_profit_order=Order(price=0, quantity=0, order_id=0),
-            ),
-            orders=[],
-            status=features.Signals.NULL,
-            saldo=position.saldo,
-            symbol=position.symbol,
         )
 
     return position

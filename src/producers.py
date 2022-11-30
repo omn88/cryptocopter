@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import Dict, NamedTuple, Tuple
+from typing import Dict, NamedTuple
 import features
 from binance import BinanceSocketManager
 import pandas
