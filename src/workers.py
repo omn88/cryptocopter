@@ -379,6 +379,7 @@ async def signal_handle(
     entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     logger.info("Entering signal handle")
+    logger.info("Position status: %s" % position.status)
 
     if position.status == features.Signals.FLAT:
         df, position = await when_flat(
@@ -434,6 +435,7 @@ async def signal_handle(
 async def order_handle(
     client: binance.AsyncClient, position: orders.Position, order_update: dict
 ) -> orders.Position:
+    logger.info("Entering order handle")
 
     updated_order = order_update["o"]
     order_status = updated_order["X"]
@@ -464,14 +466,13 @@ async def order_handle(
                         % (order_price, order_quantity)
                     )
 
-                    position.current_position.take_profit_order = (
-                        await orders.handle_filled_order(
-                            client=client,
-                            current_position=position.current_position,
-                            price=order_price,
-                            order_quantity=order.quantity,
-                            symbol=position.symbol,
-                        )
+                    position.current_position = await orders.handle_filled_order(
+                        client=client,
+                        current_position=position.current_position,
+                        price=order_price,
+                        order_quantity=order.quantity,
+                        symbol=position.symbol,
+                        leverage=position.leverage,
                     )
 
                 elif order_status == client.ORDER_STATUS_NEW:
@@ -510,7 +511,7 @@ async def worker(
         logger.info("queue size: %s" % queue.qsize())
         event = await queue.get()
         logger.info(
-            "New event arrived, name: %s, \ncontent: %s" % (event.name, event.content)
+            "New event arrived, name: %s, content: %s" % (event.name, event.content)
         )
         assert isinstance(event, producers.Event)
 
@@ -540,20 +541,20 @@ async def worker(
                 df=df,
                 signal=kline_signal,
                 position=position,
-                entry_price=df.at[df.index[-1]],
+                entry_price=df.at[df.index[-1], "Close"],
             )
 
         elif producers.EventName.ORDER == event.name:
-            logger.info("Order update: %s" % event.content)
             position = await order_handle(
                 client=client, position=position, order_update=event.content
             )
 
-        elif producers.EventName.ACCOUNT == producers.Event.name:
+        elif producers.EventName.ACCOUNT == event.name:
             logger.info("Account update: %s" % event.content)
             df, position = await account_handle(df=df, position=position)
             logger.info("New DF: %s, new position: %s" % (df, position))
-        elif producers.EventName.SIGNAL == producers.Event.name:
+
+        elif producers.EventName.SIGNAL == event.name:
             logger.info("Event signal: %s" % event.content)
             df, position = await signal_handle(
                 client=client,

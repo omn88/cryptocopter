@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Tuple, Optional
@@ -5,7 +6,8 @@ import logging
 import features
 import binance
 
-from binance import exceptions
+from binance.helpers import round_step_size
+
 
 import lib
 
@@ -44,7 +46,7 @@ class Position:
     symbol: str
     current_position: CurrentPosition = CurrentPosition()
     orders: List[Order] = field(default_factory=list)
-    status: features.Signals = features.Signals.NULL
+    status: features.Signals = features.Signals.FLAT
     saldo: float = 0
     leverage: int = 25
 
@@ -54,26 +56,41 @@ class PositionMode(Enum):
     FULL = "FULL"
 
 
-async def send_orders(
-    client: binance.AsyncClient,
-    side: str,
-    orders: List[Order],
-    symbol: str,
-) -> List[Order]:
-
-    for order in orders:
+async def send_order(
+    client: binance.AsyncClient, symbol: str, side: PositionSide, order: Order
+):
+    try:
         resp = await client.futures_create_order(
             symbol=symbol,
             price=order.price,
             quantity=order.quantity,
             side=side,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
+            timeInForce=client.TIME_IN_FORCE_GTC,
         )
         order.order_id = resp["orderId"]
         logger.info(
             "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
             % (order.price, order.quantity, side, order.order_id)
         )
+    except Exception as e:
+        logger.info(e)
+
+
+async def send_orders(
+    client: binance.AsyncClient,
+    side: PositionSide,
+    orders: List[Order],
+    symbol: str,
+) -> List[Order]:
+    logger.info("Entering send orders")
+
+    await asyncio.gather(
+        *[
+            send_order(client=client, symbol=symbol, side=side, order=order)
+            for order in orders
+        ]
+    )
 
     return orders
 
@@ -98,8 +115,10 @@ def prepare_orders(
     entry_price: float,
     saldo: float,
     number_of_dca_orders: int,
+    leverage: int,
     dca_span: float = 0.005,
 ) -> Tuple[List[Order], float]:
+    logger.info("Entering prepare orders")
 
     orders = []
     order_quantity_list = lib.order_quantity_list_prepare()
@@ -112,11 +131,12 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 2),
+                    price=round((entry_price - (dca_span * order * entry_price)), 1),
                     quantity=round(
-                        order_quantity
+                        leverage
+                        * order_quantity
                         / (round((entry_price - (dca_span * order * entry_price)), 2)),
-                        5,
+                        3,
                     ),
                     order_id=0,
                 )
@@ -130,17 +150,18 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 2),
+                    price=round((entry_price - (dca_span * order * entry_price)), 1),
                     quantity=round(
-                        (order_quantity * (number_of_dca_orders + 1))
+                        leverage
+                        * (order_quantity * (number_of_dca_orders + 1))
                         / (round((entry_price - (dca_span * order * entry_price)), 2)),
-                        5,
+                        3,
                     ),
                     order_id=0,
                 )
                 for order in range(1)
             ]
-            logger.info("DCA orders created")
+            logger.info("FULL order created")
 
             for order in orders:
                 logger.info("Order: %s" % order)
@@ -149,11 +170,12 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 2),
+                    price=round((entry_price + (dca_span * order * entry_price)), 1),
                     quantity=round(
-                        order_quantity
+                        leverage
+                        * order_quantity
                         / (round((entry_price + (dca_span * order * entry_price)), 2)),
-                        5,
+                        3,
                     ),
                     order_id=0,
                 )
@@ -166,21 +188,23 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 2),
+                    price=round((entry_price + (dca_span * order * entry_price)), 1),
                     quantity=round(
-                        order_quantity
+                        leverage
+                        * order_quantity
                         / (round((entry_price + (dca_span * order * entry_price)), 2)),
-                        5,
+                        3,
                     ),
                     order_id=0,
                 )
                 for order in range(1)
             ]
-            logger.info("DCA orders created")
+            logger.info("FULL order created")
 
             for order in orders:
                 logger.info("Order: %s" % order)
 
+    logger.info("Exiting prepare orders")
     return orders, saldo
 
 
@@ -191,7 +215,7 @@ async def futures_long_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Long!")
+    logger.info("Entering long position open")
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
@@ -202,6 +226,7 @@ async def futures_long_position_open(
             entry_price=entry_price,
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
+            leverage=position.leverage,
         )
 
         position.orders = await send_orders(
@@ -222,6 +247,7 @@ async def futures_long_position_open(
             entry_price=entry_price,
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
+            leverage=position.leverage,
         )
 
         position.orders = await send_orders(
@@ -238,6 +264,7 @@ async def futures_long_position_open(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
         )
 
+    logger.info("Exiting long position open")
     return position
 
 
@@ -248,7 +275,7 @@ async def futures_short_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Short!")
+    logger.info("Entering short position open")
 
     # ToDo: Assert no order is opened
 
@@ -261,6 +288,7 @@ async def futures_short_position_open(
             entry_price=entry_price,
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
+            leverage=position.leverage,
         )
 
         position.orders = await send_orders(
@@ -281,6 +309,7 @@ async def futures_short_position_open(
             entry_price=entry_price,
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
+            leverage=position.leverage,
         )
 
         position.orders = await send_orders(
@@ -296,12 +325,14 @@ async def futures_short_position_open(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
         )
 
+    logger.info("Exiting short position open")
     return position
 
 
 async def futures_long_position_close(
     client: binance.AsyncClient, position: Position
 ) -> Position:
+    logger.info("Entering long position close")
 
     resp = await client.futures_create_order(
         symbol=position.symbol,
@@ -353,13 +384,14 @@ async def futures_long_position_close(
         order_id=position.current_position.take_profit_order.order_id
     )
     # ToDo: assert resp status = cancelled
-
+    logger.info("Exiting long position close")
     return position
 
 
 async def futures_short_position_close(
     client: binance.AsyncClient, position: Position
 ) -> Position:
+    logger.info("Entering short position close")
 
     resp = await client.futures_create_order(
         symbol=position.symbol,
@@ -414,6 +446,7 @@ async def futures_short_position_close(
     )
     # ToDo: assert resp status = cancelled
 
+    logger.info("Exiting short position close")
     return position
 
 
@@ -424,7 +457,8 @@ async def handle_filled_order(
     price: float,
     order_quantity: float,
     leverage: int,
-) -> Order:
+) -> CurrentPosition:
+    logger.info("Entering handle filled order")
     tpo = current_position.take_profit_order
 
     logger.info("Create take profit order first!")
@@ -446,11 +480,11 @@ async def handle_filled_order(
             side=current_position.side, price=new_price, leverage=leverage
         )
 
-        new_quantity = tpo.quantity + order_quantity
+        order_quantity = tpo.quantity + order_quantity
 
         resp = await client.futures_create_order(
             symbol=symbol,
-            order_quantity=new_quantity,
+            order_quantity=order_quantity,
             side=current_position.side,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=current_position.target_price,
@@ -458,7 +492,7 @@ async def handle_filled_order(
         logger.info("New take profit buy order send, price: %s" % price)
 
         current_position.price = new_price
-        current_position.quantity = new_quantity
+        current_position.quantity = order_quantity
 
     else:
         logger.info("No take profit order, thus creating first now")
@@ -481,4 +515,10 @@ async def handle_filled_order(
         current_position.price = price
         current_position.quantity = order_quantity
 
-    return Order(price=resp["price"], quantity=order_quantity, order_id=resp["orderId"])
+    current_position.take_profit_order = Order(
+        price=resp["price"], quantity=order_quantity, order_id=resp["orderId"]
+    )
+
+    logger.info("Exiting handle filled order")
+
+    return current_position
