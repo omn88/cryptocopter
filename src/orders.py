@@ -99,14 +99,15 @@ def prepare_orders(
     saldo: float,
     number_of_dca_orders: int,
     dca_span: float = 0.005,
-) -> List[Order]:
+) -> Tuple[List[Order], float]:
 
     orders = []
     order_quantity_list = lib.order_quantity_list_prepare()
     order_quantity = lib.order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info("Order quantity: %d" % order_quantity)
 
-    # ToDo: QUANTITY MUST BE PROVIDED AS PART OF BTC - IT PROBABLY IS!!!
+    saldo = saldo - (number_of_dca_orders + 1) * order_quantity
+
     if side == PositionSide.LONG:
         if mode == PositionMode.DCA:
             orders = [
@@ -125,6 +126,7 @@ def prepare_orders(
 
             for order in orders:
                 logger.info("Order: %s" % order)
+
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
@@ -179,10 +181,9 @@ def prepare_orders(
             for order in orders:
                 logger.info("Order: %s" % order)
 
-    return orders
+    return orders, saldo
 
 
-# ToDo: WRONG QUANTITY SEND
 async def futures_long_position_open(
     client: binance.AsyncClient,
     position: Position,
@@ -190,20 +191,12 @@ async def futures_long_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Long! Checking order quantity, saldo: %d" % position.saldo)
-    order_quantity_list = lib.order_quantity_list_prepare()
-    order_quantity = lib.order_quantity_check(
-        oql=order_quantity_list, saldo=position.saldo
-    )
-    logger.info("Order quantity: %d" % order_quantity)
-
-    # btc_price = await client.get_avg_price(symbol=position.symbol)
-    # quantity = round(order_quantity / float(btc_price["price"]), 5)
+    logger.info("Long!")
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
 
-        position.orders = prepare_orders(
+        position.orders, position.saldo = prepare_orders(
             side=PositionSide.LONG,
             mode=mode,
             entry_price=entry_price,
@@ -217,15 +210,13 @@ async def futures_long_position_open(
             symbol=position.symbol,
             side=client.SIDE_BUY,
         )
-
-        position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
         logger.info("Position: %s" % position)
 
     elif mode == PositionMode.FULL:
         logger.info("Entering mode: %s" % mode)
 
-        position.orders = prepare_orders(
+        position.orders, position.saldo = prepare_orders(
             side=PositionSide.LONG,
             mode=mode,
             entry_price=entry_price,
@@ -240,9 +231,8 @@ async def futures_long_position_open(
             side=client.SIDE_BUY,
         )
 
-        position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
-
         logger.info("Position: %s" % position)
+
     else:
         logger.info(
             "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
@@ -258,20 +248,14 @@ async def futures_short_position_open(
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Short! Checking order quantity, saldo: %d" % position.saldo)
-    order_quantity_list = lib.order_quantity_list_prepare()
-    order_quantity = lib.order_quantity_check(
-        oql=order_quantity_list, saldo=position.saldo
-    )
-    logger.info("Order quantity: %d" % order_quantity)
+    logger.info("Short!")
 
-    # btc_price = await client.get_avg_price(symbol=position.symbol)
-    # quantity = round(order_quantity / float(btc_price["price"]), 5)
+    # ToDo: Assert no order is opened
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
 
-        position.orders = prepare_orders(
+        position.orders, position.saldo = prepare_orders(
             side=PositionSide.SHORT,
             mode=mode,
             entry_price=entry_price,
@@ -285,15 +269,13 @@ async def futures_short_position_open(
             symbol=position.symbol,
             side=client.SIDE_SELL,
         )
-
-        position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
         logger.info("Position: %s" % position)
 
     elif mode == PositionMode.FULL:
         logger.info("Entering mode: %s" % mode)
 
-        position.orders = prepare_orders(
+        position.orders, position.saldo = prepare_orders(
             side=PositionSide.SHORT,
             mode=mode,
             entry_price=entry_price,
@@ -307,8 +289,6 @@ async def futures_short_position_open(
             symbol=position.symbol,
             side=client.SIDE_SELL,
         )
-
-        position.saldo = position.saldo - (number_of_dca_orders + 1) * order_quantity
 
         logger.info("Position: %s" % position)
     else:
@@ -319,7 +299,9 @@ async def futures_short_position_open(
     return position
 
 
-async def futures_long_position_close(client: binance.AsyncClient, position: Position):
+async def futures_long_position_close(
+    client: binance.AsyncClient, position: Position
+) -> Position:
 
     resp = await client.futures_create_order(
         symbol=position.symbol,
@@ -329,7 +311,6 @@ async def futures_long_position_close(client: binance.AsyncClient, position: Pos
     )
 
     sell_price = resp["price"]
-
     net = round((sell_price - position.current_position.price), 2)
     net_percent = round((sell_price / position.current_position.price - 1), 4)
     logger.info(
@@ -344,10 +325,12 @@ async def futures_long_position_close(client: binance.AsyncClient, position: Pos
 
     logger.info(
         "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
-        % position.current_position.quantity,
-        position.leverage,
-        real_earn,
-        position.saldo,
+        % (
+            position.current_position.quantity,
+            position.leverage,
+            real_earn,
+            position.saldo,
+        )
     )
 
     logger.info("Cancelling remaining limit orders")
@@ -364,6 +347,12 @@ async def futures_long_position_close(client: binance.AsyncClient, position: Pos
             position.saldo = position.saldo + (order.quantity - order.realized_quantity)
 
     position.status = position.status.FLAT
+
+    logger.info("Cancelling take profit order")
+    resp = await client.futures_cancel_order(
+        order_id=position.current_position.take_profit_order.order_id
+    )
+    # ToDo: assert resp status = cancelled
 
     return position
 
@@ -396,10 +385,12 @@ async def futures_short_position_close(
 
     logger.info(
         "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
-        % position.current_position.quantity,
-        position.leverage,
-        real_earn,
-        position.saldo,
+        % (
+            position.current_position.quantity,
+            position.leverage,
+            real_earn,
+            position.saldo,
+        )
     )
 
     logger.info("Cancelling remaining limit orders")
@@ -417,32 +408,77 @@ async def futures_short_position_close(
 
     position.status = position.status.FLAT
 
+    logger.info("Cancelling take profit order")
+    resp = await client.futures_cancel_order(
+        order_id=position.current_position.take_profit_order.order_id
+    )
+    # ToDo: assert resp status = cancelled
+
     return position
 
 
-async def update_take_profit_order(
+async def handle_filled_order(
     client: binance.AsyncClient,
     symbol: str,
-    take_profit_order: Order,
+    current_position: CurrentPosition,
     price: float,
     order_quantity: float,
-    side: PositionSide,
+    leverage: int,
 ) -> Order:
+    tpo = current_position.take_profit_order
 
-    resp = await client.futures_cancel_order(order_id=take_profit_order.order_id)
+    logger.info("Create take profit order first!")
+    if tpo is not None:
+        logger.info(
+            "Take profit order is not none, so cancelling order: %s" % tpo.order_id
+        )
+        resp = await client.futures_cancel_order(order_id=tpo.order_id)
+        assert resp["status"] == client.ORDER_STATUS_CANCELED
 
-    logger.info(
-        "Order with order_id: %s should be cancelled and is: %s"
-        % (take_profit_order.order_id, resp["status"])
-    )
+        new_price = (price * order_quantity + tpo.price * tpo.quantity) / (
+            tpo.quantity + order_quantity
+        )
 
-    resp = await client.futures_create_order(
-        symbol=symbol,
-        order_quantity=order_quantity,
-        side=side,
-        type=client.FUTURE_ORDER_TYPE_LIMIT,
-        price=price,
-    )
-    logger.info("New take profit buy order send, price: %s" % price)
+        (
+            current_position.liquidation_price,
+            current_position.target_price,
+        ) = liquidation_target_price_calculate(
+            side=current_position.side, price=new_price, leverage=leverage
+        )
+
+        new_quantity = tpo.quantity + order_quantity
+
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            order_quantity=new_quantity,
+            side=current_position.side,
+            type=client.FUTURE_ORDER_TYPE_LIMIT,
+            price=current_position.target_price,
+        )
+        logger.info("New take profit buy order send, price: %s" % price)
+
+        current_position.price = new_price
+        current_position.quantity = new_quantity
+
+    else:
+        logger.info("No take profit order, thus creating first now")
+
+        (
+            current_position.liquidation_price,
+            current_position.target_price,
+        ) = liquidation_target_price_calculate(
+            side=current_position.side, price=price, leverage=leverage
+        )
+        resp = await client.futures_create_order(
+            symbol=symbol,
+            order_quantity=order_quantity,
+            side=current_position.side,
+            type=client.FUTURE_ORDER_TYPE_LIMIT,
+            price=current_position.target_price,
+        )
+        logger.info("New take profit buy order send, price: %s" % price)
+
+        current_position.price = price
+        current_position.quantity = order_quantity
 
     return Order(price=resp["price"], quantity=order_quantity, order_id=resp["orderId"])

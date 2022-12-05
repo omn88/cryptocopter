@@ -18,10 +18,11 @@ async def when_flat(
     client: binance.AsyncClient,
     position: orders.Position,
     df: pandas.DataFrame,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
         df.at[df.index[-1], "position"] = signal
         logger.info(
@@ -34,7 +35,7 @@ async def when_flat(
         )
     elif signal == features.Signals.LONG_20:
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
         df.at[df.index[-1], "position"] = signal
         logger.info(
@@ -47,7 +48,7 @@ async def when_flat(
         )
     elif signal == features.Signals.SHORT:
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
         df.at[df.index[-1], "position"] = signal
         logger.info(
@@ -60,7 +61,7 @@ async def when_flat(
         )
     elif signal == features.Signals.SHORT_80:
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
         df.at[df.index[-1], "position"] = signal
         logger.info(
@@ -100,6 +101,7 @@ async def when_long(
     client: binance.AsyncClient,
     position: orders.Position,
     df: pandas.DataFrame,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -137,7 +139,7 @@ async def when_long(
         )
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
 
     elif signal == features.Signals.SHORT_80:
@@ -155,7 +157,7 @@ async def when_long(
         )
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
 
     elif signal == features.Signals.NULL:
@@ -169,6 +171,7 @@ async def when_long_twenty(
     client: binance.AsyncClient,
     position: orders.Position,
     df: pandas.DataFrame,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         df.at[df.index[-1], "position"] = signal
@@ -206,7 +209,7 @@ async def when_long_twenty(
         )
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
 
     elif signal == features.Signals.SHORT_80:
@@ -224,7 +227,7 @@ async def when_long_twenty(
         )
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
     elif signal == features.Signals.NULL:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -237,6 +240,7 @@ async def when_short(
     client: binance.AsyncClient,
     position: orders.Position,
     df: pandas.DataFrame,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         position = await orders.futures_short_position_close(
@@ -253,7 +257,7 @@ async def when_short(
         )
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
 
     elif signal == features.Signals.LONG_20:
@@ -271,7 +275,7 @@ async def when_short(
         )
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
 
     elif signal == features.Signals.SHORT:
@@ -305,6 +309,7 @@ async def when_short_eighty(
     client: binance.AsyncClient,
     position: orders.Position,
     df: pandas.DataFrame,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         position = await orders.futures_short_position_close(
@@ -321,7 +326,7 @@ async def when_short_eighty(
         )
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
     elif signal == features.Signals.LONG_20:
         position = await orders.futures_short_position_close(
@@ -338,7 +343,7 @@ async def when_short_eighty(
         )
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, signal=signal
+            client=client, position=position, entry_price=entry_price
         )
     elif signal == features.Signals.SHORT:
         df.at[df.index[-1], "position"] = signal
@@ -371,32 +376,53 @@ async def signal_handle(
     df: pandas.DataFrame,
     signal: features.Signals,
     position: orders.Position,
+    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     logger.info("Entering signal handle")
 
     if position.status == features.Signals.FLAT:
         df, position = await when_flat(
-            client=client, position=position, signal=signal, df=df
+            client=client,
+            position=position,
+            signal=signal,
+            df=df,
+            entry_price=entry_price,
         )
 
     elif position.status == features.Signals.LONG:
         df, position = await when_long(
-            client=client, position=position, signal=signal, df=df
+            client=client,
+            position=position,
+            signal=signal,
+            df=df,
+            entry_price=entry_price,
         )
 
     elif position.status == features.Signals.LONG_20:
         df, position = await when_long_twenty(
-            client=client, position=position, signal=signal, df=df
+            client=client,
+            position=position,
+            signal=signal,
+            df=df,
+            entry_price=entry_price,
         )
 
     elif position.status == features.Signals.SHORT:
         df, position = await when_short(
-            client=client, position=position, signal=signal, df=df
+            client=client,
+            position=position,
+            signal=signal,
+            df=df,
+            entry_price=entry_price,
         )
 
     elif position.status == features.Signals.SHORT_80:
         df, position = await when_short_eighty(
-            client=client, position=position, signal=signal, df=df
+            client=client,
+            position=position,
+            signal=signal,
+            df=df,
+            entry_price=entry_price,
         )
 
     else:
@@ -407,12 +433,10 @@ async def signal_handle(
 
 async def order_handle(
     client: binance.AsyncClient, position: orders.Position, order_update: dict
-) -> Tuple[pandas.DataFrame, orders.Position]:
+) -> orders.Position:
 
     updated_order = order_update["o"]
     order_status = updated_order["X"]
-    order_type = updated_order["o"]
-    order_side = updated_order["S"]
     order_price = updated_order["p"]
     order_quantity = updated_order["q"]
 
@@ -439,13 +463,15 @@ async def order_handle(
                         "Order filled, price: %s, quantity: %s"
                         % (order_price, order_quantity)
                     )
-                    position.current_position.take_profit_order = await orders.update_take_profit_order(
-                        client=client,
-                        take_profit_order=position.current_position.take_profit_order,
-                        price=order_price,
-                        order_quantity=order_quantity,
-                        symbol=position.symbol,
-                        side=position.current_position.side,
+
+                    position.current_position.take_profit_order = (
+                        await orders.handle_filled_order(
+                            client=client,
+                            current_position=position.current_position,
+                            price=order_price,
+                            order_quantity=order.quantity,
+                            symbol=position.symbol,
+                        )
                     )
 
                 elif order_status == client.ORDER_STATUS_NEW:
@@ -463,6 +489,12 @@ async def account_handle(
 ) -> Tuple[pandas.DataFrame, orders.Position]:
 
     return df, position
+
+
+async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
+    logger.info(
+        "Last %d rows from main df: %s" % (rows, "\n%s" % df.tail(rows).to_string())
+    )
 
 
 async def worker(
@@ -484,6 +516,8 @@ async def worker(
 
         if producers.EventName.KLINE == event.name:
             logger.info("Entering Kline handling")
+            # await print_last_n_rows(df=df)
+
             temp_df = await lib.get_futures_historical_data(
                 client=client,
                 symbol=symbol,
@@ -498,56 +532,38 @@ async def worker(
 
             logger.info("Kline produced new signal: %s" % kline_signal.value)
 
-            temp_df, position = await signal_handle(
+            df = df.append(temp_df.iloc[-1])
+            await print_last_n_rows(df=df)
+
+            df, position = await signal_handle(
                 client=client,
-                df=temp_df,
+                df=df,
                 signal=kline_signal,
                 position=position,
+                entry_price=df.at[df.index[-1]],
             )
-            last_rows = 5
-            logger.info(
-                "Last %d rows from main df: %s"
-                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
-            )
-            df = df.append(temp_df.iloc[-1])
 
-            last_rows = 5
-            logger.info(
-                "Last %d rows from main df after new row append: %s"
-                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
-            )
         elif producers.EventName.ORDER == event.name:
             logger.info("Order update: %s" % event.content)
-            new_df, new_position = await order_handle(
+            position = await order_handle(
                 client=client, position=position, order_update=event.content
             )
-            df = new_df
-            position = new_position
-            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+
         elif producers.EventName.ACCOUNT == producers.Event.name:
             logger.info("Account update: %s" % event.content)
-            new_df, new_position = await account_handle(df=df, position=position)
-            df = new_df
-            position = new_position
-            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
+            df, position = await account_handle(df=df, position=position)
+            logger.info("New DF: %s, new position: %s" % (df, position))
         elif producers.EventName.SIGNAL == producers.Event.name:
-            logger.info("Event signal update: %s" % event.content)
-            new_df, new_position = await signal_handle(
+            logger.info("Event signal: %s" % event.content)
+            df, position = await signal_handle(
                 client=client,
                 df=df,
                 signal=event.content["last_signal"],
                 position=position,
-            )
-            df = new_df
-            position = new_position
-            logger.info("New DF: %s, new position: %s" % (new_df, new_position))
-
-            last_rows = 5
-            logger.info(
-                "Last %d rows from main df after signal handle: %s"
-                % (last_rows, "\n%s" % df.tail(last_rows).to_string())
+                entry_price=event.content["last_signal_close_price"],
             )
 
-        # logger.info("New DF: %s, new position: %s" % (df, position))
+            await print_last_n_rows(df=df)
+
         logger.info("Task Done, Awaiting new signal")
         queue.task_done()

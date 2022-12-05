@@ -116,7 +116,7 @@ async def main():
     workers = [
         asyncio.create_task(
             worker(
-                start_df=df,
+                df=df,
                 queue=queue,
                 client=client,
                 symbol=symbol,
