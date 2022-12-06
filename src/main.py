@@ -1,26 +1,24 @@
 import asyncio
 
 import binance.exceptions
-import pandas
 from binance import AsyncClient, BinanceSocketManager
 import errno
 import os
 from datetime import datetime
 import logging.config
 import yaml
-import shutil
 from decouple import config
-import lib
+from src.backtest import lib
 import orders
 
 import features
 
-from producers import (
+from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
     determine_start_position,
 )
-from workers import worker
+from src.workers.workers import worker
 
 import warnings
 

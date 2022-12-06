@@ -6,7 +6,7 @@ import numpy
 
 from unittest.mock import patch
 
-from src.lib import (
+from src.backtest.lib import (
     get_historical_data,
     calc_indicators,
     order_quantity_list_prepare,

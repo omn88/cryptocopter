@@ -6,11 +6,7 @@ import logging
 import features
 import binance
 
-from binance.helpers import round_step_size
-
-
-import lib
-
+from src.backtest import lib
 
 logger = logging.getLogger("order")
 
