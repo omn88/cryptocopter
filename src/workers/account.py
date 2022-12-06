@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import pandas
-import src.orders as orders
+import orders
 import logging
 
 logger = logging.getLogger("account_handle")

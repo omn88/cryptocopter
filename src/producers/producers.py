@@ -6,7 +6,7 @@ from binance import BinanceSocketManager
 import pandas
 import numpy
 
-from src import features
+import features
 
 logger = logging.getLogger("producer")
 

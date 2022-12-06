@@ -8,17 +8,17 @@ from datetime import datetime
 import logging.config
 import yaml
 from decouple import config
-from src.backtest import lib
+from backtest.lib import get_futures_historical_data
 import orders
 
 import features
 
-from src.producers.producers import (
+from producers.producers import (
     futures_user_socket,
     kline_futures_socket,
     determine_start_position,
 )
-from src.workers.workers import worker
+from workers.workers import worker
 
 import warnings
 
@@ -86,7 +86,7 @@ async def main():
     #
     # logger.info("My time %s" % time.time())
 
-    df = await lib.get_futures_historical_data(
+    df = await get_futures_historical_data(
         client=client,
         symbol=symbol,
         interval=interval,

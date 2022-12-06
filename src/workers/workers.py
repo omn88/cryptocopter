@@ -4,13 +4,13 @@ import logging
 import binance
 
 import pandas
-import src.orders as orders
-from src import features
-from src.backtest import lib
-from src.producers import producers
-from src.workers.account import account_handle
-from src.workers.order import order_handle
-from src.workers.signal import signal_handle
+import orders
+import features
+from backtest import lib
+from producers import producers
+from workers.account import account_handle
+from workers.order import order_handle
+from workers.signal import signal_handle
 
 logger = logging.getLogger("worker")
 

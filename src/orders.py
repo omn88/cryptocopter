@@ -6,7 +6,7 @@ import logging
 import features
 import binance
 
-from src.backtest import lib
+from backtest import lib
 
 logger = logging.getLogger("order")
 
@@ -21,7 +21,7 @@ class PositionSide(Enum):
 class Order:
     price: float
     quantity: float
-    order_id: int
+    order_id: int = 0
     realized_quantity: float = 0
     time_in_force: str = binance.client.BaseClient.TIME_IN_FORCE_GTC
     status: str = binance.client.BaseClient.ORDER_STATUS_NEW

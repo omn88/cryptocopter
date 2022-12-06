@@ -4,6 +4,7 @@ import numpy
 import pandas
 from matplotlib import pyplot
 import binance
+
 from orders import Order
 
 
