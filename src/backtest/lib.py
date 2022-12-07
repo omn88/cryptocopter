@@ -1,31 +1,62 @@
 from typing import Optional, List, Tuple
-from dataclasses import dataclass
 import btalib
 import numpy
 import pandas
 from matplotlib import pyplot
 import binance
-from decouple import config
+
+from orders import Order
 
 
-@dataclass
-class Order:
-    price: float
-    quantity: float
-    status: str = "NEW"
-
-
-def get_historical_data(symbol, interval, lookback):
-    client = binance.Client(config("API_KEY"), config("API_SECRET"))
-    pandas.Timedelta(hours=2)
-    historical_data = client.get_historical_klines(
+async def get_historical_data(
+    symbol: str, interval: str, lookback: str, client: binance.AsyncClient
+) -> pandas.DataFrame:
+    # ToDo: Below Timedelta must react to time change (winter/summer)
+    pandas.Timedelta(hours=1)
+    historical_data = await client.get_historical_klines(
         symbol, interval, lookback + "min ago UTC"
     )
     frame = pandas.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
     frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
     frame = frame.set_index("Date")
-    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(2, "h")
+    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(1, "h")
+    frame = frame.astype(float)
+    return frame
+
+
+async def get_futures_historical_data(
+    client: binance.AsyncClient, symbol: str, interval: str, lookback: str
+) -> pandas.DataFrame:
+
+    # ToDo: Below Timedelta must react to time change (winter/summer)
+    pandas.Timedelta(hours=1)
+    historical_data = await client.futures_historical_klines(
+        symbol, interval, lookback + "min ago UTC"
+    )
+    frame = pandas.DataFrame(historical_data)
+    frame = frame.iloc[:, :7]
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
+    frame = frame.set_index("Date")
+    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(1, "h")
+    frame = frame.astype(float)
+    return frame
+
+
+def get_futures_historical_data_sync(
+    client: binance.Client, symbol: str, interval: str, lookback: str
+) -> pandas.DataFrame:
+
+    # ToDo: Below Timedelta must react to time change (winter/summer)
+    pandas.Timedelta(hours=1)
+    historical_data = client.futures_historical_klines(
+        symbol, interval, lookback + "min ago UTC"
+    )
+    frame = pandas.DataFrame(historical_data)
+    frame = frame.iloc[:, :7]
+    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
+    frame = frame.set_index("Date")
+    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(1, "h")
     frame = frame.astype(float)
     return frame
 
@@ -70,7 +101,7 @@ def order_quantity_list_prepare(
 ) -> pandas.DataFrame:
     order_values = (
         [
-            12.5,
+            20,
             25,
             50,
             100,
@@ -112,29 +143,28 @@ def order_quantity_list_prepare(
         else order_values
     )
 
-    # OVC stands for order value calculator
-    ovc = pandas.DataFrame(order_values, columns=["order_value"])
-    ovc.set_index(pandas.Index([i for i in range(len(order_values))]))
-    ovc["sum_of_all_losses"] = (
-        ovc.order_value * (number_of_dca_orders + 1) * losses_per_level
+    # OQL stands for order quantity list
+    oql = pandas.DataFrame(order_values, columns=["order_value"])
+    oql.set_index(pandas.Index([i for i in range(len(order_values))]))
+    oql["sum_of_all_losses"] = (
+        oql.order_value * (number_of_dca_orders + 1) * losses_per_level
     )
-    ovc["threshold"] = ovc.sum_of_all_losses + ovc.sum_of_all_losses.shift(1)
-    ovc.threshold.iloc[0] = ovc.sum_of_all_losses.iloc[0]
+    oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
+    oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
 
-    return ovc
+    return oql
 
 
-def order_quantity_check(ovc: pandas.DataFrame, saldo: float, index: str) -> float:
+def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
     index_list = []
 
-    [index_list.append(thrshld) for thrshld in ovc.threshold if saldo > thrshld]
+    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
 
     order_quantity = (
-        ovc.order_value[len(index_list) - 1]
+        oql.order_value[len(index_list) - 1]
         if len(index_list) > 0
-        else ovc.order_value[0]
+        else oql.order_value[0]
     )
-    print(f"{index}: Selected new order value: {order_quantity}")
 
     return order_quantity
 
@@ -379,7 +409,7 @@ def long_position_recalculate(
     new_price = (
         position.price * position.quantity + order.price * order_quantity
     ) / new_quantity
-    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    new_position = Order(price=new_price, quantity=new_quantity)
     target_price, depo_price = target_depo_price_calculate(
         side="LONG", price=new_price, leverage=leverage
     )
@@ -400,7 +430,7 @@ def short_position_recalculate(
     new_price = (
         position.price * position.quantity + order.price * order_quantity
     ) / new_quantity
-    new_position = Order(price=new_price, status=position.status, quantity=new_quantity)
+    new_position = Order(price=new_price, quantity=new_quantity)
     target_price, depo_price = target_depo_price_calculate(
         "SHORT", price=new_price, leverage=leverage
     )
