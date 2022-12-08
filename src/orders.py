@@ -3,10 +3,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Tuple, Optional
 import logging
-import features
-import binance
 
-from backtest import lib
+import binance
+from src import features
+from src.backtest import lib
 
 logger = logging.getLogger("order")
 

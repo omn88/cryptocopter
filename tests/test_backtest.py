@@ -31,7 +31,7 @@ from src.features import (
 )
 
 
-@patch("binance.Client.get_historical_klines")
+@patch("binance.Client.futures_historical_klines")
 def test_get_historical_data(mock_get_historical_klines):
     with open("tests/data/result_of_client.get_historical_klines.json") as file:
         mock_get_historical_klines.return_value = json.load(file)
@@ -126,9 +126,9 @@ def test_order_quantity_list_prepare():
 
 def test_order_quantity_list_prepare_default_values():
     data_expected_boundaries = {
-        "order_value": [12.5, 3000.0, 50000.0],
-        "sum_of_all_losses": [200.0, 48000.0, 800000.0],
-        "threshold": [200.0, 88000.0, 1520000.0],
+        "order_value": [20, 3000.0, 50000.0],
+        "sum_of_all_losses": [320.0, 48000.0, 800000.0],
+        "threshold": [320.0, 88000.0, 1520000.0],
     }
     expected_ovc = pandas.DataFrame(data=data_expected_boundaries)
     ovc = order_quantity_list_prepare()
@@ -168,10 +168,10 @@ def test_rsi_signals_generation():
 @pytest.mark.parametrize(
     "saldo, order_quantity",
     [
-        (199.9, 12.5),
-        (200.1, 12.5),
-        (599.9, 12.5),
-        (600.1, 25),
+        (319.9, 20),
+        (320.1, 20),
+        (719.9, 20),
+        (720.1, 25),
         (1359999.9, 40000),
         (1360000.1, 45000),
         (1519999.9, 45000),
