@@ -22,16 +22,8 @@ from src.backtest.lib import (
     Order,
 )
 
-from src.features import (
-    rsi_indicator_apply,
-    rsi_signal_extended_generate,
-    rsi_signal_basic_generate,
-    Signals,
-    combined_signals_generate,
-)
 
-
-@patch("binance.Client.get_historical_klines")
+@patch("binance.Client.futures_historical_klines")
 def test_get_historical_data(mock_get_historical_klines):
     with open("tests/data/result_of_client.get_historical_klines.json") as file:
         mock_get_historical_klines.return_value = json.load(file)
@@ -126,9 +118,9 @@ def test_order_quantity_list_prepare():
 
 def test_order_quantity_list_prepare_default_values():
     data_expected_boundaries = {
-        "order_value": [12.5, 3000.0, 50000.0],
-        "sum_of_all_losses": [200.0, 48000.0, 800000.0],
-        "threshold": [200.0, 88000.0, 1520000.0],
+        "order_value": [20, 3000.0, 50000.0],
+        "sum_of_all_losses": [320.0, 48000.0, 800000.0],
+        "threshold": [320.0, 88000.0, 1520000.0],
     }
     expected_ovc = pandas.DataFrame(data=data_expected_boundaries)
     ovc = order_quantity_list_prepare()
@@ -168,10 +160,10 @@ def test_rsi_signals_generation():
 @pytest.mark.parametrize(
     "saldo, order_quantity",
     [
-        (199.9, 12.5),
-        (200.1, 12.5),
-        (599.9, 12.5),
-        (600.1, 25),
+        (319.9, 20),
+        (320.1, 20),
+        (719.9, 20),
+        (720.1, 25),
         (1359999.9, 40000),
         (1360000.1, 45000),
         (1519999.9, 45000),
@@ -415,134 +407,3 @@ def test_closing_position_short(
         leverage=leverage,
         saldo=saldo,
     )
-
-
-def test_basic_rsi_signal_generate():
-    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_df = test_df.set_index("Date")
-
-    expected_data = [
-        ["2022-10-18 10:30:00", 49.76, 0, 0, 0],
-        ["2022-10-18 10:45:00", 30.98, 0, 0, 0],
-        ["2022-10-18 11:00:00", 21.27, 1, 0, 0],
-        ["2022-10-18 11:15:00", 19.13, 1, 0, 0],
-        ["2022-10-18 11:30:00", 27.05, 1, 0, 0],
-        ["2022-10-18 11:45:00", 34.04, 0, 0, 0],
-        ["2022-10-18 12:00:00", 54.43, 0, 0, Signals.LONG],
-        ["2022-10-18 12:15:00", 66.42, 0, 0, 0],
-        ["2022-10-18 12:30:00", 74.24, 0, 1, 0],
-        ["2022-10-18 12:45:00", 82.86, 0, 1, 0],
-        ["2022-10-18 13:00:00", 70.23, 0, 1, 0],
-        ["2022-10-18 13:15:00", 62.05, 0, 0, 0],
-        ["2022-10-18 13:30:00", 70.39, 0, 1, 0],
-        ["2022-10-18 13:45:00", 54.61, 0, 0, 0],
-        ["2022-10-18 14:00:00", 48.25, 0, 0, Signals.SHORT],
-        ["2022-10-18 14:15:00", 54.02, 0, 0, 0],
-        ["2022-10-18 14:30:00", 51.93, 0, 0, 0],
-        ["2022-10-18 14:45:00", 46.42, 0, 0, 0],
-        ["2022-10-18 15:00:00", 46.16, 0, 0, 0],
-    ]
-
-    expected_df = pandas.DataFrame(data=expected_data)
-    expected_df = expected_df.iloc[:, :5]
-    expected_df.columns = [
-        "Date",
-        "RSI",
-        "RSIbelowThirty",
-        "RSIaboveSeventy",
-        "signal",
-    ]
-    expected_df = expected_df.set_index("Date")
-
-    test_df = rsi_indicator_apply(df=test_df)
-    assert "RSI" in test_df.columns
-    test_df.RSI = test_df.RSI.round(2)
-
-    test_df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=test_df)
-    assert "RSIbelowThirty" in test_df.columns
-    assert "RSIaboveSeventy" in test_df.columns
-
-    test_df = combined_signals_generate(
-        df=test_df, condition_lists=[conditions_basic], choice_lists=[signals_basic]
-    )
-
-    test_df_shortened = test_df[
-        ["RSI", "RSIbelowThirty", "RSIaboveSeventy", "signal"]
-    ].copy()
-
-    pandas.testing.assert_frame_equal(
-        left=test_df_shortened, right=expected_df, check_dtype=False
-    )
-
-
-def test_rsi_signal_extended_generate():
-    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_df = test_df.set_index("Date")
-
-    expected_data = [
-        ["2022-10-18 10:30:00", 49.76, 0, 0, 0, 0, 0],
-        ["2022-10-18 10:45:00", 30.98, 0, 0, 0, 0, 0],
-        ["2022-10-18 11:00:00", 21.27, 1, 0, 0, 0, 0],
-        ["2022-10-18 11:15:00", 19.13, 1, 0, 1, 0, 0],
-        ["2022-10-18 11:30:00", 27.05, 1, 0, 0, 0, Signals.LONG_20],
-        ["2022-10-18 11:45:00", 34.04, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:00:00", 54.43, 0, 0, 0, 0, Signals.LONG],
-        ["2022-10-18 12:15:00", 66.42, 0, 0, 0, 0, 0],
-        ["2022-10-18 12:30:00", 74.24, 0, 1, 0, 0, 0],
-        ["2022-10-18 12:45:00", 82.86, 0, 1, 0, 1, 0],
-        ["2022-10-18 13:00:00", 70.23, 0, 1, 0, 0, Signals.SHORT_80],
-        ["2022-10-18 13:15:00", 62.05, 0, 0, 0, 0, 0],
-        ["2022-10-18 13:30:00", 70.39, 0, 1, 0, 0, 0],
-        ["2022-10-18 13:45:00", 54.61, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:00:00", 48.25, 0, 0, 0, 0, Signals.SHORT],
-        ["2022-10-18 14:15:00", 54.02, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:30:00", 51.93, 0, 0, 0, 0, 0],
-        ["2022-10-18 14:45:00", 46.42, 0, 0, 0, 0, 0],
-        ["2022-10-18 15:00:00", 46.16, 0, 0, 0, 0, 0],
-    ]
-
-    expected_df = pandas.DataFrame(data=expected_data)
-    expected_df = expected_df.iloc[:, :7]
-    expected_df.columns = [
-        "Date",
-        "RSI",
-        "RSIbelowThirty",
-        "RSIaboveSeventy",
-        "RSIbelowTwenty",
-        "RSIaboveEighty",
-        "signal",
-    ]
-    expected_df = expected_df.set_index("Date")
-
-    test_df = rsi_indicator_apply(df=test_df)
-    assert "RSI" in test_df.columns
-    test_df.RSI = test_df.RSI.round(2)
-
-    test_df, conditions_basic, choices_basic = rsi_signal_basic_generate(df=test_df)
-    assert "RSIbelowThirty" in test_df.columns
-    assert "RSIaboveSeventy" in test_df.columns
-
-    test_df, conditions_extended, choices_extended = rsi_signal_extended_generate(
-        df=test_df
-    )
-    assert "RSIbelowTwenty" in test_df.columns
-    assert "RSIaboveEighty" in test_df.columns
-
-    test_df = combined_signals_generate(
-        df=test_df,
-        condition_lists=[conditions_basic, conditions_extended],
-        choice_lists=[choices_basic, choices_extended],
-    )
-
-    test_df_shortened = test_df[
-        [
-            "RSI",
-            "RSIbelowThirty",
-            "RSIaboveSeventy",
-            "RSIbelowTwenty",
-            "RSIaboveEighty",
-            "signal",
-        ]
-    ].copy()
-
-    pandas.testing.assert_frame_equal(left=test_df_shortened, right=expected_df)

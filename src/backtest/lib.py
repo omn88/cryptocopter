@@ -5,7 +5,7 @@ import pandas
 from matplotlib import pyplot
 import binance
 
-from orders import Order
+from src.orders import Order
 
 
 async def get_historical_data(

@@ -6,7 +6,7 @@ from binance import BinanceSocketManager
 import pandas
 import numpy
 
-import features
+from src import features
 
 logger = logging.getLogger("producer")
 
@@ -101,9 +101,11 @@ async def determine_start_position(
     try:
         assert signal_index <= len(df.index)
         df = df.iloc[len(df.index) - signal_index : :]
-        logger.info("New DF: \n%s" % df.to_string())
+        logger.info("New DF shortened to last signal + 3 rows: \n%s" % df.to_string())
     except AssertionError as e:
-        logger.info("That was long time without signal, leaving df as is")
+        logger.info(
+            "Last signal almost on top of df, leaving df as is: \n%s" % df.to_string()
+        )
 
     content = {
         "last_signal": last_signal,

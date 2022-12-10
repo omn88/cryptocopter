@@ -1,5 +1,5 @@
 import binance
-import orders
+from src import orders
 import logging
 
 logger = logging.getLogger("order_handle")
