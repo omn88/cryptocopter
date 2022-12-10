@@ -3,7 +3,7 @@ from typing import Tuple
 import binance
 import pandas
 
-import features, orders
+from src import features, orders
 
 import logging
 
