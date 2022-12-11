@@ -206,6 +206,7 @@ def prepare_orders(
 
 async def futures_long_position_open(
     client: binance.AsyncClient,
+    signal: features.Signals,
     position: Position,
     entry_price: float,
     number_of_dca_orders: int = 3,
@@ -215,6 +216,7 @@ async def futures_long_position_open(
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
+        position.status = signal
 
         position.orders, position.saldo = prepare_orders(
             side=PositionSide.LONG,
@@ -236,6 +238,7 @@ async def futures_long_position_open(
 
     elif mode == PositionMode.FULL:
         logger.info("Entering mode: %s" % mode)
+        position.status = signal
 
         position.orders, position.saldo = prepare_orders(
             side=PositionSide.LONG,
@@ -268,6 +271,7 @@ async def futures_short_position_open(
     client: binance.AsyncClient,
     position: Position,
     entry_price: float,
+    signal: features.Signals,
     number_of_dca_orders: int = 3,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
@@ -277,6 +281,7 @@ async def futures_short_position_open(
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
+        position.status = signal
 
         position.orders, position.saldo = prepare_orders(
             side=PositionSide.SHORT,
@@ -298,6 +303,7 @@ async def futures_short_position_open(
 
     elif mode == PositionMode.FULL:
         logger.info("Entering mode: %s" % mode)
+        position.status = signal
 
         position.orders, position.saldo = prepare_orders(
             side=PositionSide.SHORT,
@@ -330,35 +336,45 @@ async def futures_long_position_close(
 ) -> Position:
     logger.info("Entering long position close")
 
-    resp = await client.futures_create_order(
-        symbol=position.symbol,
-        side=client.SIDE_SELL,
-        type=client.FUTURE_ORDER_TYPE_MARKET,
-        close_position=True,
-    )
+    if any(
+        order.status == binance.client.BaseClient.ORDER_STATUS_FILLED
+        for order in position.orders
+    ):
 
-    sell_price = resp["price"]
-    net = round((sell_price - position.current_position.price), 2)
-    net_percent = round((sell_price / position.current_position.price - 1), 4)
-    logger.info(
-        "Long closed. Price: %s, it's: %s USDT and %s percent"
-        % (sell_price, net, 100 * net_percent)
-    )
-
-    real_earn = round(
-        (position.current_position.quantity * position.leverage * net_percent), 2
-    )
-    position.saldo = round(position.saldo + real_earn, 2)
-
-    logger.info(
-        "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
-        % (
-            position.current_position.quantity,
-            position.leverage,
-            real_earn,
-            position.saldo,
+        resp = await client.futures_create_order(
+            symbol=position.symbol,
+            side=client.SIDE_SELL,
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+            close_position=True,
         )
-    )
+        sell_price = resp["price"]
+        net = round((sell_price - position.current_position.price), 2)
+        net_percent = round((sell_price / position.current_position.price - 1), 4)
+        logger.info(
+            "Long closed. Price: %s, it's: %s USDT and %s percent"
+            % (sell_price, net, 100 * net_percent)
+        )
+
+        real_earn = round(
+            (position.current_position.quantity * position.leverage * net_percent), 2
+        )
+        position.saldo = round(position.saldo + real_earn, 2)
+
+        logger.info(
+            "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
+            % (
+                position.current_position.quantity,
+                position.leverage,
+                real_earn,
+                position.saldo,
+            )
+        )
+
+        logger.info("Cancelling take profit order")
+        resp = await client.futures_cancel_order(
+            order_id=position.current_position.take_profit_order.order_id
+        )
+        # ToDo: assert resp status = cancelled
 
     logger.info("Cancelling remaining limit orders")
     for order in position.orders:
@@ -375,11 +391,6 @@ async def futures_long_position_close(
 
     position.status = position.status.FLAT
 
-    logger.info("Cancelling take profit order")
-    resp = await client.futures_cancel_order(
-        order_id=position.current_position.take_profit_order.order_id
-    )
-    # ToDo: assert resp status = cancelled
     logger.info("Exiting long position close")
     return position
 
