@@ -96,7 +96,9 @@ async def determine_start_position(
             break
         else:
             last_signal = features.Signals.NULL
+            last_signal_close_price = row["Close"]
             signal_index += 1
+            date_index = index
 
     try:
         assert signal_index <= len(df.index)

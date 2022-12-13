@@ -10,6 +10,17 @@ import logging
 logger = logging.getLogger("signal_handle")
 
 
+async def log_signal_change(df, signal):
+    logger.info(
+        "Position was %s, position is: %s, signal: %s."
+        % (
+            df.at[df.index[-2], "position"],
+            df.at[df.index[-1], "position"],
+            signal,
+        )
+    )
+
+
 async def when_flat(
     signal: features.Signals,
     client: binance.AsyncClient,
@@ -19,76 +30,35 @@ async def when_flat(
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long opened!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
+
     elif signal == features.Signals.LONG_20:
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long opened!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
+
     elif signal == features.Signals.SHORT:
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short opened!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT_80:
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short opened!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.NULL:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Staying FLAT!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
-    elif signal == features.Signals.FLAT:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Staying FLAT!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
+    else:
+        logger.info("Unexpected signal came: %s" % signal)
 
     return df, position
 
@@ -102,41 +72,20 @@ async def when_long(
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.LONG_20:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT:
         position = await orders.futures_long_position_close(
             client=client, position=position
         )
 
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
 
     elif signal == features.Signals.SHORT_80:
@@ -144,17 +93,10 @@ async def when_long(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
 
     elif signal == features.Signals.NULL:
@@ -172,41 +114,20 @@ async def when_long_twenty(
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.LONG_20:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT:
         position = await orders.futures_long_position_close(
             client=client, position=position
         )
 
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
 
     elif signal == features.Signals.SHORT_80:
@@ -214,17 +135,10 @@ async def when_long_twenty(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Long closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
         logger.info("Opening DCA Short")
         position = await orders.futures_short_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
     elif signal == features.Signals.NULL:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -244,17 +158,10 @@ async def when_short(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
 
     elif signal == features.Signals.LONG_20:
@@ -262,39 +169,18 @@ async def when_short(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
 
     elif signal == features.Signals.SHORT:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT_80:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.NULL:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
 
@@ -313,55 +199,27 @@ async def when_short_eighty(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
     elif signal == features.Signals.LONG_20:
         position = await orders.futures_short_position_close(
             client=client, position=position
         )
         df.at[df.index[-1], "position"] = position.status
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Short closed!"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
 
         position = await orders.futures_long_position_open(
-            client=client, position=position, entry_price=entry_price
+            client=client, position=position, entry_price=entry_price, signal=signal
         )
     elif signal == features.Signals.SHORT:
         df.at[df.index[-1], "position"] = signal
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT_80:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info(
-            "Position was %s, position is: %s, signal: %s. Du Nateng"
-            % (
-                df.at[df.index[-2], "position"],
-                df.at[df.index[-1], "position"],
-                signal,
-            )
-        )
+        await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.NULL:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
 
