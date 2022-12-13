@@ -647,7 +647,6 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order):
     queue = asyncio.Queue()
 
     desired_signal = features.Signals.NULL
-
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
 
