@@ -21,6 +21,7 @@ class PositionSide(Enum):
 class Order:
     price: float
     quantity: float
+    quantity_stable: float = 0
     order_id: int = 0
     realized_quantity: float = 0
     time_in_force: str = binance.client.BaseClient.TIME_IN_FORCE_GTC
@@ -135,6 +136,7 @@ def prepare_orders(
                         3,
                     ),
                     order_id=0,
+                    quantity_stable=order_quantity,
                 )
                 for order in range(number_of_dca_orders + 1)
             ]
@@ -154,6 +156,7 @@ def prepare_orders(
                         3,
                     ),
                     order_id=0,
+                    quantity_stable=order_quantity,
                 )
                 for order in range(1)
             ]
@@ -174,6 +177,7 @@ def prepare_orders(
                         3,
                     ),
                     order_id=0,
+                    quantity_stable=order_quantity,
                 )
                 for order in range(number_of_dca_orders + 1)
             ]
@@ -192,6 +196,7 @@ def prepare_orders(
                         3,
                     ),
                     order_id=0,
+                    quantity_stable=order_quantity,
                 )
                 for order in range(1)
             ]
@@ -387,9 +392,13 @@ async def futures_long_position_close(
                 "Order with order_id: %s should be cancelled and is: %s"
                 % (order.order_id, resp["status"])
             )
-            position.saldo = position.saldo + (order.quantity - order.realized_quantity)
+            position.saldo = position.saldo + (
+                order.quantity_stable - order.realized_quantity
+            )
 
     position.status = position.status.FLAT
+
+    logger.info("SALDO: %s" % position.saldo)
 
     logger.info("Exiting long position close")
     return position
@@ -400,37 +409,48 @@ async def futures_short_position_close(
 ) -> Position:
     logger.info("Entering short position close")
 
-    resp = await client.futures_create_order(
-        symbol=position.symbol,
-        side=client.SIDE_BUY,
-        type=client.FUTURE_ORDER_TYPE_MARKET,
-        close_position=True,
-    )
-    logger.info("Short closed, resp %s" % resp)
+    if any(
+        order.status == binance.client.BaseClient.ORDER_STATUS_FILLED
+        for order in position.orders
+    ):
 
-    buy_price = resp["price"]
-
-    net = round((position.current_position.price - buy_price), 2)
-    net_percent = round((position.current_position.price / buy_price - 1), 4)
-    logger.info(
-        "Short closed. Price: %s, it's: %s USDT and %s percent"
-        % (buy_price, net, 100 * net_percent)
-    )
-
-    real_earn = round(
-        (position.current_position.quantity * position.leverage * net_percent), 2
-    )
-    position.saldo = round(position.saldo + real_earn, 2)
-
-    logger.info(
-        "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
-        % (
-            position.current_position.quantity,
-            position.leverage,
-            real_earn,
-            position.saldo,
+        resp = await client.futures_create_order(
+            symbol=position.symbol,
+            side=client.SIDE_BUY,
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+            close_position=True,
         )
-    )
+        logger.info("Short closed, resp %s" % resp)
+
+        buy_price = resp["price"]
+
+        net = round((position.current_position.price - buy_price), 2)
+        net_percent = round((position.current_position.price / buy_price - 1), 4)
+        logger.info(
+            "Short closed. Price: %s, it's: %s USDT and %s percent"
+            % (buy_price, net, 100 * net_percent)
+        )
+
+        real_earn = round(
+            (position.current_position.quantity * position.leverage * net_percent), 2
+        )
+        position.saldo = round(position.saldo + real_earn, 2)
+
+        logger.info(
+            "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
+            % (
+                position.current_position.quantity,
+                position.leverage,
+                real_earn,
+                position.saldo,
+            )
+        )
+
+        logger.info("Cancelling take profit order")
+        resp = await client.futures_cancel_order(
+            order_id=position.current_position.take_profit_order.order_id
+        )
+        # ToDo: assert resp status = cancelled
 
     logger.info("Cancelling remaining limit orders")
     for order in position.orders:
@@ -443,15 +463,11 @@ async def futures_short_position_close(
                 "Order with order_id: %s should be cancelled and is: %s"
                 % (order.order_id, resp["status"])
             )
-            position.saldo = position.saldo + (order.quantity - order.realized_quantity)
+            position.saldo = position.saldo + (
+                order.quantity_stable - order.realized_quantity
+            )
 
     position.status = position.status.FLAT
-
-    logger.info("Cancelling take profit order")
-    resp = await client.futures_cancel_order(
-        order_id=position.current_position.take_profit_order.order_id
-    )
-    # ToDo: assert resp status = cancelled
 
     logger.info("Exiting short position close")
     return position
@@ -523,7 +539,10 @@ async def handle_filled_order(
         current_position.quantity = order_quantity
 
     current_position.take_profit_order = Order(
-        price=resp["price"], quantity=order_quantity, order_id=resp["orderId"]
+        price=resp["price"],
+        quantity=order_quantity,
+        order_id=resp["orderId"],
+        quantity_stable=order_quantity,
     )
 
     logger.info("Exiting handle filled order")
