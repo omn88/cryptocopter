@@ -11,8 +11,6 @@ from unittest.mock import patch
 from src.backtest.lib import (
     get_futures_historical_data_sync,
     calc_indicators,
-    order_quantity_list_prepare,
-    order_quantity_check,
     generate_signals,
     target_depo_price_calculate,
     long_position_open,
@@ -21,6 +19,8 @@ from src.backtest.lib import (
     short_position_open,
     Order,
 )
+
+from src.orders import order_quantity_check, order_quantity_list_prepare
 
 
 @patch("binance.Client.futures_historical_klines")

@@ -11,7 +11,7 @@ from src.workers.account import account_handle
 from src.workers.order import order_handle
 from src.workers.signal import signal_handle
 
-logger = logging.getLogger("worker")
+logger = logging.getLogger("worker_main")
 
 
 async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):

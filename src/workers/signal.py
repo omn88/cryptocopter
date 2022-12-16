@@ -7,7 +7,7 @@ from src import features, orders
 
 import logging
 
-logger = logging.getLogger("signal_handle")
+logger = logging.getLogger("worker_signal")
 
 
 async def log_signal_change(df, signal):

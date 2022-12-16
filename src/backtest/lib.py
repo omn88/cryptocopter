@@ -1,11 +1,11 @@
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 import btalib
 import numpy
 import pandas
 from matplotlib import pyplot
 import binance
 
-from src.orders import Order
+from src.orders import Order, target_depo_price_calculate
 
 
 async def get_historical_data(
@@ -92,95 +92,6 @@ def generate_signals(df: pandas.DataFrame) -> None:
     df["signal"] = numpy.select(conditions, choices)
     df.signal = df.signal.shift()
     df.dropna(inplace=True)
-
-
-def order_quantity_list_prepare(
-    number_of_dca_orders: int = 3,
-    order_values: Optional[List[float]] = None,
-    losses_per_level: int = 4,
-) -> pandas.DataFrame:
-    order_values = (
-        [
-            20,
-            25,
-            50,
-            100,
-            200,
-            300,
-            400,
-            500,
-            600,
-            700,
-            800,
-            900,
-            1000,
-            1250,
-            1500,
-            1750,
-            2000,
-            2500,
-            3000,
-            3500,
-            4000,
-            5000,
-            6000,
-            7000,
-            8000,
-            9000,
-            10000,
-            12500,
-            15000,
-            17500,
-            20000,
-            25000,
-            30000,
-            35000,
-            40000,
-            45000,
-            50000,
-        ]
-        if order_values is None
-        else order_values
-    )
-
-    # OQL stands for order quantity list
-    oql = pandas.DataFrame(order_values, columns=["order_value"])
-    oql.set_index(pandas.Index([i for i in range(len(order_values))]))
-    oql["sum_of_all_losses"] = (
-        oql.order_value * (number_of_dca_orders + 1) * losses_per_level
-    )
-    oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
-    oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
-
-    return oql
-
-
-def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
-    index_list = []
-
-    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
-
-    order_quantity = (
-        oql.order_value[len(index_list) - 1]
-        if len(index_list) > 0
-        else oql.order_value[0]
-    )
-
-    return order_quantity
-
-
-def target_depo_price_calculate(
-    side: str, price: float, leverage: int
-) -> Tuple[float, float]:
-    if side == "LONG":
-        depo_price = round((1 - (100 / leverage / 100)) * price, 2)
-        target_price = round((1 + (100 / leverage / 100)) * price, 2)
-        return target_price, depo_price
-
-    if side == "SHORT":
-        target_price = round((1 - (100 / leverage / 100)) * price, 2)
-        depo_price = round((1 + (100 / leverage / 100)) * price, 2)
-        return target_price, depo_price
 
 
 def plot_saldo(df: pandas.DataFrame):

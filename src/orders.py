@@ -3,10 +3,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Tuple, Optional
 import logging
-
 import binance
 from src import features
-from src.backtest import lib
+import pandas
 
 logger = logging.getLogger("order")
 
@@ -53,6 +52,96 @@ class PositionMode(Enum):
     FULL = "FULL"
 
 
+def order_quantity_list_prepare(
+    number_of_dca_orders: int = 3,
+    order_values: Optional[List[float]] = None,
+    losses_per_level: int = 4,
+) -> pandas.DataFrame:
+    order_values = (
+        [
+            20,
+            25,
+            50,
+            100,
+            200,
+            300,
+            400,
+            500,
+            600,
+            700,
+            800,
+            900,
+            1000,
+            1250,
+            1500,
+            1750,
+            2000,
+            2500,
+            3000,
+            3500,
+            4000,
+            5000,
+            6000,
+            7000,
+            8000,
+            9000,
+            10000,
+            12500,
+            15000,
+            17500,
+            20000,
+            25000,
+            30000,
+            35000,
+            40000,
+            45000,
+            50000,
+        ]
+        if order_values is None
+        else order_values
+    )
+
+    # OQL stands for order quantity list
+    oql = pandas.DataFrame(order_values, columns=["order_value"])
+    oql.set_index(pandas.Index([i for i in range(len(order_values))]))
+    oql["sum_of_all_losses"] = (
+        oql.order_value * (number_of_dca_orders + 1) * losses_per_level
+    )
+    oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
+    # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
+    oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
+
+    return oql
+
+
+def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
+    index_list = []
+
+    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
+
+    order_quantity = (
+        oql.order_value[len(index_list) - 1]
+        if len(index_list) > 0
+        else oql.order_value[0]
+    )
+
+    return order_quantity
+
+
+def target_depo_price_calculate(
+    side: str, price: float, leverage: int
+) -> Tuple[float, float]:
+    if side == "LONG":
+        depo_price = round((1 - (100 / leverage / 100)) * price, 2)
+        target_price = round((1 + (100 / leverage / 100)) * price, 2)
+        return target_price, depo_price
+
+    if side == "SHORT":
+        target_price = round((1 - (100 / leverage / 100)) * price, 2)
+        depo_price = round((1 + (100 / leverage / 100)) * price, 2)
+        return target_price, depo_price
+
+
 async def send_order(
     client: binance.AsyncClient, symbol: str, side: PositionSide, order: Order
 ):
@@ -95,12 +184,12 @@ async def send_orders(
 def liquidation_target_price_calculate(
     side: PositionSide, price: float, leverage: int
 ) -> Tuple[float, float]:
-    if side == "LONG":
+    if side == PositionSide.LONG:
         liquidation_price = round((1 - (100 / leverage / 100)) * price, 2)
         target_price = round((1 + (100 / leverage / 100)) * price, 2)
         return liquidation_price, target_price
 
-    if side == "SHORT":
+    if side == PositionSide.SHORT:
         liquidation_price = round((1 + (100 / leverage / 100)) * price, 2)
         target_price = round((1 - (100 / leverage / 100)) * price, 2)
         return liquidation_price, target_price
@@ -118,8 +207,8 @@ def prepare_orders(
     logger.info("Entering prepare orders")
 
     orders = []
-    order_quantity_list = lib.order_quantity_list_prepare()
-    order_quantity = lib.order_quantity_check(oql=order_quantity_list, saldo=saldo)
+    order_quantity_list = order_quantity_list_prepare()
+    order_quantity = order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info("Order quantity: %d" % order_quantity)
 
     saldo = saldo - (number_of_dca_orders + 1) * order_quantity
@@ -218,13 +307,14 @@ async def futures_long_position_open(
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
     logger.info("Entering long position open")
+    position.current_position = CurrentPosition(side=PositionSide.LONG)
 
     if mode == PositionMode.DCA:
         logger.info("Entering mode: %s" % mode)
         position.status = signal
 
         position.orders, position.saldo = prepare_orders(
-            side=PositionSide.LONG,
+            side=position.current_position.side,
             mode=mode,
             entry_price=entry_price,
             saldo=position.saldo,
@@ -246,7 +336,7 @@ async def futures_long_position_open(
         position.status = signal
 
         position.orders, position.saldo = prepare_orders(
-            side=PositionSide.LONG,
+            side=position.current_position.side,
             mode=mode,
             entry_price=entry_price,
             saldo=position.saldo,
@@ -282,6 +372,8 @@ async def futures_short_position_open(
 ) -> Position:
     logger.info("Entering short position open")
 
+    position.current_position = CurrentPosition(side=PositionSide.SHORT)
+
     # ToDo: Assert no order is opened
 
     if mode == PositionMode.DCA:
@@ -289,7 +381,7 @@ async def futures_short_position_open(
         position.status = signal
 
         position.orders, position.saldo = prepare_orders(
-            side=PositionSide.SHORT,
+            side=position.current_position.side,
             mode=mode,
             entry_price=entry_price,
             saldo=position.saldo,
@@ -311,7 +403,7 @@ async def futures_short_position_open(
         position.status = signal
 
         position.orders, position.saldo = prepare_orders(
-            side=PositionSide.SHORT,
+            side=position.current_position.side,
             mode=mode,
             entry_price=entry_price,
             saldo=position.saldo,
@@ -473,7 +565,7 @@ async def futures_short_position_close(
     return position
 
 
-async def handle_filled_order(
+async def update_position(
     client: binance.AsyncClient,
     symbol: str,
     current_position: CurrentPosition,
@@ -484,7 +576,6 @@ async def handle_filled_order(
     logger.info("Entering handle filled order")
     tpo = current_position.take_profit_order
 
-    logger.info("Create take profit order first!")
     if tpo is not None:
         logger.info(
             "Take profit order is not none, so cancelling order: %s" % tpo.order_id
@@ -526,6 +617,7 @@ async def handle_filled_order(
         ) = liquidation_target_price_calculate(
             side=current_position.side, price=price, leverage=leverage
         )
+
         resp = await client.futures_create_order(
             symbol=symbol,
             order_quantity=order_quantity,
@@ -533,7 +625,9 @@ async def handle_filled_order(
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=current_position.target_price,
         )
-        logger.info("New take profit buy order send, price: %s" % price)
+        logger.info(
+            "New take profit buy order send, price: %s" % current_position.target_price
+        )
 
         current_position.price = price
         current_position.quantity = order_quantity

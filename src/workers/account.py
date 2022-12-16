@@ -4,7 +4,7 @@ import pandas
 from src import orders
 import logging
 
-logger = logging.getLogger("account_handle")
+logger = logging.getLogger("worker_account")
 
 
 async def account_handle(
