@@ -3,7 +3,6 @@ from unittest.mock import patch
 import binance
 import pytest
 import asyncio
-from src import features
 from tests.data.sample_dataframes import dataframe_gen
 from src.orders import Position
 from src.producers.producers import determine_start_position, Event
@@ -29,7 +28,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -67,7 +66,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -104,7 +103,7 @@ async def test_signal_handle_null_when_flat(mock_create_order):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -143,7 +142,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -190,7 +189,7 @@ async def test_signal_handle_short_when_long(
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -232,7 +231,7 @@ async def test_signal_handle_null_when_long(mock_create_order):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -285,7 +284,7 @@ async def test_signal_handle_long_when_short(
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -328,7 +327,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -370,7 +369,7 @@ async def test_signal_handle_null_when_short(mock_create_order):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -419,7 +418,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -466,7 +465,7 @@ async def test_signal_handle_short_when_long_twenty(
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -508,7 +507,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -561,7 +560,7 @@ async def test_signal_handle_long_when_short_eighty(
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -604,7 +603,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
 
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
@@ -646,7 +645,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order):
     client = binance.AsyncClient()
     queue = asyncio.Queue()
 
-    desired_signal = features.Signals.NULL
+    desired_signal = Signals.NULL
     df = dataframe_gen(desired_signal=desired_signal)
     df["position"] = Signals.FLAT
 
