@@ -11,7 +11,6 @@ from src.workers.signal import when_flat
 from src.workers.order import order_handle
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_first_order_filled(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -64,7 +63,6 @@ async def test_first_order_filled(mock_create_order):
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_first_order_filled_partially(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -121,7 +119,6 @@ async def test_first_order_filled_partially(mock_create_order):
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_first_order_filled_partially_twice(mock_create_order, mock_cancel_order):
@@ -204,7 +201,6 @@ async def test_first_order_filled_partially_twice(mock_create_order, mock_cancel
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_two_orders_filled(mock_create_order, mock_cancel_order):

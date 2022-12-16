@@ -13,7 +13,6 @@ from src.workers.workers import print_last_n_rows
 from tests.data.sample_dataframes import dataframe_gen
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_historical_klines")
 async def test_get_historical_data(mock_get_historical_klines):
     client = binance.AsyncClient()
@@ -37,7 +36,6 @@ async def test_get_historical_data(mock_get_historical_klines):
     "signal",
     [Signals.LONG, Signals.LONG_20, Signals.SHORT, Signals.SHORT_80, Signals.NULL],
 )
-@pytest.mark.asyncio
 async def test_determine_start_position(signal):
     client = binance.AsyncClient()
     queue = asyncio.Queue()

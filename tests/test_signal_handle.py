@@ -21,7 +21,6 @@ logger = logging.getLogger("test_signal_handle")
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_flat(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1}
@@ -59,7 +58,6 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal):
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_flat(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1}
@@ -96,7 +94,6 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal):
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_flat(mock_create_order):
     mock_create_order.return_value = {"orderId": 1}
@@ -135,7 +132,6 @@ async def test_signal_handle_null_when_flat(mock_create_order):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_long(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1}
@@ -178,7 +174,6 @@ async def test_signal_handle_long_when_long(mock_create_order, signal):
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_long(
@@ -224,7 +219,6 @@ async def test_signal_handle_short_when_long(
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_long(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -273,7 +267,6 @@ async def test_signal_handle_null_when_long(mock_create_order):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_short(
@@ -320,7 +313,6 @@ async def test_signal_handle_long_when_short(
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_short(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -362,7 +354,6 @@ async def test_signal_handle_short_when_short(mock_create_order, signal):
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_short(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -411,7 +402,6 @@ async def test_signal_handle_null_when_short(mock_create_order):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_long_twenty(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1}
@@ -454,7 +444,6 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal):
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_long_twenty(
@@ -500,7 +489,6 @@ async def test_signal_handle_short_when_long_twenty(
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_long_twenty(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -549,7 +537,6 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_short_eighty(
@@ -596,7 +583,6 @@ async def test_signal_handle_long_when_short_eighty(
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_short_eighty(mock_create_order, signal):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
@@ -638,7 +624,6 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal):
     await client.close_connection()
 
 
-@pytest.mark.asyncio
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_short_eighty(mock_create_order):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
