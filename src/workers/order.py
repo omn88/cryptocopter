@@ -24,9 +24,10 @@ async def order_handle(
         ]:
             order_price = round(order_price, 2)
             if order.price == order_price:
+                order.status = order_status
+
                 if order_status == client.ORDER_STATUS_PARTIALLY_FILLED:
                     order.realized_quantity = order.realized_quantity + order_quantity
-                    order.status = order_status
                     logger.info(
                         "Order partially filled, price: %s, quantity: %s"
                         % (order_price, order_quantity)
@@ -41,7 +42,6 @@ async def order_handle(
                     )
                 elif order_status == client.ORDER_STATUS_FILLED:
                     order.realized_quantity = order.quantity
-                    order.status = order_status
 
                     logger.info(
                         "Order filled, price: %s, quantity: %s"
