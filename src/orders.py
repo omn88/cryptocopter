@@ -592,8 +592,13 @@ async def update_position(
         resp = await client.futures_cancel_order(order_id=tpo.order_id)
         assert resp["status"] == client.ORDER_STATUS_CANCELED
 
-        new_price = (price * order_quantity + tpo.price * tpo.quantity) / (
-            tpo.quantity + order_quantity
+        new_price = round(
+            (
+                price * order_quantity
+                + current_position.quantity * current_position.price
+            )
+            / (current_position.quantity + order_quantity),
+            2,
         )
 
         (
@@ -603,19 +608,22 @@ async def update_position(
             side=current_position.side, price=new_price, leverage=leverage
         )
 
-        order_quantity = tpo.quantity + order_quantity
+        new_quantity = current_position.quantity + order_quantity
 
         resp = await client.futures_create_order(
             symbol=symbol,
-            order_quantity=order_quantity,
+            order_quantity=new_quantity,
             side=current_position.side,
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             price=current_position.target_price,
         )
-        logger.info("New take profit buy order send, price: %s" % price)
+        logger.info(
+            "New take profit buy order send, price: %s, quantity: %s"
+            % (current_position.target_price, new_quantity)
+        )
 
         current_position.price = new_price
-        current_position.quantity = order_quantity
+        current_position.quantity = new_quantity
 
     else:
         logger.info("No take profit order, thus creating first now")
@@ -642,10 +650,12 @@ async def update_position(
         current_position.quantity = order_quantity
 
     current_position.take_profit_order = Order(
-        price=resp["price"],
-        quantity=order_quantity,
+        price=current_position.target_price,
+        quantity=current_position.quantity,
         order_id=resp["orderId"],
-        quantity_stable=order_quantity,
+        quantity_stable=current_position.target_price
+        * current_position.quantity
+        / leverage,
     )
 
     logger.info("Exiting handle filled order")

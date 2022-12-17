@@ -23,7 +23,6 @@ async def order_handle(
     order_quantity = updated_order["q"]
 
     if order_price == position.current_position.liquidation_price:
-        # cancel remaining orders
         take_profit_order = position.current_position.take_profit_order
         if take_profit_order is not None:
             logger.info(
@@ -82,7 +81,7 @@ async def order_handle(
                         client=client,
                         current_position=position.current_position,
                         price=order_price,
-                        order_quantity=order.quantity,
+                        order_quantity=order_quantity,
                         symbol=position.symbol,
                         leverage=position.leverage,
                     )

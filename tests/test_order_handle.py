@@ -341,8 +341,17 @@ async def test_first_order_canceled(mock_create_order, base):
 
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_two_orders_filled_then(mock_create_order, mock_cancel_order, base):
-    mock_create_order.return_value = {"orderId": 1, "price": 21000}
+async def test_two_orders_filled_then_target_reached(
+    mock_create_order, mock_cancel_order, base
+):
+    mock_create_order.side_effect = [
+        {"orderId": 1, "price": 20000.8},
+        {"orderId": 2, "price": 19900.8},
+        {"orderId": 3, "price": 19800.8},
+        {"orderId": 4, "price": 19700.8},
+        {"orderId": 5, "price": 20800.83},
+        {"orderId": 6, "price": 20748.83},
+    ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     position = Position(symbol=base.symbol, saldo=1000)
@@ -383,13 +392,11 @@ async def test_two_orders_filled_then(mock_create_order, mock_cancel_order, base
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == realized_quantity
 
-    realized_quantity = position.orders[1].quantity
-
     order_update = {
         "o": {
             "X": base.client.ORDER_STATUS_FILLED,
             "p": position.orders[1].price,
-            "q": realized_quantity,
+            "q": position.orders[1].quantity,
         }
     }
 
@@ -405,3 +412,19 @@ async def test_two_orders_filled_then(mock_create_order, mock_cancel_order, base
     assert position.current_position.take_profit_order.quantity == (
         position.orders[0].quantity + position.orders[1].quantity
     )
+
+    order_update = {
+        "o": {
+            "X": base.client.ORDER_STATUS_FILLED,
+            "p": position.current_position.take_profit_order.price,
+            "q": position.current_position.take_profit_order.quantity,
+        }
+    }
+
+    position = await order_handle(
+        client=base.client, position=position, order_update=order_update
+    )
+
+    assert position.orders == []
+    assert position.current_position.take_profit_order is None
+    assert position.saldo == 1100
