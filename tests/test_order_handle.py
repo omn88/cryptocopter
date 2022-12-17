@@ -1,10 +1,4 @@
-import pytest
 from unittest.mock import patch
-import binance
-import asyncio
-
-from tests.data.sample_dataframes import dataframe_gen
-from src.producers.producers import determine_start_position
 from src.features import Signals
 from src.orders import Position
 from src.workers.signal import when_flat
@@ -12,31 +6,19 @@ from src.workers.order import order_handle
 
 
 @patch("binance.AsyncClient.futures_create_order")
-async def test_first_order_filled(mock_create_order):
+async def test_first_order_filled(mock_create_order, base):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
-    client = binance.AsyncClient()
-    queue = asyncio.Queue()
-
-    desired_signal = Signals.NULL
-    df = dataframe_gen(desired_signal=desired_signal)
-    df["position"] = Signals.FLAT
-
-    symbol = "BTCUSDT"
-    position = Position(symbol=symbol, saldo=1000)
-    df = await determine_start_position(df=df, queue=queue)
+    position = Position(symbol=base.symbol, saldo=1000)
 
     entry_signal = Signals.LONG
-    entry_price = round(df.at[df.index[-1], "Close"], 1)
-    df, position = await when_flat(
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
         signal=entry_signal,
-        client=client,
+        client=base.client,
         position=position,
-        df=df,
+        df=base.df,
         entry_price=entry_price,
     )
-
-    event = await queue.get()
-    assert event.content["last_signal"] == desired_signal
 
     assert 4 == len(position.orders)
     assert 900 == position.saldo
@@ -45,50 +27,37 @@ async def test_first_order_filled(mock_create_order):
 
     order_update = {
         "o": {
-            "X": client.ORDER_STATUS_FILLED,
+            "X": base.client.ORDER_STATUS_FILLED,
             "p": entry_price,
             "q": position.orders[0].quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=order_update
+        client=base.client, position=position, order_update=order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_NEW
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
-
-    await client.close_connection()
+    assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
 
 
 @patch("binance.AsyncClient.futures_create_order")
-async def test_first_order_filled_partially(mock_create_order):
+async def test_first_order_filled_partially(mock_create_order, base):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
-    client = binance.AsyncClient()
-    queue = asyncio.Queue()
 
-    desired_signal = Signals.NULL
-    df = dataframe_gen(desired_signal=desired_signal)
-    df["position"] = Signals.FLAT
-
-    symbol = "BTCUSDT"
-    position = Position(symbol=symbol, saldo=1000)
-    df = await determine_start_position(df=df, queue=queue)
+    position = Position(symbol=base.symbol, saldo=1000)
 
     entry_signal = Signals.LONG
-    entry_price = round(df.at[df.index[-1], "Close"], 1)
-    df, position = await when_flat(
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
         signal=entry_signal,
-        client=client,
+        client=base.client,
         position=position,
-        df=df,
+        df=base.df,
         entry_price=entry_price,
     )
-
-    event = await queue.get()
-    assert event.content["last_signal"] == desired_signal
 
     assert 4 == len(position.orders)
     assert 900 == position.saldo
@@ -99,55 +68,44 @@ async def test_first_order_filled_partially(mock_create_order):
 
     order_update = {
         "o": {
-            "X": client.ORDER_STATUS_PARTIALLY_FILLED,
+            "X": base.client.ORDER_STATUS_PARTIALLY_FILLED,
             "p": entry_price,
             "q": realized_quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=order_update
+        client=base.client, position=position, order_update=order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_PARTIALLY_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_NEW
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
+    assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == realized_quantity
-
-    await client.close_connection()
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_first_order_filled_partially_twice(mock_create_order, mock_cancel_order):
-    client = binance.AsyncClient()
-    queue = asyncio.Queue()
+async def test_first_order_filled_partially_twice(
+    mock_create_order, mock_cancel_order, base
+):
 
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
-    mock_cancel_order.return_value = {"status": client.ORDER_STATUS_CANCELED}
+    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
-    desired_signal = Signals.NULL
-    df = dataframe_gen(desired_signal=desired_signal)
-    df["position"] = Signals.FLAT
-
-    symbol = "BTCUSDT"
-    position = Position(symbol=symbol, saldo=1000)
-    df = await determine_start_position(df=df, queue=queue)
+    position = Position(symbol=base.symbol, saldo=1000)
 
     entry_signal = Signals.LONG
-    entry_price = round(df.at[df.index[-1], "Close"], 1)
-    df, position = await when_flat(
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
         signal=entry_signal,
-        client=client,
+        client=base.client,
         position=position,
-        df=df,
+        df=base.df,
         entry_price=entry_price,
     )
-
-    event = await queue.get()
-    assert event.content["last_signal"] == desired_signal
 
     assert 4 == len(position.orders)
     assert 900 == position.saldo
@@ -158,20 +116,20 @@ async def test_first_order_filled_partially_twice(mock_create_order, mock_cancel
 
     order_update = {
         "o": {
-            "X": client.ORDER_STATUS_PARTIALLY_FILLED,
+            "X": base.client.ORDER_STATUS_PARTIALLY_FILLED,
             "p": entry_price,
             "q": realized_quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=order_update
+        client=base.client, position=position, order_update=order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_PARTIALLY_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_NEW
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
+    assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == realized_quantity
 
@@ -179,57 +137,43 @@ async def test_first_order_filled_partially_twice(mock_create_order, mock_cancel
 
     another_order_update = {
         "o": {
-            "X": client.ORDER_STATUS_PARTIALLY_FILLED,
+            "X": base.client.ORDER_STATUS_PARTIALLY_FILLED,
             "p": entry_price,
             "q": another_realized_quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=another_order_update
+        client=base.client, position=position, order_update=another_order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_PARTIALLY_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_NEW
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
+    assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == (
         realized_quantity + another_realized_quantity
     )
 
-    await client.close_connection()
-
 
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_two_orders_filled(mock_create_order, mock_cancel_order):
-    client = binance.AsyncClient()
-    queue = asyncio.Queue()
-
+async def test_two_orders_filled(mock_create_order, mock_cancel_order, base):
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
-    mock_cancel_order.return_value = {"status": client.ORDER_STATUS_CANCELED}
+    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
-    desired_signal = Signals.NULL
-    df = dataframe_gen(desired_signal=desired_signal)
-    df["position"] = Signals.FLAT
-
-    symbol = "BTCUSDT"
-    position = Position(symbol=symbol, saldo=1000)
-    df = await determine_start_position(df=df, queue=queue)
+    position = Position(symbol=base.symbol, saldo=1000)
 
     entry_signal = Signals.LONG
-    entry_price = round(df.at[df.index[-1], "Close"], 1)
-    df, position = await when_flat(
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
         signal=entry_signal,
-        client=client,
+        client=base.client,
         position=position,
-        df=df,
+        df=base.df,
         entry_price=entry_price,
     )
-
-    event = await queue.get()
-    assert event.content["last_signal"] == desired_signal
 
     assert 4 == len(position.orders)
     assert 900 == position.saldo
@@ -240,20 +184,20 @@ async def test_two_orders_filled(mock_create_order, mock_cancel_order):
 
     order_update = {
         "o": {
-            "X": client.ORDER_STATUS_FILLED,
+            "X": base.client.ORDER_STATUS_FILLED,
             "p": entry_price,
             "q": realized_quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=order_update
+        client=base.client, position=position, order_update=order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_NEW
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
+    assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == realized_quantity
 
@@ -261,23 +205,21 @@ async def test_two_orders_filled(mock_create_order, mock_cancel_order):
 
     order_update = {
         "o": {
-            "X": client.ORDER_STATUS_FILLED,
+            "X": base.client.ORDER_STATUS_FILLED,
             "p": position.orders[1].price,
             "q": realized_quantity,
         }
     }
 
     position = await order_handle(
-        client=client, position=position, order_update=order_update
+        client=base.client, position=position, order_update=order_update
     )
 
-    assert position.orders[0].status == client.ORDER_STATUS_FILLED
-    assert position.orders[1].status == client.ORDER_STATUS_FILLED
-    assert position.orders[2].status == client.ORDER_STATUS_NEW
-    assert position.orders[3].status == client.ORDER_STATUS_NEW
+    assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == (
         position.orders[0].quantity + position.orders[1].quantity
     )
-
-    await client.close_connection()
