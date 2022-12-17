@@ -496,6 +496,28 @@ async def futures_long_position_close(
     return position
 
 
+async def cancel_remaining_limit_orders(
+    client: binance.AsyncClient, position: Position
+) -> Position:
+    logger.info("Cancelling remaining limit orders")
+    for order in position.orders:
+        if order.status in [
+            client.ORDER_STATUS_PARTIALLY_FILLED,
+            client.ORDER_STATUS_NEW,
+        ]:
+            resp = await client.futures_cancel_order(order_id=order.order_id)
+            logger.info(
+                "Order with order_id: %s should be cancelled and is: %s"
+                % (order.order_id, resp["status"])
+            )
+            order.status = resp["status"]
+            position.saldo = position.saldo + (
+                order.quantity_stable - order.realized_quantity
+            )
+
+    return position
+
+
 async def futures_short_position_close(
     client: binance.AsyncClient, position: Position
 ) -> Position:
@@ -542,22 +564,9 @@ async def futures_short_position_close(
         resp = await client.futures_cancel_order(
             order_id=position.current_position.take_profit_order.order_id
         )
-        # ToDo: assert resp status = cancelled
+        assert resp["status"] == binance.AsyncClient.ORDER_STATUS_CANCELED
 
-    logger.info("Cancelling remaining limit orders")
-    for order in position.orders:
-        if order.status in [
-            client.ORDER_STATUS_PARTIALLY_FILLED,
-            client.ORDER_STATUS_NEW,
-        ]:
-            resp = await client.futures_cancel_order(order_id=order.order_id)
-            logger.info(
-                "Order with order_id: %s should be cancelled and is: %s"
-                % (order.order_id, resp["status"])
-            )
-            position.saldo = position.saldo + (
-                order.quantity_stable - order.realized_quantity
-            )
+    position = await cancel_remaining_limit_orders(client=client, position=position)
 
     position.status = position.status.FLAT
 
