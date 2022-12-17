@@ -4,12 +4,11 @@ import logging
 import binance
 
 import pandas
-from src import orders, features
-from src.backtest import lib
+from src import orders
 from src.producers import producers
 from src.workers.account import account_handle
 from src.workers.order import order_handle
-from src.workers.signal import signal_handle
+from src.workers.signal import signal_handle, kline_handle
 
 logger = logging.getLogger("worker_main")
 
@@ -35,32 +34,12 @@ async def worker(
         assert isinstance(event, producers.Event)
 
         if producers.EventName.KLINE == event.name:
-            logger.info("Entering Kline handling")
-            # await print_last_n_rows(df=df)
-
-            temp_df = await lib.get_futures_historical_data(
+            df, position = await kline_handle(
                 client=client,
                 symbol=symbol,
                 interval=interval,
-                lookback="3360",  # 44000 is approximately one month
-            )
-            temp_df = features.signals_from_features_generate(df=temp_df)
-            temp_df["position"] = df.at[df.index[-1], "position"]
-            kline_signal = temp_df.iloc[-1]["signal"]
-            if kline_signal == 0:
-                kline_signal = features.Signals.NULL
-
-            logger.info("Kline produced new signal: %s" % kline_signal.value)
-
-            df = df.append(temp_df.iloc[-1])
-            await print_last_n_rows(df=df)
-
-            df, position = await signal_handle(
-                client=client,
                 df=df,
-                signal=kline_signal,
                 position=position,
-                entry_price=df.at[df.index[-1], "Close"],
             )
 
         elif producers.EventName.ORDER == event.name:

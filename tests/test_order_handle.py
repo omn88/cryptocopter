@@ -223,3 +223,117 @@ async def test_two_orders_filled(mock_create_order, mock_cancel_order, base):
     assert position.current_position.take_profit_order.quantity == (
         position.orders[0].quantity + position.orders[1].quantity
     )
+
+
+@patch("binance.AsyncClient.futures_create_order")
+async def test_first_order_new(mock_create_order, base):
+    mock_create_order.return_value = {"orderId": 1, "price": 21000}
+    position = Position(symbol=base.symbol, saldo=1000)
+
+    entry_signal = Signals.LONG
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
+        signal=entry_signal,
+        client=base.client,
+        position=position,
+        df=base.df,
+        entry_price=entry_price,
+    )
+
+    assert 4 == len(position.orders)
+    assert 900 == position.saldo
+
+    assert all(order.price <= entry_price for order in position.orders)
+
+    order_update = {
+        "o": {
+            "X": base.client.ORDER_STATUS_NEW,
+            "p": entry_price,
+            "q": position.orders[0].quantity,
+        }
+    }
+
+    position = await order_handle(
+        client=base.client, position=position, order_update=order_update
+    )
+
+    assert position.orders[0].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+
+
+@patch("binance.AsyncClient.futures_create_order")
+async def test_first_order_expired(mock_create_order, base):
+    mock_create_order.return_value = {"orderId": 1, "price": 21000}
+    position = Position(symbol=base.symbol, saldo=1000)
+
+    entry_signal = Signals.LONG
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
+        signal=entry_signal,
+        client=base.client,
+        position=position,
+        df=base.df,
+        entry_price=entry_price,
+    )
+
+    assert 4 == len(position.orders)
+    assert 900 == position.saldo
+
+    assert all(order.price <= entry_price for order in position.orders)
+
+    order_update = {
+        "o": {
+            "X": base.client.ORDER_STATUS_EXPIRED,
+            "p": entry_price,
+            "q": position.orders[0].quantity,
+        }
+    }
+
+    position = await order_handle(
+        client=base.client, position=position, order_update=order_update
+    )
+
+    assert position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+
+
+@patch("binance.AsyncClient.futures_create_order")
+async def test_first_order_canceled(mock_create_order, base):
+    mock_create_order.return_value = {"orderId": 1, "price": 21000}
+    position = Position(symbol=base.symbol, saldo=1000)
+
+    entry_signal = Signals.LONG
+    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    base.df, position = await when_flat(
+        signal=entry_signal,
+        client=base.client,
+        position=position,
+        df=base.df,
+        entry_price=entry_price,
+    )
+
+    assert 4 == len(position.orders)
+    assert 900 == position.saldo
+
+    assert all(order.price <= entry_price for order in position.orders)
+
+    order_update = {
+        "o": {
+            "X": base.client.ORDER_STATUS_CANCELED,
+            "p": entry_price,
+            "q": position.orders[0].quantity,
+        }
+    }
+
+    position = await order_handle(
+        client=base.client, position=position, order_update=order_update
+    )
+
+    assert position.orders[0].status == base.client.ORDER_STATUS_CANCELED
+    assert position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert position.orders[3].status == base.client.ORDER_STATUS_NEW

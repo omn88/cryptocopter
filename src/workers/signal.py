@@ -4,6 +4,7 @@ import binance
 import pandas
 
 from src import features, orders
+from src.backtest import lib
 
 import logging
 
@@ -283,5 +284,42 @@ async def signal_handle(
 
     else:
         logger.info("You fucked up something big!")
+
+    return df, position
+
+
+async def kline_handle(
+    client: binance.AsyncClient,
+    symbol: str,
+    interval: str,
+    df: pandas.DataFrame,
+    position: orders.Position,
+) -> Tuple[pandas.DataFrame, orders.Position]:
+    logger.info("Entering Kline handling")
+    # await print_last_n_rows(df=df)
+
+    temp_df = await lib.get_futures_historical_data(
+        client=client,
+        symbol=symbol,
+        interval=interval,
+        lookback="3360",  # 44000 is approximately one month
+    )
+    temp_df = features.signals_from_features_generate(df=temp_df)
+    temp_df["position"] = df.at[df.index[-1], "position"]
+    kline_signal = temp_df.iloc[-1]["signal"]
+    if kline_signal == 0:
+        kline_signal = features.Signals.NULL
+
+    logger.info("Kline produced new signal: %s" % kline_signal.value)
+
+    df = df.append(temp_df.iloc[-1])
+
+    df, position = await signal_handle(
+        client=client,
+        df=df,
+        signal=kline_signal,
+        position=position,
+        entry_price=df.at[df.index[-1], "Close"],
+    )
 
     return df, position
