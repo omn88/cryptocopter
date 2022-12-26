@@ -27,7 +27,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
     assert all(order.price <= entry_price for order in position.orders)
     assert base.df.at[base.df.index[-1], "position"] == signal
@@ -50,7 +50,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
     assert all(order.price >= entry_price for order in position.orders)
     assert base.df.at[base.df.index[-1], "position"] == signal
@@ -103,7 +103,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert entry_signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -139,7 +139,7 @@ async def test_signal_handle_short_when_long(
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
 
     assert all(order.price >= round(entry_price, 1) for order in position.orders)
@@ -172,7 +172,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert position_status == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -208,7 +208,7 @@ async def test_signal_handle_long_when_short(
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -239,7 +239,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert entry_signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
@@ -272,7 +272,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert position_status == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
@@ -303,7 +303,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert entry_signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -339,7 +339,7 @@ async def test_signal_handle_short_when_long_twenty(
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
@@ -372,7 +372,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert position_status == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -408,7 +408,7 @@ async def test_signal_handle_long_when_short_eighty(
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
@@ -440,7 +440,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert entry_signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
@@ -473,7 +473,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     )
 
     assert 4 == len(position.orders)
-    assert 900 == position.saldo
+    assert 1000 == position.saldo
     assert position_status == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
