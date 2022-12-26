@@ -74,10 +74,12 @@ async def order_handle(
                 client=client, position=position
             )
             position.saldo += round(
-                order_quantity
-                * (
-                    position.current_position.take_profit_order.price
-                    - position.current_position.price
+                abs(
+                    order_quantity
+                    * (
+                        position.current_position.take_profit_order.price
+                        - position.current_position.price
+                    )
                 ),
                 2,
             )
@@ -93,10 +95,12 @@ async def order_handle(
             logger.info("Take profit order FILLED PARTIALLY!")
             saldo = position.saldo
             position.saldo += round(
-                order_quantity
-                * (
-                    position.current_position.take_profit_order.price
-                    - position.current_position.price
+                abs(
+                    order_quantity
+                    * (
+                        position.current_position.take_profit_order.price
+                        - position.current_position.price
+                    )
                 ),
                 2,
             )
