@@ -30,21 +30,17 @@ async def order_handle(
     if order_price == position.current_position.liquidation_price:
         logger.info("Position liquidation")
         take_profit_order = position.current_position.take_profit_order
-        if take_profit_order is not None:
-            logger.info(
-                "Take profit order is not none, so cancelling order: %s"
-                % take_profit_order.order_id
-            )
-            resp = await client.futures_cancel_order(
-                order_id=take_profit_order.order_id
-            )
-            assert resp["status"] == client.ORDER_STATUS_CANCELED
+
+        logger.info("Cancelling take profit order: %s" % take_profit_order.order_id)
+        resp = await client.futures_cancel_order(order_id=take_profit_order.order_id)
+        assert resp["status"] == client.ORDER_STATUS_CANCELED
 
         loss = 0
         for order in position.orders:
-            loss += order.quantity_stable
+            logger.info("quantity: %s, price: %s" % (order.quantity, order.price))
+            loss += (order.quantity * order.price) / position.leverage
 
-        position.saldo -= loss
+        position.saldo -= round(loss, 2)
 
         position.current_position = CurrentPosition()
         position.orders = []
