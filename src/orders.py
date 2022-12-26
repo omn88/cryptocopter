@@ -211,8 +211,6 @@ def prepare_orders(
     order_quantity = order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info("Order quantity: %d" % order_quantity)
 
-    saldo = saldo - (number_of_dca_orders + 1) * order_quantity
-
     if side == PositionSide.LONG:
         if mode == PositionMode.DCA:
             orders = [
@@ -434,7 +432,11 @@ async def futures_long_position_close(
     logger.info("Entering long position close")
 
     if any(
-        order.status == binance.client.BaseClient.ORDER_STATUS_FILLED
+        order.status
+        in [
+            binance.AsyncClient.ORDER_STATUS_FILLED,
+            binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
+        ]
         for order in position.orders
     ):
 
@@ -484,9 +486,6 @@ async def futures_long_position_close(
                 "Order with order_id: %s should be cancelled and is: %s"
                 % (order.order_id, resp["status"])
             )
-            position.saldo = position.saldo + (
-                order.quantity_stable - order.realized_quantity
-            )
 
     position.status = position.status.FLAT
 
@@ -511,9 +510,8 @@ async def cancel_remaining_limit_orders(
                 % (order.order_id, resp["status"])
             )
             order.status = resp["status"]
-            position.saldo = position.saldo + (
-                order.quantity_stable - order.realized_quantity
-            )
+
+            logger.info("Status: %s, saldo: %s" % (order.status, position.saldo))
 
     return position
 
@@ -577,12 +575,13 @@ async def futures_short_position_close(
 async def update_position(
     client: binance.AsyncClient,
     symbol: str,
-    current_position: CurrentPosition,
+    position: Position,
     price: float,
     order_quantity: float,
     leverage: int,
 ) -> CurrentPosition:
     logger.info("Entering handle filled order")
+    current_position = position.current_position
     tpo = current_position.take_profit_order
 
     if tpo is not None:
@@ -592,14 +591,18 @@ async def update_position(
         resp = await client.futures_cancel_order(order_id=tpo.order_id)
         assert resp["status"] == client.ORDER_STATUS_CANCELED
 
-        new_price = round(
-            (
-                price * order_quantity
-                + current_position.quantity * current_position.price
-            )
-            / (current_position.quantity + order_quantity),
-            2,
-        )
+        total_value = 0
+        total_quantity = 0
+
+        for order in position.orders:
+            if order.status in [
+                binance.AsyncClient.ORDER_STATUS_FILLED,
+                binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
+            ]:
+                total_quantity += order.realized_quantity
+                total_value += order.realized_quantity * order.price
+
+        new_price = round(total_value / total_quantity, 2)
 
         (
             current_position.liquidation_price,
