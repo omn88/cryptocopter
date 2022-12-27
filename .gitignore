@@ -5,3 +5,4 @@ sample_data.txt
 .pytest_cache/
 .venv
 .env
+.coverage
