@@ -16,6 +16,7 @@ class EventName(Enum):
     ACCOUNT = "Account"
     ORDER = "Order"
     SIGNAL = "Signal"
+    SENTINEL = "Sentintel"
 
 
 class Event(NamedTuple):
@@ -81,24 +82,22 @@ async def determine_start_position(
 ) -> pandas.DataFrame:
     logger.info("Checking start position")
 
-    last_signal = None
-    last_signal_close_price = 0
+    signal = None
+    price = 0
     signal_index = 0
     date_index = None
 
     for index, row in df[::-1].iterrows():
         if row["signal"] != 0:
-            last_signal = row["signal"]
-            last_signal_close_price = row["Close"]
+            signal = row["signal"]
+            price = row["Close"]
             # Adding extra lines to see what happened before signal
             signal_index += 4
-            date_index = index
             break
         else:
-            last_signal = features.Signals.NULL
-            last_signal_close_price = row["Close"]
+            signal = features.Signals.NULL
+            price = row["Close"]
             signal_index += 1
-            date_index = index
 
     try:
         assert signal_index <= len(df.index)
@@ -110,15 +109,12 @@ async def determine_start_position(
         )
 
     content = {
-        "last_signal": last_signal,
-        "last_signal_close_price": last_signal_close_price,
+        "signal": signal,
+        "price": price,
     }
 
     await queue.put(Event(name=EventName.SIGNAL, content=content))
 
-    logger.info(
-        "Added signal to queue: on %s signal: %s, price: %s"
-        % (date_index, last_signal, last_signal_close_price)
-    )
+    logger.info("Added signal to queue: signal: %s, price: %s" % (signal, price))
 
     return df

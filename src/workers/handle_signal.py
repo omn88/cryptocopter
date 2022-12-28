@@ -8,7 +8,7 @@ from src.backtest import lib
 
 import logging
 
-logger = logging.getLogger("worker_signal")
+logger = logging.getLogger("handle_signal")
 
 
 async def log_signal_change(df, signal):
@@ -84,7 +84,7 @@ async def when_long(
 
         df.at[df.index[-1], "position"] = position.status
         await log_signal_change(df=df, signal=signal)
-        logger.info("Opening DCA Short")
+        logger.info("Long closed, opening DCA Short")
         position = await orders.futures_short_position_open(
             client=client, position=position, entry_price=entry_price, signal=signal
         )

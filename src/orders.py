@@ -7,7 +7,7 @@ import binance
 from src import features
 import pandas
 
-logger = logging.getLogger("order")
+logger = logging.getLogger("orders")
 
 
 class PositionSide(Enum):
@@ -184,14 +184,23 @@ async def send_orders(
 def liquidation_target_price_calculate(
     side: PositionSide, price: float, leverage: int
 ) -> Tuple[float, float]:
+    logger.info("Entering liquidation target price calculate")
     if side == PositionSide.LONG:
         liquidation_price = round((1 - (100 / leverage / 100)) * price, 2)
         target_price = round((1 + (100 / leverage / 100)) * price, 2)
+        logger.info(
+            "position side: %s, liquidation: %s, target: %s"
+            % (side, liquidation_price, target_price)
+        )
         return liquidation_price, target_price
 
     if side == PositionSide.SHORT:
         liquidation_price = round((1 + (100 / leverage / 100)) * price, 2)
         target_price = round((1 - (100 / leverage / 100)) * price, 2)
+        logger.info(
+            "position side: %s, liquidation: %s, target: %s"
+            % (side, liquidation_price, target_price)
+        )
         return liquidation_price, target_price
 
 
@@ -450,17 +459,14 @@ async def futures_long_position_close(
         net = round((sell_price - position.current_position.price), 2)
         net_percent = round((sell_price / position.current_position.price - 1), 4)
         logger.info(
-            "Long closed. Price: %s, it's: %s USDT and %s percent"
-            % (sell_price, net, 100 * net_percent)
+            "Long closed. Price: %s, quantity: %s, it's: %s USDT and %s percent"
+            % (sell_price, position.current_position.quantity, net, 100 * net_percent)
         )
-
-        real_earn = round(
-            (position.current_position.quantity * position.leverage * net_percent), 2
-        )
-        position.saldo = round(position.saldo + real_earn, 2)
+        real_earn = round(position.current_position.quantity * net, 2)
+        position.saldo = position.saldo + real_earn
 
         logger.info(
-            "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
+            "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
             % (
                 position.current_position.quantity,
                 position.leverage,
@@ -473,7 +479,8 @@ async def futures_long_position_close(
         resp = await client.futures_cancel_order(
             order_id=position.current_position.take_profit_order.order_id
         )
-        # ToDo: assert resp status = cancelled
+        assert resp["status"] == binance.AsyncClient.ORDER_STATUS_CANCELED
+        logger.info("Cancelled take profit order")
 
     logger.info("Cancelling remaining limit orders")
     for order in position.orders:
@@ -539,17 +546,15 @@ async def futures_short_position_close(
         net = round((position.current_position.price - buy_price), 2)
         net_percent = round((position.current_position.price / buy_price - 1), 4)
         logger.info(
-            "Short closed. Price: %s, it's: %s USDT and %s percent"
+            "Buy price: %s, it's: %s USDT and %s percent"
             % (buy_price, net, 100 * net_percent)
         )
 
-        real_earn = round(
-            (position.current_position.quantity * position.leverage * net_percent), 2
-        )
+        real_earn = round(position.current_position.quantity * net, 2)
         position.saldo = round(position.saldo + real_earn, 2)
 
         logger.info(
-            "Summary: quantity: %s, leverage: %d, earned: %d, new saldo is: %d"
+            "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
             % (
                 position.current_position.quantity,
                 position.leverage,

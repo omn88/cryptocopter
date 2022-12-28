@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from src.orders import Position
-from src.workers.signal import signal_handle
+from src.workers.handle_signal import signal_handle
 from src.features import Signals
 import logging
 

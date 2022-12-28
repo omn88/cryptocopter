@@ -6,9 +6,9 @@ import binance
 import pandas
 from src import orders
 from src.producers import producers
-from src.workers.account import account_handle
-from src.workers.order import order_handle
-from src.workers.signal import signal_handle, kline_handle
+from src.workers.handle_account import account_handle
+from src.workers.handle_order import order_handle
+from src.workers.handle_signal import signal_handle, kline_handle
 
 logger = logging.getLogger("worker_main")
 
@@ -57,12 +57,16 @@ async def worker(
             df, position = await signal_handle(
                 client=client,
                 df=df,
-                signal=event.content["last_signal"],
+                signal=event.content["signal"],
                 position=position,
-                entry_price=event.content["last_signal_close_price"],
+                entry_price=event.content["price"],
             )
 
             await print_last_n_rows(df=df)
+
+        elif producers.EventName.SENTINEL == event.name:
+            logger.info("SENTINEL -> exiting worker")
+            return df, position
 
         logger.info("Done, Awaiting new Event")
         queue.task_done()

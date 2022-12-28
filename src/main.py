@@ -18,7 +18,7 @@ from producers.producers import (
     kline_futures_socket,
     determine_start_position,
 )
-from workers.workers import worker
+from workers.worker import worker
 
 import warnings
 
