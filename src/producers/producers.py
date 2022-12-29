@@ -16,7 +16,7 @@ class EventName(Enum):
     ACCOUNT = "Account"
     ORDER = "Order"
     SIGNAL = "Signal"
-    SENTINEL = "Sentintel"
+    SENTINEL = "Sentinel"
 
 
 class Event(NamedTuple):
