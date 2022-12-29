@@ -2,8 +2,8 @@ from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
 from src.orders import Position
-from src.workers.signal import when_flat
-from src.workers.order import order_handle
+from src.workers.handle_signal import when_flat
+from src.workers.handle_order import order_handle
 import logging
 import pandas
 
@@ -217,7 +217,6 @@ async def test_long_first_order_filled_partially(mock_create_order, base):
 async def test_long_first_order_filled_partially_twice(
     mock_create_order, mock_cancel_order, base
 ):
-
     mock_create_order.return_value = {"orderId": 1, "price": 21000}
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
@@ -612,6 +611,9 @@ async def test_long_all_orders_filled_then_liquidation(
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 899.96
+
+
+# ------------------------------ SHORT -------------------------------------#
 
 
 @patch("binance.AsyncClient.futures_create_order")

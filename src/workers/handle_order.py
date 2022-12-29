@@ -9,7 +9,7 @@ from src.orders import (
 )
 import logging
 
-logger = logging.getLogger("worker_order")
+logger = logging.getLogger("handle_order")
 
 
 async def order_handle(
