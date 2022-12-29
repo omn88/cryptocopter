@@ -8,17 +8,15 @@ from datetime import datetime
 import logging.config
 import yaml
 from decouple import config
-from backtest.lib import get_futures_historical_data
-import orders
+from src.backtest.lib import get_futures_historical_data
+from src import orders, features
 
-import features
-
-from producers.producers import (
+from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
     determine_start_position,
 )
-from workers.worker import worker
+from src.workers.worker import worker
 
 import warnings
 
