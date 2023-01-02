@@ -1,3 +1,4 @@
+import logging
 from typing import List, Tuple
 import btalib
 import numpy
@@ -6,6 +7,8 @@ from matplotlib import pyplot
 import binance
 
 from src.orders import Order, target_depo_price_calculate
+
+logger = logging.getLogger("lib")
 
 
 async def get_historical_data(

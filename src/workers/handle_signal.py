@@ -13,11 +13,11 @@ logger = logging.getLogger("handle_signal")
 
 async def log_signal_change(df, signal):
     logger.info(
-        "Position was %s, position is: %s, signal: %s."
+        "Position was %s, signal: %s, position now: %s"
         % (
             df.at[df.index[-2], "position"],
-            df.at[df.index[-1], "position"],
             signal,
+            df.at[df.index[-1], "position"],
         )
     )
 
@@ -115,6 +115,7 @@ async def when_long_twenty(
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     if signal == features.Signals.LONG:
         df.at[df.index[-1], "position"] = signal
+        position.status = signal
         await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.LONG_20:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -217,6 +218,7 @@ async def when_short_eighty(
         )
     elif signal == features.Signals.SHORT:
         df.at[df.index[-1], "position"] = signal
+        position.status = signal
         await log_signal_change(df=df, signal=signal)
     elif signal == features.Signals.SHORT_80:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -304,7 +306,10 @@ async def kline_handle(
         interval=interval,
         lookback="3360",  # 44000 is approximately one month
     )
+    logger.info("DF: \n%s", df.to_string())
+    logger.info("TEMP DF: \n%s", temp_df.to_string())
     temp_df = features.signals_from_features_generate(df=temp_df)
+    logger.info("LAST POSITION %s", df.at[df.index[-1], "position"])
     temp_df["position"] = df.at[df.index[-1], "position"]
     kline_signal = temp_df.iloc[-1]["signal"]
     if kline_signal == 0:
@@ -314,6 +319,8 @@ async def kline_handle(
 
     df = df.append(temp_df.iloc[-1])
 
+    logger.info("NEW DF: \n%s", df.to_string())
+
     df, position = await signal_handle(
         client=client,
         df=df,
@@ -321,5 +328,5 @@ async def kline_handle(
         position=position,
         entry_price=df.at[df.index[-1], "Close"],
     )
-
+    logger.info("Exiting Kline handling")
     return df, position

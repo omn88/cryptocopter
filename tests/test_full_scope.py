@@ -114,7 +114,7 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
         position.current_position.take_profit_order.quantity
         == position.orders[0].quantity
     )
-    assert position.current_position.take_profit_order.price == 20800.83
+    assert position.current_position.take_profit_order.price == 20350.41
 
     logger.info("################ SELL SIGNAL ####################")
 
