@@ -152,4 +152,5 @@ async def order_handle(
                 elif order_status == client.ORDER_STATUS_EXPIRED:
                     logger.info("Order expired")
 
+    logger.info("Exiting order handle")
     return position

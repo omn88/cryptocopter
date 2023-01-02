@@ -287,6 +287,7 @@ async def signal_handle(
     else:
         logger.info("You fucked up something big!")
 
+    logger.info("Exiting signal handle")
     return df, position
 
 
@@ -304,10 +305,10 @@ async def kline_handle(
         client=client,
         symbol=symbol,
         interval=interval,
-        lookback="3360",  # 44000 is approximately one month
+        lookback="820",  # 44000 is approximately one month
     )
-    logger.info("DF: \n%s", df.to_string())
-    logger.info("TEMP DF: \n%s", temp_df.to_string())
+    logger.info("DF: \n%s", df)
+    logger.info("TEMP DF: \n%s", temp_df)
     temp_df = features.signals_from_features_generate(df=temp_df)
     logger.info("LAST POSITION %s", df.at[df.index[-1], "position"])
     temp_df["position"] = df.at[df.index[-1], "position"]
@@ -319,7 +320,7 @@ async def kline_handle(
 
     df = df.append(temp_df.iloc[-1])
 
-    logger.info("NEW DF: \n%s", df.to_string())
+    logger.info("NEW DF: \n%s", df)
 
     df, position = await signal_handle(
         client=client,

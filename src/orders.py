@@ -155,9 +155,10 @@ async def send_order(
             timeInForce=client.TIME_IN_FORCE_GTC,
         )
         order.order_id = resp["orderId"]
+        order.status = resp["status"]
         logger.info(
-            "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s"
-            % (order.price, order.quantity, side, order.order_id)
+            "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
+            % (order.price, order.quantity, side, order.order_id, order.status)
         )
     except Exception as e:
         logger.info(e)
@@ -395,7 +396,7 @@ async def futures_short_position_open(
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
         )
-
+        logger.info("Before Send Orders")
         position.orders = await send_orders(
             client=client,
             orders=position.orders,

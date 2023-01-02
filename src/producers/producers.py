@@ -12,6 +12,7 @@ logger = logging.getLogger("producer")
 
 
 class EventName(Enum):
+
     KLINE = "Kline"
     ACCOUNT = "Account"
     ORDER = "Order"

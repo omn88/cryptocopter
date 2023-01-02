@@ -47,16 +47,6 @@ async def main():
         "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
     )
 
-    # Choose params, symbol, interval, saldo, FEATURES
-    # Download data for 15min intervals 1050 intervals back
-    # Apply indicators, features and create signals and desired position.
-    # Wait for another row and in the meantime manage position(recalculate, open, close)
-    # Based on new row's signals or info from socket, manage position
-
-    # Queue to be created with producer consumer pattern (worker?)
-    # In general output from new row will create signals as well as real time data from user socket.
-    # Worker will manage
-
     client = await AsyncClient.create(
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
@@ -70,7 +60,7 @@ async def main():
     assert asset == balance[6]["asset"]
     saldo = float(balance[6]["balance"])
 
-    logger.info("Asset: %s, Saldo: %d " % (balance[6]["asset"], saldo))
+    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], saldo))
 
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
