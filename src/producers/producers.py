@@ -2,13 +2,31 @@ import asyncio
 import logging
 from enum import Enum
 from typing import Dict, NamedTuple
+
+import binance
 from binance import BinanceSocketManager
 import pandas
 import numpy
 
 from src import features
+from src.features import Signals
 
 logger = logging.getLogger("producer")
+
+
+class OrderUpdate(NamedTuple):
+    price: float
+    quantity: float
+    status: str
+
+
+class KlineUpdate(NamedTuple):
+    msg: Dict
+
+
+class SignalUpdate(NamedTuple):
+    signal: Signals
+    price: float
 
 
 class EventName(Enum):
@@ -22,7 +40,7 @@ class EventName(Enum):
 
 class Event(NamedTuple):
     name: EventName
-    content: Dict
+    content: NamedTuple
 
 
 async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
@@ -46,7 +64,14 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 await queue.put(Event(name=EventName.ACCOUNT, content=msg))
                 logger.info("Account update msg: %s" % msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
-                await queue.put(Event(name=EventName.ORDER, content=msg))
+                order_info = msg["o"]
+                price = order_info["p"]
+                quantity = order_info["q"]
+                status = order_info["X"]
+                order_update = OrderUpdate(
+                    price=price, quantity=quantity, status=status
+                )
+                await queue.put(Event(name=EventName.ORDER, content=order_update))
                 logger.info("Order trade update msg: %s" % msg)
             else:
                 logger.info(
@@ -71,7 +96,9 @@ async def kline_futures_socket(
                 1, "h"
             )
             if index != last_index:
-                await queue.put(Event(name=EventName.KLINE, content=msg))
+                await queue.put(
+                    Event(name=EventName.KLINE, content=KlineUpdate(msg=msg))
+                )
                 logger.info("New index: %s" % index)
                 last_index = index
 
@@ -109,12 +136,9 @@ async def determine_start_position(
             "Last signal almost on top of df, leaving df as is: \n%s" % df.to_string()
         )
 
-    content = {
-        "signal": signal,
-        "price": price,
-    }
+    signal_update = SignalUpdate(signal=signal, price=price)
 
-    await queue.put(Event(name=EventName.SIGNAL, content=content))
+    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     logger.info("Added signal to queue: signal: %s, price: %s" % (signal, price))
 

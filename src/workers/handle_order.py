@@ -1,3 +1,5 @@
+from typing import NamedTuple
+
 import binance
 
 from src.features import Signals
@@ -9,18 +11,20 @@ from src.orders import (
 )
 import logging
 
+from src.producers.producers import OrderUpdate
+
 logger = logging.getLogger("handle_order")
 
 
 async def order_handle(
-    client: binance.AsyncClient, position: Position, order_update: dict
+    client: binance.AsyncClient, position: Position, order_update: NamedTuple
 ) -> Position:
     logger.info("Entering order handle")
 
-    updated_order = order_update["o"]
-    order_status = updated_order["X"]
-    order_price = round(updated_order["p"], 2)
-    order_quantity = updated_order["q"]
+    assert isinstance(order_update, OrderUpdate)
+    order_price = order_update.price
+    order_quantity = order_update.quantity
+    order_status = order_update.status
 
     logger.info(
         "Order price: %s, order quantity: %s, order status: %s"
@@ -116,7 +120,8 @@ async def order_handle(
                 order.status = order_status
 
                 if order_status == client.ORDER_STATUS_PARTIALLY_FILLED:
-                    order.realized_quantity = order.realized_quantity + order_quantity
+                    order.realized_quantity += order_quantity
+                    order.status = order_status
                     logger.info(
                         "Order partially filled, price: %s, quantity: %s"
                         % (order_price, order_quantity)
@@ -131,6 +136,7 @@ async def order_handle(
                     )
                 elif order_status == client.ORDER_STATUS_FILLED:
                     order.realized_quantity = order.quantity
+                    order.status = order_status
 
                     logger.info(
                         "Order filled, price: %s, quantity: %s"

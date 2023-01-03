@@ -154,10 +154,11 @@ async def send_order(
             type=client.FUTURE_ORDER_TYPE_LIMIT,
             timeInForce=client.TIME_IN_FORCE_GTC,
         )
+        logger.info("STATUS: %s", resp["status"])
         order.order_id = resp["orderId"]
         order.status = resp["status"]
         logger.info(
-            "New LIMIT order; Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
+            "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
             % (order.price, order.quantity, side, order.order_id, order.status)
         )
     except Exception as e:
@@ -225,7 +226,7 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 1),
+                    price=round((entry_price - (dca_span * order * entry_price)), 2),
                     quantity=round(
                         leverage
                         * order_quantity
@@ -245,7 +246,7 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 1),
+                    price=round((entry_price - (dca_span * order * entry_price)), 2),
                     quantity=round(
                         leverage
                         * (order_quantity * (number_of_dca_orders + 1))
@@ -266,7 +267,7 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 1),
+                    price=round((entry_price + (dca_span * order * entry_price)), 2),
                     quantity=round(
                         leverage
                         * order_quantity
@@ -285,7 +286,7 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 1),
+                    price=round((entry_price + (dca_span * order * entry_price)), 2),
                     quantity=round(
                         leverage
                         * order_quantity
@@ -396,7 +397,7 @@ async def futures_short_position_open(
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
         )
-        logger.info("Before Send Orders")
+
         position.orders = await send_orders(
             client=client,
             orders=position.orders,

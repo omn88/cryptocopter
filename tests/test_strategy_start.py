@@ -6,7 +6,7 @@ import pandas
 import pytest
 
 from src.backtest.lib import get_futures_historical_data
-from src.producers.producers import determine_start_position, Event
+from src.producers.producers import determine_start_position, Event, SignalUpdate
 from src.features import Signals
 from src.workers.worker import print_last_n_rows
 
@@ -49,8 +49,8 @@ async def test_determine_start_position(signal):
 
         assert queue.qsize() == 1
         event = await queue.get()
-        assert isinstance(event, Event)
-        assert event.content["signal"] == signal
+        assert isinstance(event.content, SignalUpdate)
+        assert event.content.signal == signal
         assert queue.qsize() == 0
     finally:
         await client.close_connection()

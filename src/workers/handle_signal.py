@@ -8,6 +8,8 @@ from src.backtest import lib
 
 import logging
 
+from src.producers.producers import SignalUpdate
+
 logger = logging.getLogger("handle_signal")
 
 
@@ -232,12 +234,13 @@ async def when_short_eighty(
 async def signal_handle(
     client: binance.AsyncClient,
     df: pandas.DataFrame,
-    signal: features.Signals,
+    signal_update: SignalUpdate,
     position: orders.Position,
-    entry_price: float,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     logger.info("Entering signal handle")
     logger.info("Position status: %s" % position.status)
+    signal = signal_update.signal
+    price = signal_update.price
 
     if position.status == features.Signals.FLAT:
         df, position = await when_flat(
@@ -245,7 +248,7 @@ async def signal_handle(
             position=position,
             signal=signal,
             df=df,
-            entry_price=entry_price,
+            entry_price=price,
         )
 
     elif position.status == features.Signals.LONG:
@@ -254,7 +257,7 @@ async def signal_handle(
             position=position,
             signal=signal,
             df=df,
-            entry_price=entry_price,
+            entry_price=price,
         )
 
     elif position.status == features.Signals.LONG_20:
@@ -263,7 +266,7 @@ async def signal_handle(
             position=position,
             signal=signal,
             df=df,
-            entry_price=entry_price,
+            entry_price=price,
         )
 
     elif position.status == features.Signals.SHORT:
@@ -272,7 +275,7 @@ async def signal_handle(
             position=position,
             signal=signal,
             df=df,
-            entry_price=entry_price,
+            entry_price=price,
         )
 
     elif position.status == features.Signals.SHORT_80:
@@ -281,7 +284,7 @@ async def signal_handle(
             position=position,
             signal=signal,
             df=df,
-            entry_price=entry_price,
+            entry_price=price,
         )
 
     else:
@@ -316,6 +319,10 @@ async def kline_handle(
     if kline_signal == 0:
         kline_signal = features.Signals.NULL
 
+    signal_update = SignalUpdate(
+        signal=kline_signal, price=df.at[df.index[-1], "Close"]
+    )
+
     logger.info("Kline produced new signal: %s" % kline_signal.value)
 
     df = df.append(temp_df.iloc[-1])
@@ -325,9 +332,8 @@ async def kline_handle(
     df, position = await signal_handle(
         client=client,
         df=df,
-        signal=kline_signal,
+        signal_update=signal_update,
         position=position,
-        entry_price=df.at[df.index[-1], "Close"],
     )
     logger.info("Exiting Kline handling")
     return df, position
