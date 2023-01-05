@@ -226,7 +226,7 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 2),
+                    price=round((entry_price - (dca_span * order * entry_price)), 1),
                     quantity=round(
                         leverage
                         * order_quantity
@@ -246,7 +246,7 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 2),
+                    price=round((entry_price - (dca_span * order * entry_price)), 1),
                     quantity=round(
                         leverage
                         * (order_quantity * (number_of_dca_orders + 1))
@@ -267,7 +267,7 @@ def prepare_orders(
         if mode == PositionMode.DCA:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 2),
+                    price=round((entry_price + (dca_span * order * entry_price)), 1),
                     quantity=round(
                         leverage
                         * order_quantity
@@ -286,7 +286,7 @@ def prepare_orders(
         elif mode == PositionMode.FULL:
             orders = [
                 Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 2),
+                    price=round((entry_price + (dca_span * order * entry_price)), 1),
                     quantity=round(
                         leverage
                         * order_quantity

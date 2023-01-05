@@ -8,7 +8,13 @@ import pandas
 from src import orders
 from src.orders import Position, Order
 from src.producers import producers
-from src.producers.producers import Event, EventName, OrderUpdate, SignalUpdate
+from src.producers.producers import (
+    Event,
+    EventName,
+    OrderUpdate,
+    SignalUpdate,
+    KlineUpdate,
+)
 from src.workers.handle_account import account_handle
 from src.workers.handle_order import order_handle
 from src.workers.handle_signal import signal_handle, kline_handle
@@ -108,7 +114,11 @@ async def worker(
         event = await queue.get()
         assert isinstance(event, producers.Event)
 
+        logger.info("Evemt name: %s", event.name)
+
         if producers.EventName.KLINE == event.name:
+            assert isinstance(event.content, KlineUpdate)
+            logger.info("Event Kline, msg: %s", event.content.msg)
             df, position = await kline_handle(
                 client=client,
                 symbol=symbol,
@@ -118,7 +128,13 @@ async def worker(
             )
 
         elif producers.EventName.ORDER == event.name:
-            assert event.content == OrderUpdate
+            assert isinstance(event.content, OrderUpdate)
+            logger.info(
+                "Event Order, price: %s, quantity: %s, status: %s",
+                event.content.price,
+                event.content.quantity,
+                event.content.status,
+            )
             position = await order_handle(
                 client=client, position=position, order_update=event.content
             )
@@ -129,15 +145,14 @@ async def worker(
             logger.info("New DF: %s, new position: %s" % (df, position))
 
         elif producers.EventName.SIGNAL == event.name:
-            logger.info("Event signal: %s" % event.content)
             assert isinstance(event.content, SignalUpdate)
-            signal = event.content.signal
-            price = event.content.price
-            signal_update = SignalUpdate(signal=signal, price=price)
+            logger.info(
+                "Event signal: %s, price: %s", event.content.signal, event.content.price
+            )
             df, position = await signal_handle(
                 client=client,
                 df=df,
-                signal_update=signal_update,
+                signal_update=event.content,
                 position=position,
             )
 

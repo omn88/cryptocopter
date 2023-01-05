@@ -320,7 +320,7 @@ async def kline_handle(
         kline_signal = features.Signals.NULL
 
     signal_update = SignalUpdate(
-        signal=kline_signal, price=df.at[df.index[-1], "Close"]
+        signal=kline_signal, price=round(float(df.at[df.index[-1], "Close"]), 2)
     )
 
     logger.info("Kline produced new signal: %s" % kline_signal.value)

@@ -968,10 +968,10 @@ async def test_short_all_orders_filled_then_liquidation(
     mock_create_order, mock_cancel_order, base
 ):
     mock_create_order.side_effect = [
-        {"orderId": 1, "price": 19567.72, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19665.54, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19763.38, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19861.22, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 1, "price": 19567.72},
+        {"orderId": 2, "price": 19665.54},
+        {"orderId": 3, "price": 19763.38},
+        {"orderId": 4, "price": 19861.22},
         {"orderId": 5, "price": 20800.83},
         {"orderId": 6, "price": 20748.83},
         {"orderId": 5, "price": 20696.83},

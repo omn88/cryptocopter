@@ -65,8 +65,8 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 logger.info("Account update msg: %s" % msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
-                price = order_info["p"]
-                quantity = order_info["q"]
+                price = round(float(order_info["p"]), 2)
+                quantity = round(float(order_info["q"]), 3)
                 status = order_info["X"]
                 order_update = OrderUpdate(
                     price=price, quantity=quantity, status=status
@@ -136,7 +136,7 @@ async def determine_start_position(
             "Last signal almost on top of df, leaving df as is: \n%s" % df.to_string()
         )
 
-    signal_update = SignalUpdate(signal=signal, price=price)
+    signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
 
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
