@@ -169,4 +169,3 @@ async def worker(
 
         logger.info("Task Done -> Exiting worker")
         queue.task_done()
-

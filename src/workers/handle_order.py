@@ -8,6 +8,7 @@ from src.orders import (
     Position,
     CurrentPosition,
     update_position,
+    cancel_order,
 )
 import logging
 
@@ -33,11 +34,16 @@ async def order_handle(
 
     if order_price == position.current_position.liquidation_price:
         logger.info("Position liquidation")
-        take_profit_order = position.current_position.take_profit_order
 
-        logger.info("Cancelling take profit order: %s" % take_profit_order.order_id)
-        resp = await client.futures_cancel_order(order_id=take_profit_order.order_id)
-        assert resp["status"] == client.ORDER_STATUS_CANCELED
+        logger.info(
+            "Cancelling take profit order: %s"
+            % position.current_position.take_profit_order.order_id
+        )
+        position.current_position.take_profit_order = await cancel_order(
+            client=client,
+            order=position.current_position.take_profit_order,
+            symbol=position.symbol,
+        )
 
         loss = 0
         for order in position.orders:
