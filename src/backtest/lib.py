@@ -30,20 +30,12 @@ async def get_historical_data(
 
 async def get_futures_historical_data(
     client: binance.AsyncClient, symbol: str, interval: str, lookback: str
-) -> pandas.DataFrame:
+) -> List:
 
-    # ToDo: Below Timedelta must react to time change (winter/summer)
-    pandas.Timedelta(hours=1)
     historical_data = await client.futures_historical_klines(
         symbol, interval, lookback + "min ago UTC"
     )
-    frame = pandas.DataFrame(historical_data)
-    frame = frame.iloc[:, :7]
-    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    frame = frame.set_index("Date")
-    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(1, "h")
-    frame = frame.astype(float)
-    return frame
+    return historical_data[:-1]
 
 
 def get_futures_historical_data_sync(

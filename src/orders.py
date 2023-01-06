@@ -145,24 +145,21 @@ def target_depo_price_calculate(
 async def send_order(
     client: binance.AsyncClient, symbol: str, side: PositionSide, order: Order
 ):
-    try:
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            price=order.price,
-            quantity=order.quantity,
-            side=side,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            timeInForce=client.TIME_IN_FORCE_GTC,
-        )
-        logger.info("STATUS: %s", resp["status"])
-        order.order_id = resp["orderId"]
-        order.status = resp["status"]
-        logger.info(
-            "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
-            % (order.price, order.quantity, side, order.order_id, order.status)
-        )
-    except Exception as e:
-        logger.info(e)
+
+    resp = await client.futures_create_order(
+        symbol=symbol,
+        price=order.price,
+        quantity=order.quantity,
+        side=side,
+        type=client.FUTURE_ORDER_TYPE_LIMIT,
+        timeInForce=client.TIME_IN_FORCE_GTC,
+    )
+    order.order_id = resp["orderId"]
+    order.status = resp["status"]
+    logger.info(
+        "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
+        % (order.price, order.quantity, side, order.order_id, order.status)
+    )
 
 
 async def send_orders(

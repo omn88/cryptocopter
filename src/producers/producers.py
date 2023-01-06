@@ -1,9 +1,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import Dict, NamedTuple
-
-import binance
+from typing import NamedTuple, List
 from binance import BinanceSocketManager
 import pandas
 import numpy
@@ -21,7 +19,7 @@ class OrderUpdate(NamedTuple):
 
 
 class KlineUpdate(NamedTuple):
-    msg: Dict
+    kline: List
 
 
 class SignalUpdate(NamedTuple):
@@ -92,15 +90,35 @@ async def kline_futures_socket(
     async with kfs:
         while True:
             msg = await kfs.recv()
-            index = pandas.to_datetime(msg["k"]["t"], unit="ms") + numpy.timedelta64(
+            kline_start_time = int(msg["k"]["t"]) - 900000
+
+            index = pandas.to_datetime(kline_start_time, unit="ms") + numpy.timedelta64(
                 1, "h"
             )
             if index != last_index:
-                await queue.put(
-                    Event(name=EventName.KLINE, content=KlineUpdate(msg=msg))
-                )
                 logger.info("New index: %s" % index)
+                kline = last_msg_before_new_kline["k"]
+                kline_start_time = int(kline["t"])
+                open_price = round(float(kline["o"]), 1)
+                close_price = round(float(kline["c"]), 1)
+                high_price = round(float(kline["h"]), 1)
+                low_price = round(float(kline["l"]), 1)
+
+                new_kline = [
+                    kline_start_time,
+                    open_price,
+                    high_price,
+                    low_price,
+                    close_price,
+                    0,
+                    0,
+                ]
+                await queue.put(
+                    Event(name=EventName.KLINE, content=KlineUpdate(kline=new_kline))
+                )
                 last_index = index
+            else:
+                last_msg_before_new_kline = msg
 
             await asyncio.sleep(0.01)
 
@@ -137,9 +155,7 @@ async def determine_start_position(
         )
 
     signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-
     logger.info("Added signal to queue: signal: %s, price: %s" % (signal, price))
 
     return df

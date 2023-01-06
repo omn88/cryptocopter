@@ -1,16 +1,12 @@
 import asyncio
-
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
-import errno
-import os
-from datetime import datetime
 import logging.config
 import yaml
 from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
-
+from src.common import create_directory_with_timestamp, insert_to_pandas
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -21,19 +17,6 @@ from src.workers.worker import worker
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
-
-
-def create_directory_with_timestamp():
-    mydir = os.path.join(
-        os.getcwd() + "/artifacts", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    )
-    try:
-        os.makedirs(mydir)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise  # This was not a "directory exist" error..
-
-    return mydir
 
 
 async def main():
@@ -60,7 +43,7 @@ async def main():
     assert asset == balance[6]["asset"]
     saldo = float(balance[6]["balance"])
 
-    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], saldo))
+    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], round(saldo, 2)))
 
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
@@ -74,14 +57,15 @@ async def main():
     #
     # logger.info("My time %s" % time.time())
 
-    df = await get_futures_historical_data(
+    historical_data = await get_futures_historical_data(
         client=client,
         symbol=symbol,
         interval=interval,
-        lookback="3360",  # 44000 is approximately one month
+        lookback="4320",  # 44000 is approximately one month
     )
-    df = features.signals_from_features_generate(df=df)
 
+    df = insert_to_pandas(data=historical_data)
+    df = features.signals_from_features_generate(df=df)
     df["position"] = features.Signals.FLAT
 
     df = await determine_start_position(df=df, queue=queue)
@@ -105,8 +89,7 @@ async def main():
                 df=df,
                 queue=queue,
                 client=client,
-                symbol=symbol,
-                interval=interval,
+                historical_data=historical_data,
                 position=position,
             )
         )
@@ -122,9 +105,6 @@ async def main():
             # the producers to finish
             await asyncio.gather(*producers)
             logger.info("---- done producing")
-
-            # wait for the remaining tasks to be processed
-            await queue.join()
 
             await asyncio.gather(*workers)
 

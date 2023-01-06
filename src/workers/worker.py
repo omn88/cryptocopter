@@ -17,7 +17,8 @@ from src.producers.producers import (
 )
 from src.workers.handle_account import account_handle
 from src.workers.handle_order import order_handle
-from src.workers.handle_signal import signal_handle, kline_handle
+from src.workers.handle_signal import signal_handle
+from src.workers.kline_handle import kline_handle
 
 logger = logging.getLogger("worker_main")
 
@@ -104,27 +105,27 @@ async def worker(
     df: pandas.DataFrame,
     queue: asyncio.Queue,
     client: binance.AsyncClient,
-    symbol: str,
-    interval: str,
+    historical_data: List,
     position: orders.Position,
 ):
+
     while True:
         logger.info("Entering worker")
-        logger.info("queue size: %s" % queue.qsize())
+        logger.info("Events in queue: %s" % queue.qsize())
+        if queue.qsize() == 0:
+            logger.info("Awaiting new event...")
         event = await queue.get()
         assert isinstance(event, producers.Event)
 
-        logger.info("Evemt name: %s", event.name)
-
         if producers.EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)
-            logger.info("Event Kline, msg: %s", event.content.msg)
-            df, position = await kline_handle(
+            logger.info("Event Kline, msg: %s", event.content.kline)
+            historical_data, df, position = await kline_handle(
                 client=client,
-                symbol=symbol,
-                interval=interval,
+                historical_data=historical_data,
                 df=df,
                 position=position,
+                kline=event.content.kline,
             )
 
         elif producers.EventName.ORDER == event.name:
@@ -147,7 +148,9 @@ async def worker(
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
             logger.info(
-                "Event signal: %s, price: %s", event.content.signal, event.content.price
+                "Event signal: %s, price: %s",
+                event.content.signal,
+                event.content.price,
             )
             df, position = await signal_handle(
                 client=client,
@@ -164,5 +167,6 @@ async def worker(
 
         # await validate_current_position(client=client, position=position, queue=queue)
 
-        logger.info("Done, Awaiting new Event")
+        logger.info("Task Done -> Exiting worker")
         queue.task_done()
+
