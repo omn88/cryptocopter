@@ -17,14 +17,23 @@ class OrderUpdate(NamedTuple):
     quantity: float
     status: str
 
+    def __repr__(self) -> str:
+        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status})"
+
 
 class KlineUpdate(NamedTuple):
     kline: List
+
+    def __repr__(self) -> str:
+        return f"KlineUpdate(kline={self.kline})"
 
 
 class SignalUpdate(NamedTuple):
     signal: Signals
     price: float
+
+    def __repr__(self) -> str:
+        return f"SignalUpdate(signal={self.signal}, price={self.price})"
 
 
 class EventName(Enum):
@@ -39,6 +48,9 @@ class EventName(Enum):
 class Event(NamedTuple):
     name: EventName
     content: NamedTuple
+
+    def __repr__(self) -> str:
+        return f"Event(name={self.name}, content={self.content})"
 
 
 async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
@@ -64,7 +76,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
                 price = round(float(order_info["p"]), 2)
-                quantity = round(float(order_info["q"]), 3)
+                quantity = round(float(order_info["z"]), 3)
                 status = order_info["X"]
                 order_update = OrderUpdate(
                     price=price, quantity=quantity, status=status

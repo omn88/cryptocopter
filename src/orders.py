@@ -26,6 +26,14 @@ class Order:
     time_in_force: str = binance.client.BaseClient.TIME_IN_FORCE_GTC
     status: str = binance.client.BaseClient.ORDER_STATUS_NEW
 
+    def __repr__(self) -> str:
+        return (
+            f"Order(price={self.price}, quantity={self.quantity}, "
+            f"quantity_stable={self.quantity_stable}, order_id={self.order_id}, "
+            f"realized_quantity={self.realized_quantity}, "
+            f"time_in_force={self.time_in_force}, status={self.status})"
+        )
+
 
 @dataclass()
 class CurrentPosition:
@@ -36,6 +44,13 @@ class CurrentPosition:
     target_price: float = 0
     take_profit_order: Optional[Order] = None
 
+    def __repr__(self) -> str:
+        return (
+            f"CurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
+            f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
+            f"take_profit_order={self.take_profit_order})"
+        )
+
 
 @dataclass
 class Position:
@@ -45,6 +60,12 @@ class Position:
     status: features.Signals = features.Signals.FLAT
     saldo: float = 0
     leverage: int = 25
+
+    def __repr__(self) -> str:
+        return (
+            f"Position(symbol={self.symbol}, current_position={self.current_position}, "
+            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage})"
+        )
 
 
 class PositionMode(Enum):

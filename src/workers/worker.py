@@ -32,51 +32,64 @@ async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
 async def validate_order(
     client: binance.AsyncClient, symbol: str, order: Order, queue: asyncio.Queue
 ):
-    logger.info("Enter validate order for order: %s", order)
+    logger.info("Validate order: %s", order.order_id)
     resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
-    logger.info("Validate order: %s", resp["orderId"])
 
-    if resp["status"] == binance.AsyncClient.ORDER_STATUS_NEW:
-        logger.info(
-            "Validate order: %s, status %s, " % (resp["orderId"], resp["status"])
-        )
+    updated_status = resp["status"]
+    realized_quantity = resp["executedQty"]
+
+    if updated_status == binance.AsyncClient.ORDER_STATUS_NEW:
+        logger.info("Order: %s, status %s, ", order.order_id, updated_status)
         return
-    elif resp["status"] == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED:
-        logger.info(
-            "Validate order: %s, status %s, " % (resp["orderId"], resp["status"])
-        )
-        if resp["status"] == order.status:
-            if resp["q"] == order.quantity:
+    elif updated_status == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED:
+        logger.info("Validate order: %s, status %s, ", order.order_id, updated_status)
+        if updated_status == order.status:
+            logger.info("Order: %s was already filled partially", order.order_id)
+            if realized_quantity == order.realized_quantity:
+                logger.info(
+                    "Order's: %s realized quantity has not changed.", order.order_id
+                )
                 return
             else:
                 logger.info(
-                    "Validate order: %s, response quantity %s, order.quantity: %s"
-                    % (resp["orderId"], resp["q"], order.quantity)
+                    "Order: %s, quantity mismatch: update quantity %s, order.quantity: %s"
+                    % (order.order_id, realized_quantity, order.realized_quantity)
                 )
-                await queue.put(Event(name=EventName.ORDER, content=resp))
+
+                order_update = OrderUpdate(
+                    price=order.price,
+                    quantity=realized_quantity - order.realized_quantity,
+                    status=updated_status,
+                )
+                await queue.put(Event(name=EventName.ORDER, content=order_update))
                 logger.info("Order trade update msg: %s" % resp)
                 return
         else:
             logger.info(
-                "Validate order: %s, response status: %s, order.status: %s"
-                % (resp["orderId"], resp["status"], order.status)
+                "Order: %s, status changed from: %s to %s"
+                % (order.order_id, order.status, updated_status)
             )
-            await queue.put(Event(name=EventName.ORDER, content=resp))
-            logger.info("Order trade update msg: %s" % resp)
+            order_update = OrderUpdate(
+                price=order.price, quantity=realized_quantity, status=updated_status
+            )
+            await queue.put(Event(name=EventName.ORDER, content=order_update))
             return
-    elif resp["status"] == binance.AsyncClient.ORDER_STATUS_FILLED:
-        logger.info(
-            "Validate order: %s, status %s, " % (resp["orderId"], resp["status"])
-        )
-        if resp["status"] == order.status:
+    elif updated_status == binance.AsyncClient.ORDER_STATUS_FILLED:
+        logger.info("Validate order: %s, status %s", order.order_id, updated_status)
+        if updated_status == order.status:
             return
         else:
             logger.info(
-                "Validate order: %s, response status: %s, order.status: %s"
-                % (resp["orderId"], resp["status"], order.status)
+                "Order: %s, status changed from: %s to: %s",
+                order.order_id,
+                order.status,
+                updated_status,
             )
-            await queue.put(Event(name=EventName.ORDER, content=resp))
-            logger.info("Order trade update msg: %s" % resp)
+            order_update = OrderUpdate(
+                price=order.price, quantity=realized_quantity, status=updated_status
+            )
+            await queue.put(Event(name=EventName.ORDER, content=order_update))
+            logger.info("Order trade update msg: %s", resp)
             return
 
     return
@@ -165,7 +178,7 @@ async def worker(
             logger.info("SENTINEL -> exiting worker")
             return df, position
 
-        # await validate_current_position(client=client, position=position, queue=queue)
+        await validate_current_position(client=client, position=position, queue=queue)
 
         logger.info("Task Done -> Exiting worker")
         queue.task_done()
