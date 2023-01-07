@@ -10,9 +10,9 @@ import pandas
 logger = logging.getLogger("orders")
 
 
-class PositionSide(Enum):
-    LONG = "LONG"
-    SHORT = "SHORT"
+class PositionSide:
+    LONG = "BUY"
+    SHORT = "SELL"
     FLAT = "FLAT"
 
 
@@ -39,7 +39,7 @@ class Order:
 class CurrentPosition:
     price: float = 0
     quantity: float = 0
-    side: PositionSide = PositionSide.FLAT
+    side: str = PositionSide.FLAT
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
@@ -164,7 +164,7 @@ def target_depo_price_calculate(
 
 
 async def send_order(
-    client: binance.AsyncClient, symbol: str, side: PositionSide, order: Order
+    client: binance.AsyncClient, symbol: str, side: str, order: Order
 ) -> Order:
 
     resp = await client.futures_create_order(
@@ -193,7 +193,7 @@ async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
 
 
 async def send_orders(
-    client: binance.AsyncClient, symbol: str, side: PositionSide, orders: List[Order]
+    client: binance.AsyncClient, symbol: str, side: str, orders: List[Order]
 ) -> List[Order]:
     """Send a list of orders concurrently.
 
@@ -215,7 +215,7 @@ async def send_orders(
 
 
 def liquidation_target_price_calculate(
-    side: PositionSide, price: float, leverage: int
+    side: str, price: float, leverage: int
 ) -> Tuple[float, float]:
     logger.info("Entering liquidation target price calculate")
     if side == PositionSide.LONG:
@@ -238,7 +238,7 @@ def liquidation_target_price_calculate(
 
 
 def prepare_orders(
-    side: PositionSide,
+    side: str,
     mode: PositionMode,
     entry_price: float,
     saldo: float,
@@ -695,7 +695,7 @@ async def no_take_profit_yet(
         price=position.current_position.price,
         leverage=position.leverage,
     )
-
+    logger.info("Side: %s", position.current_position.side)
     try:
         position.current_position.take_profit_order = await send_order(
             client=client,

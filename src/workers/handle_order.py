@@ -114,7 +114,8 @@ async def order_update_handle(
     order_price,
     order_status,
     order_quantity,
-):
+) -> Position:
+    logger.info("Enter order update handle")
     for order in position.orders:
         if order.status in [
             client.ORDER_STATUS_NEW,
@@ -170,6 +171,8 @@ async def order_update_handle(
                     logger.info("Order cancelled")
                 elif order_status == client.ORDER_STATUS_EXPIRED:
                     logger.info("Order expired")
+    logger.info("Exit order update handle")
+    return position
 
 
 async def order_handle(
@@ -187,21 +190,25 @@ async def order_handle(
         % (order_price, order_quantity, order_status)
     )
 
-    # ToDo: GET LIQUID PRICE FROM BINANCE
-    if order_price == position.current_position.liquidation_price:
-        position = await position_liquidation(client=client, position=position)
-    elif order_price == position.current_position.target_price:
-        position = await target_reached(
-            client=client, position=position, order_quantity=order_quantity
-        )
-    else:
-        position = await order_update_handle(
-            client=client,
-            order_quantity=order_quantity,
-            position=position,
-            order_status=order_status,
-            order_price=order_price,
-        )
+    try:
+
+        # ToDo: GET LIQUID PRICE FROM BINANCE
+        if order_price == position.current_position.liquidation_price:
+            position = await position_liquidation(client=client, position=position)
+        elif order_price == position.current_position.target_price:
+            position = await target_reached(
+                client=client, position=position, order_quantity=order_quantity
+            )
+        else:
+            position = await order_update_handle(
+                client=client,
+                order_quantity=order_quantity,
+                position=position,
+                order_status=order_status,
+                order_price=order_price,
+            )
+    except Exception as e:
+        logger.info("Exception %s", e)
 
     logger.info("Exiting order handle")
     return position
