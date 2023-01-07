@@ -52,8 +52,10 @@ async def validate_order(
                 return
             else:
                 logger.info(
-                    "Order: %s, quantity mismatch: update quantity %s, order.quantity: %s"
-                    % (order.order_id, realized_quantity, order.realized_quantity)
+                    "Order: %s, quantity mismatch: update quantity %s, order.quantity: %s",
+                    order.order_id,
+                    realized_quantity,
+                    order.realized_quantity,
                 )
 
                 order_update = OrderUpdate(
@@ -62,7 +64,7 @@ async def validate_order(
                     status=updated_status,
                 )
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
-                logger.info("Order trade update msg: %s" % resp)
+                logger.info("Order trade update msg: %s", resp)
                 return
         else:
             logger.info(
@@ -77,6 +79,7 @@ async def validate_order(
     elif updated_status == binance.AsyncClient.ORDER_STATUS_FILLED:
         logger.info("Validate order: %s, status %s", order.order_id, updated_status)
         if updated_status == order.status:
+            logger.info("Order: %s already filled: %s", order.order_id, order.status)
             return
         else:
             logger.info(
@@ -89,7 +92,7 @@ async def validate_order(
                 price=order.price, quantity=realized_quantity, status=updated_status
             )
             await queue.put(Event(name=EventName.ORDER, content=order_update))
-            logger.info("Order trade update msg: %s", resp)
+            logger.info("Order trade update msg: %s", order_update)
             return
 
     return
@@ -107,11 +110,13 @@ async def validate_current_position(
     immediately, there is no ORDER_TRADE_UPDATE msg coming from websocket, hence such checks
     are mandatory to be in sync with real state. First lets focus on orders on open orders!!
     """
-    logger.info("Start order validation")
+    logger.info("Enter order validation")
     for order in position.orders:
         await validate_order(
             client=client, symbol=position.symbol, order=order, queue=queue
         )
+
+    logger.info("Order validation finished")
 
 
 async def worker(
@@ -156,7 +161,6 @@ async def worker(
         elif producers.EventName.ACCOUNT == event.name:
             logger.info("Account update: %s" % event.content)
             df, position = await account_handle(df=df, position=position)
-            logger.info("New DF: %s, new position: %s" % (df, position))
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)

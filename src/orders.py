@@ -23,8 +23,8 @@ class Order:
     quantity_stable: float = 0
     order_id: int = 0
     realized_quantity: float = 0
-    time_in_force: str = binance.client.BaseClient.TIME_IN_FORCE_GTC
-    status: str = binance.client.BaseClient.ORDER_STATUS_NEW
+    time_in_force: str = binance.AsyncClient.TIME_IN_FORCE_GTC
+    status: str = binance.AsyncClient.ORDER_STATUS_NEW
 
     def __repr__(self) -> str:
         return (
@@ -165,7 +165,7 @@ def target_depo_price_calculate(
 
 async def send_order(
     client: binance.AsyncClient, symbol: str, side: PositionSide, order: Order
-):
+) -> Order:
 
     resp = await client.futures_create_order(
         symbol=symbol,
@@ -182,6 +182,8 @@ async def send_order(
         % (order.price, order.quantity, side, order.order_id, order.status)
     )
 
+    return order
+
 
 async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
     resp = await client.futures_cancel_order(symbol=symbol, order_id=order.order_id)
@@ -191,21 +193,25 @@ async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
 
 
 async def send_orders(
-    client: binance.AsyncClient,
-    side: PositionSide,
-    orders: List[Order],
-    symbol: str,
+    client: binance.AsyncClient, symbol: str, side: PositionSide, orders: List[Order]
 ) -> List[Order]:
-    logger.info("Entering send orders")
+    """Send a list of orders concurrently.
 
-    await asyncio.gather(
-        *[
-            send_order(client=client, symbol=symbol, side=side, order=order)
-            for order in orders
-        ]
-    )
+    Args:
+        client: A `binance.AsyncClient` object.
+        symbol: The symbol to send the orders for.
+        side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
+        orders: A list of `Order` objects to send.
 
-    return orders
+    Returns:
+        A list of `Order` objects with updated order IDs and statuses.
+    """
+    tasks = []
+    for order in orders:
+        task = asyncio.create_task(send_order(client, symbol, side, order))
+        tasks.append(task)
+    results = await asyncio.gather(*tasks)
+    return list(results)
 
 
 def liquidation_target_price_calculate(
@@ -607,95 +613,145 @@ async def futures_short_position_close(
     return position
 
 
+async def if_take_profit_exists(
+    client: binance.AsyncClient, position: Position, order_quantity
+):
+    logger.info(
+        "Take profit order is not none, so cancelling order: %s"
+        % position.current_position.take_profit_order.order_id
+    )
+
+    position.current_position.take_profit_order = await cancel_order(
+        client=client,
+        order=position.current_position.take_profit_order,
+        symbol=position.symbol,
+    )
+
+    total_value = 0
+    total_quantity = 0
+
+    for order in position.orders:
+        if order.status in [
+            binance.AsyncClient.ORDER_STATUS_FILLED,
+            binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
+        ]:
+            total_quantity += order.realized_quantity
+            total_value += order.realized_quantity * order.price
+
+    new_price = round(total_value / total_quantity, 2)
+
+    (
+        position.current_position.take_profit_order.liquidation_price,
+        position.current_position.take_profit_order.target_price,
+    ) = liquidation_target_price_calculate(
+        side=position.current_position.side, price=new_price, leverage=position.leverage
+    )
+
+    new_quantity = position.current_position.quantity + order_quantity
+
+    position.current_position.take_profit_order = send_order(
+        client=client,
+        symbol=position.symbol,
+        side=position.current_position.side,
+        order=Order(
+            price=position.current_position.target_price,
+            quantity=position.current_position.quantity,
+            quantity_stable=position.current_position.quantity
+            * position.current_position.price,
+        ),
+    )
+    assert isinstance(position.current_position.take_profit_order, Order)
+    logger.info(
+        "New take profit buy order send, price: %s, quantity: %s",
+        position.current_position.target_price,
+        position.current_position.take_profit_order.quantity,
+    )
+
+    position.current_position.price = new_price
+    position.current_position.quantity = new_quantity
+
+    return position
+
+
+async def no_take_profit_yet(
+    client: binance.AsyncClient, position: Position, price, order_quantity, order
+) -> Position:
+    logger.info("No take profit order, thus creating first now")
+
+    logger.info(
+        "Type price: %s, type order quantity: %s", type(price), type(order_quantity)
+    )
+    position.current_position.price = price
+    position.current_position.quantity += round(float(order_quantity), 3)
+
+    logger.info("Position price: %s", position.current_position.price)
+    logger.info("Position quantity: %s", position.current_position.quantity)
+
+    (
+        position.current_position.liquidation_price,
+        position.current_position.target_price,
+    ) = liquidation_target_price_calculate(
+        side=position.current_position.side,
+        price=position.current_position.price,
+        leverage=position.leverage,
+    )
+
+    try:
+        position.current_position.take_profit_order = await send_order(
+            client=client,
+            symbol=position.symbol,
+            side=position.current_position.side,
+            order=Order(
+                price=position.current_position.target_price,
+                quantity=order.realized_quantity,
+                quantity_stable=order.realized_quantity
+                * position.current_position.quantity,
+            ),
+        )
+        assert isinstance(position.current_position.take_profit_order, Order)
+        logger.info(
+            "New take profit buy order send, price: %s, quantity: %s",
+            position.current_position.target_price,
+            position.current_position.take_profit_order.quantity,
+        )
+    except Exception as e:
+        logger.info("EXC: %s", e)
+
+    return position
+
+
 async def update_position(
     client: binance.AsyncClient,
-    symbol: str,
     position: Position,
     price: float,
     order_quantity: float,
     leverage: int,
-) -> CurrentPosition:
+    order: Order,
+) -> Position:
     logger.info("Entering handle filled order")
-    current_position = position.current_position
-    tpo = current_position.take_profit_order
 
-    if tpo is not None:
-        logger.info(
-            "Take profit order is not none, so cancelling order: %s" % tpo.order_id
+    if position.current_position.take_profit_order is not None:
+        position = await if_take_profit_exists(
+            client=client, position=position, order_quantity=order_quantity
         )
-
-        tpo = await cancel_order(client=client, order=tpo, symbol=position.symbol)
-
-        total_value = 0
-        total_quantity = 0
-
-        for order in position.orders:
-            if order.status in [
-                binance.AsyncClient.ORDER_STATUS_FILLED,
-                binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
-            ]:
-                total_quantity += order.realized_quantity
-                total_value += order.realized_quantity * order.price
-
-        new_price = round(total_value / total_quantity, 2)
-
-        (
-            current_position.liquidation_price,
-            current_position.target_price,
-        ) = liquidation_target_price_calculate(
-            side=current_position.side, price=new_price, leverage=leverage
-        )
-
-        new_quantity = current_position.quantity + order_quantity
-
-        resp = await client.futures_create_order(
-            symbol=symbol,
-            order_quantity=new_quantity,
-            side=current_position.side,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            price=current_position.target_price,
-        )
-        logger.info(
-            "New take profit buy order send, price: %s, quantity: %s"
-            % (current_position.target_price, new_quantity)
-        )
-
-        current_position.price = new_price
-        current_position.quantity = new_quantity
-
     else:
-        logger.info("No take profit order, thus creating first now")
-
-        (
-            current_position.liquidation_price,
-            current_position.target_price,
-        ) = liquidation_target_price_calculate(
-            side=current_position.side, price=price, leverage=leverage
-        )
-
-        resp = await client.futures_create_order(
-            symbol=symbol,
+        position = await no_take_profit_yet(
+            client=client,
+            position=position,
+            price=price,
             order_quantity=order_quantity,
-            side=current_position.side,
-            type=client.FUTURE_ORDER_TYPE_LIMIT,
-            price=current_position.target_price,
-        )
-        logger.info(
-            "New take profit buy order send, price: %s" % current_position.target_price
+            order=order,
         )
 
-        current_position.price = price
-        current_position.quantity = order_quantity
-
-    current_position.take_profit_order = Order(
-        price=current_position.target_price,
-        quantity=current_position.quantity,
-        order_id=resp["orderId"],
-        quantity_stable=current_position.target_price
-        * current_position.quantity
+    position.current_position.take_profit_order = Order(
+        price=position.current_position.target_price,
+        quantity=position.current_position.quantity,
+        order_id=order.order_id,
+        quantity_stable=position.current_position.target_price
+        * position.current_position.quantity
         / leverage,
     )
 
     logger.info("Exiting handle filled order")
 
-    return current_position
+    return position
