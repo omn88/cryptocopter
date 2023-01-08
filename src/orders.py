@@ -219,8 +219,8 @@ def liquidation_target_price_calculate(
 ) -> Tuple[float, float]:
     logger.info("Entering liquidation target price calculate")
     if side == PositionSide.LONG:
-        liquidation_price = round((1 - (100 / leverage / 100)) * price, 2)
-        target_price = round((1 + (100 / leverage / 100)) * price, 2)
+        liquidation_price = round((1 - (100 / leverage / 100)) * price, 1)
+        target_price = round((1 + (100 / leverage / 100)) * price, 1)
         logger.info(
             "position side: %s, liquidation: %s, target: %s"
             % (side, liquidation_price, target_price)
@@ -228,8 +228,8 @@ def liquidation_target_price_calculate(
         return liquidation_price, target_price
 
     if side == PositionSide.SHORT:
-        liquidation_price = round((1 + (100 / leverage / 100)) * price, 2)
-        target_price = round((1 - (100 / leverage / 100)) * price, 2)
+        liquidation_price = round((1 + (100 / leverage / 100)) * price, 1)
+        target_price = round((1 - (100 / leverage / 100)) * price, 1)
         logger.info(
             "position side: %s, liquidation: %s, target: %s"
             % (side, liquidation_price, target_price)
@@ -613,14 +613,13 @@ async def futures_short_position_close(
     return position
 
 
-async def if_take_profit_exists(
+async def take_profit_exists(
     client: binance.AsyncClient, position: Position, order_quantity
 ):
     logger.info(
-        "Take profit order is not none, so cancelling order: %s"
-        % position.current_position.take_profit_order.order_id
+        "Enter take profit exists -> cancel take profit first, order: %s",
+        position.current_position.take_profit_order.order_id,
     )
-
     position.current_position.take_profit_order = await cancel_order(
         client=client,
         order=position.current_position.take_profit_order,
@@ -638,21 +637,29 @@ async def if_take_profit_exists(
             total_quantity += order.realized_quantity
             total_value += order.realized_quantity * order.price
 
-    new_price = round(total_value / total_quantity, 2)
+    position.current_position.price = round(total_value / total_quantity, 1)
+    position.current_position.quantity += order_quantity
+
+    try:
+        assert position.current_position.quantity == total_quantity
+    except AssertionError as e:
+        logger.info("Quantity mismatch: \n")
 
     (
         position.current_position.take_profit_order.liquidation_price,
         position.current_position.take_profit_order.target_price,
     ) = liquidation_target_price_calculate(
-        side=position.current_position.side, price=new_price, leverage=position.leverage
+        side=position.current_position.side,
+        price=position.current_position.price,
+        leverage=position.leverage,
     )
-
-    new_quantity = position.current_position.quantity + order_quantity
 
     position.current_position.take_profit_order = send_order(
         client=client,
         symbol=position.symbol,
-        side=position.current_position.side,
+        side=PositionSide.LONG
+        if position.current_position.side == PositionSide.SHORT
+        else PositionSide.SHORT,
         order=Order(
             price=position.current_position.target_price,
             quantity=position.current_position.quantity,
@@ -667,20 +674,14 @@ async def if_take_profit_exists(
         position.current_position.take_profit_order.quantity,
     )
 
-    position.current_position.price = new_price
-    position.current_position.quantity = new_quantity
-
     return position
 
 
 async def no_take_profit_yet(
     client: binance.AsyncClient, position: Position, price, order_quantity, order
 ) -> Position:
-    logger.info("No take profit order, thus creating first now")
+    logger.info("No take profit yet -> create first one")
 
-    logger.info(
-        "Type price: %s, type order quantity: %s", type(price), type(order_quantity)
-    )
     position.current_position.price = price
     position.current_position.quantity += round(float(order_quantity), 3)
 
@@ -700,7 +701,9 @@ async def no_take_profit_yet(
         position.current_position.take_profit_order = await send_order(
             client=client,
             symbol=position.symbol,
-            side=position.current_position.side,
+            side=PositionSide.LONG
+            if position.current_position.side == PositionSide.SHORT
+            else PositionSide.SHORT,
             order=Order(
                 price=position.current_position.target_price,
                 quantity=order.realized_quantity,
@@ -717,6 +720,7 @@ async def no_take_profit_yet(
     except Exception as e:
         logger.info("EXC: %s", e)
 
+    logger.info("Exit no take profit yet")
     return position
 
 
@@ -731,7 +735,7 @@ async def update_position(
     logger.info("Entering handle filled order")
 
     if position.current_position.take_profit_order is not None:
-        position = await if_take_profit_exists(
+        position = await take_profit_exists(
             client=client, position=position, order_quantity=order_quantity
         )
     else:

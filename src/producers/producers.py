@@ -16,6 +16,7 @@ class OrderUpdate(NamedTuple):
     price: float
     quantity: float
     status: str
+    order_id: int
 
     def __repr__(self) -> str:
         return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status})"

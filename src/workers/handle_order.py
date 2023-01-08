@@ -184,10 +184,11 @@ async def order_handle(
     order_price = order_update.price
     order_quantity = order_update.quantity
     order_status = order_update.status
+    order_id = order_update.order_id
 
     logger.info(
-        "Order price: %s, order quantity: %s, order status: %s"
-        % (order_price, order_quantity, order_status)
+        "Order price: %s, order quantity: %s, order status: %s, order id: %s"
+        % (order_price, order_quantity, order_status, order_id)
     )
 
     try:
@@ -196,9 +197,12 @@ async def order_handle(
         if order_price == position.current_position.liquidation_price:
             position = await position_liquidation(client=client, position=position)
         elif order_price == position.current_position.target_price:
-            position = await target_reached(
-                client=client, position=position, order_quantity=order_quantity
-            )
+            if order_status != binance.AsyncClient.ORDER_STATUS_NEW:
+                position = await target_reached(
+                    client=client, position=position, order_quantity=order_quantity
+                )
+            else:
+                logger.info("New order created, id: %s", order_id)
         else:
             position = await order_update_handle(
                 client=client,
