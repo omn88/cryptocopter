@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Tuple, Optional
@@ -175,6 +176,7 @@ async def send_order(
         type=client.FUTURE_ORDER_TYPE_LIMIT,
         timeInForce=client.TIME_IN_FORCE_GTC,
     )
+    logger.info("RESP: %s", resp)
     order.order_id = resp["orderId"]
     order.status = resp["status"]
     logger.info(
@@ -185,11 +187,20 @@ async def send_order(
     return order
 
 
+def get_timestamp():
+    return round(1000 * time.time())
+
+
 async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
-    resp = await client.futures_cancel_order(symbol=symbol, order_id=order.order_id)
-    assert resp["status"] == client.ORDER_STATUS_CANCELED
-    order.status = resp["status"]
-    return order
+
+    try:
+        resp = await client.futures_cancel_order(
+            symbol=symbol, order_id=order.order_id, timestamp=get_timestamp()
+        )
+        assert resp["status"] == client.ORDER_STATUS_CANCELED
+    except AssertionError as other_status:
+        raise Exception from other_status
+    return resp["status"]
 
 
 async def send_orders(
@@ -620,7 +631,7 @@ async def take_profit_exists(
         "Enter take profit exists -> cancel take profit first, order: %s",
         position.current_position.take_profit_order.order_id,
     )
-    position.current_position.take_profit_order = await cancel_order(
+    position.current_position.take_profit_order.status = await cancel_order(
         client=client,
         order=position.current_position.take_profit_order,
         symbol=position.symbol,
@@ -634,11 +645,23 @@ async def take_profit_exists(
             binance.AsyncClient.ORDER_STATUS_FILLED,
             binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
         ]:
+            logger.info(
+                "order: %s, realized_quantity: %s, price: %s",
+                order.order_id,
+                order.realized_quantity,
+                order.price,
+            )
             total_quantity += order.realized_quantity
             total_value += order.realized_quantity * order.price
 
     position.current_position.price = round(total_value / total_quantity, 1)
     position.current_position.quantity += order_quantity
+
+    logger.info(
+        "Current position price: %s, quantity: %s",
+        position.current_position.price,
+        position.current_position.quantity,
+    )
 
     try:
         assert position.current_position.quantity == total_quantity
@@ -646,15 +669,15 @@ async def take_profit_exists(
         logger.info("Quantity mismatch: \n")
 
     (
-        position.current_position.take_profit_order.liquidation_price,
-        position.current_position.take_profit_order.target_price,
+        position.current_position.liquidation_price,
+        position.current_position.target_price,
     ) = liquidation_target_price_calculate(
         side=position.current_position.side,
         price=position.current_position.price,
         leverage=position.leverage,
     )
 
-    position.current_position.take_profit_order = send_order(
+    position.current_position.take_profit_order = await send_order(
         client=client,
         symbol=position.symbol,
         side=PositionSide.LONG
@@ -685,8 +708,7 @@ async def no_take_profit_yet(
     position.current_position.price = price
     position.current_position.quantity += round(float(order_quantity), 3)
 
-    logger.info("Position price: %s", position.current_position.price)
-    logger.info("Position quantity: %s", position.current_position.quantity)
+    logger.info("Realized_quantity: %s, price: %s", order_quantity, price)
 
     (
         position.current_position.liquidation_price,

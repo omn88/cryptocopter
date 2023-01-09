@@ -18,7 +18,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
@@ -44,7 +44,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
@@ -70,7 +70,7 @@ async def test_signal_handle_null_when_flat(mock_create_order, base):
         "status": base.client.ORDER_STATUS_NEW,
     }
 
-    entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     entry_signal = Signals.NULL
 
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
@@ -98,7 +98,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     }
 
     entry_signal = Signals.LONG
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -135,10 +135,10 @@ async def test_signal_handle_short_when_long(
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    mock_cancel_order.return_value = {"status": "Cancelled"}
+    mock_cancel_order.return_value = {"status": "CANCELED"}
 
     entry_signal = Signals.LONG
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -173,7 +173,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     }
 
     entry_signal = Signals.LONG
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -213,10 +213,10 @@ async def test_signal_handle_long_when_short(
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    mock_cancel_order.return_value = {"status": "Cancelled"}
+    mock_cancel_order.return_value = {"status": "CANCELED"}
 
     entry_signal = Signals.SHORT
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -252,7 +252,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     }
 
     entry_signal = Signals.SHORT
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -287,7 +287,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     }
 
     entry_signal = Signals.SHORT
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -325,7 +325,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     }
 
     entry_signal = Signals.LONG_20
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -362,10 +362,10 @@ async def test_signal_handle_short_when_long_twenty(
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    mock_cancel_order.return_value = {"status": "Cancelled"}
+    mock_cancel_order.return_value = {"status": "CANCELED"}
 
     entry_signal = Signals.LONG_20
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -400,7 +400,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     }
 
     entry_signal = Signals.LONG_20
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -439,10 +439,10 @@ async def test_signal_handle_long_when_short_eighty(
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
     }
-    mock_cancel_order.return_value = {"status": "Cancelled"}
+    mock_cancel_order.return_value = {"status": "CANCELED"}
 
     entry_signal = Signals.SHORT_80
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -478,7 +478,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     }
 
     entry_signal = Signals.SHORT_80
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -512,7 +512,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
         "status": base.client.ORDER_STATUS_NEW,
     }
     entry_signal = Signals.SHORT_80
-    entry_price = base.df.at[base.df.index[-1], "Close"]
+    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
     base.df, position = await signal_handle(
@@ -534,5 +534,10 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     assert 4 == len(position.orders)
     assert 1000 == position.saldo
     assert position_status == position.status
+
+    logger.info("Entry: %s", entry_price)
+
+    for order in position.orders:
+        logger.info(order)
 
     assert all(order.price >= entry_price for order in position.orders)

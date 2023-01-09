@@ -48,11 +48,13 @@ async def position_liquidation(
 
 async def target_reached(
     client: binance.AsyncClient, position: Position, order_quantity
-):
+) -> Position:
     logger.info("Target price reached.")
 
     position.current_position.take_profit_order.quantity -= order_quantity
     position.current_position.take_profit_order.realized_quantity += order_quantity
+
+    position.current_position.quantity -= order_quantity
 
     logger.info(
         "New take profit quantity: %s",
@@ -107,6 +109,8 @@ async def target_reached(
 
         logger.info("Earned: %s", round(position.saldo - saldo, 2))
 
+    return position
+
 
 async def order_update_handle(
     client: binance.AsyncClient,
@@ -140,7 +144,7 @@ async def order_update_handle(
                         order.realized_quantity,
                     )
 
-                    position.current_position = await update_position(
+                    position = await update_position(
                         client=client,
                         position=position,
                         price=order_price,
@@ -191,28 +195,24 @@ async def order_handle(
         % (order_price, order_quantity, order_status, order_id)
     )
 
-    try:
-
-        # ToDo: GET LIQUID PRICE FROM BINANCE
-        if order_price == position.current_position.liquidation_price:
-            position = await position_liquidation(client=client, position=position)
-        elif order_price == position.current_position.target_price:
-            if order_status != binance.AsyncClient.ORDER_STATUS_NEW:
-                position = await target_reached(
-                    client=client, position=position, order_quantity=order_quantity
-                )
-            else:
-                logger.info("New order created, id: %s", order_id)
-        else:
-            position = await order_update_handle(
-                client=client,
-                order_quantity=order_quantity,
-                position=position,
-                order_status=order_status,
-                order_price=order_price,
+    # ToDo: GET LIQUID PRICE FROM BINANCE
+    if order_price == position.current_position.liquidation_price:
+        position = await position_liquidation(client=client, position=position)
+    elif order_price == position.current_position.target_price:
+        if order_status != binance.AsyncClient.ORDER_STATUS_NEW:
+            position = await target_reached(
+                client=client, position=position, order_quantity=order_quantity
             )
-    except Exception as e:
-        logger.info("Exception %s", e)
+        else:
+            logger.info("New order created, id: %s", order_id)
+    else:
+        position = await order_update_handle(
+            client=client,
+            order_quantity=order_quantity,
+            position=position,
+            order_status=order_status,
+            order_price=order_price,
+        )
 
     logger.info("Exiting order handle")
     return position

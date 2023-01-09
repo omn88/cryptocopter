@@ -4,7 +4,6 @@ import binance
 import pandas
 
 from src import features, orders
-from src.backtest import lib
 
 import logging
 
