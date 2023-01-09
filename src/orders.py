@@ -81,6 +81,11 @@ def order_quantity_list_prepare(
 ) -> pandas.DataFrame:
     order_values = (
         [
+            1,
+            2,
+            5,
+            10,
+            15,
             20,
             25,
             50,
@@ -133,13 +138,17 @@ def order_quantity_list_prepare(
     # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
+    logger.debug("Order quantity list: \n%s", oql)
+
     return oql
 
 
 def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
     index_list = []
-
+    logger.debug("Saldo: %s", saldo)
     [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
+
+    logger.debug("Index list: %s", index_list)
 
     order_quantity = (
         oql.order_value[len(index_list) - 1]
@@ -175,6 +184,7 @@ async def send_order(
         side=side,
         type=client.FUTURE_ORDER_TYPE_LIMIT,
         timeInForce=client.TIME_IN_FORCE_GTC,
+        timestamp=get_timestamp(),
     )
     logger.info("RESP: %s", resp)
     order.order_id = resp["orderId"]
@@ -262,7 +272,7 @@ def prepare_orders(
     orders = []
     order_quantity_list = order_quantity_list_prepare()
     order_quantity = order_quantity_check(oql=order_quantity_list, saldo=saldo)
-    logger.info("Order quantity: %d" % order_quantity)
+    logger.info("Order quantity: %s", order_quantity)
 
     if side == PositionSide.LONG:
         if mode == PositionMode.DCA:
@@ -498,6 +508,7 @@ async def futures_long_position_close(
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_MARKET,
             close_position=True,
+            timestamp=get_timestamp(),
         )
         sell_price = resp["price"]
         net = round((sell_price - position.current_position.price), 2)
@@ -584,6 +595,7 @@ async def futures_short_position_close(
             side=client.SIDE_BUY,
             type=client.FUTURE_ORDER_TYPE_MARKET,
             close_position=True,
+            timestamp=get_timestamp(),
         )
         logger.info("Short closed, resp %s" % resp)
 

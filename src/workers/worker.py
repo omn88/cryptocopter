@@ -6,7 +6,7 @@ import binance
 
 import pandas
 from src import orders
-from src.orders import Position, Order
+from src.orders import Position, Order, get_timestamp
 from src.producers import producers
 from src.producers.producers import (
     Event,
@@ -33,7 +33,9 @@ async def validate_order(
     client: binance.AsyncClient, symbol: str, order: Order, queue: asyncio.Queue
 ):
     logger.info("Validate order: %s", order.order_id)
-    resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
+    resp = await client.futures_get_order(
+        symbol=symbol, orderId=order.order_id, timestamp=get_timestamp()
+    )
 
     updated_status = resp["status"]
     realized_quantity = resp["executedQty"]

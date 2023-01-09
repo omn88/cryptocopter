@@ -41,9 +41,9 @@ async def main():
 
     balance = await client.futures_account_balance(asset=asset)
     assert asset == balance[6]["asset"]
-    saldo = float(balance[6]["balance"])
+    saldo = round(float(balance[6]["balance"]), 2)
 
-    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], round(saldo, 2)))
+    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], saldo))
 
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
@@ -51,7 +51,7 @@ async def main():
         logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
-    position = orders.Position(symbol=symbol)
+    position = orders.Position(symbol=symbol, saldo=saldo)
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
