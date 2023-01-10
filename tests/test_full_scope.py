@@ -2,58 +2,62 @@ from unittest.mock import patch
 from src.features import Signals
 from src.orders import PositionSide
 from src.workers.worker import worker
-from src.producers.producers import Event, EventName
+from src.producers.producers import Event, EventName, SignalUpdate, OrderUpdate
 import logging
 
 logger = logging.getLogger("TEST")
 
 
+@patch("src.workers.worker.validate_current_position")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_full_scope(mock_create_order, mock_cancel_order, base):
+async def test_full_scope(
+    mock_create_order, mock_cancel_order, mock_validate_current_position, base
+):
     mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8},
-        {"orderId": 2, "price": 19900.8},
-        {"orderId": 3, "price": 19800.8},
-        {"orderId": 4, "price": 19700.8},
-        {"orderId": 5, "price": 20500},
-        {"orderId": 6, "price": 20500},
-        {"orderId": 7, "price": 20500.0},
-        {"orderId": 8, "price": 20602.5},
-        {"orderId": 9, "price": 20705.0},
-        {"orderId": 10, "price": 20807.5},
-        {"orderId": 11, "price": 20050.0},
-        {"orderId": 12, "price": 20150.2},
-        {"orderId": 13, "price": 19814.0},
-        {"orderId": 14, "price": 20150.2},
-        {"orderId": 15, "price": 20050.0},
-        {"orderId": 16, "price": 20150.2},
-        {"orderId": 17, "price": 19814.0},
-        {"orderId": 18, "price": 20150.2},
-        {"orderId": 19, "price": 20050.0},
-        {"orderId": 20, "price": 20150.2},
-        {"orderId": 21, "price": 20050.0},
-        {"orderId": 22, "price": 20150.2},
-        {"orderId": 23, "price": 19814.0},
-        {"orderId": 24, "price": 20150.2},
-        {"orderId": 25, "price": 20050.0},
-        {"orderId": 26, "price": 20150.2},
-        {"orderId": 27, "price": 19814.0},
-        {"orderId": 28, "price": 20150.2},
-        {"orderId": 29, "price": 20050.0},
-        {"orderId": 30, "price": 20150.2},
-        {"orderId": 31, "price": 20050.0},
-        {"orderId": 32, "price": 20150.2},
-        {"orderId": 33, "price": 19814.0},
-        {"orderId": 34, "price": 20150.2},
-        {"orderId": 35, "price": 20050.0},
-        {"orderId": 36, "price": 20150.2},
-        {"orderId": 37, "price": 19814.0},
-        {"orderId": 38, "price": 20150.2},
-        {"orderId": 39, "price": 20050.0},
-        {"orderId": 40, "price": 20150.2},
+        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 5, "price": 20500, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 6, "price": 20500, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 7, "price": 20500.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 8, "price": 20602.5, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 9, "price": 20705.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 10, "price": 20807.5, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 11, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 12, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 13, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 14, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 15, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 16, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 17, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 18, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 19, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 20, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 21, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 22, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 23, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 24, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 25, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 26, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 27, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 28, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 29, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 30, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 31, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 32, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 33, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 34, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 35, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 36, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 37, "price": 19814.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 38, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 39, "price": 20050.0, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": 40, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
+    mock_validate_current_position.return_value = True
 
     logger.info("Base finished, start test")
 
@@ -63,18 +67,17 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
     logger.info("################ START LONG ####################")
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    signal = {"price": entry_price, "signal": entry_signal}
+    signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    await base.queue.put(Event(name=EventName.SIGNAL, content=signal))
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -84,25 +87,21 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
 
     logger.info("################ REALIZE 1 ORDER ####################")
 
-    order_update = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": entry_price,
-            "q": position.orders[0].quantity,
-        }
-    }
+    order_update = OrderUpdate(
+        price=entry_price,
+        quantity=position.orders[0].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update))
-
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -114,55 +113,48 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
         position.current_position.take_profit_order.quantity
         == position.orders[0].quantity
     )
-    assert position.current_position.take_profit_order.price == 20350.41
+    assert position.current_position.take_profit_order.price == 20350.4
 
     logger.info("################ SELL SIGNAL ####################")
 
-    msg = {"signal": Signals.SHORT, "price": 20500}
+    signal_update = SignalUpdate(signal=Signals.SHORT, price=20500)
 
-    await base.queue.put(Event(name=EventName.SIGNAL, content=msg))
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     logger.info("################ REALIZE TWO ORDERS ####################")
 
-    order_update_0 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[0].price,
-            "q": position.orders[0].quantity,
-        }
-    }
-
-    order_update_1 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[1].price,
-            "q": position.orders[1].quantity,
-        }
-    }
-
-    await base.queue.put(Event(name=EventName.ORDER, content=order_update_0))
+    order_update_1 = OrderUpdate(
+        price=position.orders[0].price,
+        quantity=position.orders[0].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_2 = OrderUpdate(
+        price=position.orders[1].price,
+        quantity=position.orders[1].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_1))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.ORDER, content=order_update_2))
+
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update_1))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -178,71 +170,55 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
 
     logger.info("################ SIGNAL LONG ####################")
 
-    msg = {"signal": Signals.LONG, "price": 19814}
+    signal_update = SignalUpdate(signal=Signals.LONG, price=19814)
 
-    await base.queue.put(Event(name=EventName.SIGNAL, content=msg))
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     logger.info("################ REALIZE ALL ORDERS ####################")
 
-    order_update_0 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[0].price,
-            "q": position.orders[0].quantity,
-        }
-    }
-
-    order_update_1 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[1].price,
-            "q": position.orders[1].quantity,
-        }
-    }
-
-    order_update_2 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[2].price,
-            "q": position.orders[2].quantity,
-        }
-    }
-
-    order_update_3 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[3].price,
-            "q": position.orders[3].quantity,
-        }
-    }
-
-    await base.queue.put(Event(name=EventName.ORDER, content=order_update_0))
+    order_update_1 = OrderUpdate(
+        price=position.orders[0].price,
+        quantity=position.orders[0].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_2 = OrderUpdate(
+        price=position.orders[1].price,
+        quantity=position.orders[1].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_3 = OrderUpdate(
+        price=position.orders[2].price,
+        quantity=position.orders[2].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_4 = OrderUpdate(
+        price=position.orders[3].price,
+        quantity=position.orders[3].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_1))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_2))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_3))
+    await base.queue.put(Event(name=EventName.ORDER, content=order_update_4))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update_1))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -257,29 +233,26 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
         + position.orders[2].quantity
         + position.orders[3].quantity
     )
-    assert position.current_position.take_profit_order.price == 20452.02
+    assert position.current_position.take_profit_order.price == 20452.0
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
-    order_update = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.current_position.take_profit_order.price,
-            "q": position.current_position.take_profit_order.quantity,
-        }
-    }
+    order_update = OrderUpdate(
+        price=position.current_position.take_profit_order.price,
+        quantity=position.current_position.take_profit_order.quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert len(position.orders) == 0
@@ -288,71 +261,54 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
 
     logger.info("################ OPEN SHORT WITH SIGNAL ####################")
 
-    msg = {"signal": Signals.SHORT, "price": 20500}
-
-    await base.queue.put(Event(name=EventName.SIGNAL, content=msg))
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    signal_update = SignalUpdate(signal=Signals.SHORT, price=20500)
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     logger.info("################ REALIZE ALL SHORT ORDERS ####################")
 
-    order_update_0 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[0].price,
-            "q": position.orders[0].quantity,
-        }
-    }
-
-    order_update_1 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[1].price,
-            "q": position.orders[1].quantity,
-        }
-    }
-
-    order_update_2 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[2].price,
-            "q": position.orders[2].quantity,
-        }
-    }
-
-    order_update_3 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[3].price,
-            "q": position.orders[3].quantity,
-        }
-    }
-
-    await base.queue.put(Event(name=EventName.ORDER, content=order_update_0))
+    order_update_1 = OrderUpdate(
+        price=position.orders[0].price,
+        quantity=position.orders[0].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_2 = OrderUpdate(
+        price=position.orders[1].price,
+        quantity=position.orders[1].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_3 = OrderUpdate(
+        price=position.orders[2].price,
+        quantity=position.orders[2].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_4 = OrderUpdate(
+        price=position.orders[3].price,
+        quantity=position.orders[3].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_1))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_2))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_3))
+    await base.queue.put(Event(name=EventName.ORDER, content=order_update_4))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update_1))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -371,25 +327,22 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
-    order_update = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.current_position.take_profit_order.price,
-            "q": position.current_position.take_profit_order.quantity,
-        }
-    }
+    order_update = OrderUpdate(
+        price=position.current_position.take_profit_order.price,
+        quantity=position.current_position.take_profit_order.quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert len(position.orders) == 0
@@ -398,71 +351,54 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
 
     logger.info("################ OPEN SHORT WITH SIGNAL ####################")
 
-    msg = {"signal": Signals.SHORT, "price": 20500}
-
-    await base.queue.put(Event(name=EventName.SIGNAL, content=msg))
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    signal_update = SignalUpdate(signal=Signals.SHORT, price=20500)
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     logger.info("################ REALIZE ALL SHORT ORDERS ####################")
 
-    order_update_0 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[0].price,
-            "q": position.orders[0].quantity,
-        }
-    }
-
-    order_update_1 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[1].price,
-            "q": position.orders[1].quantity,
-        }
-    }
-
-    order_update_2 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[2].price,
-            "q": position.orders[2].quantity,
-        }
-    }
-
-    order_update_3 = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.orders[3].price,
-            "q": position.orders[3].quantity,
-        }
-    }
-
-    await base.queue.put(Event(name=EventName.ORDER, content=order_update_0))
+    order_update_1 = OrderUpdate(
+        price=position.orders[0].price,
+        quantity=position.orders[0].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_2 = OrderUpdate(
+        price=position.orders[1].price,
+        quantity=position.orders[1].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_3 = OrderUpdate(
+        price=position.orders[2].price,
+        quantity=position.orders[2].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
+    order_update_4 = OrderUpdate(
+        price=position.orders[3].price,
+        quantity=position.orders[3].quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_1))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_2))
-
     await base.queue.put(Event(name=EventName.ORDER, content=order_update_3))
+    await base.queue.put(Event(name=EventName.ORDER, content=order_update_4))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update_1))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -477,29 +413,26 @@ async def test_full_scope(mock_create_order, mock_cancel_order, base):
         + position.orders[2].quantity
         + position.orders[3].quantity
     )
-    assert position.current_position.take_profit_order.price == 19826.78
+    assert position.current_position.take_profit_order.price == 19826.8
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
-    order_update = {
-        "o": {
-            "X": base.client.ORDER_STATUS_FILLED,
-            "p": position.current_position.liquidation_price,
-            "q": position.current_position.take_profit_order.quantity,
-        }
-    }
+    order_update = OrderUpdate(
+        price=position.current_position.liquidation_price,
+        quantity=position.current_position.take_profit_order.quantity,
+        status=base.client.ORDER_STATUS_FILLED,
+    )
 
     await base.queue.put(Event(name=EventName.ORDER, content=order_update))
 
-    await base.queue.put(Event(name=EventName.SENTINEL, content={}))
+    await base.queue.put(Event(name=EventName.SENTINEL, content=order_update))
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert len(position.orders) == 0

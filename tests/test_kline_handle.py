@@ -39,11 +39,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
         position=base.position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 0 == len(position.orders)
@@ -55,11 +54,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -72,11 +70,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -90,11 +87,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -108,11 +104,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -126,11 +121,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)
@@ -144,11 +138,10 @@ async def test_kline_handling(
 
     base.df, position = await worker(
         client=base.client,
-        symbol=base.symbol,
-        interval=interval,
         df=base.df,
-        position=base.position,
+        position=position,
         queue=base.queue,
+        historical_data=[],
     )
 
     assert 4 == len(position.orders)

@@ -26,7 +26,7 @@ async def position_liquidation(
         "Cancelling take profit order: %s"
         % position.current_position.take_profit_order.order_id
     )
-    position.current_position.take_profit_order = await cancel_order(
+    position.current_position.take_profit_order.status = await cancel_order(
         client=client,
         order=position.current_position.take_profit_order,
         symbol=position.symbol,
@@ -149,7 +149,6 @@ async def order_update_handle(
                         position=position,
                         price=order_price,
                         order_quantity=order_quantity,
-                        leverage=position.leverage,
                         order=order,
                     )
                 elif order_status == client.ORDER_STATUS_FILLED:
@@ -166,7 +165,6 @@ async def order_update_handle(
                         position=position,
                         price=order_price,
                         order_quantity=order_quantity,
-                        leverage=position.leverage,
                         order=order,
                     )
                 elif order_status == client.ORDER_STATUS_NEW:

@@ -893,9 +893,13 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     position = await third_and_fourth_order_filled(base=base, position=position)
     assert position.current_position.take_profit_order.price == 18924.8
 
+    whole_quantity = position.current_position.take_profit_order.quantity
+
     partial_quantity = round(
         position.current_position.take_profit_order.quantity / 2, 3
     )
+
+    rest_of_order_quantity = whole_quantity - partial_quantity
 
     price = position.current_position.take_profit_order.price
     quantity = partial_quantity
@@ -913,12 +917,14 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     assert position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.price == 18924.8
-    assert position.current_position.take_profit_order.quantity == partial_quantity
+    assert (
+        position.current_position.take_profit_order.quantity == rest_of_order_quantity
+    )
     assert (
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1049.97
+    assert position.saldo == 1050.46
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
@@ -949,9 +955,13 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     position = await third_and_fourth_order_filled(base=base, position=position)
     assert position.current_position.take_profit_order.price == 18924.8
 
+    whole_quantity = position.current_position.take_profit_order.quantity
+
     partial_quantity = round(
         position.current_position.take_profit_order.quantity / 2, 3
     )
+
+    rest_of_order_quantity = whole_quantity - partial_quantity
 
     price = position.current_position.take_profit_order.price
     quantity = partial_quantity
@@ -972,15 +982,17 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     assert position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.price == 18924.8
-    assert position.current_position.take_profit_order.quantity == partial_quantity
+    assert (
+        position.current_position.take_profit_order.quantity == rest_of_order_quantity
+    )
     assert (
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1049.97
+    assert position.saldo == 1050.46
 
     price = position.current_position.take_profit_order.price
-    quantity = partial_quantity
+    quantity = rest_of_order_quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(price=price, quantity=quantity, status=status)
@@ -991,7 +1003,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1099.94
+    assert position.saldo == 1100.14
 
 
 @patch("binance.AsyncClient.futures_cancel_order")

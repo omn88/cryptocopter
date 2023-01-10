@@ -185,6 +185,10 @@ async def worker(
             return df, position
 
         await validate_current_position(client=client, position=position, queue=queue)
-
+        if position.current_position.take_profit_order is not None:
+            logger.info(
+                "Take profit order id: %s",
+                position.current_position.take_profit_order.order_id,
+            )
         logger.info("Task Done -> Exiting worker")
         queue.task_done()

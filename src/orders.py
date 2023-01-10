@@ -5,6 +5,8 @@ from enum import Enum
 from typing import List, Tuple, Optional
 import logging
 import binance
+from binance.exceptions import BinanceAPIException
+
 from src import features
 import pandas
 
@@ -138,23 +140,30 @@ def order_quantity_list_prepare(
     # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
-    logger.debug("Order quantity list: \n%s", oql)
+    logger.info("Order quantity list: \n%s", oql)
 
     return oql
 
 
 def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
-    index_list = []
-    logger.debug("Saldo: %s", saldo)
-    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
+    logger.info("Saldo: %s", saldo)
+    # try:
+    #     index = next(i for i, thrshld in enumerate(oql.threshold) if saldo > thrshld)
+    # except StopIteration:
+    #     index = 0
 
-    logger.debug("Index list: %s", index_list)
+    index_list = []
+
+    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
 
     order_quantity = (
         oql.order_value[len(index_list) - 1]
         if len(index_list) > 0
         else oql.order_value[0]
     )
+
+    # order_quantity = oql.order_value[index]
+    logger.info("Order quantity: %s", order_quantity)
 
     return order_quantity
 
@@ -187,7 +196,7 @@ async def send_order(
         timestamp=get_timestamp(),
     )
     logger.info("RESP: %s", resp)
-    order.order_id = resp["orderId"]
+    order.order_id = int(resp["orderId"])
     order.status = resp["status"]
     logger.info(
         "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
@@ -202,14 +211,23 @@ def get_timestamp():
 
 
 async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
+    logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
 
     try:
         resp = await client.futures_cancel_order(
-            symbol=symbol, order_id=order.order_id, timestamp=get_timestamp()
+            symbol=symbol, orderId=order.order_id, timestamp=True
         )
-        assert resp["status"] == client.ORDER_STATUS_CANCELED
-    except AssertionError as other_status:
-        raise Exception from other_status
+    except BinanceAPIException as e:
+        # Log the exception
+        logger.info(e)
+        return None
+
+    if resp["status"] != client.ORDER_STATUS_CANCELED:
+        logger.info(
+            f"Order status for order {order.order_id} was not set to cancelled. Got: {resp['status']}"
+        )
+        return None
+    logger.info("Exit cancel order")
     return resp["status"]
 
 
@@ -531,7 +549,7 @@ async def futures_long_position_close(
         )
 
         logger.info("Cancelling take profit order")
-        position.current_position.take_profit_order = await cancel_order(
+        position.current_position.take_profit_order.status = await cancel_order(
             client=client,
             order=position.current_position.take_profit_order,
             symbol=position.symbol,
@@ -544,7 +562,7 @@ async def futures_long_position_close(
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
         ]:
-            order = await cancel_order(
+            order.status = await cancel_order(
                 client=client, symbol=position.symbol, order=order
             )
             logger.info(
@@ -569,7 +587,7 @@ async def cancel_remaining_limit_orders(
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
         ]:
-            order = await cancel_order(
+            order.status = await cancel_order(
                 client=client, symbol=position.symbol, order=order
             )
             logger.info(
@@ -622,7 +640,7 @@ async def futures_short_position_close(
         )
 
         logger.info("Cancelling take profit order")
-        position.current_position.take_profit_order = await cancel_order(
+        position.current_position.take_profit_order.status = await cancel_order(
             client=client,
             symbol=position.symbol,
             order=position.current_position.take_profit_order,
@@ -637,7 +655,7 @@ async def futures_short_position_close(
 
 
 async def take_profit_exists(
-    client: binance.AsyncClient, position: Position, order_quantity
+    client: binance.AsyncClient, position: Position, order_quantity: float
 ):
     logger.info(
         "Enter take profit exists -> cancel take profit first, order: %s",
@@ -667,7 +685,7 @@ async def take_profit_exists(
             total_value += order.realized_quantity * order.price
 
     position.current_position.price = round(total_value / total_quantity, 1)
-    position.current_position.quantity += order_quantity
+    position.current_position.quantity += float(order_quantity)
 
     logger.info(
         "Current position price: %s, quantity: %s",
@@ -731,6 +749,12 @@ async def no_take_profit_yet(
         leverage=position.leverage,
     )
     logger.info("Side: %s", position.current_position.side)
+
+    position.current_position.take_profit_order = Order(
+        price=position.current_position.target_price,
+        quantity=order.realized_quantity,
+        quantity_stable=order.realized_quantity * position.current_position.quantity,
+    )
     try:
         position.current_position.take_profit_order = await send_order(
             client=client,
@@ -738,19 +762,16 @@ async def no_take_profit_yet(
             side=PositionSide.LONG
             if position.current_position.side == PositionSide.SHORT
             else PositionSide.SHORT,
-            order=Order(
-                price=position.current_position.target_price,
-                quantity=order.realized_quantity,
-                quantity_stable=order.realized_quantity
-                * position.current_position.quantity,
-            ),
+            order=position.current_position.take_profit_order,
         )
         assert isinstance(position.current_position.take_profit_order, Order)
         logger.info(
-            "New take profit buy order send, price: %s, quantity: %s",
+            "New take profit buy order send, price: %s, quantity: %s, order_id: %s",
             position.current_position.target_price,
             position.current_position.take_profit_order.quantity,
+            position.current_position.take_profit_order.order_id,
         )
+
     except Exception as e:
         logger.info("EXC: %s", e)
 
@@ -763,7 +784,6 @@ async def update_position(
     position: Position,
     price: float,
     order_quantity: float,
-    leverage: int,
     order: Order,
 ) -> Position:
     logger.info("Entering handle filled order")
@@ -780,15 +800,6 @@ async def update_position(
             order_quantity=order_quantity,
             order=order,
         )
-
-    position.current_position.take_profit_order = Order(
-        price=position.current_position.target_price,
-        quantity=position.current_position.quantity,
-        order_id=order.order_id,
-        quantity_stable=position.current_position.target_price
-        * position.current_position.quantity
-        / leverage,
-    )
 
     logger.info("Exiting handle filled order")
 

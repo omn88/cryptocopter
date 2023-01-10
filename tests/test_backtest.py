@@ -1,3 +1,4 @@
+import logging
 from typing import List
 
 import binance
@@ -21,6 +22,8 @@ from src.backtest.lib import (
 )
 
 from src.orders import order_quantity_check, order_quantity_list_prepare
+
+logger = logging.getLogger("test")
 
 
 @patch("binance.Client.futures_historical_klines")
@@ -118,15 +121,15 @@ def test_order_quantity_list_prepare():
 
 def test_order_quantity_list_prepare_default_values():
     data_expected_boundaries = {
-        "order_value": [20, 3000.0, 50000.0],
-        "sum_of_all_losses": [320.0, 48000.0, 800000.0],
-        "threshold": [320.0, 88000.0, 1520000.0],
+        "order_value": [1, 2000.0, 50000.0],
+        "sum_of_all_losses": [16.0, 32000.0, 800000],
+        "threshold": [16.0, 60000.0, 1520000.0],
     }
     expected_ovc = pandas.DataFrame(data=data_expected_boundaries)
     ovc = order_quantity_list_prepare()
     min_ = (0, 0)
-    average = (18, 1)
-    max_ = (36, 2)
+    average = (21, 1)
+    max_ = (41, 2)
     for index_ovc, index_expected_ovc in (min_, average, max_):
         assert ovc.iloc[index_ovc].equals(expected_ovc.iloc[index_expected_ovc])
 
@@ -160,8 +163,8 @@ def test_rsi_signals_generation():
 @pytest.mark.parametrize(
     "saldo, order_quantity",
     [
-        (319.9, 20),
-        (320.1, 20),
+        (399.9, 10),
+        (400.1, 15),
         (719.9, 20),
         (720.1, 25),
         (1359999.9, 40000),
