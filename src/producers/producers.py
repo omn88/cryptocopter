@@ -88,7 +88,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 logger.info(
                     "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s" % msg
                 )
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
 
 
 async def kline_futures_socket(
@@ -133,7 +133,7 @@ async def kline_futures_socket(
             else:
                 last_msg_before_new_kline = msg
 
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.1)
 
 
 async def determine_start_position(
@@ -161,9 +161,9 @@ async def determine_start_position(
     try:
         assert signal_index <= len(df.index)
         df = df.iloc[len(df.index) - signal_index : :]
-        logger.info("New DF shortened to last signal + 3 rows: \n%s" % df.to_string())
+        logger.debug("New DF shortened to last signal + 3 rows: \n%s" % df.to_string())
     except AssertionError as e:
-        logger.info(
+        logger.debug(
             "Last signal almost on top of df, leaving df as is: \n%s" % df.to_string()
         )
 

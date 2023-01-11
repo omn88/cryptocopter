@@ -193,7 +193,6 @@ async def send_order(
         side=side,
         type=client.FUTURE_ORDER_TYPE_LIMIT,
         timeInForce=client.TIME_IN_FORCE_GTC,
-        timestamp=get_timestamp(),
     )
     logger.info("RESP: %s", resp)
     order.order_id = int(resp["orderId"])
@@ -206,16 +205,12 @@ async def send_order(
     return order
 
 
-def get_timestamp():
-    return round(1000 * time.time())
-
-
 async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
     logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
 
     try:
         resp = await client.futures_cancel_order(
-            symbol=symbol, orderId=order.order_id, timestamp=True
+            symbol=symbol, orderId=order.order_id
         )
     except BinanceAPIException as e:
         # Log the exception
@@ -526,7 +521,6 @@ async def futures_long_position_close(
             side=client.SIDE_SELL,
             type=client.FUTURE_ORDER_TYPE_MARKET,
             close_position=True,
-            timestamp=get_timestamp(),
         )
         sell_price = resp["price"]
         net = round((sell_price - position.current_position.price), 2)
@@ -613,7 +607,6 @@ async def futures_short_position_close(
             side=client.SIDE_BUY,
             type=client.FUTURE_ORDER_TYPE_MARKET,
             close_position=True,
-            timestamp=get_timestamp(),
         )
         logger.info("Short closed, resp %s" % resp)
 

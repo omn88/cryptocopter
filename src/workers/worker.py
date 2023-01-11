@@ -6,7 +6,7 @@ import binance
 
 import pandas
 from src import orders
-from src.orders import Position, Order, get_timestamp
+from src.orders import Position, Order
 from src.producers import producers
 from src.producers.producers import (
     Event,
@@ -34,7 +34,7 @@ async def validate_order(
 ):
     logger.info("Validate order: %s", order.order_id)
     resp = await client.futures_get_order(
-        symbol=symbol, orderId=order.order_id, timestamp=get_timestamp()
+        symbol=symbol, orderId=order.order_id
     )
 
     updated_status = resp["status"]
@@ -130,16 +130,15 @@ async def worker(
 ):
 
     while True:
-        logger.info("Entering worker")
         logger.info("Events in queue: %s" % queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
         event = await queue.get()
         assert isinstance(event, producers.Event)
+        logger.info("New event from queue: %s", event)
 
         if producers.EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)
-            logger.info("Event Kline, msg: %s", event.content.kline)
             historical_data, df, position = await kline_handle(
                 client=client,
                 historical_data=historical_data,
@@ -150,27 +149,15 @@ async def worker(
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            logger.info(
-                "Event Order, price: %s, quantity: %s, status: %s",
-                event.content.price,
-                event.content.quantity,
-                event.content.status,
-            )
             position = await order_handle(
                 client=client, position=position, order_update=event.content
             )
 
         elif producers.EventName.ACCOUNT == event.name:
-            logger.info("Account update: %s" % event.content)
             df, position = await account_handle(df=df, position=position)
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            logger.info(
-                "Event signal: %s, price: %s",
-                event.content.signal,
-                event.content.price,
-            )
             df, position = await signal_handle(
                 client=client,
                 df=df,
@@ -181,14 +168,9 @@ async def worker(
             await print_last_n_rows(df=df)
 
         elif producers.EventName.SENTINEL == event.name:
-            logger.info("SENTINEL -> exiting worker")
+            logger.info("SENTINEL -> Exiting worker")
             return df, position
 
         await validate_current_position(client=client, position=position, queue=queue)
-        if position.current_position.take_profit_order is not None:
-            logger.info(
-                "Take profit order id: %s",
-                position.current_position.take_profit_order.order_id,
-            )
-        logger.info("Task Done -> Exiting worker")
+        logger.info("Event finished successfully: %s", event)
         queue.task_done()
