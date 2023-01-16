@@ -173,6 +173,8 @@ async def order_update_handle(
                     logger.info("Order cancelled")
                 elif order_status == client.ORDER_STATUS_EXPIRED:
                     logger.info("Order expired")
+        elif order.status == client.ORDER_STATUS_FILLED:
+            logger.info("Order: %s already filled", order.order_id)
     logger.info("Exit order update handle")
     return position
 

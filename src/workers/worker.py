@@ -32,10 +32,7 @@ async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
 async def validate_order(
     client: binance.AsyncClient, symbol: str, order: Order, queue: asyncio.Queue
 ):
-    logger.info("Validate order: %s", order.order_id)
-    resp = await client.futures_get_order(
-        symbol=symbol, orderId=order.order_id
-    )
+    resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
 
     updated_status = resp["status"]
     realized_quantity = resp["executedQty"]
@@ -130,6 +127,8 @@ async def worker(
 ):
 
     while True:
+        logger.info("Current position: %s", position.current_position)
+        logger.info("Orders: %s", position.orders)
         logger.info("Events in queue: %s" % queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
@@ -172,5 +171,5 @@ async def worker(
             return df, position
 
         await validate_current_position(client=client, position=position, queue=queue)
-        logger.info("Event finished successfully: %s", event)
+        logger.info("Task Done: %s", event.content)
         queue.task_done()

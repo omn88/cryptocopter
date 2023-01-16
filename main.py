@@ -1,7 +1,10 @@
 import asyncio
+import os
+import shutil
+import logging_config  # noinspection PyUnresolvedReferences
+import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
-import logging.config
 import yaml
 from decouple import config
 from src.backtest.lib import get_futures_historical_data
@@ -119,10 +122,6 @@ async def main():
 if __name__ == "__main__":
 
     artifacts_dir = create_directory_with_timestamp()
-    with open("src/logging.yaml", "r") as f:
-        logging_conf = yaml.safe_load(f.read())
-        logging.config.dictConfig(logging_conf)
-
     logger = logging.getLogger("main")
 
     asyncio.run(main())

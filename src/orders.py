@@ -140,7 +140,7 @@ def order_quantity_list_prepare(
     # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
-    logger.info("Order quantity list: \n%s", oql)
+    logger.debug("Order quantity list: \n%s", oql)
 
     return oql
 
@@ -188,13 +188,13 @@ async def send_order(
 
     resp = await client.futures_create_order(
         symbol=symbol,
-        price=order.price,
-        quantity=order.quantity,
+        price=round(order.price, 1),
+        quantity=round(order.quantity, 3),
         side=side,
         type=client.FUTURE_ORDER_TYPE_LIMIT,
         timeInForce=client.TIME_IN_FORCE_GTC,
     )
-    logger.info("RESP: %s", resp)
+    logger.debug("RESP: %s", resp)
     order.order_id = int(resp["orderId"])
     order.status = resp["status"]
     logger.info(
@@ -209,9 +209,7 @@ async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
     logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
 
     try:
-        resp = await client.futures_cancel_order(
-            symbol=symbol, orderId=order.order_id
-        )
+        resp = await client.futures_cancel_order(symbol=symbol, orderId=order.order_id)
     except BinanceAPIException as e:
         # Log the exception
         logger.info(e)
@@ -515,13 +513,19 @@ async def futures_long_position_close(
         ]
         for order in position.orders
     ):
+        logger.info("Trying to market sell")
+        resp = None
+        try:
+            resp = await client.futures_create_order(
+                symbol=position.symbol,
+                side=client.SIDE_SELL,
+                quantity=position.current_position.quantity,
+                type=client.FUTURE_ORDER_TYPE_MARKET,
+                close_position=True,
+            )
+        except BinanceAPIException as exception:
+            logger.info("exception: %s", exception)
 
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_SELL,
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-            close_position=True,
-        )
         sell_price = resp["price"]
         net = round((sell_price - position.current_position.price), 2)
         net_percent = round((sell_price / position.current_position.price - 1), 4)
@@ -605,6 +609,7 @@ async def futures_short_position_close(
         resp = await client.futures_create_order(
             symbol=position.symbol,
             side=client.SIDE_BUY,
+            quantity=position.current_position.quantity,
             type=client.FUTURE_ORDER_TYPE_MARKET,
             close_position=True,
         )
