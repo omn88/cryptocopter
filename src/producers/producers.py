@@ -2,6 +2,8 @@ import asyncio
 import logging
 from enum import Enum
 from typing import NamedTuple, List
+
+import binance
 from binance import BinanceSocketManager
 import pandas
 import numpy
@@ -17,9 +19,10 @@ class OrderUpdate(NamedTuple):
     quantity: float
     status: str
     order_id: int = 0
+    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
-        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id})"
+        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type})"
 
 
 class KlineUpdate(NamedTuple):
@@ -95,8 +98,13 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 quantity = round(float(order_info["z"]), 3)
                 order_id = int(order_info["i"])
                 status = order_info["X"]
+                order_type = order_info["o"]
                 order_update = OrderUpdate(
-                    price=price, quantity=quantity, status=status, order_id=order_id
+                    price=price,
+                    quantity=quantity,
+                    status=status,
+                    order_id=order_id,
+                    order_type=order_type,
                 )
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
                 logger.info("Order trade update msg: %s" % msg)

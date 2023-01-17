@@ -190,22 +190,29 @@ async def order_handle(
     order_quantity = order_update.quantity
     order_status = order_update.status
     order_id = order_update.order_id
+    order_type = order_update.order_type
 
     logger.info(
-        "Order price: %s, order quantity: %s, order status: %s, order id: %s"
-        % (order_price, order_quantity, order_status, order_id)
+        "Order price: %s, order quantity: %s, order status: %s, order id: %s, order type: %s"
+        % (order_price, order_quantity, order_status, order_id, order_type)
     )
 
-    # ToDo: GET LIQUID PRICE FROM BINANCE
     if order_price == position.current_position.liquidation_price:
-        position = await position_liquidation(client=client, position=position)
+        if order_status == binance.AsyncClient.ORDER_STATUS_FILLED:
+            position = await position_liquidation(client=client, position=position)
+        else:
+            logger.info(
+                "Position liquidation in progress, order status: %s!", order_status
+            )
+
     elif order_price == position.current_position.target_price:
+        # ToDo: handle when filled partially, there was a test I think, wtf?
         if order_status != binance.AsyncClient.ORDER_STATUS_NEW:
             position = await target_reached(
                 client=client, position=position, order_quantity=order_quantity
             )
         else:
-            logger.info("New order created, id: %s", order_id)
+            logger.info("New take profit order created, id: %s", order_id)
     else:
         position = await order_update_handle(
             client=client,
