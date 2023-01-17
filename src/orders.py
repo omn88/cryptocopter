@@ -10,6 +10,8 @@ from binance.exceptions import BinanceAPIException
 from src import features
 import pandas
 
+from src.workers.handle_order import position_information
+
 logger = logging.getLogger("orders")
 
 
@@ -696,10 +698,7 @@ async def take_profit_exists(
     except AssertionError as e:
         logger.info("Quantity mismatch: \n")
 
-    (
-        position.current_position.liquidation_price,
-        position.current_position.target_price,
-    ) = liquidation_target_price_calculate(
+    (_, position.current_position.target_price,) = liquidation_target_price_calculate(
         side=position.current_position.side,
         price=position.current_position.price,
         leverage=position.leverage,
@@ -738,10 +737,7 @@ async def no_take_profit_yet(
 
     logger.info("Realized_quantity: %s, price: %s", order_quantity, price)
 
-    (
-        position.current_position.liquidation_price,
-        position.current_position.target_price,
-    ) = liquidation_target_price_calculate(
+    (_, position.current_position.target_price,) = liquidation_target_price_calculate(
         side=position.current_position.side,
         price=position.current_position.price,
         leverage=position.leverage,
@@ -785,6 +781,12 @@ async def update_position(
     order: Order,
 ) -> Position:
     logger.info("Entering handle filled order")
+
+    (
+        position.current_position.liquidation_price,
+        entry_price,
+        position_amt,
+    ) = await position_information(client=client, symbol=position.symbol)
 
     if position.current_position.take_profit_order is not None:
         position = await take_profit_exists(

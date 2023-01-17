@@ -1,6 +1,7 @@
 from typing import NamedTuple
-
+import json
 import binance
+from binance.exceptions import BinanceAPIException
 
 from src.features import Signals
 from src.orders import (
@@ -216,3 +217,31 @@ async def order_handle(
 
     logger.info("Exiting order handle")
     return position
+
+
+async def position_information(client: binance.AsyncClient, symbol: str) -> dict:
+    """
+    Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
+
+    :param client: An instance of the Binance async client
+    :type client: binance.AsyncClient
+    :param symbol: The symbol for the futures contract
+    :type symbol: str
+    :return: A dictionary containing the symbol, liquidation price, entry price and position amount for the given symbol
+    :rtype: dict
+    """
+    try:
+        resp = await client.futures_position_information(symbol=symbol)
+        resp = json.loads(resp)
+        liquidation_price = resp["liquidationPrice"]
+        entry_price = resp["entryPrice"]
+        position_amt = resp["positionAmt"]
+    except BinanceAPIException as e:
+        raise ValueError(
+            f"Failed to retrieve position information for symbol {symbol} due to {e}"
+        )
+    return {
+        "liquidation_price": round(liquidation_price, 1),
+        "entry_price": entry_price,
+        "position_amt": position_amt,
+    }
