@@ -10,7 +10,7 @@ from binance.exceptions import BinanceAPIException
 from src import features
 import pandas
 
-from src.workers.handle_order import position_information
+from src.common import position_information
 
 logger = logging.getLogger("orders")
 
