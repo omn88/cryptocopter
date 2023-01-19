@@ -507,6 +507,7 @@ async def futures_long_position_close(
 ) -> Position:
     logger.info("Entering long position close")
 
+    # ToDo: what dafuq. Check current position price and quantity
     if any(
         order.status
         in [
@@ -528,7 +529,7 @@ async def futures_long_position_close(
         except BinanceAPIException as exception:
             logger.info("exception: %s", exception)
 
-        sell_price = resp["price"]
+        sell_price = round(float(resp["price"]), 1)
         net = round((sell_price - position.current_position.price), 2)
         net_percent = round((sell_price / position.current_position.price - 1), 4)
         logger.info(
@@ -617,7 +618,7 @@ async def futures_short_position_close(
         )
         logger.info("Short closed, resp %s" % resp)
 
-        buy_price = resp["price"]
+        buy_price = round(float(resp["price"]), 1)
 
         net = round((position.current_position.price - buy_price), 2)
         net_percent = round((position.current_position.price / buy_price - 1), 4)
@@ -667,38 +668,38 @@ async def take_profit_exists(
         symbol=position.symbol,
     )
 
-    total_value = 0
-    total_quantity = 0
+    # total_value = 0
+    # total_quantity = 0
+    #
+    # for order in position.orders:
+    #     if order.status in [
+    #         binance.AsyncClient.ORDER_STATUS_FILLED,
+    #         binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
+    #     ]:
+    #         logger.info(
+    #             "order: %s, realized_quantity: %s, price: %s",
+    #             order.order_id,
+    #             order.realized_quantity,
+    #             order.price,
+    #         )
+    #         total_quantity += order.realized_quantity
+    #         total_value += order.realized_quantity * order.price
+    #
+    # position.current_position.price = round(total_value / total_quantity, 1)
+    # position.current_position.quantity += float(order_quantity)
+    #
+    # logger.info(
+    #     "Current position price: %s, quantity: %s",
+    #     position.current_position.price,
+    #     position.current_position.quantity,
+    # )
+    #
+    # try:
+    #     assert position.current_position.quantity == total_quantity
+    # except AssertionError as e:
+    #     logger.info("Quantity mismatch: \n")
 
-    for order in position.orders:
-        if order.status in [
-            binance.AsyncClient.ORDER_STATUS_FILLED,
-            binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
-        ]:
-            logger.info(
-                "order: %s, realized_quantity: %s, price: %s",
-                order.order_id,
-                order.realized_quantity,
-                order.price,
-            )
-            total_quantity += order.realized_quantity
-            total_value += order.realized_quantity * order.price
-
-    position.current_position.price = round(total_value / total_quantity, 1)
-    position.current_position.quantity += float(order_quantity)
-
-    logger.info(
-        "Current position price: %s, quantity: %s",
-        position.current_position.price,
-        position.current_position.quantity,
-    )
-
-    try:
-        assert position.current_position.quantity == total_quantity
-    except AssertionError as e:
-        logger.info("Quantity mismatch: \n")
-
-    (_, position.current_position.target_price,) = liquidation_target_price_calculate(
+    _, position.current_position.target_price = liquidation_target_price_calculate(
         side=position.current_position.side,
         price=position.current_position.price,
         leverage=position.leverage,
@@ -713,8 +714,14 @@ async def take_profit_exists(
         order=Order(
             price=position.current_position.target_price,
             quantity=position.current_position.quantity,
-            quantity_stable=position.current_position.quantity
-            * position.current_position.price,
+            quantity_stable=round(
+                (
+                    position.current_position.quantity
+                    * position.current_position.price
+                    / position.leverage
+                ),
+                2,
+            ),
         ),
     )
     assert isinstance(position.current_position.take_profit_order, Order)
@@ -732,12 +739,12 @@ async def no_take_profit_yet(
 ) -> Position:
     logger.info("No take profit yet -> create first one")
 
-    position.current_position.price = price
-    position.current_position.quantity += round(float(order_quantity), 3)
+    # position.current_position.price = price
+    # position.current_position.quantity += round(float(order_quantity), 3)
+    #
+    # logger.info("Realized_quantity: %s, price: %s", order_quantity, price)
 
-    logger.info("Realized_quantity: %s, price: %s", order_quantity, price)
-
-    (_, position.current_position.target_price,) = liquidation_target_price_calculate(
+    _, position.current_position.target_price = liquidation_target_price_calculate(
         side=position.current_position.side,
         price=position.current_position.price,
         leverage=position.leverage,
@@ -784,8 +791,8 @@ async def update_position(
 
     (
         position.current_position.liquidation_price,
-        entry_price,
-        position_amt,
+        position.current_position.price,
+        position.current_position.quantity,
     ) = await position_information(client=client, symbol=position.symbol)
 
     if position.current_position.take_profit_order is not None:

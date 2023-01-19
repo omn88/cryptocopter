@@ -121,7 +121,7 @@ async def main():
 
 if __name__ == "__main__":
 
-    artifacts_dir = create_directory_with_timestamp()
+    # artifacts_dir = create_directory_with_timestamp()
     logger = logging.getLogger("main")
 
     asyncio.run(main())

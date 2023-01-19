@@ -35,7 +35,7 @@ async def validate_order(
     resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
 
     updated_status = resp["status"]
-    realized_quantity = resp["executedQty"]
+    realized_quantity = float(resp["executedQty"])
 
     if updated_status == binance.AsyncClient.ORDER_STATUS_NEW:
         logger.info("Order: %s, status %s, ", order.order_id, updated_status)

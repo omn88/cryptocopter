@@ -1,13 +1,17 @@
 import errno
 import json
+import logging
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Tuple
 
 import binance
 import numpy
 import pandas
 from binance.exceptions import BinanceAPIException
+
+
+logger = logging.getLogger("common")
 
 
 def create_directory_with_timestamp():
@@ -35,7 +39,9 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
     return df
 
 
-async def position_information(client: binance.AsyncClient, symbol: str) -> dict:
+async def position_information(
+    client: binance.AsyncClient, symbol: str
+) -> Tuple[float, float, float]:
     """
     Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
 
@@ -46,18 +52,18 @@ async def position_information(client: binance.AsyncClient, symbol: str) -> dict
     :return: A dictionary containing the symbol, liquidation price, entry price and position amount for the given symbol
     :rtype: dict
     """
+    logger.info("Enter position information")
     try:
         resp = await client.futures_position_information(symbol=symbol)
-        resp = json.loads(resp)
-        liquidation_price = resp["liquidationPrice"]
-        entry_price = resp["entryPrice"]
-        position_amt = resp["positionAmt"]
+        logger.info("RESP: %s", resp)
+        liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
+        entry_price = round(float(resp[0]["entryPrice"]), 1)
+        position_amt = float(resp[0]["positionAmt"])
     except BinanceAPIException as e:
         raise ValueError(
             f"Failed to retrieve position information for symbol {symbol} due to {e}"
         )
-    return {
-        "liquidation_price": round(liquidation_price, 1),
-        "entry_price": entry_price,
-        "position_amt": position_amt,
-    }
+
+    logger.info("Exit position information")
+
+    return liquidation_price, entry_price, position_amt
