@@ -1,6 +1,4 @@
-from typing import NamedTuple
 import binance
-
 from src.features import Signals
 from src.orders import (
     cancel_remaining_limit_orders,
@@ -10,7 +8,6 @@ from src.orders import (
     cancel_order,
 )
 import logging
-
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
@@ -112,87 +109,58 @@ async def target_reached(
 
 
 async def order_update_handle(
-    client: binance.AsyncClient,
-    position: Position,
-    order_price,
-    order_status,
-    order_quantity,
+    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
 ) -> Position:
     logger.info("Enter order update handle")
+
     for order in position.orders:
-        if order.status in [
-            client.ORDER_STATUS_NEW,
-            client.ORDER_STATUS_PARTIALLY_FILLED,
-        ]:
-            if order.price == order_price:
-                order.status = order_status
-                if order_status == client.ORDER_STATUS_PARTIALLY_FILLED:
-                    logger.info(
-                        "Order partially filled, price: %s, quantity: %s"
-                        % (order_price, order_quantity)
-                    )
-                    logger.info(
-                        "Order: %s realized quantity: %s",
-                        order.order_id,
-                        order.realized_quantity,
-                    )
-                    order.realized_quantity += order_quantity
-                    logger.info(
-                        "Order: %s NEW realized quantity: %s",
-                        order.order_id,
-                        order.realized_quantity,
-                    )
+        if order_update.order_id == order.order_id:
+            if order.status == client.ORDER_STATUS_FILLED:
+                logger.info("Order: %s already filled", order.order_id)
+            else:
 
-                    position = await update_position(
-                        client=client,
-                        position=position,
-                        price=order_price,
-                        order_quantity=order_quantity,
-                        order=order,
-                    )
-                elif order_status == client.ORDER_STATUS_FILLED:
-                    order.realized_quantity = order.quantity
-                    order.status = order_status
+                order.status = order_update.status
+                order.price = order_update.price
+                order.quantity = order_update.quantity
+                order.realized_quantity = order_update.realized_quantity
 
-                    logger.info(
-                        "Order filled, price: %s, quantity: %s"
-                        % (order_price, order_quantity)
-                    )
+                position = await update_position(
+                    client=client,
+                    position=position,
+                )
+        else:
+            try:
+                assert order_update.status == binance.AsyncClient.ORDER_STATUS_NEW
+            except AssertionError as error:
+                logger.info(error)
 
-                    position = await update_position(
-                        client=client,
-                        position=position,
-                        price=order_price,
-                        order_quantity=order_quantity,
-                        order=order,
-                    )
-                elif order_status == client.ORDER_STATUS_NEW:
-                    logger.info("New order created")
-                elif order_status == client.ORDER_STATUS_CANCELED:
-                    logger.info("Order cancelled")
-                elif order_status == client.ORDER_STATUS_EXPIRED:
-                    logger.info("Order expired")
-        elif order.status == client.ORDER_STATUS_FILLED:
-            logger.info("Order: %s already filled", order.order_id)
     logger.info("Exit order update handle")
     return position
 
 
 async def order_handle(
-    client: binance.AsyncClient, position: Position, order_update: NamedTuple
+    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
 ) -> Position:
     logger.info("Entering order handle")
 
     assert isinstance(order_update, OrderUpdate)
     order_price = order_update.price
     order_quantity = order_update.quantity
+    order_realized_quantity = order_update.realized_quantity
     order_status = order_update.status
     order_id = order_update.order_id
     order_type = order_update.order_type
 
     logger.info(
-        "Order price: %s, order quantity: %s, order status: %s, order id: %s, order type: %s"
-        % (order_price, order_quantity, order_status, order_id, order_type)
+        "Order price: %s, order quantity: %s, realized quantity: %s, order status: %s, order id: %s, order type: %s"
+        % (
+            order_price,
+            order_quantity,
+            order_realized_quantity,
+            order_status,
+            order_id,
+            order_type,
+        )
     )
 
     if order_price == position.current_position.liquidation_price:
@@ -214,10 +182,8 @@ async def order_handle(
     else:
         position = await order_update_handle(
             client=client,
-            order_quantity=order_quantity,
+            order_update=order_update,
             position=position,
-            order_status=order_status,
-            order_price=order_price,
         )
 
     logger.info("Exiting order handle")
