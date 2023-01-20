@@ -33,71 +33,21 @@ async def validate_order(
     client: binance.AsyncClient, symbol: str, order: Order, queue: asyncio.Queue
 ):
     resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
-
     updated_status = resp["status"]
-    realized_quantity = float(resp["executedQty"])
+    realized_quantity = round(float(resp["executedQty"]), 3)
 
-    if updated_status == binance.AsyncClient.ORDER_STATUS_NEW:
-        logger.info("Order: %s, status %s, ", order.order_id, updated_status)
-        return
-    elif updated_status == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED:
-        logger.info("Validate order: %s, status %s, ", order.order_id, updated_status)
-        if updated_status == order.status:
-            logger.info("Order: %s was already filled partially", order.order_id)
-            if realized_quantity == order.realized_quantity:
-                logger.info(
-                    "Order's: %s realized quantity has not changed.", order.order_id
-                )
-                return
-            else:
-                logger.info(
-                    "Order: %s, quantity mismatch: update quantity %s, order.quantity: %s",
-                    order.order_id,
-                    realized_quantity,
-                    order.realized_quantity,
-                )
-
-                order_update = OrderUpdate(
-                    price=order.price,
-                    quantity=realized_quantity - order.realized_quantity,
-                    status=updated_status,
-                )
-                await queue.put(Event(name=EventName.ORDER, content=order_update))
-                logger.info("Order trade update msg: %s", resp)
-                return
-        else:
-            logger.info(
-                "Order: %s, status changed from: %s to %s"
-                % (order.order_id, order.status, updated_status)
-            )
-            order_update = OrderUpdate(
-                price=order.price, quantity=realized_quantity, status=updated_status
-            )
-            await queue.put(Event(name=EventName.ORDER, content=order_update))
-            return
-    elif updated_status == binance.AsyncClient.ORDER_STATUS_FILLED:
-        logger.info("Validate order: %s, status %s", order.order_id, updated_status)
-        if updated_status == order.status:
-            logger.info("Order: %s already filled: %s", order.order_id, order.status)
-            return
-        else:
-            logger.info(
-                "Order: %s, status changed from: %s to: %s",
-                order.order_id,
-                order.status,
-                updated_status,
-            )
-            order_update = OrderUpdate(
-                price=order.price, quantity=realized_quantity, status=updated_status
-            )
-            await queue.put(Event(name=EventName.ORDER, content=order_update))
-            logger.info("Order trade update msg: %s", order_update)
-            return
-
-    return
+    if updated_status != order.status or realized_quantity != order.realized_quantity:
+        order_update = OrderUpdate(
+            price=round(float(resp["price"]), 1),
+            quantity=round(float(resp["origQty"]), 3),
+            status=updated_status,
+            realized_quantity=realized_quantity,
+        )
+        await queue.put(Event(name=EventName.ORDER, content=order_update))
+        logger.info("Order trade update msg: %s", resp)
 
 
-async def validate_current_position(
+async def validate_open_orders(
     client: binance.AsyncClient, position: Position, queue: asyncio.Queue
 ):
     """
@@ -110,6 +60,9 @@ async def validate_current_position(
     are mandatory to be in sync with real state. First lets focus on orders on open orders!!
     """
     logger.info("Enter order validation")
+
+    # ToDo: Add take profit order
+
     for order in position.orders:
         await validate_order(
             client=client, symbol=position.symbol, order=order, queue=queue

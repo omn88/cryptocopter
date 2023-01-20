@@ -648,7 +648,7 @@ async def update_take_profit_order(
     client: binance.AsyncClient, position: Position, take_profit_order: Optional[Order]
 ):
 
-    if take_profit_order:
+    if take_profit_order is not None:
         logger.info(
             "Enter update take profit order: %s",
             position.current_position.take_profit_order.order_id,
@@ -698,7 +698,7 @@ async def update_position(
     client: binance.AsyncClient,
     position: Position,
 ) -> Position:
-    logger.info("Entering handle filled order")
+    logger.info("Entering update position")
 
     (
         position.current_position.liquidation_price,
@@ -712,6 +712,6 @@ async def update_position(
         take_profit_order=position.current_position.take_profit_order,
     )
 
-    logger.info("Exiting handle filled order")
+    logger.info("Exiting update position")
 
     return position

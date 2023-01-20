@@ -17,9 +17,10 @@ logger = logging.getLogger("producer")
 class OrderUpdate(NamedTuple):
     price: float
     quantity: float
-    realized_quantity: float
     status: str
-    order_id: int = 0
+    realized_quantity: float
+    last_filled_quantity: float
+    order_id: int
     order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
@@ -101,12 +102,14 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 status = order_info["X"]
                 order_type = order_info["o"]
                 realized_quantity = round(float(order_info["z"]), 3)
+                last_filled_quantity = round(float(order_info["l"]), 3)
                 order_update = OrderUpdate(
                     price=price,
                     quantity=quantity,
                     status=status,
                     order_id=order_id,
                     order_type=order_type,
+                    last_filled_quantity=last_filled_quantity,
                     realized_quantity=realized_quantity,
                 )
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
