@@ -80,21 +80,6 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 await queue.put(Event(name=EventName.ACCOUNT, content=msg))
                 logger.info("Account update msg: %s" % msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
-                # ToDo: parse and write a func to handle liquidation message. This one is for order creation,
-                #  another one getting filled {'e': 'ORDER_TRADE_UPDATE', 'T': 1673546440601, 'E': 1673546440606,
-                #  'o': {'s': 'BTCUSDT', 'c': 'autoclose-1673546440545163413', 'S': 'BUY', 'o': 'LIQUIDATION',
-                #  'f': 'IOC', 'q': '0.012', 'p': '19005.10', 'ap': '0', 'sp': '0', 'x': 'NEW', 'X': 'NEW',
-                #  'i': 106501887224, 'l': '0', 'z': '0', 'L': '0', 'T': 1673546440601, 't': 0, 'b': '0', 'a': '0',
-                #  'm': False, 'R': False, 'wt': 'CONTRACT_PRICE', 'ot': 'LIQUIDATION', 'ps': 'BOTH', 'cp': False,
-                #  'rp': '0', 'pP': False, 'si': 0, 'ss': 0}}
-                #
-                # ToDo: second msg: {'e': 'ORDER_TRADE_UPDATE', 'T': 1673546440601, 'E': 1673546440606,
-                #  'o': {'s': 'BTCUSDT', 'c': 'autoclose-1673546440545163413', 'S': 'BUY', 'o': 'LIQUIDATION',
-                #  'f': 'IOC', 'q': '0.012', 'p': '19005.10', 'ap': '18949.50000', 'sp': '0', 'x': 'TRADE',
-                #  'X': 'FILLED', 'i': 106501887224, 'l': '0.012', 'z': '0.012', 'L': '18949.50', 'n': '0', 'N': 'USDT',
-                #  'T': 1673546440601, 't': 3182533113, 'b': '0', 'a': '0', 'm': False, 'R': False,
-                #  'wt': 'CONTRACT_PRICE', 'ot': 'LIQUIDATION', 'ps': 'BOTH', 'cp': False, 'rp': '-8.06220000',
-                #  'pP': False, 'si': 0, 'ss': 0}}
                 order_info = msg["o"]
                 price = round(float(order_info["p"]), 2)
                 quantity = round(float(order_info["z"]), 3)
@@ -115,9 +100,6 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
                 logger.info("Order trade update msg: %s" % msg)
             elif msg["e"] == "MARGIN_CALL":
-                # ToDo: parse it{'e': 'MARGIN_CALL', 'E': 1673546426124, 'p': [{'s': 'BTCUSDT', 'ps': 'BOTH',
-                #  'pa': '-0.012', 'mt': 'ISOLATED', 'iw': '8.72940564', 'mp': '18922.656363', 'up': '-7.740076',
-                #  'mm': '0.908287'}]}
                 logger.info("Margin call")
             else:
                 logger.info(
