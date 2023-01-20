@@ -1,5 +1,12 @@
 # Rsi Based Futures
+Issues!
+1. last row from historical data from binance shows not complete data!!!!. So last row must be skipped!!!
 
+2. Update DF position after each new kline (it does not work for short signal)
+3. If you open a position and a some orders are realized instantly, futures user socket does not show it, 
+so function checking and updating current position is necessary. Maybe some temporary checks should be implemented 
+as well as in the first run ORDER TRADE UPDATE and it is seen in logs, but order handle module has not handled it 
+at allproperly. WTF!!! 
 
 
 ## Getting started

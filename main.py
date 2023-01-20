@@ -1,16 +1,15 @@
 import asyncio
-
+import os
+import shutil
+import logging_config  # noinspection PyUnresolvedReferences
+import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
-import errno
-import os
-from datetime import datetime
-import logging.config
 import yaml
 from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
-
+from src.common import create_directory_with_timestamp, insert_to_pandas
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -21,19 +20,6 @@ from src.workers.worker import worker
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
-
-
-def create_directory_with_timestamp():
-    mydir = os.path.join(
-        os.getcwd() + "/artifacts", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    )
-    try:
-        os.makedirs(mydir)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise  # This was not a "directory exist" error..
-
-    return mydir
 
 
 async def main():
@@ -47,16 +33,6 @@ async def main():
         "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
     )
 
-    # Choose params, symbol, interval, saldo, FEATURES
-    # Download data for 15min intervals 1050 intervals back
-    # Apply indicators, features and create signals and desired position.
-    # Wait for another row and in the meantime manage position(recalculate, open, close)
-    # Based on new row's signals or info from socket, manage position
-
-    # Queue to be created with producer consumer pattern (worker?)
-    # In general output from new row will create signals as well as real time data from user socket.
-    # Worker will manage
-
     client = await AsyncClient.create(
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
@@ -68,9 +44,9 @@ async def main():
 
     balance = await client.futures_account_balance(asset=asset)
     assert asset == balance[6]["asset"]
-    saldo = float(balance[6]["balance"])
+    saldo = round(float(balance[6]["balance"]), 2)
 
-    logger.info("Asset: %s, Saldo: %d " % (balance[6]["asset"], saldo))
+    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], saldo))
 
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
@@ -78,20 +54,21 @@ async def main():
         logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
-    position = orders.Position(symbol=symbol)
+    position = orders.Position(symbol=symbol, saldo=saldo)
 
     # logger.info("Server time %s" % await client.get_server_time())
     #
     # logger.info("My time %s" % time.time())
 
-    df = await get_futures_historical_data(
+    historical_data = await get_futures_historical_data(
         client=client,
         symbol=symbol,
         interval=interval,
-        lookback="3360",  # 44000 is approximately one month
+        lookback="4320",  # 44000 is approximately one month
     )
-    df = features.signals_from_features_generate(df=df)
 
+    df = insert_to_pandas(data=historical_data)
+    df = features.signals_from_features_generate(df=df)
     df["position"] = features.Signals.FLAT
 
     df = await determine_start_position(df=df, queue=queue)
@@ -115,8 +92,7 @@ async def main():
                 df=df,
                 queue=queue,
                 client=client,
-                symbol=symbol,
-                interval=interval,
+                historical_data=historical_data,
                 position=position,
             )
         )
@@ -133,9 +109,6 @@ async def main():
             await asyncio.gather(*producers)
             logger.info("---- done producing")
 
-            # wait for the remaining tasks to be processed
-            await queue.join()
-
             await asyncio.gather(*workers)
 
     await client.close_connection()
@@ -148,11 +121,7 @@ async def main():
 
 if __name__ == "__main__":
 
-    artifacts_dir = create_directory_with_timestamp()
-    with open("src/logging.yaml", "r") as f:
-        logging_conf = yaml.safe_load(f.read())
-        logging.config.dictConfig(logging_conf)
-
+    # artifacts_dir = create_directory_with_timestamp()
     logger = logging.getLogger("main")
 
     asyncio.run(main())

@@ -1,155 +1,162 @@
 import binance
-
 from src.features import Signals
 from src.orders import (
     cancel_remaining_limit_orders,
     Position,
     CurrentPosition,
     update_position,
+    cancel_order,
 )
 import logging
+from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
 
 
-async def order_handle(
-    client: binance.AsyncClient, position: Position, order_update: dict
+async def position_liquidation(
+    client: binance.AsyncClient, position: Position
 ) -> Position:
-    logger.info("Entering order handle")
-
-    updated_order = order_update["o"]
-    order_status = updated_order["X"]
-    order_price = round(updated_order["p"], 2)
-    order_quantity = updated_order["q"]
+    logger.info("Position liquidation")
 
     logger.info(
-        "Order price: %s, order quantity: %s, order status: %s"
-        % (order_price, order_quantity, order_status)
+        "Cancelling take profit order: %s"
+        % position.current_position.take_profit_order.order_id
+    )
+    position.current_position.take_profit_order.status = await cancel_order(
+        client=client,
+        order=position.current_position.take_profit_order,
+        symbol=position.symbol,
     )
 
-    if order_price == position.current_position.liquidation_price:
-        logger.info("Position liquidation")
-        take_profit_order = position.current_position.take_profit_order
+    loss = 0
+    for order in position.orders:
+        logger.info("quantity: %s, price: %s" % (order.quantity, order.price))
+        loss += (order.quantity * order.price) / position.leverage
 
-        logger.info("Cancelling take profit order: %s" % take_profit_order.order_id)
-        resp = await client.futures_cancel_order(order_id=take_profit_order.order_id)
-        assert resp["status"] == client.ORDER_STATUS_CANCELED
+    position.saldo -= round(loss, 2)
 
-        loss = 0
-        for order in position.orders:
-            logger.info("quantity: %s, price: %s" % (order.quantity, order.price))
-            loss += (order.quantity * order.price) / position.leverage
+    position.current_position = CurrentPosition()
+    position.orders = []
+    position.status = Signals.FLAT
 
-        position.saldo -= round(loss, 2)
+    return position
+
+
+async def target_reached(
+    client: binance.AsyncClient,
+    position: Position,
+    realized_quantity,
+    original_quantity,
+    last_filled_quantity,
+) -> Position:
+    logger.info("Target price reached.")
+
+    position.current_position.take_profit_order.realized_quantity = realized_quantity
+    position.current_position.quantity = original_quantity - realized_quantity
+    position.current_position.take_profit_order.quantity = (
+        position.current_position.quantity
+    )
+
+    logger.info(
+        "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
+        original_quantity,
+        last_filled_quantity,
+        realized_quantity,
+        position.current_position.take_profit_order.quantity,
+    )
+
+    saldo = position.saldo
+    position.saldo += round(
+        abs(
+            last_filled_quantity
+            * (
+                position.current_position.take_profit_order.price
+                - position.current_position.price
+            )
+        ),
+        2,
+    )
+
+    logger.info("Earned: %s", round(position.saldo - saldo, 2))
+
+    if position.current_position.take_profit_order.quantity == 0:
+        logger.info("Take profit order filled!")
+        position = await cancel_remaining_limit_orders(client=client, position=position)
 
         position.current_position = CurrentPosition()
         position.orders = []
         position.status = Signals.FLAT
 
-    if order_price == position.current_position.target_price:
-        logger.info("Target price reached.")
+    else:
+        logger.info("Take profit order filled partially!")
 
-        position.current_position.take_profit_order.quantity -= order_quantity
-        position.current_position.take_profit_order.realized_quantity += order_quantity
+    return position
 
-        logger.info(
-            "New take profit quantity: %s",
-            position.current_position.take_profit_order.quantity,
-        )
 
-        logger.info(
-            "Saldo: %s, current position price: %s, current position quantity: %s, take profit order: %s"
-            % (
-                position.saldo,
-                position.current_position.price,
-                position.current_position.quantity,
-                position.current_position.take_profit_order,
-            )
-        )
-
-        if position.current_position.take_profit_order.quantity == 0:
-            logger.info("Take profit order FILLED!")
-            saldo = position.saldo
-            position = await cancel_remaining_limit_orders(
-                client=client, position=position
-            )
-            position.saldo += round(
-                abs(
-                    order_quantity
-                    * (
-                        position.current_position.take_profit_order.price
-                        - position.current_position.price
-                    )
-                ),
-                2,
-            )
-
-            logger.info("Earned: %s", round(position.saldo - saldo, 2))
-
-            position.current_position = CurrentPosition()
-            position.orders = []
-            position.status = Signals.FLAT
-
-            logger.info("Position after reaching target: %s", position.current_position)
-        else:
-            logger.info("Take profit order FILLED PARTIALLY!")
-            saldo = position.saldo
-            position.saldo += round(
-                abs(
-                    order_quantity
-                    * (
-                        position.current_position.take_profit_order.price
-                        - position.current_position.price
-                    )
-                ),
-                2,
-            )
-
-            logger.info("Earned: %s", round(position.saldo - saldo, 2))
+async def order_update_handle(
+    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
+) -> Position:
+    logger.info("Enter order update handle")
 
     for order in position.orders:
-        if order.status in [
-            client.ORDER_STATUS_NEW,
-            client.ORDER_STATUS_PARTIALLY_FILLED,
-        ]:
-            if order.price == order_price:
-                order.status = order_status
+        if order_update.order_id == order.order_id:
+            if order.status == client.ORDER_STATUS_FILLED:
+                logger.info("Order: %s already filled", order.order_id)
+            else:
 
-                if order_status == client.ORDER_STATUS_PARTIALLY_FILLED:
-                    order.realized_quantity = order.realized_quantity + order_quantity
-                    logger.info(
-                        "Order partially filled, price: %s, quantity: %s"
-                        % (order_price, order_quantity)
-                    )
-                    position.current_position = await update_position(
-                        client=client,
-                        position=position,
-                        price=order_price,
-                        order_quantity=order_quantity,
-                        symbol=position.symbol,
-                        leverage=position.leverage,
-                    )
-                elif order_status == client.ORDER_STATUS_FILLED:
-                    order.realized_quantity = order.quantity
+                order.status = order_update.status
+                order.price = order_update.price
+                order.quantity = order_update.quantity
+                order.realized_quantity = order_update.realized_quantity
 
-                    logger.info(
-                        "Order filled, price: %s, quantity: %s"
-                        % (order_price, order_quantity)
-                    )
+                position = await update_position(
+                    client=client,
+                    position=position,
+                )
+        else:
+            try:
+                assert order_update.status == binance.AsyncClient.ORDER_STATUS_NEW
+                logger.info("Order: %s status: %s", order.order_id, order.status)
+            except AssertionError as error:
+                logger.info(error)
 
-                    position.current_position = await update_position(
-                        client=client,
-                        position=position,
-                        price=order_price,
-                        order_quantity=order_quantity,
-                        symbol=position.symbol,
-                        leverage=position.leverage,
-                    )
-                elif order_status == client.ORDER_STATUS_NEW:
-                    logger.info("New order created")
-                elif order_status == client.ORDER_STATUS_CANCELED:
-                    logger.info("Order cancelled")
-                elif order_status == client.ORDER_STATUS_EXPIRED:
-                    logger.info("Order expired")
+    logger.info("Exit order update handle")
+    return position
 
+
+async def order_handle(
+    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
+) -> Position:
+    logger.info("Entering order handle")
+
+    assert isinstance(order_update, OrderUpdate)
+    if order_update.price >= position.current_position.liquidation_price:
+        if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
+            position = await position_liquidation(client=client, position=position)
+        else:
+            logger.info(
+                "Position liquidation in progress, order status: %s!",
+                order_update.status,
+            )
+
+    elif order_update.price == position.current_position.target_price:
+        # ToDo: handle when filled partially, there was a test I think, wtf?
+        if order_update.status != binance.AsyncClient.ORDER_STATUS_NEW:
+            position = await target_reached(
+                client=client,
+                position=position,
+                original_quantity=order_update.quantity,
+                realized_quantity=order_update.realized_quantity,
+                last_filled_quantity=order_update.last_filled_quantity,
+            )
+        else:
+            logger.info("New take profit order created, id: %s", order_update.order_id)
+    else:
+        position = await order_update_handle(
+            client=client,
+            order_update=order_update,
+            position=position,
+        )
+
+    logger.info("Exiting order handle")
     return position

@@ -6,7 +6,8 @@ import pandas
 import pytest
 
 from src.backtest.lib import get_futures_historical_data
-from src.producers.producers import determine_start_position, Event
+from src.common import insert_to_pandas
+from src.producers.producers import determine_start_position, Event, SignalUpdate
 from src.features import Signals
 from src.workers.worker import print_last_n_rows
 
@@ -25,7 +26,8 @@ async def test_get_historical_data(mock_get_historical_klines):
             client=client, symbol="BTCUSDT", interval="15m", lookback="4000"
         )
         assert mock_get_historical_klines.called
-        assert len(frame_historical_data) == 15
+        frame_historical_data = insert_to_pandas(data=frame_historical_data)
+        assert len(frame_historical_data) == 14
         assert isinstance(frame_historical_data, pandas.DataFrame)
         assert frame_historical_data is not None
     finally:
@@ -49,8 +51,8 @@ async def test_determine_start_position(signal):
 
         assert queue.qsize() == 1
         event = await queue.get()
-        assert isinstance(event, Event)
-        assert event.content["signal"] == signal
+        assert isinstance(event.content, SignalUpdate)
+        assert event.content.signal == signal
         assert queue.qsize() == 0
     finally:
         await client.close_connection()
