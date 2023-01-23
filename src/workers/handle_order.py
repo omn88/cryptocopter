@@ -52,7 +52,9 @@ async def target_reached(
     logger.info("Target price reached.")
 
     position.current_position.take_profit_order.quantity -= last_filled_quantity
-    position.current_position.take_profit_order.realized_quantity += last_filled_quantity
+    position.current_position.take_profit_order.realized_quantity += (
+        last_filled_quantity
+    )
     position.current_position.quantity -= last_filled_quantity
 
     logger.info(

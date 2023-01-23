@@ -42,6 +42,8 @@ async def validate_order(
             quantity=round(float(resp["origQty"]), 3),
             status=updated_status,
             realized_quantity=realized_quantity,
+            order_id=int(resp["orderId"]),
+            last_filled_quantity=0,
         )
         await queue.put(Event(name=EventName.ORDER, content=order_update))
         logger.info("Order trade update msg: %s", resp)
@@ -121,8 +123,8 @@ async def worker(
 
         elif producers.EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return df, position
+            return historical_data, df, position
 
-        await validate_current_position(client=client, position=position, queue=queue)
+        await validate_open_orders(client=client, position=position, queue=queue)
         logger.info("Task Done: %s", event.content)
         queue.task_done()
