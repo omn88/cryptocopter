@@ -35,6 +35,12 @@ async def validate_order(
     resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
     updated_status = resp["status"]
     realized_quantity = round(float(resp["executedQty"]), 3)
+    logger.info(
+        "Order: %s, realized qty: %s, status: %s",
+        resp["orderId"],
+        realized_quantity,
+        updated_status,
+    )
 
     if updated_status != order.status or realized_quantity != order.realized_quantity:
         order_update = OrderUpdate(

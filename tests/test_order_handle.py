@@ -7,20 +7,109 @@ from src.workers.handle_signal import when_flat
 from src.workers.handle_order import order_handle
 import logging
 import pandas
+import binance
 
 logger = logging.getLogger("TEST")
 
 
+def mock_create_order_side_effect_long():
+    return [
+        {
+            "orderId": "1",
+            "price": "20000.8",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "2",
+            "price": "19900.8",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "3",
+            "price": "19800.8",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "4",
+            "price": "19700.8",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "5",
+            "price": "20800.0",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "6",
+            "price": "20748.0",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "7",
+            "price": "20696.0",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "8",
+            "price": "20644.8",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+    ]
+
+
+def mock_create_order_side_effect_short():
+    return [
+        {
+            "orderId": "1",
+            "price": "20000",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "2",
+            "price": "20100",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "3",
+            "price": "20200",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "4",
+            "price": "20300",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "5",
+            "price": "19200",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "6",
+            "price": "20748.83",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "7",
+            "price": "20696.83",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": "8",
+            "price": "20644.83",
+            "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        },
+    ]
+
+
 async def first_order_filled(base, entry_price: float) -> Position:
 
-    price = entry_price
     quantity = base.position.orders[0].quantity
-    status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
-        price=price,
+        price=entry_price,
         quantity=quantity,
-        status=status,
+        status=base.client.ORDER_STATUS_FILLED,
         order_id=1,
         last_filled_quantity=quantity,
         realized_quantity=quantity,
@@ -34,11 +123,14 @@ async def first_order_filled(base, entry_price: float) -> Position:
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert position.current_position.price == entry_price
+    assert position.current_position.quantity == quantity
     assert position.current_position.take_profit_order is not None
     assert (
         position.current_position.take_profit_order.quantity
         == position.orders[0].quantity
     )
+    assert position.orders[0].realized_quantity == quantity
 
     return position
 
@@ -65,6 +157,12 @@ async def second_order_filled(base: pandas.DataFrame, position: Position) -> Pos
     assert position.orders[1].status == base.client.ORDER_STATUS_FILLED
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert position.current_position.price == round(
+        (position.orders[0].price + position.orders[1].price) / 2, 1
+    )
+    assert position.current_position.quantity == round(
+        (position.orders[0].realized_quantity + position.orders[1].realized_quantity), 3
+    )
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == (
         position.orders[0].quantity + position.orders[1].quantity
@@ -124,6 +222,16 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
     assert position.orders[1].status == base.client.ORDER_STATUS_FILLED
     assert position.orders[2].status == base.client.ORDER_STATUS_FILLED
     assert position.orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert position.current_position.price == round(
+        (
+            position.orders[0].price
+            + position.orders[1].price
+            + position.orders[2].price
+            + position.orders[3].price
+        )
+        / 4,
+        1,
+    )
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == (
         position.orders[0].quantity
@@ -204,16 +312,7 @@ async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
 async def test_long_first_order_filled(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -230,16 +329,7 @@ async def test_long_first_order_filled(
 async def test_long_first_order_filled_partially(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.015"}],
@@ -287,16 +377,7 @@ async def test_long_first_order_filled_partially(
 async def test_long_first_order_filled_partially_twice(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.015"}],
@@ -365,16 +446,7 @@ async def test_long_first_order_filled_partially_twice(
 async def test_long_two_orders_filled(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -396,16 +468,7 @@ async def test_long_two_orders_filled(
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_new(mock_create_order, mock_position_information, base):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -441,16 +504,7 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
 async def test_long_first_order_expired(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -486,16 +540,7 @@ async def test_long_first_order_expired(
 async def test_long_first_order_canceled(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -532,16 +577,7 @@ async def test_long_first_order_canceled(
 async def test_long_two_orders_filled_then_target_reached(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -570,16 +606,7 @@ async def test_long_two_orders_filled_then_target_reached(
 async def test_long_all_orders_filled_then_target_reached(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -616,16 +643,7 @@ async def test_long_all_orders_filled_then_target_reached(
 async def test_long_all_orders_filled_then_target_reached_partially(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -691,16 +709,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
 async def test_long_all_orders_filled_then_target_reached_partially_then_filled_completely(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20696.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -785,16 +794,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
 async def test_long_all_orders_filled_then_liquidation(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": 1, "price": 20000.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 19900.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 19800.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 19700.8, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800.83, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20748.83, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20696.83, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20644.83, "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -849,16 +849,7 @@ async def test_long_all_orders_filled_then_liquidation(
 async def test_short_first_order_filled(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
@@ -877,16 +868,7 @@ async def test_short_first_order_filled(
 async def test_short_first_order_filled_partially(
     mock_create_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.015"}],
@@ -929,16 +911,7 @@ async def test_short_first_order_filled_partially(
 async def test_short_first_order_filled_partially_twice(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1009,16 +982,7 @@ async def test_short_first_order_filled_partially_twice(
 async def test_short_two_orders_filled(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1037,12 +1001,7 @@ async def test_short_two_orders_filled(
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_new(mock_create_order, base):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     base.df, position, entry_price = await start_short(base=base)
 
@@ -1067,12 +1026,7 @@ async def test_short_first_order_new(mock_create_order, base):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_expired(mock_create_order, base):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     base.df, position, entry_price = await start_short(base=base)
 
@@ -1097,12 +1051,7 @@ async def test_short_first_order_expired(mock_create_order, base):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_canceled(mock_create_order, base):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     base.df, position, entry_price = await start_short(base=base)
 
@@ -1131,16 +1080,7 @@ async def test_short_first_order_canceled(mock_create_order, base):
 async def test_short_two_orders_filled_then_target_reached(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1171,16 +1111,7 @@ async def test_short_two_orders_filled_then_target_reached(
 async def test_short_all_orders_filled_then_target_reached(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1232,16 +1163,7 @@ async def test_short_all_orders_filled_then_target_reached(
 async def test_short_all_orders_filled_then_target_reached_partially(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1312,16 +1234,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(
 async def test_short_all_orders_filled_then_target_reached_partially_then_filled_completely(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1415,16 +1328,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
 async def test_short_all_orders_filled_then_liquidation(
     mock_create_order, mock_cancel_order, mock_position_information, base
 ):
-    mock_create_order.side_effect = [
-        {"orderId": "1", "price": "20000", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "2", "price": "20100", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "3", "price": "20200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "4", "price": "20300", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "5", "price": "19200", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "6", "price": "20748.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "7", "price": "20696.83", "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": "8", "price": "20644.83", "status": base.client.ORDER_STATUS_NEW},
-    ]
+    mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
