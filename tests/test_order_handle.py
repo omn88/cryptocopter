@@ -1196,7 +1196,6 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     rest_of_order_quantity = whole_quantity - partial_quantity
 
     price = position.current_position.take_profit_order.price
-    quantity = partial_quantity
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(

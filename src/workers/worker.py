@@ -24,9 +24,7 @@ logger = logging.getLogger("worker_main")
 
 
 async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
-    logger.info(
-        "Last %d rows from main df: %s" % (rows, "\n%s" % df.tail(rows).to_string())
-    )
+    logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())
 
 
 async def validate_order(
@@ -90,7 +88,7 @@ async def worker(
     while True:
         logger.info("Current position: %s", position.current_position)
         logger.info("Orders: %s", position.orders)
-        logger.info("Events in queue: %s" % queue.qsize())
+        logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
         event = await queue.get()

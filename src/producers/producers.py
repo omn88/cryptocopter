@@ -78,7 +78,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
             msg = await fus.recv()
             if msg["e"] == "ACCOUNT_UPDATE":
                 await queue.put(Event(name=EventName.ACCOUNT, content=msg))
-                logger.info("Account update msg: %s" % msg)
+                logger.info("Account update msg: %s", msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
                 price = round(float(order_info["p"]), 2)
@@ -98,12 +98,12 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                     realized_quantity=realized_quantity,
                 )
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
-                logger.info("Order trade update msg: %s" % msg)
+                logger.info("Order trade update msg: %s", msg)
             elif msg["e"] == "MARGIN_CALL":
                 logger.info("Margin call")
             else:
                 logger.info(
-                    "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s" % msg
+                    "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s", msg
                 )
             await asyncio.sleep(0.1)
 
@@ -126,7 +126,7 @@ async def kline_futures_socket(
                 1, "h"
             )
             if index != last_index:
-                logger.info("New index: %s" % index)
+                logger.info("New index: %s", index)
                 kline = last_msg_before_new_kline["k"]
                 kline_start_time = int(kline["t"])
                 open_price = round(float(kline["o"]), 1)
@@ -170,22 +170,22 @@ async def determine_start_position(
             # Adding extra lines to see what happened before signal
             signal_index += 4
             break
-        else:
-            signal = features.Signals.NULL
-            price = row["Close"]
-            signal_index += 1
+
+        signal = features.Signals.NULL
+        price = row["Close"]
+        signal_index += 1
 
     try:
         assert signal_index <= len(df.index)
         df = df.iloc[len(df.index) - signal_index : :]
-        logger.debug("New DF shortened to last signal + 3 rows: \n%s" % df.to_string())
+        logger.debug("New DF shortened to last signal + 3 rows: \n%s", df.to_string())
     except AssertionError as e:
         logger.debug(
-            "Last signal almost on top of df, leaving df as is: \n%s" % df.to_string()
+            "Last signal almost on top of df, leaving df as is: \n%s", df.to_string()
         )
 
     signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-    logger.info("Added signal to queue: signal: %s, price: %s" % (signal, price))
+    logger.info("Added signal to queue: signal: %s, price: %s", signal, price)
 
     return df

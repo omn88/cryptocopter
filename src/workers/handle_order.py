@@ -19,8 +19,8 @@ async def position_liquidation(
     logger.info("Position liquidation")
 
     logger.info(
-        "Cancelling take profit order: %s"
-        % position.current_position.take_profit_order.order_id
+        "Cancelling take profit order: %s",
+        position.current_position.take_profit_order.order_id,
     )
     position.current_position.take_profit_order.status = await cancel_order(
         client=client,
@@ -30,7 +30,7 @@ async def position_liquidation(
 
     loss = 0
     for order in position.orders:
-        logger.info("quantity: %s, price: %s" % (order.quantity, order.price))
+        logger.info("quantity: %s, price: %s", order.quantity, order.price)
         loss += (order.quantity * order.price) / position.leverage
 
     position.saldo -= round(loss, 2)
