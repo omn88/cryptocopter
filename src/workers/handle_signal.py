@@ -14,12 +14,10 @@ logger = logging.getLogger("handle_signal")
 
 async def log_signal_change(df, signal):
     logger.info(
-        "Position was %s, signal: %s, position now: %s"
-        % (
-            df.at[df.index[-2], "position"],
-            signal,
-            df.at[df.index[-1], "position"],
-        )
+        "Position was %s, signal: %s, position now: %s",
+        df.at[df.index[-2], "position"],
+        signal,
+        df.at[df.index[-1], "position"],
     )
 
 
@@ -60,7 +58,7 @@ async def when_flat(
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
         await log_signal_change(df=df, signal=signal)
     else:
-        logger.info("Unexpected signal came: %s" % signal)
+        logger.info("Unexpected signal came: %s", signal)
 
     return df, position
 
@@ -237,7 +235,7 @@ async def signal_handle(
     position: orders.Position,
 ) -> Tuple[pandas.DataFrame, orders.Position]:
     logger.info("Entering signal handle")
-    logger.info("Position status: %s" % position.status)
+    logger.info("Position status: %s", position.status)
     signal = signal_update.signal
     price = signal_update.price
 

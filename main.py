@@ -56,10 +56,6 @@ async def main():
 
     position = orders.Position(symbol=symbol, saldo=saldo)
 
-    # logger.info("Server time %s" % await client.get_server_time())
-    #
-    # logger.info("My time %s" % time.time())
-
     historical_data = await get_futures_historical_data(
         client=client,
         symbol=symbol,
@@ -98,20 +94,16 @@ async def main():
         )
     ]
 
-    cancelled = False
+    await asyncio.gather(*producers)
+    await asyncio.gather(*workers)
 
-    while True:
-        if cancelled:
-            break
-        else:
-            # with both producers and consumers running, wait for
-            # the producers to finish
-            await asyncio.gather(*producers)
-            logger.info("---- done producing")
+    # try:
+    #     await asyncio.gather(*producers)
+    #     await asyncio.gather(*workers)
+    # except KeyboardInterrupt:
+    #     await queue.put(Event(name=EventName.SENTINEL, content=KlineUpdate(kline=[])))
+    #     await client.close_connection()
 
-            await asyncio.gather(*workers)
-
-    await client.close_connection()
     # shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
     # shutil.copyfile(
     #     f"{os.getcwd()}/artifacts/list_of_orders.txt",

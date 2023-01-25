@@ -1,12 +1,12 @@
 import asyncio
 import logging
 from typing import List
-
+from pprint import pformat
 import binance
-
 import pandas
 from src import orders
-from src.orders import Position, Order
+from src.common import print_last_n_rows
+from src.orders import Position, Order, cancel_remaining_limit_orders, cancel_order
 from src.producers import producers
 from src.producers.producers import (
     Event,
@@ -23,18 +23,18 @@ from src.workers.kline_handle import kline_handle
 logger = logging.getLogger("worker_main")
 
 
-async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
-    logger.info(
-        "Last %d rows from main df: %s" % (rows, "\n%s" % df.tail(rows).to_string())
-    )
-
-
 async def validate_order(
     client: binance.AsyncClient, symbol: str, order: Order, queue: asyncio.Queue
 ):
     resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
     updated_status = resp["status"]
     realized_quantity = round(float(resp["executedQty"]), 3)
+    logger.info(
+        "Order: %s, realized qty: %s, status: %s",
+        resp["orderId"],
+        realized_quantity,
+        updated_status,
+    )
 
     if updated_status != order.status or realized_quantity != order.realized_quantity:
         order_update = OrderUpdate(
@@ -42,6 +42,8 @@ async def validate_order(
             quantity=round(float(resp["origQty"]), 3),
             status=updated_status,
             realized_quantity=realized_quantity,
+            order_id=int(resp["orderId"]),
+            last_filled_quantity=0,
         )
         await queue.put(Event(name=EventName.ORDER, content=order_update))
         logger.info("Order trade update msg: %s", resp)
@@ -80,9 +82,9 @@ async def worker(
 ):
 
     while True:
-        logger.info("Current position: %s", position.current_position)
-        logger.info("Orders: %s", position.orders)
-        logger.info("Events in queue: %s" % queue.qsize())
+        logger.info("Current position: %s", pformat(position.current_position))
+        logger.info("Orders: \n%s", pformat(position.orders))
+        logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
         event = await queue.get()
@@ -121,8 +123,15 @@ async def worker(
 
         elif producers.EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return df, position
+            # await cancel_remaining_limit_orders(client=client, position=position)
+            # if position.current_position.take_profit_order is not None:
+            #     await cancel_order(
+            #         client=client,
+            #         order=position.current_position.take_profit_order,
+            #         symbol=position.symbol,
+            #     )
+            return historical_data, df, position
 
-        await validate_current_position(client=client, position=position, queue=queue)
+        await validate_open_orders(client=client, position=position, queue=queue)
         logger.info("Task Done: %s", event.content)
         queue.task_done()

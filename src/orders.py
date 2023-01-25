@@ -50,7 +50,7 @@ class CurrentPosition:
 
     def __repr__(self) -> str:
         return (
-            f"CurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
+            f"\nCurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
             f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
             f"take_profit_order={self.take_profit_order})"
         )
@@ -665,30 +665,34 @@ async def update_take_profit_order(
         leverage=position.leverage,
     )
 
+    take_profit_order = Order(
+        price=position.current_position.target_price,
+        quantity=position.current_position.quantity,
+        quantity_stable=round(
+            (
+                abs(position.current_position.quantity)
+                * position.current_position.price
+                / position.leverage
+            ),
+            2,
+        ),
+    )
+
     position.current_position.take_profit_order = await send_order(
         client=client,
         symbol=position.symbol,
         side=PositionSide.LONG
         if position.current_position.side == PositionSide.SHORT
         else PositionSide.SHORT,
-        order=Order(
-            price=position.current_position.target_price,
-            quantity=position.current_position.quantity,
-            quantity_stable=round(
-                (
-                    abs(position.current_position.quantity)
-                    * position.current_position.price
-                    / position.leverage
-                ),
-                2,
-            ),
-        ),
+        order=take_profit_order,
     )
+
     assert isinstance(position.current_position.take_profit_order, Order)
     logger.info(
-        "New take profit buy order send, price: %s, quantity: %s",
+        "New take profit buy order send, price: %s, quantity: %s realized QUANT: %s",
         position.current_position.target_price,
         position.current_position.take_profit_order.quantity,
+        position.current_position.take_profit_order.realized_quantity,
     )
 
     return position
