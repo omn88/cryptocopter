@@ -50,7 +50,7 @@ class CurrentPosition:
 
     def __repr__(self) -> str:
         return (
-            f"CurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
+            f"\nCurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
             f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
             f"take_profit_order={self.take_profit_order})"
         )

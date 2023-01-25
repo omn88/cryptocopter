@@ -9,7 +9,6 @@ from src.backtest.lib import get_futures_historical_data
 from src.common import insert_to_pandas
 from src.producers.producers import determine_start_position, Event, SignalUpdate
 from src.features import Signals
-from src.workers.worker import print_last_n_rows
 
 from tests.data.sample_dataframes import dataframe_gen
 

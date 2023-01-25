@@ -14,12 +14,10 @@ logger = logging.getLogger("handle_signal")
 
 async def log_signal_change(df, signal):
     logger.info(
-        "Position was %s, signal: %s, position now: %s"
-        % (
-            df.at[df.index[-2], "position"],
-            signal,
-            df.at[df.index[-1], "position"],
-        )
+        "Position was %s, signal: %s, position now: %s",
+        df.at[df.index[-2], "position"],
+        signal,
+        df.at[df.index[-1], "position"],
     )
 
 

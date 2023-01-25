@@ -1,22 +1,20 @@
 import errno
-import json
 import logging
 import os
-from datetime import datetime
-from typing import List, Dict, Tuple
-
+from typing import List, Tuple
+import datetime
 import binance
 import numpy
 import pandas
 from binance.exceptions import BinanceAPIException
-
 
 logger = logging.getLogger("common")
 
 
 def create_directory_with_timestamp():
     mydir = os.path.join(
-        os.getcwd() + "/artifacts", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        os.getcwd() + "/artifacts",
+        datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     )
     try:
         os.makedirs(mydir)
@@ -67,3 +65,7 @@ async def position_information(
     logger.info("Exit position information")
 
     return liquidation_price, entry_price, position_amt
+
+
+async def print_last_n_rows(df: pandas.DataFrame, rows: int = 8):
+    logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())

@@ -6,6 +6,7 @@ import logging
 from src.common import insert_to_pandas
 from src.producers.producers import SignalUpdate
 from src.workers.handle_signal import signal_handle
+from src.common import print_last_n_rows
 
 logger = logging.getLogger("handle_kline")
 
@@ -48,5 +49,8 @@ async def kline_handle(
         signal_update=signal_update,
         position=position,
     )
+
+    await print_last_n_rows(df=df)
+
     logger.info("Exiting Kline handling")
     return historical_data, df, position
