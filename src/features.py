@@ -30,12 +30,12 @@ def rsi_signal_basic_generate(
 ) -> Tuple[pandas.DataFrame, List, List[Signals]]:
     assert "RSI" in df.columns
 
-    df["RSIbelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
-    df["RSIaboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
+    df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
+    df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
 
     conditions = [
-        (df.RSIbelowThirty.diff() == 0) & (df.RSIbelowThirty.diff(periods=2) == -1),
-        (df.RSIaboveSeventy.diff() == 0) & (df.RSIaboveSeventy.diff(periods=2) == -1),
+        (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
+        (df.RsiAboveSeventy.diff() == 0) & (df.RsiAboveSeventy.diff(periods=2) == -1),
     ]
 
     signals = [Signals.LONG, Signals.SHORT]
@@ -48,17 +48,35 @@ def rsi_signal_extended_generate(
 ) -> Tuple[pandas.DataFrame, List, List[Signals]]:
     assert "RSI" in df.columns
 
-    df["RSIbelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
-    df["RSIaboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
+    df["RsiBelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
+    df["RsiAboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
 
     conditions = [
-        (df.RSIbelowTwenty.diff() == -1),
-        (df.RSIaboveEighty.diff() == -1),
+        (df.RsiBelowTwenty.diff() == -1),
+        (df.RsiAboveEighty.diff() == -1),
     ]
 
     signals = [Signals.LONG_20, Signals.SHORT_80]
 
     return df, conditions, signals
+
+
+# def rsi_signal_special_generate(
+#     df: pandas.DataFrame,
+# ) -> Tuple[pandas.DataFrame, List, List[Signals]]:
+#     assert "RSI" in df.columns
+#
+#     df["RsiBelowEighteen"] = numpy.where(df["RSI"] < 18, 1, 0)
+#     df["RsiAboveEightyTwo"] = numpy.where(df["RSI"] > 82, 1, 0)
+#
+#     conditions = [
+#         (df.RsiBelowEighteen.diff() == -1),
+#         (df.RsiAboveEightyTwo.diff() == -1),
+#     ]
+#
+#     signals = [Signals.SHORT_SPECIAL, Signals.LONG_SPECIAL]
+#
+#     return df, conditions, signals
 
 
 def combined_signals_generate(
@@ -83,6 +101,7 @@ def signals_from_features_generate(df: pandas.DataFrame) -> pandas.DataFrame:
     df = rsi_indicator_apply(df=df)
     df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=df)
     df, conditions_extended, signals_extended = rsi_signal_extended_generate(df=df)
+    # df, conditions_extended, signals_extended = rsi_signal_special_generate(df=df)
 
     return combined_signals_generate(
         df=df,

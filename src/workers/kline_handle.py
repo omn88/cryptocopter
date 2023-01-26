@@ -30,25 +30,36 @@ async def kline_handle(
     temp_df = insert_to_pandas(data=historical_data)
     temp_df = features.signals_from_features_generate(df=temp_df)
 
-    kline_signal = temp_df.iloc[-1]["signal"]
     df = df.append(temp_df.iloc[-1])
+    kline_signal = df.iloc[-1]["signal"]
+
+    # If kline signal is NULL, fock it, else s
+
+    if position.status == features.Signals.LONG and df.iloc[-1]["RSI"] < 18:
+        kline_signal = features.Signals.SHORT_SPECIAL
+
+    if position.status == features.Signals.SHORT and df.iloc[-1]["RSI"] > 82:
+        kline_signal = features.Signals.SHORT_SPECIAL
 
     signal_update = SignalUpdate(
-        signal=features.Signals.NULL if kline_signal == 0 else kline_signal,
-        price=round(float(df.at[df.index[-1], "Close"]), 2),
-    )
-    logger.info(
-        "Kline produced new signal: %s, price: %s",
-        signal_update.signal,
-        signal_update.price,
+        signal=kline_signal,
+        price=round(float(df.iloc[-1]["Close"]), 2),
     )
 
-    df, position = await signal_handle(
-        client=client,
-        df=df,
-        signal_update=signal_update,
-        position=position,
-    )
+    if kline_signal != 0:
+        logger.info(
+            "Kline produced new signal: %s, price: %s",
+            signal_update.signal,
+            signal_update.price,
+        )
+        df, position = await signal_handle(
+            client=client,
+            df=df,
+            signal_update=signal_update,
+            position=position,
+        )
+    else:
+        logger.info("Kline did not produce new signal")
 
     await print_last_n_rows(df=df)
 

@@ -40,7 +40,7 @@ def test_basic_rsi_signal_generate():
     expected_df.columns = [
         "Date",
         "RSI",
-        "RSIbelowThirty",
+        "RsiBelowThirty",
         "RSIaboveSeventy",
         "signal",
     ]
