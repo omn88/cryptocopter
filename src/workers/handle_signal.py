@@ -7,6 +7,7 @@ from src import features, orders
 
 import logging
 
+from src.orders import PositionMode
 from src.producers.producers import SignalUpdate
 
 logger = logging.getLogger("handle_signal")
@@ -54,9 +55,6 @@ async def when_flat(
         )
         df.at[df.index[-1], "position"] = signal
         await log_signal_change(df=df, signal=signal)
-    elif signal == features.Signals.NULL:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        await log_signal_change(df=df, signal=signal)
     else:
         logger.info("Unexpected signal came: %s", signal)
 
@@ -99,8 +97,23 @@ async def when_long(
             client=client, position=position, entry_price=entry_price, signal=signal
         )
 
-    elif signal == features.Signals.NULL:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
+    elif signal == features.Signals.SHORT_SPECIAL:
+        position = await orders.futures_long_position_close(
+            client=client, position=position
+        )
+
+        df.at[df.index[-1], "position"] = position.status
+        await log_signal_change(df=df, signal=signal)
+        logger.info("Long closed, opening FULL Short")
+        position = await orders.futures_short_position_open(
+            client=client,
+            position=position,
+            entry_price=entry_price,
+            signal=signal,
+            mode=PositionMode.FULL,
+        )
+
+        # ToDo: Handle closure of Full short within another function
 
     return df, position
 
@@ -141,8 +154,6 @@ async def when_long_twenty(
         position = await orders.futures_short_position_open(
             client=client, position=position, entry_price=entry_price, signal=signal
         )
-    elif signal == features.Signals.NULL:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
 
     return df, position
 
@@ -182,8 +193,24 @@ async def when_short(
     elif signal == features.Signals.SHORT_80:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
         await log_signal_change(df=df, signal=signal)
-    elif signal == features.Signals.NULL:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
+
+    elif signal == features.Signals.LONG_SPECIAL:
+
+        position = await orders.futures_short_position_close(
+            client=client, position=position
+        )
+        df.at[df.index[-1], "position"] = position.status
+        await log_signal_change(df=df, signal=signal)
+
+        logger.info("Short closed, opening FULL Long")
+        position = await orders.futures_long_position_open(
+            client=client,
+            position=position,
+            entry_price=entry_price,
+            signal=signal,
+            mode=PositionMode.FULL,
+        )
+        # ToDo: Handle closue of special LONG!!!
 
     return df, position
 
@@ -222,8 +249,6 @@ async def when_short_eighty(
     elif signal == features.Signals.SHORT_80:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
         await log_signal_change(df=df, signal=signal)
-    elif signal == features.Signals.NULL:
-        df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
 
     return df, position
 

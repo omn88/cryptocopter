@@ -171,7 +171,6 @@ async def determine_start_position(
             signal_index += 4
             break
 
-        signal = features.Signals.NULL
         price = row["Close"]
         signal_index += 1
 
@@ -185,7 +184,10 @@ async def determine_start_position(
         )
 
     signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-    logger.info("Added signal to queue: signal: %s, price: %s", signal, price)
+    if signal_update.signal != 0:
+        await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+        logger.info("Added signal to queue: signal: %s, price: %s", signal, price)
+    else:
+        logger.info("No signal created, starting flat and awaiting new signal.")
 
     return df
