@@ -16,21 +16,21 @@ async def test_kline_handling(
     mock_create_order, mock_cancel_order, mock_validate_open_orders, base
 ):
     mock_create_order.side_effect = [
-        {"orderId": 1, "price": 18500.7, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 2, "price": 18408.2, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 3, "price": 18315.7, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 4, "price": 18223.2, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 5, "price": 20800, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 6, "price": 20500, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 7, "price": 20500.0, "status": base.client.ORDER_STATUS_NEW},
-        {"orderId": 8, "price": 20602.5, "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "2", "price": "18408.2", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "3", "price": "18315.7", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "4", "price": "18223.2", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "5", "price": "20800", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "6", "price": "20500", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "7", "price": "20500.0", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "8", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
     mock_validate_open_orders.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
-        kline=[1672306200000, 19573.19, 19605.9, 17160.1, 16700.72, 0, 0]
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
     )
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
     await base.queue.put(Event(name=EventName.SENTINEL, content=kline_update))
@@ -48,7 +48,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20
     kline_update = KlineUpdate(
-        kline=[1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
     )
 
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
@@ -69,7 +71,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20 LONG
     kline_update = KlineUpdate(
-        kline=[1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
     )
 
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
@@ -89,7 +93,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     kline_update = KlineUpdate(
-        kline=[1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
     )
 
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
@@ -109,7 +115,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80
     kline_update = KlineUpdate(
-        kline=[1672309800000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        kline=[
+            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        ]
     )
 
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
@@ -131,7 +139,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     kline_update = KlineUpdate(
-        kline=[1672310700000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        kline=[
+            str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        ]
     )
 
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
@@ -151,7 +161,9 @@ async def test_kline_handling(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
     kline_update = KlineUpdate(
-        kline=[1672311600000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        kline=[
+            str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 18400.72, 0, 0]
+        ]
     )
     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
     await base.queue.put(Event(name=EventName.SENTINEL, content=kline_update))

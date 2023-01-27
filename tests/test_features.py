@@ -40,8 +40,8 @@ def test_basic_rsi_signal_generate():
     expected_df.columns = [
         "Date",
         "RSI",
-        "RSIbelowThirty",
-        "RSIaboveSeventy",
+        "RsiBelowThirty",
+        "RsiAboveSeventy",
         "signal",
     ]
     expected_df = expected_df.set_index("Date")
@@ -51,15 +51,15 @@ def test_basic_rsi_signal_generate():
     test_df.RSI = test_df.RSI.round(2)
 
     test_df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=test_df)
-    assert "RSIbelowThirty" in test_df.columns
-    assert "RSIaboveSeventy" in test_df.columns
+    assert "RsiBelowThirty" in test_df.columns
+    assert "RsiAboveSeventy" in test_df.columns
 
     test_df = combined_signals_generate(
         df=test_df, condition_lists=[conditions_basic], choice_lists=[signals_basic]
     )
 
     test_df_shortened = test_df[
-        ["RSI", "RSIbelowThirty", "RSIaboveSeventy", "signal"]
+        ["RSI", "RsiBelowThirty", "RsiAboveSeventy", "signal"]
     ].copy()
 
     pandas.testing.assert_frame_equal(
@@ -98,10 +98,10 @@ def test_rsi_signal_extended_generate():
     expected_df.columns = [
         "Date",
         "RSI",
-        "RSIbelowThirty",
-        "RSIaboveSeventy",
-        "RSIbelowTwenty",
-        "RSIaboveEighty",
+        "RsiBelowThirty",
+        "RsiAboveSeventy",
+        "RsiBelowTwenty",
+        "RsiAboveEighty",
         "signal",
     ]
     expected_df = expected_df.set_index("Date")
@@ -111,14 +111,14 @@ def test_rsi_signal_extended_generate():
     test_df.RSI = test_df.RSI.round(2)
 
     test_df, conditions_basic, choices_basic = rsi_signal_basic_generate(df=test_df)
-    assert "RSIbelowThirty" in test_df.columns
-    assert "RSIaboveSeventy" in test_df.columns
+    assert "RsiBelowThirty" in test_df.columns
+    assert "RsiAboveSeventy" in test_df.columns
 
     test_df, conditions_extended, choices_extended = rsi_signal_extended_generate(
         df=test_df
     )
-    assert "RSIbelowTwenty" in test_df.columns
-    assert "RSIaboveEighty" in test_df.columns
+    assert "RsiBelowTwenty" in test_df.columns
+    assert "RsiAboveEighty" in test_df.columns
 
     test_df = combined_signals_generate(
         df=test_df,
@@ -129,10 +129,10 @@ def test_rsi_signal_extended_generate():
     test_df_shortened = test_df[
         [
             "RSI",
-            "RSIbelowThirty",
-            "RSIaboveSeventy",
-            "RSIbelowTwenty",
-            "RSIaboveEighty",
+            "RsiBelowThirty",
+            "RsiAboveSeventy",
+            "RsiBelowTwenty",
+            "RsiAboveEighty",
             "signal",
         ]
     ].copy()
