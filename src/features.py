@@ -61,24 +61,6 @@ def rsi_signal_extended_generate(
     return df, conditions, signals
 
 
-# def rsi_signal_special_generate(
-#     df: pandas.DataFrame,
-# ) -> Tuple[pandas.DataFrame, List, List[Signals]]:
-#     assert "RSI" in df.columns
-#
-#     df["RsiBelowEighteen"] = numpy.where(df["RSI"] < 18, 1, 0)
-#     df["RsiAboveEightyTwo"] = numpy.where(df["RSI"] > 82, 1, 0)
-#
-#     conditions = [
-#         (df.RsiBelowEighteen.diff() == -1),
-#         (df.RsiAboveEightyTwo.diff() == -1),
-#     ]
-#
-#     signals = [Signals.SHORT_SPECIAL, Signals.LONG_SPECIAL]
-#
-#     return df, conditions, signals
-
-
 def combined_signals_generate(
     df: pandas.DataFrame, condition_lists: List, choice_lists: List
 ):
@@ -101,7 +83,6 @@ def signals_from_features_generate(df: pandas.DataFrame) -> pandas.DataFrame:
     df = rsi_indicator_apply(df=df)
     df, conditions_basic, signals_basic = rsi_signal_basic_generate(df=df)
     df, conditions_extended, signals_extended = rsi_signal_extended_generate(df=df)
-    # df, conditions_extended, signals_extended = rsi_signal_special_generate(df=df)
 
     return combined_signals_generate(
         df=df,
