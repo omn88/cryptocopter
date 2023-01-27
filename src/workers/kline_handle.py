@@ -33,8 +33,6 @@ async def kline_handle(
     df = df.append(temp_df.iloc[-1])
     kline_signal = df.iloc[-1]["signal"]
 
-    logger.info("ST %s", position.status)
-
     if position.status == features.Signals.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
         logger.info("Closing special long")
         kline_signal = features.Signals.CLOSE_SPECIAL
