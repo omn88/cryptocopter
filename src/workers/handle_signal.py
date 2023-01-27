@@ -113,7 +113,7 @@ async def when_long(
             mode=PositionMode.FULL,
         )
 
-        # ToDo: Handle closure of Full short within another function
+        df.at[df.index[-1], "position"] = position.status
 
     return df, position
 
@@ -199,7 +199,7 @@ async def when_short(
         position = await orders.futures_short_position_close(
             client=client, position=position
         )
-        df.at[df.index[-1], "position"] = position.status
+
         await log_signal_change(df=df, signal=signal)
 
         logger.info("Short closed, opening FULL Long")
@@ -210,7 +210,7 @@ async def when_short(
             signal=signal,
             mode=PositionMode.FULL,
         )
-        # ToDo: Handle closue of special LONG!!!
+        df.at[df.index[-1], "position"] = position.status
 
     return df, position
 
@@ -251,6 +251,56 @@ async def when_short_eighty(
         await log_signal_change(df=df, signal=signal)
 
     return df, position
+
+
+async def when_long_special(
+    client: binance.AsyncClient,
+    position: orders.Position,
+    df: pandas.DataFrame,
+    signal: features.Signals,
+) -> orders.Position:
+    if signal in [
+        features.Signals.LONG,
+        features.Signals.LONG_20,
+        features.Signals.SHORT,
+        features.Signals.SHORT_80,
+    ]:
+        logger.info("Special Long, signal: %s, fock it", signal)
+
+    elif signal == features.Signals.CLOSE_SPECIAL:
+        logger.info("Closing special long")
+        position = await orders.futures_long_position_close(
+            client=client, position=position
+        )
+
+    df.at[df.index[-1], "position"] = position.status
+
+    return position
+
+
+async def when_short_special(
+    client: binance.AsyncClient,
+    position: orders.Position,
+    df: pandas.DataFrame,
+    signal: features.Signals,
+) -> orders.Position:
+    if signal in [
+        features.Signals.LONG,
+        features.Signals.LONG_20,
+        features.Signals.SHORT,
+        features.Signals.SHORT_80,
+    ]:
+        logger.info("Special Short, signal: %s, fock it", signal)
+
+    elif signal == features.Signals.CLOSE_SPECIAL:
+        logger.info("Closing special short")
+        position = await orders.futures_short_position_close(
+            client=client, position=position
+        )
+
+    df.at[df.index[-1], "position"] = position.status
+
+    return position
 
 
 async def signal_handle(
@@ -307,6 +357,16 @@ async def signal_handle(
             signal=signal,
             df=df,
             entry_price=price,
+        )
+
+    elif position.status == features.Signals.LONG_SPECIAL:
+        position = await when_long_special(
+            client=client, position=position, signal=signal, df=df
+        )
+
+    elif position.status == features.Signals.SHORT_SPECIAL:
+        position = await when_short_special(
+            client=client, position=position, signal=signal, df=df
         )
 
     else:

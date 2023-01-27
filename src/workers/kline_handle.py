@@ -33,29 +33,15 @@ async def kline_handle(
     df = df.append(temp_df.iloc[-1])
     kline_signal = df.iloc[-1]["signal"]
 
-    # If kline signal is NULL, fock it, else s
-
-    if position.status == features.Signals.LONG and df.iloc[-1]["RSI"] < 18:
-        kline_signal = features.Signals.SHORT_SPECIAL
-
-    if position.status == features.Signals.SHORT and df.iloc[-1]["RSI"] > 82:
-        kline_signal = features.Signals.LONG_SPECIAL
-
     if position.status == features.Signals.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
         logger.info("Closing special long")
-        position = await orders.futures_long_position_close(
-            client=client, position=position
-        )
-        df.at[df.index[-1], "position"] = position.status
-        kline_signal = 0
+        kline_signal = features.Signals.CLOSE_SPECIAL
+        df.at[df.index[-1], "signal"] = kline_signal
 
     if position.status == features.Signals.SHORT_SPECIAL and df.iloc[-1]["RSI"] > 50:
         logger.info("Closing special short")
-        position = await orders.futures_short_position_close(
-            client=client, position=position
-        )
-        df.at[df.index[-1], "position"] = position.status
-        kline_signal = 0
+        kline_signal = features.Signals.CLOSE_SPECIAL
+        df.at[df.index[-1], "signal"] = kline_signal
 
     signal_update = SignalUpdate(
         signal=kline_signal,
@@ -76,7 +62,7 @@ async def kline_handle(
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info("Kline did not produce new signal or closed special long/short")
+        logger.info("Kline did not produce new signal")
 
     await print_last_n_rows(df=df)
 
