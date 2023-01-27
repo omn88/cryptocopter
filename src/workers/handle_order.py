@@ -43,13 +43,11 @@ async def position_liquidation(
 
 
 async def target_reached(
-    client: binance.AsyncClient,
-    position: Position,
-    realized_quantity,
-    original_quantity,
-    last_filled_quantity,
+    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
 ) -> Position:
     logger.info("Target price reached.")
+
+    last_filled_quantity = order_update.last_filled_quantity
 
     position.current_position.take_profit_order.quantity -= last_filled_quantity
     position.current_position.take_profit_order.realized_quantity += (
@@ -59,9 +57,9 @@ async def target_reached(
 
     logger.info(
         "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
-        original_quantity,
+        order_update.quantity,
         last_filled_quantity,
-        realized_quantity,
+        order_update.realized_quantity,
         position.current_position.take_profit_order.quantity,
     )
 
@@ -79,7 +77,10 @@ async def target_reached(
 
     logger.info("Earned: %s", round(position.saldo - saldo, 2))
 
-    if position.current_position.take_profit_order.quantity == 0:
+    if (
+        position.current_position.take_profit_order.quantity == 0
+        or order_update.status == client.ORDER_STATUS_FILLED
+    ):
         logger.info("Take profit order filled!")
         position = await cancel_remaining_limit_orders(client=client, position=position)
 
@@ -144,11 +145,7 @@ async def order_handle(
         # ToDo: handle when filled partially, there was a test I think, wtf?
         if order_update.status != binance.AsyncClient.ORDER_STATUS_NEW:
             position = await target_reached(
-                client=client,
-                position=position,
-                original_quantity=order_update.quantity,
-                realized_quantity=order_update.realized_quantity,
-                last_filled_quantity=order_update.last_filled_quantity,
+                client=client, position=position, order_update=order_update
             )
         else:
             logger.info("New take profit order created, id: %s", order_update.order_id)
