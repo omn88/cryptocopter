@@ -2,6 +2,7 @@ from pprint import pformat
 from unittest.mock import patch
 
 from src.features import Signals
+from src.orders import PositionSide
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.worker import worker
 from tests.data.sample_dataframes import data_no_signal
@@ -47,6 +48,7 @@ async def test_kline_handling(
 
     assert 0 == len(position.orders)
     assert 1000 == position.saldo
+    assert position.status == Signals.FLAT
 
     # NO SIGNAL THEN NULL LONG20
     kline_update = KlineUpdate(
@@ -70,6 +72,7 @@ async def test_kline_handling(
 
     assert 4 == len(position.orders)
     assert 1000 == position.saldo
+    assert position.status == Signals.LONG_20
 
     # NO SIGNAL THEN NULL LONG20 LONG
     kline_update = KlineUpdate(
