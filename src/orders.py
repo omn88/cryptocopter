@@ -562,6 +562,10 @@ async def futures_long_position_close(
 
     position.status = position.status.FLAT
 
+    position.current_position = CurrentPosition()
+
+    position.orders = []
+
     logger.info("SALDO: %s" % position.saldo)
 
     logger.info("Exiting long position close")
@@ -640,6 +644,8 @@ async def futures_short_position_close(
 
     position.status = position.status.FLAT
 
+    position.current_position = CurrentPosition()
+    position.orders = []
     logger.info("Exiting short position close")
     return position
 
