@@ -23,7 +23,7 @@ async def kline_handle(
     expected_index = int(historical_data[-1][0]) + 900000
 
     # I need historical data here, then add the kline, generate temp dataframe, then copy last
-    assert expected_index == kline[0]
+    assert expected_index == int(kline[0])
     len_hist_data = len(historical_data)
     historical_data.append(kline)
     assert len(historical_data) == len_hist_data + 1
@@ -76,7 +76,7 @@ async def kline_handle(
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
-        logger.info("Kline did not produce new signal")
+        logger.info("Kline did not produce new signal or closed special long/short")
 
     await print_last_n_rows(df=df)
 

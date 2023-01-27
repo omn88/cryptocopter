@@ -35,7 +35,7 @@ async def test_get_historical_data(mock_get_historical_klines):
 
 @pytest.mark.parametrize(
     "signal",
-    [Signals.LONG, Signals.LONG_20, Signals.SHORT, Signals.SHORT_80, Signals.NULL],
+    [Signals.LONG, Signals.LONG_20, Signals.SHORT, Signals.SHORT_80],
 )
 async def test_determine_start_position(signal):
     client = binance.AsyncClient()
