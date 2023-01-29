@@ -130,7 +130,7 @@ async def test_full_scope(
             {
                 "liquidationPrice": "21476",
                 "entryPrice": "20650.0",
-                "positionAmt": "0.242",
+                "positionAmt": "0.12",
             }
         ],
     ]

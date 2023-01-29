@@ -47,7 +47,6 @@ class CurrentPosition:
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
-    order_quantity_list: Optional[List] = None
 
     def __repr__(self) -> str:
         return (
@@ -63,7 +62,10 @@ class Position:
     current_position: CurrentPosition = CurrentPosition()
     orders: List[Order] = field(default_factory=list)
     status: features.Signals = features.Signals.FLAT
+    order_quantity_list: Optional[List] = None
+    number_of_dca_orders = 4
     saldo: float = 0
+    calculated_saldo: float = 0
     leverage: int = 25
 
     def __repr__(self) -> str:
@@ -373,64 +375,31 @@ async def futures_long_position_open(
     signal: features.Signals,
     position: Position,
     entry_price: float,
-    number_of_dca_orders: int = 4,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Entering long position open")
+    logger.info("Entering long position open, mode: %s", mode)
     position.current_position = CurrentPosition(side=PositionSide.LONG)
 
-    if mode == PositionMode.DCA:
-        logger.info("Entering mode: %s" % mode)
-        position.status = signal
+    position.status = signal
 
-        position.orders, position.saldo = prepare_orders(
-            side=position.current_position.side,
-            mode=mode,
-            entry_price=entry_price,
-            saldo=position.saldo,
-            number_of_dca_orders=number_of_dca_orders,
-            leverage=position.leverage,
-            order_quantity_list=position.current_position.order_quantity_list,
-        )
+    position.orders, position.saldo = prepare_orders(
+        side=position.current_position.side,
+        mode=mode,
+        entry_price=entry_price,
+        saldo=position.saldo,
+        number_of_dca_orders=position.number_of_dca_orders,
+        leverage=position.leverage,
+        order_quantity_list=position.order_quantity_list,
+    )
 
-        position.orders = await send_orders(
-            client=client,
-            orders=position.orders,
-            symbol=position.symbol,
-            side=client.SIDE_BUY,
-        )
+    position.orders = await send_orders(
+        client=client,
+        orders=position.orders,
+        symbol=position.symbol,
+        side=client.SIDE_BUY,
+    )
 
-        logger.info("Position: %s" % position)
-
-    elif mode == PositionMode.FULL:
-        logger.info("Entering mode: %s" % mode)
-        position.status = signal
-
-        position.orders, position.saldo = prepare_orders(
-            side=position.current_position.side,
-            mode=mode,
-            entry_price=entry_price,
-            saldo=position.saldo,
-            number_of_dca_orders=number_of_dca_orders,
-            leverage=position.leverage,
-            order_quantity_list=position.current_position.order_quantity_list,
-        )
-
-        position.orders = await send_orders(
-            client=client,
-            orders=position.orders,
-            symbol=position.symbol,
-            side=client.SIDE_BUY,
-        )
-
-        logger.info("Position: %s" % position)
-
-    else:
-        logger.info(
-            "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
-        )
-
-    logger.info("Exiting long position open")
+    logger.info("Exiting long position open, opened orders: %s", position.orders)
     return position
 
 
@@ -442,63 +411,30 @@ async def futures_short_position_open(
     number_of_dca_orders: int = 4,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
-    logger.info("Entering short position open")
+    logger.info("Entering short position open, mode: %s", mode)
 
     position.current_position = CurrentPosition(side=PositionSide.SHORT)
 
-    # ToDo: Assert no order is opened
+    position.status = signal
 
-    if mode == PositionMode.DCA:
-        logger.info("Entering mode: %s" % mode)
-        position.status = signal
+    position.orders, position.saldo = prepare_orders(
+        side=position.current_position.side,
+        mode=mode,
+        entry_price=entry_price,
+        saldo=position.saldo,
+        number_of_dca_orders=number_of_dca_orders,
+        leverage=position.leverage,
+        order_quantity_list=position.order_quantity_list,
+    )
 
-        position.orders, position.saldo = prepare_orders(
-            side=position.current_position.side,
-            mode=mode,
-            entry_price=entry_price,
-            saldo=position.saldo,
-            number_of_dca_orders=number_of_dca_orders,
-            leverage=position.leverage,
-            order_quantity_list=position.current_position.order_quantity_list,
-        )
+    position.orders = await send_orders(
+        client=client,
+        orders=position.orders,
+        symbol=position.symbol,
+        side=client.SIDE_SELL,
+    )
 
-        position.orders = await send_orders(
-            client=client,
-            orders=position.orders,
-            symbol=position.symbol,
-            side=client.SIDE_SELL,
-        )
-
-        logger.info("Position: %s" % position)
-
-    elif mode == PositionMode.FULL:
-        logger.info("Entering mode: %s" % mode)
-        position.status = signal
-
-        position.orders, position.saldo = prepare_orders(
-            side=position.current_position.side,
-            mode=mode,
-            entry_price=entry_price,
-            saldo=position.saldo,
-            number_of_dca_orders=number_of_dca_orders,
-            leverage=position.leverage,
-            order_quantity_list=position.current_position.order_quantity_list,
-        )
-
-        position.orders = await send_orders(
-            client=client,
-            orders=position.orders,
-            symbol=position.symbol,
-            side=client.SIDE_SELL,
-        )
-
-        logger.info("Position: %s" % position)
-    else:
-        logger.info(
-            "Something's no yes, you've tried to use PositionMode different than 'DCA' or 'FULL'"
-        )
-
-    logger.info("Exiting short position open")
+    logger.info("Exiting short position open, opened orders: %s", position.orders)
     return position
 
 
@@ -507,15 +443,7 @@ async def futures_long_position_close(
 ) -> Position:
     logger.info("Entering long position close")
 
-    # ToDo: what dafuq. Check current position price and quantity
-    if any(
-        order.status
-        in [
-            binance.AsyncClient.ORDER_STATUS_FILLED,
-            binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
-        ]
-        for order in position.orders
-    ):
+    if position.current_position.take_profit_order is not None:
         logger.info("Trying to market sell")
         resp = None
         try:
@@ -529,7 +457,7 @@ async def futures_long_position_close(
         except BinanceAPIException as exception:
             logger.info("exception: %s", exception)
 
-        sell_price = round(float(resp["price"]), 1)
+        sell_price = round(float(resp["price"]), 2)
         net = round((sell_price - position.current_position.price), 2)
         net_percent = round((sell_price / position.current_position.price - 1), 4)
         logger.info(
@@ -537,7 +465,7 @@ async def futures_long_position_close(
             % (sell_price, position.current_position.quantity, net, 100 * net_percent)
         )
         real_earn = round(position.current_position.quantity * net, 2)
-        position.saldo = position.saldo + real_earn
+        position.calculated_saldo = position.saldo + real_earn
 
         logger.info(
             "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
@@ -572,9 +500,7 @@ async def futures_long_position_close(
             )
 
     position.status = position.status.FLAT
-
     position.current_position = CurrentPosition()
-
     position.orders = []
 
     logger.info("SALDO: %s" % position.saldo)
@@ -608,11 +534,7 @@ async def futures_short_position_close(
 ) -> Position:
     logger.info("Entering short position close")
 
-    if any(
-        order.status == binance.client.BaseClient.ORDER_STATUS_FILLED
-        for order in position.orders
-    ):
-
+    if position.current_position.take_profit_order is not None:
         resp = await client.futures_create_order(
             symbol=position.symbol,
             side=client.SIDE_BUY,
@@ -632,7 +554,7 @@ async def futures_short_position_close(
         )
 
         real_earn = round(position.current_position.quantity * net, 2)
-        position.saldo = round(position.saldo + real_earn, 2)
+        position.calculated_saldo = round(position.saldo + real_earn, 2)
 
         logger.info(
             "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
