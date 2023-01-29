@@ -47,6 +47,7 @@ class CurrentPosition:
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
+    order_quantity_list: Optional[List] = None
 
     def __repr__(self) -> str:
         return (
@@ -140,8 +141,6 @@ def order_quantity_list_prepare(
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
-
-    logger.debug("Order quantity list: \n%s", oql)
 
     return oql
 
@@ -322,15 +321,24 @@ def prepare_orders(
     saldo: float,
     number_of_dca_orders: int,
     leverage: int,
+    order_quantity_list: List,
     dca_span: float = 0.005,
 ) -> Tuple[List[Order], float]:
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = 0 if mode == PositionMode.FULL else number_of_dca_orders
-    order_quantity_list = order_quantity_list_prepare()
-    order_quantity = order_quantity_check(oql=order_quantity_list, saldo=saldo)
-    order_quantity_stable = order_quantity
-    logger.info("Order quantity: %s", order_quantity)
+
+    if order_quantity_list is None:
+        order_quantity_list = order_quantity_list_prepare()
+        logger.info("Order quantity list: \n%s", order_quantity_list)
+    order_quantity_stable = order_quantity_check(oql=order_quantity_list, saldo=saldo)
+    logger.info(
+        "Saldo: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
+        saldo,
+        order_quantity_stable,
+        number_of_dca_orders,
+        dca_span,
+    )
 
     orders = [
         Order(
@@ -385,6 +393,7 @@ async def futures_long_position_open(
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
+            order_quantity_list=position.current_position.order_quantity_list,
         )
 
         position.orders = await send_orders(
@@ -407,6 +416,7 @@ async def futures_long_position_open(
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
+            order_quantity_list=position.current_position.order_quantity_list,
         )
 
         position.orders = await send_orders(
@@ -452,6 +462,7 @@ async def futures_short_position_open(
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
+            order_quantity_list=position.current_position.order_quantity_list,
         )
 
         position.orders = await send_orders(
@@ -474,6 +485,7 @@ async def futures_short_position_open(
             saldo=position.saldo,
             number_of_dca_orders=number_of_dca_orders,
             leverage=position.leverage,
+            order_quantity_list=position.current_position.order_quantity_list,
         )
 
         position.orders = await send_orders(
