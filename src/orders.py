@@ -79,7 +79,7 @@ class PositionMode(Enum):
 
 
 def order_quantity_list_prepare(
-    number_of_dca_orders: int = 3,
+    number_of_dca_orders: int = 4,
     order_values: Optional[List[float]] = None,
     losses_per_level: int = 4,
 ) -> pandas.DataFrame:
@@ -135,9 +135,7 @@ def order_quantity_list_prepare(
     # OQL stands for order quantity list
     oql = pandas.DataFrame(order_values, columns=["order_value"])
     oql.set_index(pandas.Index([i for i in range(len(order_values))]))
-    oql["sum_of_all_losses"] = (
-        oql.order_value * (number_of_dca_orders + 1) * losses_per_level
-    )
+    oql["sum_of_all_losses"] = oql.order_value * number_of_dca_orders * losses_per_level
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
@@ -164,7 +162,6 @@ def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
 
     # order_quantity = oql.order_value[index]
     logger.info("Order quantity: %s", order_quantity)
-
     return order_quantity
 
 
@@ -291,7 +288,7 @@ def get_order_quantity(
         return round(
             leverage
             * order_quantity
-            * (number_of_dca_orders + 1)
+            * number_of_dca_orders
             / (round((entry_price - (dca_span * order * entry_price)), 2)),
             3,
         )
@@ -308,7 +305,7 @@ def get_order_quantity(
         return round(
             leverage
             * order_quantity
-            * (number_of_dca_orders + 1)
+            * number_of_dca_orders
             / (round((entry_price + (dca_span * order * entry_price)), 2)),
             3,
         )
@@ -326,7 +323,7 @@ def prepare_orders(
 ) -> Tuple[List[Order], float]:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = 0 if mode == PositionMode.FULL else number_of_dca_orders
+    number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
 
     if order_quantity_list is None:
         order_quantity_list = order_quantity_list_prepare()
@@ -361,7 +358,7 @@ def prepare_orders(
             order_id=0,
             quantity_stable=order_quantity_stable,
         )
-        for order in range(number_of_dca_orders + 1)
+        for order in range(number_of_dca_orders)
     ]
 
     for order in orders:
@@ -376,7 +373,7 @@ async def futures_long_position_open(
     signal: features.Signals,
     position: Position,
     entry_price: float,
-    number_of_dca_orders: int = 3,
+    number_of_dca_orders: int = 4,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
     logger.info("Entering long position open")
@@ -442,7 +439,7 @@ async def futures_short_position_open(
     position: Position,
     entry_price: float,
     signal: features.Signals,
-    number_of_dca_orders: int = 3,
+    number_of_dca_orders: int = 4,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
     logger.info("Entering short position open")

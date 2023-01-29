@@ -215,7 +215,7 @@ def long_position_open(
     else:
         position = Order(
             price=buy_price,
-            quantity=(number_of_dca_orders + 1) * order_quantity,
+            quantity=number_of_dca_orders * order_quantity,
         )
         dca_orders = []
         print(
@@ -246,7 +246,7 @@ def short_position_open(
     else:
         position = Order(
             price=sell_price,
-            quantity=(number_of_dca_orders + 1) * order_quantity,
+            quantity=number_of_dca_orders * order_quantity,
         )
         dca_orders = []
         print(
