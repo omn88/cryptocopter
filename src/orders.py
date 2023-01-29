@@ -260,6 +260,61 @@ def target_price_calculate(side: str, price: float, leverage: int) -> float:
     return target_price
 
 
+def get_order_price(side: str, entry_price: float, dca_span: float, order: int):
+
+    if side == PositionSide.LONG:
+        return round((entry_price - (dca_span * order * entry_price)), 1)
+
+    if side == PositionSide.SHORT:
+        return round((entry_price + (dca_span * order * entry_price)), 1)
+
+
+def get_order_quantity(
+    side: str,
+    mode: PositionMode,
+    leverage: int,
+    order_quantity: float,
+    entry_price: float,
+    dca_span: float,
+    order: int,
+    number_of_dca_orders: int,
+):
+
+    if side == PositionSide.LONG and mode == PositionMode.DCA:
+        return round(
+            leverage
+            * order_quantity
+            / (round((entry_price - (dca_span * order * entry_price)), 2)),
+            3,
+        )
+
+    if side == PositionSide.LONG and mode == PositionMode.FULL:
+        return round(
+            leverage
+            * order_quantity
+            * (number_of_dca_orders + 1)
+            / (round((entry_price - (dca_span * order * entry_price)), 2)),
+            3,
+        )
+
+    if side == PositionSide.SHORT and mode == PositionMode.DCA:
+        return round(
+            leverage
+            * order_quantity
+            / (round((entry_price + (dca_span * order * entry_price)), 2)),
+            3,
+        )
+
+    if side == PositionSide.SHORT and mode == PositionMode.FULL:
+        return round(
+            leverage
+            * order_quantity
+            * (number_of_dca_orders + 1)
+            / (round((entry_price + (dca_span * order * entry_price)), 2)),
+            3,
+        )
+
+
 def prepare_orders(
     side: str,
     mode: PositionMode,
@@ -271,91 +326,38 @@ def prepare_orders(
 ) -> Tuple[List[Order], float]:
     logger.info("Entering prepare orders")
 
-    orders = []
+    number_of_dca_orders = 0 if mode == PositionMode.FULL else number_of_dca_orders
     order_quantity_list = order_quantity_list_prepare()
     order_quantity = order_quantity_check(oql=order_quantity_list, saldo=saldo)
+    order_quantity_stable = order_quantity
     logger.info("Order quantity: %s", order_quantity)
 
-    if side == PositionSide.LONG:
-        if mode == PositionMode.DCA:
-            orders = [
-                Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 1),
-                    quantity=round(
-                        leverage
-                        * order_quantity
-                        / (round((entry_price - (dca_span * order * entry_price)), 2)),
-                        3,
-                    ),
-                    order_id=0,
-                    quantity_stable=order_quantity,
-                )
-                for order in range(number_of_dca_orders + 1)
-            ]
-            logger.info("DCA orders created")
+    orders = [
+        Order(
+            price=get_order_price(
+                side=side,
+                entry_price=entry_price,
+                dca_span=dca_span,
+                order=order,
+            ),
+            quantity=get_order_quantity(
+                side=side,
+                mode=mode,
+                leverage=leverage,
+                order_quantity=order_quantity_stable,
+                entry_price=entry_price,
+                dca_span=dca_span,
+                order=order,
+                number_of_dca_orders=number_of_dca_orders,
+            ),
+            order_id=0,
+            quantity_stable=order_quantity_stable,
+        )
+        for order in range(number_of_dca_orders + 1)
+    ]
 
-            for order in orders:
-                logger.info("Order: %s" % order)
-
-        elif mode == PositionMode.FULL:
-            orders = [
-                Order(
-                    price=round((entry_price - (dca_span * order * entry_price)), 1),
-                    quantity=round(
-                        leverage
-                        * (order_quantity * (number_of_dca_orders + 1))
-                        / (round((entry_price - (dca_span * order * entry_price)), 2)),
-                        3,
-                    ),
-                    order_id=0,
-                    quantity_stable=order_quantity,
-                )
-                for order in range(1)
-            ]
-            logger.info("FULL order created")
-
-            for order in orders:
-                logger.info("Order: %s" % order)
-
-    elif side == PositionSide.SHORT:
-        if mode == PositionMode.DCA:
-            orders = [
-                Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 1),
-                    quantity=round(
-                        leverage
-                        * order_quantity
-                        / (round((entry_price + (dca_span * order * entry_price)), 2)),
-                        3,
-                    ),
-                    order_id=0,
-                    quantity_stable=order_quantity,
-                )
-                for order in range(number_of_dca_orders + 1)
-            ]
-            logger.info("DCA orders created")
-
-            for order in orders:
-                logger.info("Order: %s" % order)
-        elif mode == PositionMode.FULL:
-            orders = [
-                Order(
-                    price=round((entry_price + (dca_span * order * entry_price)), 1),
-                    quantity=round(
-                        leverage
-                        * order_quantity
-                        / (round((entry_price + (dca_span * order * entry_price)), 2)),
-                        3,
-                    ),
-                    order_id=0,
-                    quantity_stable=order_quantity,
-                )
-                for order in range(1)
-            ]
-            logger.info("FULL order created")
-
-            for order in orders:
-                logger.info("Order: %s" % order)
+    for order in orders:
+        logger.info("Order: %s" % order)
 
     logger.info("Exiting prepare orders")
     return orders, saldo
