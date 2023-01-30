@@ -56,6 +56,8 @@ async def main():
 
     position = orders.Position(symbol=symbol, saldo=saldo)
 
+    logger.info("Order quantity list: \n%s", position.order_quantity_list)
+
     historical_data = await get_futures_historical_data(
         client=client,
         symbol=symbol,

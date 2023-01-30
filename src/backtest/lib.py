@@ -6,9 +6,23 @@ import pandas
 from matplotlib import pyplot
 import binance
 
-from src.orders import Order, target_depo_price_calculate
+from src.orders import Order, PositionSide
 
 logger = logging.getLogger("lib")
+
+
+def target_depo_price_calculate(
+    side: str, price: float, leverage: int
+) -> Tuple[float, float]:
+    if side == "LONG":
+        depo_price = round((1 - (100 / leverage / 100)) * price, 2)
+        target_price = round((1 + (100 / leverage / 100)) * price, 2)
+        return target_price, depo_price
+
+    if side == "SHORT":
+        target_price = round((1 - (100 / leverage / 100)) * price, 2)
+        depo_price = round((1 + (100 / leverage / 100)) * price, 2)
+        return target_price, depo_price
 
 
 async def get_historical_data(
@@ -215,7 +229,7 @@ def long_position_open(
     else:
         position = Order(
             price=buy_price,
-            quantity=(number_of_dca_orders + 1) * order_quantity,
+            quantity=number_of_dca_orders * order_quantity,
         )
         dca_orders = []
         print(
@@ -246,7 +260,7 @@ def short_position_open(
     else:
         position = Order(
             price=sell_price,
-            quantity=(number_of_dca_orders + 1) * order_quantity,
+            quantity=number_of_dca_orders * order_quantity,
         )
         dca_orders = []
         print(
@@ -344,3 +358,16 @@ def short_position_recalculate(
         f"{index}: Added to short. Price: {round(order.price, 2)}, new sell price: {round(new_position.price, 2)}, new quantity {new_position.quantity}, new depo {depo_price}"
     )
     return new_position, target_price, depo_price
+
+
+def target_price_calculate(side: str, price: float, leverage: int) -> float:
+    logger.info("Entering target price calculate")
+    if side == PositionSide.LONG:
+        target_price = round((1 + (100 / leverage / 100)) * price, 1)
+    elif side == PositionSide.SHORT:
+        target_price = round((1 - (100 / leverage / 100)) * price, 1)
+    else:
+        raise AssertionError("Wrong position side: %s", side)
+
+    logger.info("position side: %s, target: %s" % (side, target_price))
+    return target_price
