@@ -56,30 +56,6 @@ class CurrentPosition:
         )
 
 
-@dataclass
-class Position:
-    symbol: str
-    current_position: CurrentPosition = CurrentPosition()
-    orders: List[Order] = field(default_factory=list)
-    status: features.Signals = features.Signals.FLAT
-    order_quantity_list: Optional[List] = None
-    number_of_dca_orders = 4
-    saldo: float = 0
-    calculated_saldo: float = 0
-    leverage: int = 25
-
-    def __repr__(self) -> str:
-        return (
-            f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage})"
-        )
-
-
-class PositionMode(Enum):
-    DCA = "DCA"
-    FULL = "FULL"
-
-
 def order_quantity_list_prepare(
     number_of_dca_orders: int = 4,
     order_values: Optional[List[float]] = None,
@@ -167,18 +143,28 @@ def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
     return order_quantity
 
 
-def target_depo_price_calculate(
-    side: str, price: float, leverage: int
-) -> Tuple[float, float]:
-    if side == "LONG":
-        depo_price = round((1 - (100 / leverage / 100)) * price, 2)
-        target_price = round((1 + (100 / leverage / 100)) * price, 2)
-        return target_price, depo_price
+@dataclass
+class Position:
+    symbol: str
+    current_position: CurrentPosition = CurrentPosition()
+    orders: List[Order] = field(default_factory=list)
+    status: features.Signals = features.Signals.FLAT
+    order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
+    number_of_dca_orders = 4
+    saldo: float = 0
+    calculated_saldo: float = 0
+    leverage: int = 25
 
-    if side == "SHORT":
-        target_price = round((1 - (100 / leverage / 100)) * price, 2)
-        depo_price = round((1 + (100 / leverage / 100)) * price, 2)
-        return target_price, depo_price
+    def __repr__(self) -> str:
+        return (
+            f"Position(symbol={self.symbol}, current_position={self.current_position}, "
+            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage})"
+        )
+
+
+class PositionMode(Enum):
+    DCA = "DCA"
+    FULL = "FULL"
 
 
 async def send_order(
@@ -320,16 +306,13 @@ def prepare_orders(
     saldo: float,
     number_of_dca_orders: int,
     leverage: int,
-    order_quantity_list: List,
+    order_quantity_list: pandas.DataFrame,
     dca_span: float = 0.005,
 ) -> Tuple[List[Order], float]:
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
 
-    if order_quantity_list is None:
-        order_quantity_list = order_quantity_list_prepare()
-        logger.info("Order quantity list: \n%s", order_quantity_list)
     order_quantity_stable = order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info(
         "Saldo: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",

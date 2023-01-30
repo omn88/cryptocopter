@@ -6,7 +6,10 @@ import binance
 import pandas
 from src import orders
 from src.common import print_last_n_rows
-from src.orders import Position, Order, cancel_remaining_limit_orders, cancel_order
+from src.orders import (
+    Position,
+    Order,
+)
 from src.producers import producers
 from src.producers.producers import (
     Event,
