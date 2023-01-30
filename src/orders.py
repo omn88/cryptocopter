@@ -158,7 +158,9 @@ class Position:
     def __repr__(self) -> str:
         return (
             f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage})"
+            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage}, "
+            f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}, "
+            f"calculated_saldo={self.calculated_saldo})"
         )
 
 
@@ -183,8 +185,12 @@ async def send_order(
     order.order_id = int(resp["orderId"])
     order.status = resp["status"]
     logger.info(
-        "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s"
-        % (order.price, order.quantity, side, order.order_id, order.status)
+        "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s",
+        order.price,
+        order.quantity,
+        side,
+        order.order_id,
+        order.status,
     )
 
     return order
@@ -202,7 +208,9 @@ async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
 
     if resp["status"] != client.ORDER_STATUS_CANCELED:
         logger.info(
-            f"Order status for order {order.order_id} was not set to cancelled. Got: {resp['status']}"
+            "Order status for order: %s was not set to cancelled. Got: %s",
+            order.order_id,
+            resp["status"],
         )
         return None
     logger.info("Exit cancel order")
@@ -347,7 +355,7 @@ def prepare_orders(
     ]
 
     for order in orders:
-        logger.info("Order: %s" % order)
+        logger.debug("Order: %s", order)
 
     logger.info("Exiting prepare orders")
     return orders, saldo
@@ -460,7 +468,6 @@ async def futures_long_position_close(
             )
         )
 
-        logger.info("Cancelling take profit order")
         position.current_position.take_profit_order.status = await cancel_order(
             client=client,
             order=position.current_position.take_profit_order,
@@ -468,25 +475,13 @@ async def futures_long_position_close(
         )
         logger.info("Cancelled take profit order")
 
-    logger.info("Cancelling remaining limit orders")
-    for order in position.orders:
-        if order.status in [
-            client.ORDER_STATUS_PARTIALLY_FILLED,
-            client.ORDER_STATUS_NEW,
-        ]:
-            order.status = await cancel_order(
-                client=client, symbol=position.symbol, order=order
-            )
-            logger.info(
-                "Order with order_id: %s should be cancelled and is: %s"
-                % (order.order_id, order.status)
-            )
+    await cancel_remaining_limit_orders(client, position=position)
 
     position.status = position.status.FLAT
     position.current_position = CurrentPosition()
     position.orders = []
 
-    logger.info("SALDO: %s" % position.saldo)
+    logger.info("SALDO: %s", position.saldo)
 
     logger.info("Exiting long position close")
     return position
@@ -505,8 +500,9 @@ async def cancel_remaining_limit_orders(
                 client=client, symbol=position.symbol, order=order
             )
             logger.info(
-                "Order with order_id: %s should be cancelled and is: %s"
-                % (order.order_id, order.status)
+                "Order with order_id: %s should be cancelled and is: %s",
+                order.order_id,
+                order.status,
             )
 
     return position
