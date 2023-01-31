@@ -237,9 +237,7 @@ async def send_orders(
         tasks.append(task)
     results = await asyncio.gather(*tasks)
 
-    orders = list(results)
-
-    return orders
+    return list(results)
 
 
 def target_price_calculate(side: str, price: float, leverage: int) -> float:

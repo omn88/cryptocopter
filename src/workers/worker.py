@@ -139,5 +139,6 @@ async def worker(
             #     )
             return historical_data, df, position
 
+        await validate_open_orders(client=client, position=position, queue=queue)
         logger.info("Task Done: %s", event.content)
         queue.task_done()
