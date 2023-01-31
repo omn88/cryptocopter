@@ -47,18 +47,18 @@ async def target_reached(
 ) -> Position:
     logger.info("Target price reached.")
 
-    last_filled_quantity = order_update.last_filled_quantity
-
-    position.current_position.take_profit_order.quantity -= last_filled_quantity
-    position.current_position.take_profit_order.realized_quantity += (
-        last_filled_quantity
+    position.current_position.take_profit_order.quantity -= (
+        order_update.last_filled_quantity
     )
-    position.current_position.quantity -= last_filled_quantity
+    position.current_position.take_profit_order.realized_quantity += (
+        order_update.last_filled_quantity
+    )
+    position.current_position.quantity -= order_update.last_filled_quantity
 
     logger.info(
         "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
         order_update.quantity,
-        last_filled_quantity,
+        order_update.last_filled_quantity,
         order_update.realized_quantity,
         position.current_position.take_profit_order.quantity,
     )
@@ -66,7 +66,7 @@ async def target_reached(
     saldo = position.saldo
     position.saldo += round(
         abs(
-            last_filled_quantity
+            order_update.last_filled_quantity
             * (
                 position.current_position.take_profit_order.price
                 - position.current_position.price
@@ -142,13 +142,20 @@ async def order_handle(
             )
 
     elif order_update.price == position.current_position.target_price:
-        # ToDo: handle when filled partially, there was a test I think, wtf?
-        if order_update.status != binance.AsyncClient.ORDER_STATUS_NEW:
+        if order_update.status in [
+            binance.AsyncClient.ORDER_STATUS_FILLED,
+            binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
+        ]:
             position = await target_reached(
                 client=client, position=position, order_update=order_update
             )
-        else:
+        if order_update.status == binance.AsyncClient.ORDER_STATUS_NEW:
             logger.info("New take profit order created, id: %s", order_update.order_id)
+        if order_update.status == binance.AsyncClient.ORDER_STATUS_CANCELED:
+            logger.info("Cancelled take profit order: %s", order_update.order_id)
+        if order_update.status == binance.AsyncClient.ORDER_STATUS_EXPIRED:
+            logger.info("Expired take profit order: %s", order_update.order_id)
+
     else:
         position = await order_update_handle(
             client=client,

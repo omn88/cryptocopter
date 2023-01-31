@@ -236,7 +236,10 @@ async def send_orders(
         task = asyncio.create_task(send_order(client, symbol, side, order))
         tasks.append(task)
     results = await asyncio.gather(*tasks)
-    return list(results)
+
+    orders = list(results)
+
+    return orders
 
 
 def target_price_calculate(side: str, price: float, leverage: int) -> float:
@@ -429,13 +432,76 @@ async def futures_short_position_open(
     return position
 
 
+#
+#
+# def calculate_long_position(position: Position, sell_price: float) -> Position:
+#     sell_price = round(float(sell_price), 2)
+#     net = round((sell_price - position.current_position.price), 2)
+#     net_percent = round((sell_price / position.current_position.price - 1), 4)
+#     logger.info(
+#         "Long closed. Price: %s, quantity: %s, it's: %s USDT and %s percent"
+#         % (sell_price, position.current_position.quantity, net, 100 * net_percent)
+#     )
+#     real_earn = round(position.current_position.quantity * net, 2)
+#     position.calculated_saldo = position.saldo + real_earn
+#
+#     logger.info(
+#         "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
+#         % (
+#             position.current_position.quantity,
+#             position.leverage,
+#             real_earn,
+#             position.saldo,
+#         )
+#     )
+#
+#     position.status = position.status.FLAT
+#     position.current_position = CurrentPosition()
+#     position.orders = []
+#
+#     logger.info("SALDO: %s", position.saldo)
+#
+#     return position
+
+
+# def calculate_short_position(buy_price: float, position: Position) -> Position:
+#     buy_price = round(float(buy_price), 1)
+#
+#     net = round((position.current_position.price - buy_price), 2)
+#     net_percent = round((position.current_position.price / buy_price - 1), 4)
+#     logger.info(
+#         "Buy price: %s, it's: %s USDT and %s percent"
+#         % (buy_price, net, 100 * net_percent)
+#     )
+#
+#     real_earn = round(position.current_position.quantity * net, 2)
+#     position.calculated_saldo = round(position.saldo + real_earn, 2)
+#
+#     logger.info(
+#         "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
+#         % (
+#             position.current_position.quantity,
+#             position.leverage,
+#             real_earn,
+#             position.saldo,
+#         )
+#     )
+#
+#     position.status = position.status.FLAT
+#     position.current_position = CurrentPosition()
+#     position.orders = []
+#
+#     logger.info("SALDO: %s", position.saldo)
+#
+#     return position
+
+
 async def futures_long_position_close(
     client: binance.AsyncClient, position: Position
 ) -> Position:
     logger.info("Entering long position close")
 
     if position.current_position.take_profit_order is not None:
-        logger.info("Trying to market sell")
         resp = None
         try:
             resp = await client.futures_create_order(
@@ -443,30 +509,15 @@ async def futures_long_position_close(
                 side=client.SIDE_SELL,
                 quantity=abs(position.current_position.quantity),
                 type=client.FUTURE_ORDER_TYPE_MARKET,
-                close_position=True,
+            )
+            logger.info(
+                "%s order, type: %s send: %s",
+                client.SIDE_SELL,
+                client.FUTURE_ORDER_TYPE_MARKET,
+                resp,
             )
         except BinanceAPIException as exception:
             logger.info("exception: %s", exception)
-
-        sell_price = round(float(resp["price"]), 2)
-        net = round((sell_price - position.current_position.price), 2)
-        net_percent = round((sell_price / position.current_position.price - 1), 4)
-        logger.info(
-            "Long closed. Price: %s, quantity: %s, it's: %s USDT and %s percent"
-            % (sell_price, position.current_position.quantity, net, 100 * net_percent)
-        )
-        real_earn = round(position.current_position.quantity * net, 2)
-        position.calculated_saldo = position.saldo + real_earn
-
-        logger.info(
-            "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
-            % (
-                position.current_position.quantity,
-                position.leverage,
-                real_earn,
-                position.saldo,
-            )
-        )
 
         position.current_position.take_profit_order.status = await cancel_order(
             client=client,
@@ -476,12 +527,6 @@ async def futures_long_position_close(
         logger.info("Cancelled take profit order")
 
     await cancel_remaining_limit_orders(client, position=position)
-
-    position.status = position.status.FLAT
-    position.current_position = CurrentPosition()
-    position.orders = []
-
-    logger.info("SALDO: %s", position.saldo)
 
     logger.info("Exiting long position close")
     return position
@@ -519,30 +564,12 @@ async def futures_short_position_close(
             side=client.SIDE_BUY,
             quantity=abs(position.current_position.quantity),
             type=client.FUTURE_ORDER_TYPE_MARKET,
-            close_position=True,
         )
-        logger.info("Short closed, resp %s" % resp)
-
-        buy_price = round(float(resp["price"]), 1)
-
-        net = round((position.current_position.price - buy_price), 2)
-        net_percent = round((position.current_position.price / buy_price - 1), 4)
         logger.info(
-            "Buy price: %s, it's: %s USDT and %s percent"
-            % (buy_price, net, 100 * net_percent)
-        )
-
-        real_earn = round(position.current_position.quantity * net, 2)
-        position.calculated_saldo = round(position.saldo + real_earn, 2)
-
-        logger.info(
-            "Summary: quantity: %s, leverage: %s, earned: %s, new saldo is: %s"
-            % (
-                position.current_position.quantity,
-                position.leverage,
-                real_earn,
-                position.saldo,
-            )
+            "%s order, type: %s send: %s",
+            client.SIDE_BUY,
+            client.FUTURE_ORDER_TYPE_MARKET,
+            resp,
         )
 
         logger.info("Cancelling take profit order")
@@ -554,10 +581,6 @@ async def futures_short_position_close(
 
     position = await cancel_remaining_limit_orders(client=client, position=position)
 
-    position.status = position.status.FLAT
-
-    position.current_position = CurrentPosition()
-    position.orders = []
     logger.info("Exiting short position close")
     return position
 

@@ -4,11 +4,14 @@ from typing import List
 from pprint import pformat
 import binance
 import pandas
+from binance.exceptions import BinanceAPIException
+
 from src import orders
 from src.common import print_last_n_rows
 from src.orders import (
     Position,
     Order,
+    PositionSide,
 )
 from src.producers import producers
 from src.producers.producers import (
@@ -39,7 +42,7 @@ async def validate_order(
         updated_status,
     )
 
-    if updated_status != order.status or realized_quantity != order.realized_quantity:
+    if updated_status != client.ORDER_STATUS_NEW:
         order_update = OrderUpdate(
             price=round(float(resp["price"]), 1),
             quantity=round(float(resp["origQty"]), 3),
@@ -48,6 +51,7 @@ async def validate_order(
             order_id=int(resp["orderId"]),
             last_filled_quantity=0,
         )
+
         await queue.put(Event(name=EventName.ORDER, content=order_update))
         logger.info("Order trade update msg: %s", resp)
 
@@ -67,7 +71,6 @@ async def validate_open_orders(
     logger.info("Enter order validation")
 
     # ToDo: Add take profit order
-
     for order in position.orders:
         await validate_order(
             client=client, symbol=position.symbol, order=order, queue=queue
@@ -90,6 +93,7 @@ async def worker(
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
+
         event = await queue.get()
         assert isinstance(event, producers.Event)
         logger.info("New event from queue: %s", event)
@@ -135,6 +139,5 @@ async def worker(
             #     )
             return historical_data, df, position
 
-        await validate_open_orders(client=client, position=position, queue=queue)
         logger.info("Task Done: %s", event.content)
         queue.task_done()
