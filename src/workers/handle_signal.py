@@ -7,7 +7,8 @@ from src import features, orders
 
 import logging
 
-from src.orders import PositionMode
+from src.features import Signals
+from src.orders import PositionMode, CurrentPosition
 from src.producers.producers import SignalUpdate
 
 logger = logging.getLogger("handle_signal")
@@ -273,6 +274,10 @@ async def when_long_special(
             client=client, position=position
         )
 
+        position.current_position = CurrentPosition()
+        position.orders = []
+        position.status = Signals.FLAT
+
     df.at[df.index[-1], "position"] = position.status
 
     return position
@@ -297,6 +302,10 @@ async def when_short_special(
         position = await orders.futures_short_position_close(
             client=client, position=position
         )
+
+        position.current_position = CurrentPosition()
+        position.orders = []
+        position.status = Signals.FLAT
 
     df.at[df.index[-1], "position"] = position.status
 

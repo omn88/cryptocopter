@@ -13,21 +13,30 @@ from src.producers.producers import OrderUpdate
 logger = logging.getLogger("handle_order")
 
 
-async def position_liquidation(
+async def cancel_take_profit_order(
     client: binance.AsyncClient, position: Position
-) -> Position:
-    logger.info("Position liquidation")
-
-    logger.info(
-        "Cancelling take profit order: %s",
-        position.current_position.take_profit_order.order_id,
-    )
+) -> str:
     position.current_position.take_profit_order.status = await cancel_order(
         client=client,
         order=position.current_position.take_profit_order,
         symbol=position.symbol,
     )
+    logger.info(
+        "Take profit order: %s, status: %s",
+        position.current_position.take_profit_order.order_id,
+        position.current_position.take_profit_order.status,
+    )
 
+    return position.current_position.take_profit_order.status
+
+
+async def position_liquidation(
+    client: binance.AsyncClient, position: Position
+) -> Position:
+    logger.info("Position liquidation")
+
+    # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
+    status = await cancel_take_profit_order(client=client, position=position)
     loss = 0
     for order in position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
@@ -138,6 +147,25 @@ async def order_handle(
         else:
             logger.info(
                 "Position liquidation in progress, order status: %s!",
+                order_update.status,
+            )
+
+    elif order_update.order_type == "MARKET":
+        if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
+            logger.info("MARKET order filled!")
+            position.current_position.take_profit_order.status = (
+                cancel_take_profit_order(client=client, position=position)
+            )
+            position = await cancel_remaining_limit_orders(
+                client=client, position=position
+            )
+
+            position.current_position = CurrentPosition()
+            position.orders = []
+            position.status = Signals.FLAT
+        else:
+            logger.info(
+                "Market order realization in progress, order status: %s!",
                 order_update.status,
             )
 
