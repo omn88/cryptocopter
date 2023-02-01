@@ -1,4 +1,5 @@
 import asyncio
+import signal
 import os
 import shutil
 import logging_config  # noinspection PyUnresolvedReferences
@@ -10,6 +11,7 @@ from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
 from src.common import create_directory_with_timestamp, insert_to_pandas
+from src.orders import close_position
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -22,7 +24,38 @@ import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
+async def shutdown(
+    client: binance.AsyncClient, signal: signal, position: orders.Position, loop
+):
+    """Cleanup tasks tied to the service's shutdown."""
+    logging.info("Received exit signal %s...", signal.name)
+    logging.info("Nacking outstanding messages")
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+
+    [task.cancel() for task in tasks]
+
+    logging.info(f"Cancelling {len(tasks)} outstanding tasks")
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    position = await close_position(client=client, position=position)
+
+    await client.close_connection()
+    logging.info(f"Flushing metrics")
+    loop.stop()
+
+
 async def main():
+
+    loop = asyncio.get_event_loop()
+    # May want to catch other signals too
+    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+    for s in signals:
+        loop.add_signal_handler(
+            s,
+            lambda s=s: asyncio.create_task(
+                shutdown(client=client, signal=s, loop=loop)
+            ),
+        )
 
     logger.info("RSI Based Futures: Start")
     symbol = "BTCUSDT"

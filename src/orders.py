@@ -494,29 +494,40 @@ async def futures_short_position_open(
 #     return position
 
 
-async def futures_long_position_close(
-    client: binance.AsyncClient, position: Position
-) -> Position:
-    logger.info("Entering long position close")
+async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
+    resp = None
+    try:
+        resp = await client.futures_create_order(
+            symbol=position.symbol,
+            side=side,
+            quantity=abs(position.current_position.quantity),
+            type=client.FUTURE_ORDER_TYPE_MARKET,
+        )
+        logger.info(
+            "%s order, type: %s send: %s",
+            side,
+            client.FUTURE_ORDER_TYPE_MARKET,
+            resp,
+        )
+    except BinanceAPIException as exception:
+        logger.info("exception: %s", exception)
+
+
+async def close_position(client: binance.AsyncClient, position: Position):
+
+    logger.info(
+        "Entering position close, trying to Market %s", position.current_position.side
+    )
 
     if position.current_position.take_profit_order is not None:
-        resp = None
-        try:
-            resp = await client.futures_create_order(
-                symbol=position.symbol,
-                side=client.SIDE_SELL,
-                quantity=abs(position.current_position.quantity),
-                type=client.FUTURE_ORDER_TYPE_MARKET,
-            )
-            logger.info(
-                "%s order, type: %s send: %s",
-                client.SIDE_SELL,
-                client.FUTURE_ORDER_TYPE_MARKET,
-                resp,
-            )
-        except BinanceAPIException as exception:
-            logger.info("exception: %s", exception)
 
+        await send_market_order(
+            client=client,
+            position=position,
+            side=client.SIDE_BUY
+            if position.current_position.side == client.SIDE_SELL
+            else client.SIDE_SELL,
+        )
         position.current_position.take_profit_order.status = await cancel_order(
             client=client,
             order=position.current_position.take_profit_order,
@@ -526,7 +537,7 @@ async def futures_long_position_close(
 
     await cancel_remaining_limit_orders(client, position=position)
 
-    logger.info("Exiting long position close")
+    logger.info("Exiting position close")
     return position
 
 
@@ -548,38 +559,6 @@ async def cancel_remaining_limit_orders(
                 order.status,
             )
 
-    return position
-
-
-async def futures_short_position_close(
-    client: binance.AsyncClient, position: Position
-) -> Position:
-    logger.info("Entering short position close")
-
-    if position.current_position.take_profit_order is not None:
-        resp = await client.futures_create_order(
-            symbol=position.symbol,
-            side=client.SIDE_BUY,
-            quantity=abs(position.current_position.quantity),
-            type=client.FUTURE_ORDER_TYPE_MARKET,
-        )
-        logger.info(
-            "%s order, type: %s send: %s",
-            client.SIDE_BUY,
-            client.FUTURE_ORDER_TYPE_MARKET,
-            resp,
-        )
-
-        logger.info("Cancelling take profit order")
-        position.current_position.take_profit_order.status = await cancel_order(
-            client=client,
-            symbol=position.symbol,
-            order=position.current_position.take_profit_order,
-        )
-
-    position = await cancel_remaining_limit_orders(client=client, position=position)
-
-    logger.info("Exiting short position close")
     return position
 
 
