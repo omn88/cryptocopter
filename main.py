@@ -25,23 +25,20 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 async def shutdown(
-    client: binance.AsyncClient, signal: signal, position: orders.Position, loop
+    client: binance.AsyncClient, signal: signal, position: orders.Position
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", signal.name)
+
+    position = await close_position(client=client, position=position)
+
     logging.info("Nacking outstanding messages")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
 
     [task.cancel() for task in tasks]
 
-    logging.info(f"Cancelling {len(tasks)} outstanding tasks")
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-    position = await close_position(client=client, position=position)
-
-    await client.close_connection()
     logging.info(f"Flushing metrics")
-    loop.stop()
+    await client.close_connection()
 
 
 async def main():
@@ -53,7 +50,7 @@ async def main():
         loop.add_signal_handler(
             s,
             lambda s=s: asyncio.create_task(
-                shutdown(client=client, signal=s, loop=loop)
+                shutdown(client=client, signal=s, position=position)
             ),
         )
 
@@ -129,8 +126,8 @@ async def main():
         )
     ]
 
-    await asyncio.gather(*producers)
-    await asyncio.gather(*workers)
+    await asyncio.gather(*producers, return_exceptions=True)
+    await asyncio.gather(*workers, return_exceptions=True)
 
     # try:
     #     await asyncio.gather(*producers)
@@ -151,4 +148,9 @@ if __name__ == "__main__":
     # artifacts_dir = create_directory_with_timestamp()
     logger = logging.getLogger("main")
 
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except asyncio.exceptions.CancelledError:
+        # loop = asyncio.get_event_loop()
+        logging.info("Strategy cancelled")
+        # loop.close()

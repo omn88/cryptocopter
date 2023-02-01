@@ -515,11 +515,11 @@ async def send_market_order(client: binance.AsyncClient, position: Position, sid
 
 async def close_position(client: binance.AsyncClient, position: Position):
 
-    logger.info(
-        "Entering position close, trying to Market %s", position.current_position.side
-    )
-
     if position.current_position.take_profit_order is not None:
+        logger.info(
+            "Entering position close, trying to Market %s",
+            position.current_position.side,
+        )
 
         await send_market_order(
             client=client,
