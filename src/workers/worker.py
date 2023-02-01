@@ -42,7 +42,7 @@ async def validate_order(
         updated_status,
     )
 
-    if updated_status != client.ORDER_STATUS_NEW:
+    if updated_status != order.status or realized_quantity != order.realized_quantity:
         order_update = OrderUpdate(
             price=round(float(resp["price"]), 1),
             quantity=round(float(resp["origQty"]), 3),
@@ -53,7 +53,13 @@ async def validate_order(
         )
 
         await queue.put(Event(name=EventName.ORDER, content=order_update))
-        logger.info("Order trade update msg: %s", resp)
+        logger.info(
+            "Validation discrepancy status: %s -> %s, realized qty: %s -> %s",
+            order.status,
+            updated_status,
+            order.realized_quantity,
+            realized_quantity,
+        )
 
 
 async def validate_open_orders(
@@ -139,6 +145,10 @@ async def worker(
             #     )
             return historical_data, df, position
 
-        await validate_open_orders(client=client, position=position, queue=queue)
+        if event.name == EventName.ORDER and event.content.status in [
+            client.ORDER_STATUS_FILLED,
+            client.ORDER_STATUS_PARTIALLY_FILLED,
+        ]:
+            await validate_open_orders(client=client, position=position, queue=queue)
         logger.info("Task Done: %s", event.content)
         queue.task_done()
