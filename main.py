@@ -1,4 +1,5 @@
 import asyncio
+import signal
 import os
 import shutil
 import logging_config  # noinspection PyUnresolvedReferences
@@ -10,6 +11,7 @@ from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
 from src.common import create_directory_with_timestamp, insert_to_pandas
+from src.orders import close_position
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -22,7 +24,35 @@ import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
+async def shutdown(
+    client: binance.AsyncClient, signal: signal, position: orders.Position
+):
+    """Cleanup tasks tied to the service's shutdown."""
+    logging.info("Received exit signal %s...", signal.name)
+
+    position = await close_position(client=client, position=position)
+
+    logging.info("Nacking outstanding messages")
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+
+    [task.cancel() for task in tasks]
+
+    logging.info(f"Flushing metrics")
+    await client.close_connection()
+
+
 async def main():
+
+    loop = asyncio.get_event_loop()
+    # May want to catch other signals too
+    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+    for s in signals:
+        loop.add_signal_handler(
+            s,
+            lambda s=s: asyncio.create_task(
+                shutdown(client=client, signal=s, position=position)
+            ),
+        )
 
     logger.info("RSI Based Futures: Start")
     symbol = "BTCUSDT"
@@ -96,8 +126,8 @@ async def main():
         )
     ]
 
-    await asyncio.gather(*producers)
-    await asyncio.gather(*workers)
+    await asyncio.gather(*producers, return_exceptions=True)
+    await asyncio.gather(*workers, return_exceptions=True)
 
     # try:
     #     await asyncio.gather(*producers)
@@ -118,4 +148,9 @@ if __name__ == "__main__":
     # artifacts_dir = create_directory_with_timestamp()
     logger = logging.getLogger("main")
 
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except asyncio.exceptions.CancelledError:
+        # loop = asyncio.get_event_loop()
+        logging.info("Strategy cancelled")
+        # loop.close()
