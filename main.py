@@ -6,12 +6,11 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
-import yaml
 from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
 from src.common import create_directory_with_timestamp, insert_to_pandas
-from src.orders import close_position
+from src.orders import futures_position_close
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -30,7 +29,7 @@ async def shutdown(
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", signal.name)
 
-    position = await close_position(client=client, position=position)
+    position = await futures_position_close(client=client, position=position)
 
     logging.info("Nacking outstanding messages")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
