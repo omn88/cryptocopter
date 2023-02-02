@@ -36,6 +36,7 @@ async def signal_handle(
     signal = signal_update.signal
     price = signal_update.price
 
+    # OPEN LONG POSITION
     if position.status == features.Signals.FLAT and signal in [
         features.Signals.LONG,
         features.Signals.LONG_20,
@@ -51,6 +52,7 @@ async def signal_handle(
         df.at[df.index[-1], "position"] = signal
         await log_signal_change(df=df, signal=signal)
 
+    # OPEN SHORT POSITION
     if position.status == features.Signals.FLAT and signal in [
         features.Signals.SHORT,
         features.Signals.SHORT_80,
@@ -64,8 +66,8 @@ async def signal_handle(
             side=PositionSide.SHORT,
         )
         df.at[df.index[-1], "position"] = signal
-        await log_signal_change(df=df, signal=signal)
 
+    # SKIP SIGNAL
     if (
         (
             position.status == features.Signals.LONG
@@ -86,8 +88,8 @@ async def signal_handle(
     ):
         logger.info("Skipping signal: %s", signal)
         df.at[df.index[-1], "position"] = position.status
-        await log_signal_change(df=df, signal=signal)
 
+    # CHANGE STATUS (ONLY FOR LONG_20 and SHORT_80)
     if (
         position.status == features.Signals.LONG_20 and signal == features.Signals.LONG
     ) or (
@@ -97,8 +99,8 @@ async def signal_handle(
         logger.info("Status change from %s to %s", position.status, signal)
         position.status = signal
         df.at[df.index[-1], "position"] = position.status
-        await log_signal_change(df=df, signal=signal)
 
+    # SWITCH FROM LONG TO SHORT
     if (
         position.status == features.Signals.LONG
         and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
@@ -110,7 +112,6 @@ async def signal_handle(
         position = await orders.futures_position_close(client=client, position=position)
 
         df.at[df.index[-1], "position"] = signal
-        await log_signal_change(df=df, signal=signal)
         logger.info("Long closed, opening DCA Short")
         position = await orders.futures_position_open(
             client=client,
@@ -120,6 +121,7 @@ async def signal_handle(
             side=PositionSide.SHORT,
         )
 
+    # START SPECIAL SHORT
     if (
         position.status == features.Signals.LONG
         and signal == features.Signals.SHORT_SPECIAL
@@ -128,7 +130,6 @@ async def signal_handle(
         position = await orders.futures_position_close(client=client, position=position)
 
         df.at[df.index[-1], "position"] = position.status
-        await log_signal_change(df=df, signal=signal)
         logger.info("Long closed, opening FULL Short")
         position = await orders.futures_position_open(
             client=client,
@@ -141,6 +142,7 @@ async def signal_handle(
 
         df.at[df.index[-1], "position"] = position.status
 
+    # SWITCH FROM SHORT TO LONG
     if (
         position.status == features.Signals.SHORT
         and signal
@@ -165,14 +167,13 @@ async def signal_handle(
             side=PositionSide.LONG,
         )
 
+    # OPEN SPECIAL LONG
     if (
         position.status == features.Signals.SHORT
         and signal == features.Signals.LONG_SPECIAL
     ):
         logger.info("Opening Special Long")
         position = await orders.futures_position_close(client=client, position=position)
-
-        await log_signal_change(df=df, signal=signal)
 
         logger.info("Short closed, opening FULL Long")
         position = await orders.futures_position_open(
@@ -185,6 +186,7 @@ async def signal_handle(
         )
         df.at[df.index[-1], "position"] = position.status
 
+    # CLOSE SPECIAL LONG
     if position.status in [
         features.Signals.SHORT_SPECIAL,
         features.Signals.LONG_SPECIAL,
@@ -208,6 +210,8 @@ async def signal_handle(
             position.status = Signals.FLAT
 
         df.at[df.index[-1], "position"] = position.status
+
+    await log_signal_change(df=df, signal=signal)
 
     logger.info("Exiting signal handle")
     return df, position
