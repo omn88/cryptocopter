@@ -23,6 +23,122 @@ async def log_signal_change(df, signal):
     )
 
 
+def conditions_for_opening_long(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return status == features.Signals.FLAT and signal in [
+        features.Signals.LONG,
+        features.Signals.LONG_20,
+    ]
+
+
+def conditions_for_opening_short(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return status == features.Signals.FLAT and signal in [
+        features.Signals.SHORT,
+        features.Signals.SHORT_80,
+    ]
+
+
+def conditions_for_skipping_signal(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return (
+        (
+            status == features.Signals.LONG
+            and signal in [features.Signals.LONG, features.Signals.LONG_20]
+        )
+        or (status == features.Signals.LONG_20 and signal == features.Signals.LONG_20)
+        or (
+            status == features.Signals.SHORT
+            and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
+        )
+        or (status == features.Signals.SHORT_80 and signal == features.Signals.SHORT_80)
+        or (
+            status == features.Signals.SHORT_SPECIAL
+            and signal
+            in [
+                features.Signals.LONG,
+                features.Signals.LONG_20,
+                features.Signals.SHORT,
+                features.Signals.SHORT_80,
+            ]
+        )
+        or (
+            status == features.Signals.LONG_SPECIAL
+            and signal
+            in [
+                features.Signals.LONG,
+                features.Signals.LONG_20,
+                features.Signals.SHORT,
+                features.Signals.SHORT_80,
+            ]
+        )
+    )
+
+
+def conditions_for_changing_status(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return (status == features.Signals.LONG_20 and signal == features.Signals.LONG) or (
+        status == features.Signals.SHORT_80 and signal == features.Signals.SHORT
+    )
+
+
+def conditions_for_switch_from_long_to_short(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return (
+        status == features.Signals.LONG
+        and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
+    ) or (
+        status == features.Signals.LONG_20
+        and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
+    )
+
+
+def conditions_for_switch_from_short_to_long(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return (
+        status == features.Signals.SHORT
+        and signal
+        in [
+            features.Signals.LONG,
+            features.Signals.LONG_20,
+        ]
+    ) or (
+        status == features.Signals.SHORT_80
+        and signal in [features.Signals.LONG, features.Signals.LONG_20]
+    )
+
+
+def conditions_for_special_long(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return status == features.Signals.SHORT and signal == features.Signals.LONG_SPECIAL
+
+
+def conditions_for_special_short(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return status == features.Signals.LONG and signal == features.Signals.SHORT_SPECIAL
+
+
+def condition_to_close_special_position(
+    status: features.Signals, signal: features.Signals
+) -> bool:
+    return (
+        status
+        in [
+            features.Signals.SHORT_SPECIAL,
+            features.Signals.LONG_SPECIAL,
+        ]
+        and signal == features.Signals.CLOSE_SPECIAL
+    )
+
+
 async def signal_handle(
     client: binance.AsyncClient,
     df: pandas.DataFrame,
@@ -36,11 +152,7 @@ async def signal_handle(
     signal = signal_update.signal
     price = signal_update.price
 
-    # OPEN LONG POSITION
-    if position.status == features.Signals.FLAT and signal in [
-        features.Signals.LONG,
-        features.Signals.LONG_20,
-    ]:
+    if conditions_for_opening_long(status=position.status, signal=signal):
         logger.info("Opening Long")
         position = await orders.futures_position_open(
             client=client,
@@ -50,13 +162,8 @@ async def signal_handle(
             side=PositionSide.LONG,
         )
         df.at[df.index[-1], "position"] = signal
-        await log_signal_change(df=df, signal=signal)
 
-    # OPEN SHORT POSITION
-    if position.status == features.Signals.FLAT and signal in [
-        features.Signals.SHORT,
-        features.Signals.SHORT_80,
-    ]:
+    if conditions_for_opening_short(status=position.status, signal=signal):
         logger.info("Opening short")
         position = await orders.futures_position_open(
             client=client,
@@ -67,51 +174,20 @@ async def signal_handle(
         )
         df.at[df.index[-1], "position"] = signal
 
-    # SKIP SIGNAL
-    if (
-        (
-            position.status == features.Signals.LONG
-            and signal in [features.Signals.LONG, features.Signals.LONG_20]
-        )
-        or (
-            position.status == features.Signals.LONG_20
-            and signal == features.Signals.LONG_20
-        )
-        or (
-            position.status == features.Signals.SHORT
-            and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
-        )
-        or (
-            position.status == features.Signals.SHORT_80
-            and signal == features.Signals.SHORT_80
-        )
-    ):
+    if conditions_for_skipping_signal(status=position.status, signal=signal):
         logger.info("Skipping signal: %s", signal)
         df.at[df.index[-1], "position"] = position.status
 
     # CHANGE STATUS (ONLY FOR LONG_20 and SHORT_80)
-    if (
-        position.status == features.Signals.LONG_20 and signal == features.Signals.LONG
-    ) or (
-        position.status == features.Signals.SHORT_80
-        and signal == features.Signals.SHORT
-    ):
+    if conditions_for_changing_status(status=position.status, signal=signal):
         logger.info("Status change from %s to %s", position.status, signal)
         position.status = signal
         df.at[df.index[-1], "position"] = position.status
 
-    # SWITCH FROM LONG TO SHORT
-    if (
-        position.status == features.Signals.LONG
-        and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
-    ) or (
-        position.status == features.Signals.LONG_20
-        and signal in [features.Signals.SHORT, features.Signals.SHORT_80]
-    ):
+    if conditions_for_switch_from_long_to_short(status=position.status, signal=signal):
         logger.info("Switch from Long to Short")
         position = await orders.futures_position_close(client=client, position=position)
 
-        df.at[df.index[-1], "position"] = signal
         logger.info("Long closed, opening DCA Short")
         position = await orders.futures_position_open(
             client=client,
@@ -120,12 +196,10 @@ async def signal_handle(
             signal=signal,
             side=PositionSide.SHORT,
         )
+        df.at[df.index[-1], "position"] = signal
 
     # START SPECIAL SHORT
-    if (
-        position.status == features.Signals.LONG
-        and signal == features.Signals.SHORT_SPECIAL
-    ):
+    if conditions_for_special_short(status=position.status, signal=signal):
         logger.info("Start special short")
         position = await orders.futures_position_close(client=client, position=position)
 
@@ -143,17 +217,7 @@ async def signal_handle(
         df.at[df.index[-1], "position"] = position.status
 
     # SWITCH FROM SHORT TO LONG
-    if (
-        position.status == features.Signals.SHORT
-        and signal
-        in [
-            features.Signals.LONG,
-            features.Signals.LONG_20,
-        ]
-    ) or (
-        position.status == features.Signals.SHORT_80
-        and signal in [features.Signals.LONG, features.Signals.LONG_20]
-    ):
+    if conditions_for_switch_from_short_to_long(status=position.status, signal=signal):
         logger.info("Switch from Short to Long")
         position = await orders.futures_position_close(client=client, position=position)
         df.at[df.index[-1], "position"] = signal
@@ -168,10 +232,7 @@ async def signal_handle(
         )
 
     # OPEN SPECIAL LONG
-    if (
-        position.status == features.Signals.SHORT
-        and signal == features.Signals.LONG_SPECIAL
-    ):
+    if conditions_for_special_long(status=position.status, signal=signal):
         logger.info("Opening Special Long")
         position = await orders.futures_position_close(client=client, position=position)
 
@@ -186,28 +247,14 @@ async def signal_handle(
         )
         df.at[df.index[-1], "position"] = position.status
 
-    # CLOSE SPECIAL LONG
-    if position.status in [
-        features.Signals.SHORT_SPECIAL,
-        features.Signals.LONG_SPECIAL,
-    ]:
-        if signal in [
-            features.Signals.LONG,
-            features.Signals.LONG_20,
-            features.Signals.SHORT,
-            features.Signals.SHORT_80,
-        ]:
-            logger.info("Special %s, signal: %s, fock it", position.status, signal)
+    if condition_to_close_special_position(status=position.status, signal=signal):
 
-        if signal == features.Signals.CLOSE_SPECIAL:
-            logger.info("Got signal: %s", signal)
-            position = await orders.futures_position_close(
-                client=client, position=position
-            )
+        logger.info("Got signal: %s", signal)
+        position = await orders.futures_position_close(client=client, position=position)
 
-            position.current_position = CurrentPosition()
-            position.orders = []
-            position.status = Signals.FLAT
+        position.current_position = CurrentPosition()
+        position.orders = []
+        position.status = Signals.FLAT
 
         df.at[df.index[-1], "position"] = position.status
 
