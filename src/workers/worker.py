@@ -51,8 +51,8 @@ async def worker(
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            position = await order_handle(
-                client=client, position=position, order_update=event.content
+            position, df = await order_handle(
+                client=client, position=position, order_update=event.content, df=df
             )
 
         elif producers.EventName.ACCOUNT == event.name:

@@ -115,8 +115,11 @@ async def first_order_filled(base, entry_price: float) -> Position:
         realized_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=base.position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -149,8 +152,11 @@ async def second_order_filled(base: pandas.DataFrame, position: Position) -> Pos
         order_id=2,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -185,8 +191,11 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=3,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -214,8 +223,11 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=4,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -258,8 +270,11 @@ async def target_reached(base, position: Position):
         order_id=5,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -352,8 +367,11 @@ async def test_long_first_order_filled_partially(
         realized_quantity=realized_quantity,
     )
 
-    base.position = await order_handle(
-        client=base.client, position=base.position, order_update=order_update
+    base.position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     for order in base.position.orders:
@@ -401,8 +419,11 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -426,8 +447,11 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -493,8 +517,11 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_NEW
@@ -531,8 +558,11 @@ async def test_long_first_order_expired(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
@@ -569,8 +599,11 @@ async def test_long_first_order_canceled(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_CANCELED
@@ -699,8 +732,11 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -766,8 +802,11 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     try:
@@ -799,8 +838,11 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=7,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -852,8 +894,11 @@ async def test_long_all_orders_filled_then_liquidation(
         last_filled_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -913,8 +958,11 @@ async def test_short_first_order_filled_partially(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -957,8 +1005,11 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -981,8 +1032,11 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -1034,8 +1088,11 @@ async def test_short_first_order_new(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_NEW
@@ -1059,8 +1116,11 @@ async def test_short_first_order_expired(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
@@ -1084,8 +1144,11 @@ async def test_short_first_order_canceled(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_CANCELED
@@ -1168,8 +1231,11 @@ async def test_short_all_orders_filled_then_target_reached(
         realized_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -1227,8 +1293,11 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -1297,8 +1366,11 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     for order in position.orders:
@@ -1332,8 +1404,11 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=7,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -1385,8 +1460,11 @@ async def test_short_all_orders_filled_then_liquidation(
         order_type="LIQUIDATION",
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
