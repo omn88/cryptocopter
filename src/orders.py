@@ -413,7 +413,7 @@ async def send_market_order(client: binance.AsyncClient, position: Position, sid
         logger.info("exception: %s", exception)
 
 
-async def close_position(client: binance.AsyncClient, position: Position):
+async def futures_position_close(client: binance.AsyncClient, position: Position):
 
     if position.current_position.take_profit_order is not None:
         logger.info(
