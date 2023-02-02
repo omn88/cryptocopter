@@ -360,16 +360,17 @@ def prepare_orders(
     return orders, saldo
 
 
-async def futures_long_position_open(
+async def futures_position_open(
     client: binance.AsyncClient,
     signal: features.Signals,
     position: Position,
     entry_price: float,
+    side: str,
     mode: PositionMode = PositionMode.DCA,
-) -> Position:
-    logger.info("Entering long position open, mode: %s", mode)
-    position.current_position = CurrentPosition(side=PositionSide.LONG)
+):
+    logger.info("Entering %s position open, mode: %s", side, mode)
 
+    position.current_position = CurrentPosition(side=side)
     position.status = signal
 
     position.orders, position.saldo = prepare_orders(
@@ -386,46 +387,79 @@ async def futures_long_position_open(
         client=client,
         orders=position.orders,
         symbol=position.symbol,
-        side=client.SIDE_BUY,
+        side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
     )
 
-    logger.info("Exiting long position open, opened orders: %s", position.orders)
+    logger.info("Exiting %s position open, opened orders: %s", side, position.orders)
     return position
 
 
-async def futures_short_position_open(
-    client: binance.AsyncClient,
-    position: Position,
-    entry_price: float,
-    signal: features.Signals,
-    number_of_dca_orders: int = 4,
-    mode: PositionMode = PositionMode.DCA,
-) -> Position:
-    logger.info("Entering short position open, mode: %s", mode)
-
-    position.current_position = CurrentPosition(side=PositionSide.SHORT)
-
-    position.status = signal
-
-    position.orders, position.saldo = prepare_orders(
-        side=position.current_position.side,
-        mode=mode,
-        entry_price=entry_price,
-        saldo=position.saldo,
-        number_of_dca_orders=number_of_dca_orders,
-        leverage=position.leverage,
-        order_quantity_list=position.order_quantity_list,
-    )
-
-    position.orders = await send_orders(
-        client=client,
-        orders=position.orders,
-        symbol=position.symbol,
-        side=client.SIDE_SELL,
-    )
-
-    logger.info("Exiting short position open, opened orders: %s", position.orders)
-    return position
+# async def futures_long_position_open(
+#     client: binance.AsyncClient,
+#     signal: features.Signals,
+#     position: Position,
+#     entry_price: float,
+#     mode: PositionMode = PositionMode.DCA,
+# ) -> Position:
+#     logger.info("Entering long position open, mode: %s", mode)
+#     position.current_position = CurrentPosition(side=PositionSide.LONG)
+#
+#     position.status = signal
+#
+#     position.orders, position.saldo = prepare_orders(
+#         side=position.current_position.side,
+#         mode=mode,
+#         entry_price=entry_price,
+#         saldo=position.saldo,
+#         number_of_dca_orders=position.number_of_dca_orders,
+#         leverage=position.leverage,
+#         order_quantity_list=position.order_quantity_list,
+#     )
+#
+#     position.orders = await send_orders(
+#         client=client,
+#         orders=position.orders,
+#         symbol=position.symbol,
+#         side=client.SIDE_BUY,
+#     )
+#
+#     logger.info("Exiting long position open, opened orders: %s", position.orders)
+#     return position
+#
+#
+# async def futures_short_position_open(
+#     client: binance.AsyncClient,
+#     position: Position,
+#     entry_price: float,
+#     signal: features.Signals,
+#     number_of_dca_orders: int = 4,
+#     mode: PositionMode = PositionMode.DCA,
+# ) -> Position:
+#     logger.info("Entering short position open, mode: %s", mode)
+#
+#     position.current_position = CurrentPosition(side=PositionSide.SHORT)
+#
+#     position.status = signal
+#
+#     position.orders, position.saldo = prepare_orders(
+#         side=position.current_position.side,
+#         mode=mode,
+#         entry_price=entry_price,
+#         saldo=position.saldo,
+#         number_of_dca_orders=number_of_dca_orders,
+#         leverage=position.leverage,
+#         order_quantity_list=position.order_quantity_list,
+#     )
+#
+#     position.orders = await send_orders(
+#         client=client,
+#         orders=position.orders,
+#         symbol=position.symbol,
+#         side=client.SIDE_SELL,
+#     )
+#
+#     logger.info("Exiting short position open, opened orders: %s", position.orders)
+#     return position
 
 
 async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
