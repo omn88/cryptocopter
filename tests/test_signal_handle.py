@@ -122,6 +122,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     assert entry_signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
@@ -162,6 +163,7 @@ async def test_signal_handle_short_when_long(
     assert signal == position.status
 
     assert all(order.price >= round(entry_price, 1) for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -200,6 +202,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     assert position_status == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
@@ -240,6 +243,7 @@ async def test_signal_handle_long_when_short(
     assert signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
@@ -276,6 +280,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     assert entry_signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -313,6 +318,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     assert position_status == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
@@ -349,6 +355,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     assert signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
@@ -389,6 +396,7 @@ async def test_signal_handle_short_when_long_twenty(
     assert signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -426,6 +434,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     assert position_status == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
@@ -466,6 +475,7 @@ async def test_signal_handle_long_when_short_eighty(
     assert signal == position.status
 
     assert all(order.price <= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
@@ -502,6 +512,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     assert signal == position.status
 
     assert all(order.price >= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == signal
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -541,3 +552,4 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
         logger.info(order)
 
     assert all(order.price >= entry_price for order in position.orders)
+    assert base.df.iloc[-1]["position"] == entry_signal

@@ -115,8 +115,11 @@ async def first_order_filled(base, entry_price: float) -> Position:
         realized_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=base.position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -131,7 +134,6 @@ async def first_order_filled(base, entry_price: float) -> Position:
         == position.orders[0].quantity
     )
     assert position.orders[0].realized_quantity == quantity
-
     return position
 
 
@@ -149,8 +151,11 @@ async def second_order_filled(base: pandas.DataFrame, position: Position) -> Pos
         order_id=2,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -185,8 +190,11 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=3,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -214,8 +222,11 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=4,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -258,8 +269,11 @@ async def target_reached(base, position: Position):
         order_id=5,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
@@ -323,6 +337,8 @@ async def test_long_first_order_filled(
 
     position = await first_order_filled(base=base, entry_price=entry_price)
 
+    assert base.df.iloc[-1]["position"] == Signals.LONG
+
 
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
@@ -352,8 +368,11 @@ async def test_long_first_order_filled_partially(
         realized_quantity=realized_quantity,
     )
 
-    base.position = await order_handle(
-        client=base.client, position=base.position, order_update=order_update
+    base.position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     for order in base.position.orders:
@@ -369,6 +388,7 @@ async def test_long_first_order_filled_partially(
     assert (
         base.position.current_position.take_profit_order.quantity == realized_quantity
     )
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -401,8 +421,11 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -426,8 +449,11 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -438,6 +464,7 @@ async def test_long_first_order_filled_partially_twice(
     assert position.current_position.take_profit_order.quantity == (
         realized_quantity + another_realized_quantity
     )
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -465,6 +492,7 @@ async def test_long_two_orders_filled(
     position = await second_order_filled(base=base, position=position)
     assert position.current_position.take_profit_order.price == 20748.0
     assert position.current_position.liquidation_price == 19152
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -493,14 +521,18 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -531,14 +563,18 @@ async def test_long_first_order_expired(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -569,14 +605,18 @@ async def test_long_first_order_canceled(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_CANCELED
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -608,6 +648,7 @@ async def test_long_two_orders_filled_then_target_reached(
     position = await target_reached(base=base, position=position)
 
     assert position.saldo == 1099.75
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -645,6 +686,7 @@ async def test_long_all_orders_filled_then_target_reached(
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 1199.29
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -699,8 +741,11 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -715,6 +760,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         == partial_quantity
     )
     assert position.saldo == 1100.04
+    assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -766,8 +812,11 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     try:
@@ -799,13 +848,17 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=7,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 1200.08
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -852,13 +905,17 @@ async def test_long_all_orders_filled_then_liquidation(
         last_filled_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 800.71
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 # ------------------------------ SHORT -------------------------------------#
@@ -881,6 +938,8 @@ async def test_short_first_order_filled(
     base.df, position, entry_price = await start_short(base=base)
 
     position = await first_order_filled(base=base, entry_price=entry_price)
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -913,8 +972,11 @@ async def test_short_first_order_filled_partially(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -923,6 +985,8 @@ async def test_short_first_order_filled_partially(
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.quantity == realized_quantity
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -957,8 +1021,11 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -981,8 +1048,11 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
@@ -994,6 +1064,8 @@ async def test_short_first_order_filled_partially_twice(
         position.current_position.take_profit_order.quantity
         == realized_quantity + another_realized_quantity
     )
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1018,6 +1090,8 @@ async def test_short_two_orders_filled(
 
     position = await second_order_filled(base=base, position=position)
 
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
+
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_new(mock_create_order, base):
@@ -1034,14 +1108,19 @@ async def test_short_first_order_new(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -1059,14 +1138,19 @@ async def test_short_first_order_expired(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -1084,14 +1168,19 @@ async def test_short_first_order_canceled(mock_create_order, base):
         order_id=1,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_CANCELED
     assert position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert position.orders[3].status == base.client.ORDER_STATUS_NEW
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1123,6 +1212,8 @@ async def test_short_two_orders_filled_then_target_reached(
     position = await target_reached(base=base, position=position)
 
     assert position.saldo == 1099.45
+
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1168,13 +1259,17 @@ async def test_short_all_orders_filled_then_target_reached(
         realized_quantity=quantity,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert round(position.saldo, 2) == 1199.89
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1227,8 +1322,11 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -1245,6 +1343,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         == partial_quantity
     )
     assert position.saldo == 1099.94
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1297,9 +1396,14 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=6,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
+
+    assert base.df.iloc[-1]["position"] == Signals.SHORT
 
     for order in position.orders:
         logger.info("Order status: %s", order.status)
@@ -1332,13 +1436,17 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=7,
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 1199.88
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1385,10 +1493,14 @@ async def test_short_all_orders_filled_then_liquidation(
         order_type="LIQUIDATION",
     )
 
-    position = await order_handle(
-        client=base.client, position=position, order_update=order_update
+    position, base.df = await order_handle(
+        client=base.client,
+        position=base.position,
+        order_update=order_update,
+        df=base.df,
     )
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
     assert position.saldo == 800.11
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
