@@ -315,7 +315,7 @@ async def test_long_first_order_filled(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
     ]
 
@@ -332,7 +332,7 @@ async def test_long_first_order_filled_partially(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.015"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
     ]
 
@@ -380,8 +380,8 @@ async def test_long_first_order_filled_partially_twice(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.015"}],
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.023"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.046"}],
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
@@ -449,8 +449,10 @@ async def test_long_two_orders_filled(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
@@ -471,8 +473,10 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
     base.df, position, entry_price = await start_long(base=base)
 
@@ -507,8 +511,10 @@ async def test_long_first_order_expired(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
     base.df, position, entry_price = await start_long(base=base)
 
@@ -543,8 +549,10 @@ async def test_long_first_order_canceled(
     mock_create_order.side_effect = mock_create_order_side_effect_long()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
     base.df, position, entry_price = await start_long(base=base)
 
@@ -581,8 +589,10 @@ async def test_long_two_orders_filled_then_target_reached(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
 
     base.df, position, entry_price = await start_long(base=base)
@@ -597,7 +607,7 @@ async def test_long_two_orders_filled_then_target_reached(
 
     position = await target_reached(base=base, position=position)
 
-    assert position.saldo == 1049.48
+    assert position.saldo == 1099.75
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -610,10 +620,10 @@ async def test_long_all_orders_filled_then_target_reached(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.094"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
 
     base.df, position, entry_price = await start_long(base=base)
@@ -634,7 +644,7 @@ async def test_long_all_orders_filled_then_target_reached(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1100.04
+    assert position.saldo == 1199.29
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -647,10 +657,10 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.094"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.063"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
     ]
@@ -673,12 +683,16 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         position.current_position.take_profit_order.quantity / 2, 3
     )
 
+    remaining_quantity = (
+        position.current_position.take_profit_order.quantity - partial_quantity
+    )
+
     price = position.current_position.take_profit_order.price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
         price=price,
-        quantity=position.current_position.take_profit_order.quantity,
+        quantity=partial_quantity,
         status=status,
         realized_quantity=partial_quantity,
         last_filled_quantity=partial_quantity,
@@ -695,12 +709,12 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     assert position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert position.current_position.take_profit_order is not None
     assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.take_profit_order.quantity == partial_quantity
+    assert position.current_position.take_profit_order.quantity == remaining_quantity
     assert (
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1050.02
+    assert position.saldo == 1100.04
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -713,10 +727,10 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.094"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.063"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0"}],
     ]
@@ -739,9 +753,13 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         position.current_position.take_profit_order.quantity / 2, 3
     )
 
+    remaining_quantity = (
+        position.current_position.take_profit_order.quantity - partial_quantity
+    )
+
     order_update = OrderUpdate(
         price=position.current_position.take_profit_order.price,
-        quantity=position.current_position.quantity,
+        quantity=partial_quantity,
         status=base.client.ORDER_STATUS_PARTIALLY_FILLED,
         realized_quantity=partial_quantity,
         last_filled_quantity=partial_quantity,
@@ -760,12 +778,14 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         assert position.orders[3].status == base.client.ORDER_STATUS_FILLED
         assert position.current_position.take_profit_order is not None
         assert position.current_position.take_profit_order.price == 20644.0
-        assert position.current_position.take_profit_order.quantity == partial_quantity
+        assert (
+            position.current_position.take_profit_order.quantity == remaining_quantity
+        )
         assert (
             position.current_position.take_profit_order.realized_quantity
             == partial_quantity
         )
-        assert position.saldo == 1050.02
+        assert position.saldo == 1100.04
     except AssertionError as error:
         logger.info(error)
         raise error
@@ -785,7 +805,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1100.04
+    assert position.saldo == 1200.08
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -798,10 +818,10 @@ async def test_long_all_orders_filled_then_liquidation(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.094"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
 
     base.df, position, entry_price = await start_long(base=base)
@@ -838,7 +858,7 @@ async def test_long_all_orders_filled_then_liquidation(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 899.96
+    assert position.saldo == 800.71
 
 
 # ------------------------------ SHORT -------------------------------------#
@@ -852,7 +872,7 @@ async def test_short_first_order_filled(
     mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
@@ -871,7 +891,7 @@ async def test_short_first_order_filled_partially(
     mock_create_order.side_effect = mock_create_order_side_effect_short()
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.015"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
@@ -915,10 +935,10 @@ async def test_short_first_order_filled_partially_twice(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.015"}],
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.023"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.046"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -986,10 +1006,10 @@ async def test_short_two_orders_filled(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1084,10 +1104,10 @@ async def test_short_two_orders_filled_then_target_reached(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1102,7 +1122,7 @@ async def test_short_two_orders_filled_then_target_reached(
 
     position = await target_reached(base=base, position=position)
 
-    assert position.saldo == 1049.72
+    assert position.saldo == 1099.45
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1115,10 +1135,10 @@ async def test_short_all_orders_filled_then_target_reached(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1154,7 +1174,7 @@ async def test_short_all_orders_filled_then_target_reached(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1099.94
+    assert round(position.saldo, 2) == 1199.89
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1167,10 +1187,10 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1224,7 +1244,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1049.97
+    assert position.saldo == 1099.94
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1237,10 +1257,10 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1297,7 +1317,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1049.97
+    assert position.saldo == 1099.94
 
     price = position.current_position.take_profit_order.price
     quantity = rest_of_order_quantity
@@ -1318,7 +1338,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1099.94
+    assert position.saldo == 1199.88
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -1331,10 +1351,10 @@ async def test_short_all_orders_filled_then_liquidation(
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.093"}],
-        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20904", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
     base.df, position, entry_price = await start_short(base=base)
@@ -1371,4 +1391,4 @@ async def test_short_all_orders_filled_then_liquidation(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 900.06
+    assert position.saldo == 800.11

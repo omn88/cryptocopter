@@ -133,9 +133,7 @@ def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
     [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
 
     order_quantity = (
-        oql.order_value[len(index_list) - 1]
-        if len(index_list) > 0
-        else oql.order_value[0]
+        oql.order_value[len(index_list)] if len(index_list) > 0 else oql.order_value[0]
     )
 
     # order_quantity = oql.order_value[index]
