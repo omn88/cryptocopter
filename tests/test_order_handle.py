@@ -3,7 +3,6 @@ from unittest.mock import patch
 from src.features import Signals
 from src.orders import Position
 from src.producers.producers import OrderUpdate
-from src.workers.handle_signal import when_flat
 from src.workers.handle_order import order_handle
 import logging
 import pandas
