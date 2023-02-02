@@ -9,13 +9,11 @@ logger = logging.getLogger("TEST")
 
 
 @patch("binance.AsyncClient.futures_position_information")
-@patch("src.workers.worker.validate_open_orders")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_full_scope(
     mock_create_order,
     mock_cancel_order,
-    mock_validate_open_orders,
     mock_position_information,
     base,
 ):
@@ -62,7 +60,6 @@ async def test_full_scope(
         {"orderId": 40, "price": 20150.2, "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-    mock_validate_open_orders.return_value = True
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "21320", "entryPrice": "20500", "positionAmt": "0.031"}],
