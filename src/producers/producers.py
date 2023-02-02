@@ -59,17 +59,6 @@ class Event(NamedTuple):
         return f"Event(name={self.name}, content={self.content})"
 
 
-async def ticker_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
-
-    ticker = bm.symbol_miniticker_socket(symbol="BTCUSDT")
-    async with ticker:
-        while True:
-            msg = await ticker.recv()
-            await queue.put(msg)
-            logger.info(msg)
-            await asyncio.sleep(0.01)
-
-
 async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
     fus = bm.futures_user_socket()
@@ -81,7 +70,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 logger.info("Account update msg: %s", msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
-                price = round(float(order_info["p"]), 2)
+                price = round(float(order_info["p"]), 1)
                 quantity = round(float(order_info["z"]), 3)
                 order_id = int(order_info["i"])
                 status = order_info["X"]
