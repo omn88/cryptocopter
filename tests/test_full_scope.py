@@ -61,13 +61,13 @@ async def test_full_scope(
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
     mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
-        [{"liquidationPrice": "21320", "entryPrice": "20500", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "21320", "entryPrice": "20500", "positionAmt": "0.123"}],
         [
             {
                 "liquidationPrice": "21373",
                 "entryPrice": "20551.5",
-                "positionAmt": "0.061",
+                "positionAmt": "0.123",
             }
         ],
         [
@@ -95,13 +95,19 @@ async def test_full_scope(
             {
                 "liquidationPrice": "19056",
                 "entryPrice": "19516.8",
-                "positionAmt": "0.128",
+                "positionAmt": "0.254",
             }
         ],
         [{"liquidationPrice": "21320", "entryPrice": "20500.0", "positionAmt": "0.03"}],
         [{"liquidationPrice": "21373", "entryPrice": "20551.0", "positionAmt": "0.06"}],
         [{"liquidationPrice": "21426", "entryPrice": "20602.5", "positionAmt": "0.09"}],
-        [{"liquidationPrice": "21476", "entryPrice": "20650.0", "positionAmt": "0.12"}],
+        [
+            {
+                "liquidationPrice": "21476",
+                "entryPrice": "20650.0",
+                "positionAmt": "0.242",
+            }
+        ],
         [
             {
                 "liquidationPrice": "21320",
@@ -127,7 +133,7 @@ async def test_full_scope(
             {
                 "liquidationPrice": "21476",
                 "entryPrice": "20650.0",
-                "positionAmt": "0.12",
+                "positionAmt": "0.484",
             }
         ],
     ]
