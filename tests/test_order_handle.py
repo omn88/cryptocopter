@@ -2,11 +2,13 @@ from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
 from src.orders import Position
-from src.producers.producers import OrderUpdate
+from src.producers.producers import OrderUpdate, SignalUpdate
 from src.workers.handle_order import order_handle
 import logging
 import pandas
 import binance
+
+from src.workers.handle_signal import signal_handle
 
 logger = logging.getLogger("TEST")
 
@@ -285,12 +287,11 @@ async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    base.df, position = await when_flat(
-        signal=entry_signal,
+    base.df, position = await signal_handle(
+        signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
         position=base.position,
         df=base.df,
-        entry_price=entry_price,
     )
 
     assert 4 == len(position.orders)
@@ -305,12 +306,11 @@ async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.SHORT
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    base.df, position = await when_flat(
-        signal=entry_signal,
+    base.df, position = await signal_handle(
+        signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
         position=base.position,
         df=base.df,
-        entry_price=entry_price,
     )
 
     assert 4 == len(position.orders)
