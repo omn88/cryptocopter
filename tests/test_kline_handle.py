@@ -11,12 +11,9 @@ import logging
 logger = logging.getLogger("test")
 
 
-@patch("src.workers.worker.validate_open_orders")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_kline_handling(
-    mock_create_order, mock_cancel_order, mock_validate_open_orders, base
-):
+async def test_kline_handling(mock_create_order, mock_cancel_order, base):
     mock_create_order.side_effect = [
         {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
         {"orderId": "2", "price": "18408.2", "status": base.client.ORDER_STATUS_NEW},
@@ -29,7 +26,6 @@ async def test_kline_handling(
         {"orderId": "9", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-    mock_validate_open_orders.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -305,11 +301,10 @@ async def test_kline_handling(
     assert position.status == Signals.FLAT
 
 
-@patch("src.workers.worker.validate_open_orders")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_kline_handling_for_special_short(
-    mock_create_order, mock_cancel_order, mock_validate_open_orders, base
+    mock_create_order, mock_cancel_order, base
 ):
     mock_create_order.side_effect = [
         {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
@@ -323,7 +318,6 @@ async def test_kline_handling_for_special_short(
         {"orderId": "9", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-    mock_validate_open_orders.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
