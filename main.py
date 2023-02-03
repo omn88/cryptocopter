@@ -28,12 +28,17 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 async def shutdown(
-    client: binance.AsyncClient, posix_signal: signal.Signals, position: orders.Position
+    client: binance.AsyncClient,
+    posix_signal: signal.Signals,
+    current_position: orders.CurrentPosition,
+    symbol: str,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
 
-    position = await futures_position_close(client=client, position=position)
+    current_position = await futures_position_close(
+        client=client, current_position=current_position, symbol=symbol
+    )
 
     logging.info("Nacking outstanding messages")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
@@ -53,7 +58,12 @@ async def main():
         loop.add_signal_handler(
             s,
             lambda s=s: asyncio.create_task(
-                shutdown(client=client, posix_signal=s, position=position)
+                shutdown(
+                    client=client,
+                    posix_signal=s,
+                    current_position=position.current_position,
+                    symbol=position.symbol,
+                )
             ),
         )
 

@@ -170,6 +170,7 @@ class Position:
     order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
     number_of_dca_orders = 4
     balance: float = 0
+    expected_balance: float = 0
     leverage: int = 25
 
     def __repr__(self) -> str:
@@ -338,47 +339,49 @@ def get_order_quantity(
 
 
 def prepare_orders(
-    position: Position,
+    current_position: CurrentPosition,
     mode: PositionMode,
     entry_price: float,
+    number_of_dca_orders: int,
+    balance: float,
+    leverage: int,
+    order_quantity_list: pandas.DataFrame,
     dca_span: float = 0.005,
-) -> Position:
+) -> CurrentPosition:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = (
-        1 if mode == PositionMode.FULL else position.number_of_dca_orders
-    )
+    number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
     order_quantity_stable = order_quantity_check(
-        oql=position.order_quantity_list, balance=position.balance
+        oql=order_quantity_list, balance=balance
     )
-    position.current_position.artifacts.order_quantity_stable = order_quantity_stable
-    position.current_position.artifacts.max_position = order_quantity_stable * float(
-        position.number_of_dca_orders
+    current_position.artifacts.order_quantity_stable = order_quantity_stable
+    current_position.artifacts.max_position = order_quantity_stable * float(
+        number_of_dca_orders
     )
-    position.current_position.artifacts.side = position.current_position.side
-    position.current_position.artifacts.mode = mode
-    position.current_position.artifacts.leverage = position.leverage
+    current_position.artifacts.side = current_position.side
+    current_position.artifacts.mode = mode
+    current_position.artifacts.leverage = leverage
 
     logger.info(
         "Balance: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
-        position.balance,
+        balance,
         order_quantity_stable,
         number_of_dca_orders,
         dca_span,
     )
 
-    position.current_position.orders = [
+    current_position.orders = [
         Order(
             price=get_order_price(
-                side=position.current_position.side,
+                side=current_position.side,
                 entry_price=entry_price,
                 dca_span=dca_span,
                 order=order,
             ),
             quantity=get_order_quantity(
-                side=position.current_position.side,
+                side=current_position.side,
                 mode=mode,
-                leverage=position.leverage,
+                leverage=leverage,
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
                 dca_span=dca_span,
@@ -392,53 +395,66 @@ def prepare_orders(
     ]
 
     logger.info("Exiting prepare orders")
-    return position
+    return current_position
 
 
 async def futures_position_open(
     client: binance.AsyncClient,
     signal: features.Signals,
-    position: Position,
+    balance: float,
+    number_of_dca_orders: int,
+    leverage: int,
     entry_price: float,
+    symbol: str,
     side: str,
+    order_quantity_list: pandas.DataFrame,
     mode: PositionMode = PositionMode.DCA,
-):
+) -> CurrentPosition:
     logger.info("Entering %s position open, mode: %s", side, mode)
 
-    position.current_position = CurrentPosition(side=side)
-    position.current_position.artifacts.start_balance = position.balance
-    position.current_position.artifacts.no_of_dca_orders = position.number_of_dca_orders
+    current_position = CurrentPosition(side=side)
+    current_position.artifacts.start_balance = balance
+    current_position.artifacts.no_of_dca_orders = number_of_dca_orders
 
-    position.current_position.status = signal
+    current_position.status = signal
 
-    position = prepare_orders(
-        position=position,
+    current_position = prepare_orders(
+        current_position=current_position,
         mode=mode,
         entry_price=entry_price,
+        balance=balance,
+        leverage=leverage,
+        order_quantity_list=order_quantity_list,
+        number_of_dca_orders=number_of_dca_orders,
     )
 
-    assert position.current_position.orders is not None
-    position.current_position.orders = await send_orders(
+    assert current_position.orders is not None
+    current_position.orders = await send_orders(
         client=client,
-        orders=position.current_position.orders,
-        symbol=position.symbol,
+        orders=current_position.orders,
+        symbol=symbol,
         side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
     )
 
     logger.info(
         "Exiting %s position open, opened orders: %s",
         side,
-        position.current_position.orders,
+        current_position.orders,
     )
-    return position
+    return current_position
 
 
-async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
+async def send_market_order(
+    client: binance.AsyncClient,
+    current_position: CurrentPosition,
+    side: str,
+    symbol: str,
+):
     try:
         resp = await client.futures_create_order(
-            symbol=position.symbol,
+            symbol=symbol,
             side=side,
-            quantity=abs(position.current_position.quantity),
+            quantity=abs(current_position.quantity),
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
         logger.info(
@@ -451,54 +467,57 @@ async def send_market_order(client: binance.AsyncClient, position: Position, sid
         logger.info("exception: %s", exception)
 
 
-async def futures_position_close(client: binance.AsyncClient, position: Position):
+async def futures_position_close(
+    client: binance.AsyncClient, current_position: CurrentPosition, symbol: str
+) -> CurrentPosition:
 
-    if position.current_position.take_profit_order is not None:
+    if current_position.take_profit_order is not None:
         logger.info(
             "Entering position close, trying to Market %s",
-            position.current_position.side,
+            current_position.side,
         )
 
         await send_market_order(
             client=client,
-            position=position,
+            symbol=symbol,
+            current_position=current_position,
             side=client.SIDE_BUY
-            if position.current_position.side == client.SIDE_SELL
+            if current_position.side == client.SIDE_SELL
             else client.SIDE_SELL,
         )
-        position.current_position.take_profit_order.status = await cancel_order(
+        current_position.take_profit_order.status = await cancel_order(
             client=client,
-            order=position.current_position.take_profit_order,
-            symbol=position.symbol,
+            order=current_position.take_profit_order,
+            symbol=symbol,
         )
         logger.info("Cancelled take profit order")
 
-    await cancel_remaining_limit_orders(client, position=position)
+    await cancel_remaining_limit_orders(
+        client, current_position=current_position, symbol=symbol
+    )
 
     logger.info("Exiting position close")
-    return position
+    return current_position
 
 
 async def cancel_remaining_limit_orders(
-    client: binance.AsyncClient, position: Position
-) -> Position:
+    client: binance.AsyncClient, current_position: CurrentPosition, symbol: str
+) -> CurrentPosition:
     logger.info("Cancelling remaining limit orders")
-    assert position.current_position.orders is not None
-    for order in position.current_position.orders:
+    assert current_position.orders is not None
+    for order in current_position.orders:
         if order.status in [
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
         ]:
-            order.status = await cancel_order(
-                client=client, symbol=position.symbol, order=order
-            )
+            order.status = await cancel_order(client=client, symbol=symbol, order=order)
             logger.info(
                 "Order with order_id: %s should be cancelled and is: %s",
                 order.order_id,
                 order.status,
             )
 
-    return position
+    return current_position
 
 
 async def update_take_profit_order(client: binance.AsyncClient, position: Position):
