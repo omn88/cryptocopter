@@ -40,6 +40,35 @@ class Order:
 
 
 @dataclass()
+class Artifacts:
+    start_saldo: float = 0
+    no_of_dca_orders: int = 0
+    leverage: int = 0
+    order_quantity_stable: int = 0
+    max_position: float = 0
+    price: float = 0
+    quantity: float = 0
+    side: str = "NEW"
+    mode: str = "NEW"
+    close_price: float = 0
+    orders: Optional[List[Order]] = None
+    per_cent_earned: float = 0
+    stable_earned: float = 0
+    end_saldo: float = 0
+    status: str = "NEW"
+
+    def __repr__(self):
+        return (
+            f"Artifacts(start_saldo={self.start_saldo}, no_of_dca_orders={self.no_of_dca_orders},"
+            f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
+            f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
+            f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
+            f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
+            f" end_saldo={self.end_saldo}, status='{self.status}')"
+        )
+
+
+@dataclass()
 class CurrentPosition:
     price: float = 0
     quantity: float = 0
@@ -47,6 +76,7 @@ class CurrentPosition:
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
+    artifacts: Artifacts = Artifacts()
 
     def __repr__(self) -> str:
         return (
@@ -307,40 +337,47 @@ def get_order_quantity(
 
 
 def prepare_orders(
-    side: str,
+    position: Position,
     mode: PositionMode,
     entry_price: float,
-    saldo: float,
-    number_of_dca_orders: int,
-    leverage: int,
-    order_quantity_list: pandas.DataFrame,
     dca_span: float = 0.005,
-) -> Tuple[List[Order], float]:
+) -> Position:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
+    number_of_dca_orders = (
+        1 if mode == PositionMode.FULL else position.number_of_dca_orders
+    )
+    order_quantity_stable = order_quantity_check(
+        oql=position.order_quantity_list, saldo=position.saldo
+    )
+    position.current_position.artifacts.order_quantity_stable = order_quantity_stable
+    position.current_position.artifacts.max_position = (
+        order_quantity_stable * position.number_of_dca_orders
+    )
+    position.current_position.artifacts.side = position.current_position.side
+    position.current_position.artifacts.mode = mode
+    position.current_position.artifacts.leverage = position.leverage
 
-    order_quantity_stable = order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info(
         "Saldo: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
-        saldo,
+        position.saldo,
         order_quantity_stable,
         number_of_dca_orders,
         dca_span,
     )
 
-    orders = [
+    position.orders = [
         Order(
             price=get_order_price(
-                side=side,
+                side=position.current_position.side,
                 entry_price=entry_price,
                 dca_span=dca_span,
                 order=order,
             ),
             quantity=get_order_quantity(
-                side=side,
+                side=position.current_position.side,
                 mode=mode,
-                leverage=leverage,
+                leverage=position.leverage,
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
                 dca_span=dca_span,
@@ -353,11 +390,8 @@ def prepare_orders(
         for order in range(number_of_dca_orders)
     ]
 
-    for order in orders:
-        logger.debug("Order: %s", order)
-
     logger.info("Exiting prepare orders")
-    return orders, saldo
+    return position
 
 
 async def futures_position_open(
@@ -371,16 +405,15 @@ async def futures_position_open(
     logger.info("Entering %s position open, mode: %s", side, mode)
 
     position.current_position = CurrentPosition(side=side)
+    position.current_position.artifacts.start_saldo = position.saldo
+    position.current_position.artifacts.no_of_dca_orders = position.number_of_dca_orders
+
     position.status = signal
 
-    position.orders, position.saldo = prepare_orders(
-        side=position.current_position.side,
+    position = prepare_orders(
+        position=position,
         mode=mode,
         entry_price=entry_price,
-        saldo=position.saldo,
-        number_of_dca_orders=position.number_of_dca_orders,
-        leverage=position.leverage,
-        order_quantity_list=position.order_quantity_list,
     )
 
     position.orders = await send_orders(
@@ -395,7 +428,6 @@ async def futures_position_open(
 
 
 async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
-    resp = None
     try:
         resp = await client.futures_create_order(
             symbol=position.symbol,
