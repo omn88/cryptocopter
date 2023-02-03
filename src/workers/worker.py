@@ -30,7 +30,7 @@ async def worker(
 
     while True:
         logger.info("Current position: %s", pformat(position.current_position))
-        logger.info("Orders: \n%s", pformat(position.orders))
+        logger.info("Orders: \n%s", pformat(position.current_position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")

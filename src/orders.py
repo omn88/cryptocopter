@@ -1,7 +1,7 @@
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Tuple, Optional
+from typing import List, Optional
 import logging
 import binance
 from binance.exceptions import BinanceAPIException
@@ -79,10 +79,15 @@ class CurrentPosition:
     price: float = 0
     quantity: float = 0
     side: str = PositionSide.FLAT
+    orders: Optional[List[Order]] = None
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
     artifacts: Artifacts = Artifacts()
+
+    def __post_init__(self):
+        if self.orders is None:
+            self.orders = []
 
     def __repr__(self) -> str:
         return (
@@ -161,7 +166,6 @@ def order_quantity_list_prepare(
 class Position:
     symbol: str
     current_position: CurrentPosition = CurrentPosition()
-    orders: List[Order] = field(default_factory=list)
     status: features.Signals = features.Signals.FLAT
     order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
     number_of_dca_orders = 4
@@ -171,7 +175,7 @@ class Position:
     def __repr__(self) -> str:
         return (
             f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"orders={self.orders}, status={self.status}, balance={self.balance}, leverage={self.leverage}, "
+            f"status={self.status}, balance={self.balance}, leverage={self.leverage}, "
             f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}"
         )
 
@@ -363,7 +367,7 @@ def prepare_orders(
         dca_span,
     )
 
-    position.orders = [
+    position.current_position.orders = [
         Order(
             price=get_order_price(
                 side=position.current_position.side,
@@ -413,14 +417,19 @@ async def futures_position_open(
         entry_price=entry_price,
     )
 
-    position.orders = await send_orders(
+    assert position.current_position.orders is not None
+    position.current_position.orders = await send_orders(
         client=client,
-        orders=position.orders,
+        orders=position.current_position.orders,
         symbol=position.symbol,
         side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
     )
 
-    logger.info("Exiting %s position open, opened orders: %s", side, position.orders)
+    logger.info(
+        "Exiting %s position open, opened orders: %s",
+        side,
+        position.current_position.orders,
+    )
     return position
 
 
@@ -474,7 +483,8 @@ async def cancel_remaining_limit_orders(
     client: binance.AsyncClient, position: Position
 ) -> Position:
     logger.info("Cancelling remaining limit orders")
-    for order in position.orders:
+    assert position.current_position.orders is not None
+    for order in position.current_position.orders:
         if order.status in [
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
@@ -491,11 +501,7 @@ async def cancel_remaining_limit_orders(
     return position
 
 
-async def update_take_profit_order(
-    client: binance.AsyncClient,
-    position: Position,
-    take_profit_order: Optional[Order],
-):
+async def update_take_profit_order(client: binance.AsyncClient, position: Position):
 
     if isinstance(position.current_position.take_profit_order, Order):
         logger.info(
@@ -559,11 +565,7 @@ async def update_position(
         position.current_position.quantity,
     ) = await position_information(client=client, symbol=position.symbol)
 
-    position = await update_take_profit_order(
-        client=client,
-        position=position,
-        take_profit_order=position.current_position.take_profit_order,
-    )
+    position = await update_take_profit_order(client=client, position=position)
 
     logger.info("Exiting update position")
 
