@@ -5,7 +5,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from src.orders import RsiBasedFutures
+from src.orders import Position
 from src.features import Signals
 from src.producers.producers import determine_start_position
 from tests.data.sample_dataframes import dataframe_gen
@@ -17,7 +17,7 @@ logger = logging.getLogger("conftest")
 class Base:
     df: pandas.DataFrame
     client: binance.AsyncClient
-    position: RsiBasedFutures
+    position: Position
     queue: asyncio.Queue = asyncio.Queue()
     symbol: str = "BTCUSDT"
 
@@ -29,7 +29,7 @@ async def base():
     base = Base(
         df=df,
         client=binance.AsyncClient(),
-        position=RsiBasedFutures(symbol=Base.symbol, saldo=1000),
+        position=Position(symbol=Base.symbol, saldo=1000),
     )
     base.df = await determine_start_position(df=base.df, queue=base.queue)
 

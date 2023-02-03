@@ -25,7 +25,7 @@ async def worker(
     queue: asyncio.Queue,
     client: binance.AsyncClient,
     historical_data: List,
-    position: orders.RsiBasedFutures,
+    position: orders.Position,
 ):
 
     while True:
@@ -64,7 +64,7 @@ async def worker(
                 client=client,
                 df=df,
                 signal_update=event.content,
-                rbf=position,
+                position=position,
             )
 
             await print_last_n_rows(df=df)

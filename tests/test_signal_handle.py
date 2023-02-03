@@ -25,7 +25,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -51,7 +51,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -78,7 +78,7 @@ async def test_signal_handle_null_when_flat(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -104,7 +104,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -113,7 +113,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -145,7 +145,7 @@ async def test_signal_handle_short_when_long(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -154,7 +154,7 @@ async def test_signal_handle_short_when_long(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -181,7 +181,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -193,7 +193,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -225,7 +225,7 @@ async def test_signal_handle_long_when_short(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -234,7 +234,7 @@ async def test_signal_handle_long_when_short(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -262,7 +262,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -271,7 +271,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -298,7 +298,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -309,7 +309,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -337,7 +337,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -346,7 +346,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -378,7 +378,7 @@ async def test_signal_handle_short_when_long_twenty(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -387,7 +387,7 @@ async def test_signal_handle_short_when_long_twenty(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -414,7 +414,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -425,7 +425,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -457,7 +457,7 @@ async def test_signal_handle_long_when_short_eighty(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -466,7 +466,7 @@ async def test_signal_handle_long_when_short_eighty(
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -494,7 +494,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -503,7 +503,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -529,7 +529,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=base.position,
+        position=base.position,
         df=base.df,
     )
 
@@ -538,7 +538,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     base.df, position = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        rbf=position,
+        position=position,
         df=base.df,
     )
 

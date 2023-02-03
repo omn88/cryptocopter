@@ -14,10 +14,10 @@ logger = logging.getLogger("handle_kline")
 async def kline_handle(
     client: binance.AsyncClient,
     df: pandas.DataFrame,
-    position: orders.RsiBasedFutures,
+    position: orders.Position,
     historical_data: List,
     kline: List,
-) -> Tuple[List, pandas.DataFrame, orders.RsiBasedFutures]:
+) -> Tuple[List, pandas.DataFrame, orders.Position]:
     logger.info("Entering Kline handling")
 
     expected_index = int(historical_data[-1][0]) + 900000
@@ -58,7 +58,7 @@ async def kline_handle(
             client=client,
             df=df,
             signal_update=signal_update,
-            rbf=position,
+            position=position,
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
