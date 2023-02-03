@@ -31,7 +31,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.at[base.df.index[-1], "position"] == signal
 
@@ -57,7 +57,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
     assert all(order.price >= entry_price for order in position.current_position.orders)
     assert base.df.at[base.df.index[-1], "position"] == signal
 
@@ -84,7 +84,7 @@ async def test_signal_handle_null_when_flat(mock_create_order, base):
 
     assert len(position.current_position.orders) == 0
     assert 1000 == position.balance
-    assert Signals.FLAT == position.status
+    assert Signals.FLAT == position.current_position.status
     assert base.df.at[base.df.index[-1], "position"] == Signals.FLAT
 
 
@@ -119,7 +119,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert entry_signal == position.status
+    assert entry_signal == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == entry_signal
@@ -160,7 +160,7 @@ async def test_signal_handle_short_when_long(
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(
         order.price >= round(entry_price, 1)
@@ -188,7 +188,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
         df=base.df,
     )
 
-    position_status = position.status
+    position_status = position.current_position.status
     signal = Signals.NULL
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -202,7 +202,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position_status == position.status
+    assert position_status == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == entry_signal
@@ -243,7 +243,7 @@ async def test_signal_handle_long_when_short(
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == signal
@@ -280,7 +280,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert entry_signal == position.status
+    assert entry_signal == position.current_position.status
 
     assert all(order.price >= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == entry_signal
@@ -305,7 +305,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
         df=base.df,
     )
 
-    position_status = position.status
+    position_status = position.current_position.status
     signal = Signals.NULL
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
@@ -318,7 +318,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position_status == position.status
+    assert position_status == position.current_position.status
 
     assert all(order.price >= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == entry_signal
@@ -355,7 +355,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == signal
@@ -396,7 +396,7 @@ async def test_signal_handle_short_when_long_twenty(
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(order.price >= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == signal
@@ -421,7 +421,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
         df=base.df,
     )
 
-    position_status = position.status
+    position_status = position.current_position.status
     signal = Signals.NULL
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
@@ -434,7 +434,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position_status == position.status
+    assert position_status == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == entry_signal
@@ -475,7 +475,7 @@ async def test_signal_handle_long_when_short_eighty(
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == signal
@@ -512,7 +512,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert signal == position.status
+    assert signal == position.current_position.status
 
     assert all(order.price >= entry_price for order in position.current_position.orders)
     assert base.df.iloc[-1]["position"] == signal
@@ -536,7 +536,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
         df=base.df,
     )
 
-    position_status = position.status
+    position_status = position.current_position.status
     signal_update = SignalUpdate(signal=Signals.NULL, price=entry_price)
     base.df, position = await signal_handle(
         signal_update=signal_update,
@@ -547,7 +547,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position_status == position.status
+    assert position_status == position.current_position.status
 
     logger.info("Entry: %s", entry_price)
 

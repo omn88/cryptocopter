@@ -160,7 +160,7 @@ async def test_full_scope(
 
     assert len(position.current_position.orders) == 4
     assert 1000 == position.balance
-    assert position.status == entry_signal
+    assert position.current_position.status == entry_signal
 
     assert all(order.price <= entry_price for order in position.current_position.orders)
 
@@ -197,7 +197,7 @@ async def test_full_scope(
         position.current_position.take_profit_order.quantity
         == position.current_position.orders[0].quantity
     )
-    assert position.status == entry_signal
+    assert position.current_position.status == entry_signal
     assert position.current_position.take_profit_order.price == 20800.0
 
     logger.info("################ SELL SIGNAL ####################")
@@ -215,7 +215,7 @@ async def test_full_scope(
         historical_data=[],
     )
 
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
     assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
@@ -268,7 +268,7 @@ async def test_full_scope(
         + position.current_position.orders[1].quantity
     )
     assert position.current_position.take_profit_order.price == 19729.4
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
 
     logger.info("################ SIGNAL LONG ####################")
 
@@ -285,7 +285,7 @@ async def test_full_scope(
         historical_data=[],
     )
 
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
     assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
@@ -355,7 +355,7 @@ async def test_full_scope(
         + position.current_position.orders[3].quantity
     )
     assert position.current_position.take_profit_order.price == 20297.5
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
@@ -383,7 +383,7 @@ async def test_full_scope(
     assert len(position.current_position.orders) == 0
     assert position.current_position.take_profit_order is None
     assert position.current_position.side == PositionSide.FLAT
-    assert position.status.value == PositionSide.FLAT
+    assert position.current_position.status.value == PositionSide.FLAT
 
     logger.info("################ OPEN SHORT WITH SIGNAL ####################")
 
@@ -399,7 +399,7 @@ async def test_full_scope(
         historical_data=[],
     )
 
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
     assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
@@ -469,7 +469,7 @@ async def test_full_scope(
         + position.current_position.orders[3].quantity
     )
     assert position.current_position.take_profit_order.price == 19824.0
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
@@ -497,7 +497,7 @@ async def test_full_scope(
     assert len(position.current_position.orders) == 0
     assert position.current_position.take_profit_order is None
     assert position.current_position.side == PositionSide.FLAT
-    assert position.status.value == PositionSide.FLAT
+    assert position.current_position.status.value == PositionSide.FLAT
 
     logger.info("################ OPEN SHORT WITH SIGNAL ####################")
 
@@ -513,7 +513,7 @@ async def test_full_scope(
         historical_data=[],
     )
 
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
     assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
     assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
@@ -583,7 +583,7 @@ async def test_full_scope(
         + position.current_position.orders[3].quantity
     )
     assert position.current_position.take_profit_order.price == 19824.0
-    assert position.status == signal_update.signal
+    assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
@@ -611,7 +611,7 @@ async def test_full_scope(
     assert len(position.current_position.orders) == 0
     assert position.current_position.take_profit_order is None
     assert position.current_position.side == PositionSide.FLAT
-    assert position.status.value == PositionSide.FLAT
+    assert position.current_position.status.value == PositionSide.FLAT
     assert position.current_position.price == 0
     assert position.current_position.quantity == 0
     assert position.current_position.target_price == 0

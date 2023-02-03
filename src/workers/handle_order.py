@@ -22,103 +22,114 @@ logger = logging.getLogger("handle_order")
 
 
 async def cancel_take_profit_order(
-    client: binance.AsyncClient, position: Position
+    client: binance.AsyncClient, take_profit_order: Order, symbol: str
 ) -> str:
-    assert isinstance(position.current_position.take_profit_order, Order)
-    position.current_position.take_profit_order.status = await cancel_order(
+
+    take_profit_order.status = await cancel_order(
         client=client,
-        order=position.current_position.take_profit_order,
-        symbol=position.symbol,
+        order=take_profit_order,
+        symbol=symbol,
     )
     logger.info(
         "Take profit order: %s, status: %s",
-        position.current_position.take_profit_order.order_id,
-        position.current_position.take_profit_order.status,
+        take_profit_order.order_id,
+        take_profit_order.status,
     )
 
-    return position.current_position.take_profit_order.status
+    return take_profit_order.status
 
 
 async def position_liquidation(
-    client: binance.AsyncClient, position: Position, df: pandas.DataFrame
-) -> Tuple[Position, pandas.DataFrame]:
+    client: binance.AsyncClient,
+    current_position: CurrentPosition,
+    df: pandas.DataFrame,
+    balance: float,
+    leverage: int,
+    symbol: str,
+) -> Tuple[CurrentPosition, pandas.DataFrame, float]:
     logger.info("Position liquidation")
 
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
-    status = await cancel_take_profit_order(client=client, position=position)
+    assert isinstance(current_position.take_profit_order, Order)
+    status = await cancel_take_profit_order(
+        client=client,
+        take_profit_order=current_position.take_profit_order,
+        symbol=symbol,
+    )
     loss = 0.0
 
-    assert position.current_position.orders is not None
-    for order in position.current_position.orders:
+    assert current_position.orders is not None
+    for order in current_position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
-        loss += (order.quantity * order.price) / float(position.leverage)
+        loss += (order.quantity * order.price) / float(leverage)
 
-    position.balance -= round(loss, 2)
+    balance -= round(loss, 2)
 
-    position.current_position = CurrentPosition()
-    position.current_position.orders = []
-    position.status = Signals.FLAT
-    df.at[df.index[-1], "position"] = position.status
+    # ToDo: Add artifacts HEREEEEEE
 
-    return position, df
+    current_position = CurrentPosition()
+    current_position.status = Signals.FLAT
+    df.at[df.index[-1], "position"] = current_position.status
+
+    return current_position, df, balance
 
 
 async def target_reached(
     client: binance.AsyncClient,
-    position: Position,
+    current_position: CurrentPosition,
     order_update: OrderUpdate,
     df: pandas.DataFrame,
-) -> Tuple[Position, pandas.DataFrame]:
+    balance: float,
+    symbol: str,
+) -> Tuple[CurrentPosition, pandas.DataFrame, float]:
     logger.info("Target price reached.")
 
-    assert isinstance(position.current_position.take_profit_order, Order)
+    assert isinstance(current_position.take_profit_order, Order)
 
-    position.current_position.take_profit_order.quantity -= (
+    current_position.take_profit_order.quantity -= order_update.last_filled_quantity
+    current_position.take_profit_order.realized_quantity += (
         order_update.last_filled_quantity
     )
-    position.current_position.take_profit_order.realized_quantity += (
-        order_update.last_filled_quantity
-    )
-    position.current_position.quantity -= order_update.last_filled_quantity
+    current_position.quantity -= order_update.last_filled_quantity
 
     logger.info(
         "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
         order_update.quantity,
         order_update.last_filled_quantity,
         order_update.realized_quantity,
-        position.current_position.take_profit_order.quantity,
+        current_position.take_profit_order.quantity,
     )
 
-    balance = position.balance
-    position.balance += round(
+    keep_balance = balance
+    balance += round(
         abs(
             order_update.last_filled_quantity
-            * (
-                position.current_position.take_profit_order.price
-                - position.current_position.price
-            )
+            * (current_position.take_profit_order.price - current_position.price)
         ),
         2,
     )
+    expected_balance = balance
 
-    logger.info("Earned: %s", round(position.balance - balance, 2))
+    logger.info("Earned: %s", round(balance - keep_balance, 2))
 
     if (
-        position.current_position.take_profit_order.quantity == 0
+        current_position.take_profit_order.quantity == 0
         or order_update.status == client.ORDER_STATUS_FILLED
     ):
         logger.info("Take profit order filled!")
-        position = await cancel_remaining_limit_orders(client=client, position=position)
-
-        position.current_position = CurrentPosition()
-        position.current_position.orders = []
-        position.status = Signals.FLAT
-        df.at[df.index[-1], "position"] = position.status
+        current_position = await cancel_remaining_limit_orders(
+            client=client, current_position=current_position, symbol=symbol
+        )
+        # TODO: POSITION ARTIFACTS ARE NOT GATHERED HERE
+        current_position = CurrentPosition()
+        current_position.orders = []
+        current_position.status = Signals.FLAT
+        df.at[df.index[-1], "position"] = current_position.status
 
     else:
         logger.info("Take profit order filled partially!")
 
-    return position, df
+    return current_position, df, expected_balance
 
 
 async def handle_order_update(
@@ -180,8 +191,17 @@ async def order_handle(
     assert isinstance(order_update, OrderUpdate)
     if order_update.order_type == "LIQUIDATION":
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
-            position, df = await position_liquidation(
-                client=client, position=position, df=df
+            (
+                position.current_position,
+                df,
+                position.balance,
+            ) = await position_liquidation(
+                client=client,
+                current_position=position.current_position,
+                df=df,
+                symbol=position.symbol,
+                balance=position.balance,
+                leverage=position.leverage,
             )
         else:
             logger.info(
@@ -193,20 +213,20 @@ async def order_handle(
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
             logger.info("MARKET order filled!")
 
-            artifacts = position.current_position.artifacts
-            artifacts.orders = position.current_position.orders
-            artifacts.price = position.current_position.price
+            current_position = position.current_position
+
+            artifacts = current_position.artifacts
+            artifacts.orders = current_position.orders
+            artifacts.price = current_position.price
             artifacts.quantity = order_update.quantity
             artifacts.close_price = order_update.price
-            artifacts.per_cent_earned = (
-                order_update.price / position.current_position.price
-            )
+            artifacts.per_cent_earned = order_update.price / current_position.price
             artifacts.stable_earned = artifacts.quantity * (
                 artifacts.close_price - artifacts.price
             )
 
-            balance = await client.futures_account_balance(asset="USDT")
-            artifacts.end_balance = round(float(balance[6]["balance"]), 2)
+            position.balance += artifacts.stable_earned
+            artifacts.end_balance = position.balance
 
             artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
 
@@ -214,8 +234,8 @@ async def order_handle(
 
             position.current_position = CurrentPosition()
             position.current_position.orders = []
-            position.status = Signals.FLAT
-            df.at[df.index[-1], "position"] = position.status
+            position.current_position.status = Signals.FLAT
+            df.at[df.index[-1], "position"] = position.current_position.status
 
         else:
             logger.info(
@@ -229,8 +249,17 @@ async def order_handle(
                 binance.AsyncClient.ORDER_STATUS_FILLED,
                 binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
             ]:
-                position, df = await target_reached(
-                    client=client, position=position, order_update=order_update, df=df
+                (
+                    position.current_position,
+                    df,
+                    position.balance,
+                ) = await target_reached(
+                    client=client,
+                    current_position=position.current_position,
+                    order_update=order_update,
+                    df=df,
+                    balance=position.balance,
+                    symbol=position.symbol,
                 )
             if order_update.status == binance.AsyncClient.ORDER_STATUS_NEW:
                 logger.info(
