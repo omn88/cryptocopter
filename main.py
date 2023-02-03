@@ -24,7 +24,9 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 async def shutdown(
-    client: binance.AsyncClient, posix_signal: signal.Signals, position: orders.Position
+    client: binance.AsyncClient,
+    posix_signal: signal.Signals,
+    position: orders.RsiBasedFutures,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
@@ -49,7 +51,7 @@ async def main():
         loop.add_signal_handler(
             s,
             lambda s=s: asyncio.create_task(
-                shutdown(client=client, posix_signal=s, position=position)
+                shutdown(client=client, posix_signal=s, position=rbf)
             ),
         )
 
@@ -83,9 +85,9 @@ async def main():
         logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
-    position = orders.Position(symbol=symbol, saldo=saldo)
+    rbf = orders.RsiBasedFutures(symbol=symbol, saldo=saldo)
 
-    logger.info("Order quantity list: \n%s", position.order_quantity_list)
+    logger.info("Order quantity list: \n%s", rbf.order_quantity_list)
 
     historical_data = await get_futures_historical_data(
         client=client,
@@ -120,7 +122,7 @@ async def main():
                 queue=queue,
                 client=client,
                 historical_data=historical_data,
-                position=position,
+                position=rbf,
             )
         )
     ]

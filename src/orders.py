@@ -176,7 +176,7 @@ def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> int:
 
 
 @dataclass
-class Position:
+class RsiBasedFutures:
     symbol: str
     current_position: CurrentPosition = CurrentPosition()
     orders: List[Order] = field(default_factory=list)
@@ -336,11 +336,11 @@ def get_order_quantity(
 
 
 def prepare_orders(
-    position: Position,
+    position: RsiBasedFutures,
     mode: PositionMode,
     entry_price: float,
     dca_span: float = 0.005,
-) -> Position:
+) -> RsiBasedFutures:
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = (
@@ -396,7 +396,7 @@ def prepare_orders(
 async def futures_position_open(
     client: binance.AsyncClient,
     signal: features.Signals,
-    position: Position,
+    position: RsiBasedFutures,
     entry_price: float,
     side: str,
     mode: PositionMode = PositionMode.DCA,
@@ -426,7 +426,9 @@ async def futures_position_open(
     return position
 
 
-async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
+async def send_market_order(
+    client: binance.AsyncClient, position: RsiBasedFutures, side: str
+):
     try:
         resp = await client.futures_create_order(
             symbol=position.symbol,
@@ -444,7 +446,9 @@ async def send_market_order(client: binance.AsyncClient, position: Position, sid
         logger.info("exception: %s", exception)
 
 
-async def futures_position_close(client: binance.AsyncClient, position: Position):
+async def futures_position_close(
+    client: binance.AsyncClient, position: RsiBasedFutures
+):
 
     if position.current_position.take_profit_order is not None:
         logger.info(
@@ -473,8 +477,8 @@ async def futures_position_close(client: binance.AsyncClient, position: Position
 
 
 async def cancel_remaining_limit_orders(
-    client: binance.AsyncClient, position: Position
-) -> Position:
+    client: binance.AsyncClient, position: RsiBasedFutures
+) -> RsiBasedFutures:
     logger.info("Cancelling remaining limit orders")
     for order in position.orders:
         if order.status in [
@@ -494,7 +498,9 @@ async def cancel_remaining_limit_orders(
 
 
 async def update_take_profit_order(
-    client: binance.AsyncClient, position: Position, take_profit_order: Optional[Order]
+    client: binance.AsyncClient,
+    position: RsiBasedFutures,
+    take_profit_order: Optional[Order],
 ):
 
     if isinstance(position.current_position.take_profit_order, Order):
@@ -549,8 +555,8 @@ async def update_take_profit_order(
 
 async def update_position(
     client: binance.AsyncClient,
-    position: Position,
-) -> Position:
+    position: RsiBasedFutures,
+) -> RsiBasedFutures:
     logger.info("Entering update position")
 
     (

@@ -1,7 +1,7 @@
 from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
-from src.orders import Position, Order
+from src.orders import RsiBasedFutures, Order
 from src.producers.producers import OrderUpdate, SignalUpdate
 from src.workers.handle_order import order_handle
 import logging
@@ -103,7 +103,7 @@ def mock_create_order_side_effect_short():
     ]
 
 
-async def first_order_filled(base, entry_price: float) -> Position:
+async def first_order_filled(base, entry_price: float) -> RsiBasedFutures:
 
     quantity = base.position.orders[0].quantity
 
@@ -138,7 +138,9 @@ async def first_order_filled(base, entry_price: float) -> Position:
     return position
 
 
-async def second_order_filled(base: pandas.DataFrame, position: Position) -> Position:
+async def second_order_filled(
+    base: pandas.DataFrame, position: RsiBasedFutures
+) -> RsiBasedFutures:
     price = position.orders[1].price
     quantity = position.orders[1].quantity
     status = base.client.ORDER_STATUS_FILLED
@@ -177,7 +179,9 @@ async def second_order_filled(base: pandas.DataFrame, position: Position) -> Pos
     return position
 
 
-async def third_and_fourth_order_filled(base, position: Position) -> Position:
+async def third_and_fourth_order_filled(
+    base, position: RsiBasedFutures
+) -> RsiBasedFutures:
     price = position.orders[2].price
     quantity = position.orders[2].quantity
     status = base.client.ORDER_STATUS_FILLED
@@ -255,7 +259,7 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
     return position
 
 
-async def target_reached(base, position: Position):
+async def target_reached(base, position: RsiBasedFutures):
 
     assert isinstance(position.current_position.take_profit_order, Order)
 
@@ -285,14 +289,14 @@ async def target_reached(base, position: Position):
     return position
 
 
-async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
+async def start_long(base) -> Tuple[pandas.DataFrame, RsiBasedFutures, float]:
 
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
     base.df, position = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
-        position=base.position,
+        rbf=base.position,
         df=base.df,
     )
 
@@ -304,14 +308,14 @@ async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
     return base.df, position, entry_price
 
 
-async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
+async def start_short(base) -> Tuple[pandas.DataFrame, RsiBasedFutures, float]:
 
     entry_signal = Signals.SHORT
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
     base.df, position = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
-        position=base.position,
+        rbf=base.position,
         df=base.df,
     )
 

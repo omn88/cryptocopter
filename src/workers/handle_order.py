@@ -8,7 +8,7 @@ import pandas
 from src.features import Signals
 from src.orders import (
     cancel_remaining_limit_orders,
-    Position,
+    RsiBasedFutures,
     CurrentPosition,
     update_position,
     cancel_order,
@@ -22,7 +22,7 @@ logger = logging.getLogger("handle_order")
 
 
 async def cancel_take_profit_order(
-    client: binance.AsyncClient, position: Position
+    client: binance.AsyncClient, position: RsiBasedFutures
 ) -> str:
     assert isinstance(position.current_position.take_profit_order, Order)
     position.current_position.take_profit_order.status = await cancel_order(
@@ -40,8 +40,8 @@ async def cancel_take_profit_order(
 
 
 async def position_liquidation(
-    client: binance.AsyncClient, position: Position, df: pandas.DataFrame
-) -> Tuple[Position, pandas.DataFrame]:
+    client: binance.AsyncClient, position: RsiBasedFutures, df: pandas.DataFrame
+) -> Tuple[RsiBasedFutures, pandas.DataFrame]:
     logger.info("Position liquidation")
 
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
@@ -63,10 +63,10 @@ async def position_liquidation(
 
 async def target_reached(
     client: binance.AsyncClient,
-    position: Position,
+    position: RsiBasedFutures,
     order_update: OrderUpdate,
     df: pandas.DataFrame,
-) -> Tuple[Position, pandas.DataFrame]:
+) -> Tuple[RsiBasedFutures, pandas.DataFrame]:
     logger.info("Target price reached.")
 
     assert isinstance(position.current_position.take_profit_order, Order)
@@ -120,8 +120,8 @@ async def target_reached(
 
 
 async def handle_order_update(
-    client: binance.AsyncClient, position: Position, order_update: OrderUpdate
-) -> Position:
+    client: binance.AsyncClient, position: RsiBasedFutures, order_update: OrderUpdate
+) -> RsiBasedFutures:
     logger.info("Enter order update handle")
 
     for order in position.orders:
@@ -167,10 +167,10 @@ def save_to_file(artifacts: Artifacts):
 
 async def order_handle(
     client: binance.AsyncClient,
-    position: Position,
+    position: RsiBasedFutures,
     order_update: OrderUpdate,
     df: pandas.DataFrame,
-) -> Tuple[Position, pandas.DataFrame]:
+) -> Tuple[RsiBasedFutures, pandas.DataFrame]:
     logger.info("Entering order handle")
 
     assert isinstance(order_update, OrderUpdate)
