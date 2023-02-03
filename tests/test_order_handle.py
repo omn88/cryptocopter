@@ -1,7 +1,7 @@
 from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
-from src.orders import Position
+from src.orders import Position, Order
 from src.producers.producers import OrderUpdate, SignalUpdate
 from src.workers.handle_order import order_handle
 import logging
@@ -256,6 +256,8 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
 
 
 async def target_reached(base, position: Position):
+
+    assert isinstance(position.current_position.take_profit_order, Order)
 
     price = position.current_position.take_profit_order.price
     quantity = position.current_position.take_profit_order.quantity

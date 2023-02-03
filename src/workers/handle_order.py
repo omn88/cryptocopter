@@ -13,6 +13,7 @@ from src.orders import (
     update_position,
     cancel_order,
     Artifacts,
+    Order,
 )
 import logging
 from src.producers.producers import OrderUpdate
@@ -23,6 +24,7 @@ logger = logging.getLogger("handle_order")
 async def cancel_take_profit_order(
     client: binance.AsyncClient, position: Position
 ) -> str:
+    assert isinstance(position.current_position.take_profit_order, Order)
     position.current_position.take_profit_order.status = await cancel_order(
         client=client,
         order=position.current_position.take_profit_order,
@@ -44,10 +46,10 @@ async def position_liquidation(
 
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
     status = await cancel_take_profit_order(client=client, position=position)
-    loss = 0
+    loss = 0.0
     for order in position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
-        loss += (order.quantity * order.price) / position.leverage
+        loss += (order.quantity * order.price) / float(position.leverage)
 
     position.saldo -= round(loss, 2)
 
@@ -66,6 +68,8 @@ async def target_reached(
     df: pandas.DataFrame,
 ) -> Tuple[Position, pandas.DataFrame]:
     logger.info("Target price reached.")
+
+    assert isinstance(position.current_position.take_profit_order, Order)
 
     position.current_position.take_profit_order.quantity -= (
         order_update.last_filled_quantity

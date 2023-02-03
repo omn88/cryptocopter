@@ -83,15 +83,16 @@ def rsi_signal_special_generate(
 def combined_signals_generate(
     df: pandas.DataFrame, condition_lists: List, choice_lists: List
 ):
-
     conditions = []
     choices = []
 
-    [
-        [conditions.append(condition) for condition in condition_list]
-        for condition_list in condition_lists
-    ]
-    [[choices.append(choice) for choice in choice_list] for choice_list in choice_lists]
+    for condition_list in condition_lists:
+        for condition in condition_list:
+            conditions.append(condition)
+
+    for choice_list in choice_lists:
+        for choice in choice_list:
+            choices.append(choice)
 
     df["signal"] = numpy.select(conditions, choices)
 

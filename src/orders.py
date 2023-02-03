@@ -20,6 +20,12 @@ class PositionSide:
     FLAT = "FLAT"
 
 
+class PositionMode(Enum):
+    DCA = "DCA"
+    FULL = "FULL"
+    NEW = "NEW"
+
+
 @dataclass
 class Order:
     price: float
@@ -49,7 +55,7 @@ class Artifacts:
     price: float = 0
     quantity: float = 0
     side: str = "NEW"
-    mode: str = "NEW"
+    mode: PositionMode = PositionMode.NEW
     close_price: float = 0
     orders: Optional[List[Order]] = None
     per_cent_earned: float = 0
@@ -151,22 +157,20 @@ def order_quantity_list_prepare(
     return oql
 
 
-def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> float:
+def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> int:
     logger.info("Saldo: %s", saldo)
-    # try:
-    #     index = next(i for i, thrshld in enumerate(oql.threshold) if saldo > thrshld)
-    # except StopIteration:
-    #     index = 0
 
     index_list = []
 
-    [index_list.append(thrshld) for thrshld in oql.threshold if saldo > thrshld]
+    for thrshld in oql.threshold:
+        if saldo > thrshld:
+            index_list.append(thrshld)
 
-    order_quantity = (
-        oql.order_value[len(index_list)] if len(index_list) > 0 else oql.order_value[0]
-    )
+    if len(index_list) > 0:
+        order_quantity = oql.order_value[len(index_list)]
+    else:
+        order_quantity = oql.order_value[0]
 
-    # order_quantity = oql.order_value[index]
     logger.info("Order quantity: %s", order_quantity)
     return order_quantity
 
@@ -190,11 +194,6 @@ class Position:
             f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}, "
             f"calculated_saldo={self.calculated_saldo})"
         )
-
-
-class PositionMode(Enum):
-    DCA = "DCA"
-    FULL = "FULL"
 
 
 async def send_order(
@@ -351,8 +350,8 @@ def prepare_orders(
         oql=position.order_quantity_list, saldo=position.saldo
     )
     position.current_position.artifacts.order_quantity_stable = order_quantity_stable
-    position.current_position.artifacts.max_position = (
-        order_quantity_stable * position.number_of_dca_orders
+    position.current_position.artifacts.max_position = order_quantity_stable * float(
+        position.number_of_dca_orders
     )
     position.current_position.artifacts.side = position.current_position.side
     position.current_position.artifacts.mode = mode
@@ -498,7 +497,7 @@ async def update_take_profit_order(
     client: binance.AsyncClient, position: Position, take_profit_order: Optional[Order]
 ):
 
-    if take_profit_order is not None:
+    if isinstance(position.current_position.take_profit_order, Order):
         logger.info(
             "Enter update take profit order: %s",
             position.current_position.take_profit_order.order_id,
