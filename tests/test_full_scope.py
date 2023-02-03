@@ -159,7 +159,7 @@ async def test_full_scope(
     )
 
     assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1000 == position.balance
     assert position.status == entry_signal
 
     assert all(order.price <= entry_price for order in position.orders)

@@ -47,7 +47,7 @@ class Order:
 
 @dataclass()
 class Artifacts:
-    start_saldo: float = 0
+    start_balance: float = 0
     no_of_dca_orders: int = 0
     leverage: int = 0
     order_quantity_stable: int = 0
@@ -60,17 +60,17 @@ class Artifacts:
     orders: Optional[List[Order]] = None
     per_cent_earned: float = 0
     stable_earned: float = 0
-    end_saldo: float = 0
+    end_balance: float = 0
     status: str = "NEW"
 
     def __repr__(self):
         return (
-            f"Artifacts(start_saldo={self.start_saldo}, no_of_dca_orders={self.no_of_dca_orders},"
+            f"Artifacts(start_saldo={self.start_balance}, no_of_dca_orders={self.no_of_dca_orders},"
             f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
             f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
             f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
             f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
-            f" end_saldo={self.end_saldo}, status='{self.status}')"
+            f" end_saldo={self.end_balance}, status='{self.status}')"
         )
 
 
@@ -157,13 +157,13 @@ def order_quantity_list_prepare(
     return oql
 
 
-def order_quantity_check(oql: pandas.DataFrame, saldo: float) -> int:
-    logger.info("Saldo: %s", saldo)
+def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
+    logger.info("Balance: %s", balance)
 
     index_list = []
 
     for thrshld in oql.threshold:
-        if saldo > thrshld:
+        if balance > thrshld:
             index_list.append(thrshld)
 
     if len(index_list) > 0:
@@ -183,16 +183,14 @@ class Position:
     status: features.Signals = features.Signals.FLAT
     order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
     number_of_dca_orders = 4
-    saldo: float = 0
-    calculated_saldo: float = 0
+    balance: float = 0
     leverage: int = 25
 
     def __repr__(self) -> str:
         return (
             f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"orders={self.orders}, status={self.status}, saldo={self.saldo}, leverage={self.leverage}, "
-            f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}, "
-            f"calculated_saldo={self.calculated_saldo})"
+            f"orders={self.orders}, status={self.status}, balance={self.balance}, leverage={self.leverage}, "
+            f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}"
         )
 
 
@@ -347,7 +345,7 @@ def prepare_orders(
         1 if mode == PositionMode.FULL else position.number_of_dca_orders
     )
     order_quantity_stable = order_quantity_check(
-        oql=position.order_quantity_list, saldo=position.saldo
+        oql=position.order_quantity_list, balance=position.balance
     )
     position.current_position.artifacts.order_quantity_stable = order_quantity_stable
     position.current_position.artifacts.max_position = order_quantity_stable * float(
@@ -358,8 +356,8 @@ def prepare_orders(
     position.current_position.artifacts.leverage = position.leverage
 
     logger.info(
-        "Saldo: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
-        position.saldo,
+        "Balance: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
+        position.balance,
         order_quantity_stable,
         number_of_dca_orders,
         dca_span,
@@ -404,7 +402,7 @@ async def futures_position_open(
     logger.info("Entering %s position open, mode: %s", side, mode)
 
     position.current_position = CurrentPosition(side=side)
-    position.current_position.artifacts.start_saldo = position.saldo
+    position.current_position.artifacts.start_balance = position.balance
     position.current_position.artifacts.no_of_dca_orders = position.number_of_dca_orders
 
     position.status = signal
@@ -426,9 +424,7 @@ async def futures_position_open(
     return position
 
 
-async def send_market_order(
-    client: binance.AsyncClient, position: Position, side: str
-):
+async def send_market_order(client: binance.AsyncClient, position: Position, side: str):
     try:
         resp = await client.futures_create_order(
             symbol=position.symbol,
@@ -446,9 +442,7 @@ async def send_market_order(
         logger.info("exception: %s", exception)
 
 
-async def futures_position_close(
-    client: binance.AsyncClient, position: Position
-):
+async def futures_position_close(client: binance.AsyncClient, position: Position):
 
     if position.current_position.take_profit_order is not None:
         logger.info(

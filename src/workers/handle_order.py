@@ -51,7 +51,7 @@ async def position_liquidation(
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
         loss += (order.quantity * order.price) / float(position.leverage)
 
-    position.saldo -= round(loss, 2)
+    position.balance -= round(loss, 2)
 
     position.current_position = CurrentPosition()
     position.orders = []
@@ -87,8 +87,8 @@ async def target_reached(
         position.current_position.take_profit_order.quantity,
     )
 
-    saldo = position.saldo
-    position.saldo += round(
+    balance = position.balance
+    position.balance += round(
         abs(
             order_update.last_filled_quantity
             * (
@@ -99,7 +99,7 @@ async def target_reached(
         2,
     )
 
-    logger.info("Earned: %s", round(position.saldo - saldo, 2))
+    logger.info("Earned: %s", round(position.balance - balance, 2))
 
     if (
         position.current_position.take_profit_order.quantity == 0
@@ -202,7 +202,7 @@ async def order_handle(
             )
 
             balance = await client.futures_account_balance(asset="USDT")
-            artifacts.end_saldo = round(float(balance[6]["balance"]), 2)
+            artifacts.end_balance = round(float(balance[6]["balance"]), 2)
 
             artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
 

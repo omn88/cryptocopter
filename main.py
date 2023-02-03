@@ -9,7 +9,11 @@ from binance import AsyncClient, BinanceSocketManager
 from decouple import config
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
-from src.common import create_directory_with_timestamp, insert_to_pandas
+from src.common import (
+    create_directory_with_timestamp,
+    insert_to_pandas,
+    futures_get_balance,
+)
 from src.orders import futures_position_close
 from src.producers.producers import (
     futures_user_socket,
@@ -66,16 +70,14 @@ async def main():
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
     logger.info("Async client created")
+
     bm = BinanceSocketManager(client)
     logger.info("Binance socket manager ready")
+
     queue = asyncio.Queue()
-    logger.info("FIFO Queue started")
+    logger.info("Async FIFO Queue started")
 
-    balance = await client.futures_account_balance(asset=asset)
-    assert asset == balance[6]["asset"]
-    saldo = round(float(balance[6]["balance"]), 2)
-
-    logger.info("Asset: %s, Saldo: %s " % (balance[6]["asset"], saldo))
+    balance = await futures_get_balance(client=client, asset=asset)
 
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
@@ -83,7 +85,7 @@ async def main():
         logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
-    position = orders.Position(symbol=symbol, saldo=saldo)
+    position = orders.Position(symbol=symbol, balance=balance)
 
     logger.info("Order quantity list: \n%s", position.order_quantity_list)
 

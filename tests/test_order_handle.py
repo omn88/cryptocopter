@@ -297,7 +297,7 @@ async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
     )
 
     assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1000 == position.balance
 
     assert all(order.price <= entry_price for order in position.orders)
 
@@ -316,7 +316,7 @@ async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
     )
 
     assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1000 == position.balance
     assert all(order.price >= entry_price for order in position.orders)
 
     return base.df, position, entry_price
@@ -648,7 +648,7 @@ async def test_long_two_orders_filled_then_target_reached(
 
     position = await target_reached(base=base, position=position)
 
-    assert position.saldo == 1099.75
+    assert position.balance == 1099.75
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -686,7 +686,7 @@ async def test_long_all_orders_filled_then_target_reached(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1199.29
+    assert position.balance == 1199.29
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -760,7 +760,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1100.04
+    assert position.balance == 1100.04
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -835,7 +835,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
             position.current_position.take_profit_order.realized_quantity
             == partial_quantity
         )
-        assert position.saldo == 1100.04
+        assert position.balance == 1100.04
     except AssertionError as error:
         logger.info(error)
         raise error
@@ -858,7 +858,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1200.08
+    assert position.balance == 1200.08
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -915,7 +915,7 @@ async def test_long_all_orders_filled_then_liquidation(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 800.71
+    assert position.balance == 800.71
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1212,7 +1212,7 @@ async def test_short_two_orders_filled_then_target_reached(
 
     position = await target_reached(base=base, position=position)
 
-    assert position.saldo == 1099.45
+    assert position.balance == 1099.45
 
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
@@ -1269,7 +1269,7 @@ async def test_short_all_orders_filled_then_target_reached(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert round(position.saldo, 2) == 1199.89
+    assert round(position.balance, 2) == 1199.89
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1343,7 +1343,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1099.94
+    assert position.balance == 1099.94
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
@@ -1422,7 +1422,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         position.current_position.take_profit_order.realized_quantity
         == partial_quantity
     )
-    assert position.saldo == 1099.94
+    assert position.balance == 1099.94
 
     price = position.current_position.take_profit_order.price
     quantity = rest_of_order_quantity
@@ -1446,7 +1446,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 1199.88
+    assert position.balance == 1199.88
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1503,5 +1503,5 @@ async def test_short_all_orders_filled_then_liquidation(
 
     assert position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.saldo == 800.11
+    assert position.balance == 800.11
     assert base.df.iloc[-1]["position"] == Signals.FLAT
