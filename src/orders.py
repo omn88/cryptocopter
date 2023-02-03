@@ -65,12 +65,12 @@ class Artifacts:
 
     def __repr__(self):
         return (
-            f"Artifacts(start_saldo={self.start_balance}, no_of_dca_orders={self.no_of_dca_orders},"
+            f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_dca_orders},"
             f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
             f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
             f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
             f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
-            f" end_saldo={self.end_balance}, status='{self.status}')"
+            f" end_balance={self.end_balance}, status='{self.status}')"
         )
 
 
@@ -157,24 +157,6 @@ def order_quantity_list_prepare(
     return oql
 
 
-def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
-    logger.info("Balance: %s", balance)
-
-    index_list = []
-
-    for thrshld in oql.threshold:
-        if balance > thrshld:
-            index_list.append(thrshld)
-
-    if len(index_list) > 0:
-        order_quantity = oql.order_value[len(index_list)]
-    else:
-        order_quantity = oql.order_value[0]
-
-    logger.info("Order quantity: %s", order_quantity)
-    return order_quantity
-
-
 @dataclass
 class Position:
     symbol: str
@@ -192,6 +174,24 @@ class Position:
             f"orders={self.orders}, status={self.status}, balance={self.balance}, leverage={self.leverage}, "
             f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}"
         )
+
+
+def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
+    logger.info("Balance: %s", balance)
+
+    index_list = []
+
+    for threshold in oql.threshold:
+        if balance > threshold:
+            index_list.append(threshold)
+
+    if len(index_list) > 0:
+        order_quantity = oql.order_value[len(index_list)]
+    else:
+        order_quantity = oql.order_value[0]
+
+    logger.info("Order quantity: %s", order_quantity)
+    return order_quantity
 
 
 async def send_order(
