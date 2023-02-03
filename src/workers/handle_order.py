@@ -47,14 +47,16 @@ async def position_liquidation(
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
     status = await cancel_take_profit_order(client=client, position=position)
     loss = 0.0
-    for order in position.orders:
+
+    assert position.current_position.orders is not None
+    for order in position.current_position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
         loss += (order.quantity * order.price) / float(position.leverage)
 
-    position.saldo -= round(loss, 2)
+    position.balance -= round(loss, 2)
 
     position.current_position = CurrentPosition()
-    position.orders = []
+    position.current_position.orders = []
     position.status = Signals.FLAT
     df.at[df.index[-1], "position"] = position.status
 
@@ -87,8 +89,8 @@ async def target_reached(
         position.current_position.take_profit_order.quantity,
     )
 
-    saldo = position.saldo
-    position.saldo += round(
+    balance = position.balance
+    position.balance += round(
         abs(
             order_update.last_filled_quantity
             * (
@@ -99,7 +101,7 @@ async def target_reached(
         2,
     )
 
-    logger.info("Earned: %s", round(position.saldo - saldo, 2))
+    logger.info("Earned: %s", round(position.balance - balance, 2))
 
     if (
         position.current_position.take_profit_order.quantity == 0
@@ -109,7 +111,7 @@ async def target_reached(
         position = await cancel_remaining_limit_orders(client=client, position=position)
 
         position.current_position = CurrentPosition()
-        position.orders = []
+        position.current_position.orders = []
         position.status = Signals.FLAT
         df.at[df.index[-1], "position"] = position.status
 
@@ -124,7 +126,9 @@ async def handle_order_update(
 ) -> Position:
     logger.info("Enter order update handle")
 
-    for order in position.orders:
+    assert position.current_position.orders is not None
+
+    for order in position.current_position.orders:
         if order_update.order_id == order.order_id:
             if order.status == client.ORDER_STATUS_FILLED:
                 logger.info("Order: %s already filled", order.order_id)
@@ -190,7 +194,7 @@ async def order_handle(
             logger.info("MARKET order filled!")
 
             artifacts = position.current_position.artifacts
-            artifacts.orders = position.orders
+            artifacts.orders = position.current_position.orders
             artifacts.price = position.current_position.price
             artifacts.quantity = order_update.quantity
             artifacts.close_price = order_update.price
@@ -202,14 +206,14 @@ async def order_handle(
             )
 
             balance = await client.futures_account_balance(asset="USDT")
-            artifacts.end_saldo = round(float(balance[6]["balance"]), 2)
+            artifacts.end_balance = round(float(balance[6]["balance"]), 2)
 
             artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
 
             save_to_file(artifacts=artifacts)
 
             position.current_position = CurrentPosition()
-            position.orders = []
+            position.current_position.orders = []
             position.status = Signals.FLAT
             df.at[df.index[-1], "position"] = position.status
 

@@ -42,8 +42,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
         historical_data=data_no_signal(),
     )
 
-    assert 0 == len(position.orders)
-    assert 1000 == position.saldo
+    assert len(position.current_position.orders) == 0
+    assert 1000 == position.balance
     assert position.status == Signals.FLAT
 
     # NO SIGNAL THEN NULL LONG20
@@ -66,8 +66,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base.df: %s", base.df.to_string())
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert len(position.current_position.orders) == 4
+    assert 1000 == position.balance
     assert position.status == Signals.LONG_20
 
     # NO SIGNAL THEN NULL LONG20 LONG
@@ -88,8 +88,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
         historical_data=historical_data,
     )
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
@@ -110,8 +110,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
         historical_data=historical_data,
     )
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80
@@ -134,8 +134,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("DF: %s", base.df.to_string())
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT_80
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
@@ -156,8 +156,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
         historical_data=historical_data,
     )
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
@@ -179,8 +179,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df.to_string())
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
@@ -202,8 +202,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df)
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80
@@ -225,8 +225,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df)
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT
@@ -248,8 +248,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df)
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL
@@ -271,8 +271,8 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df)
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL NULL
@@ -294,10 +294,10 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     logger.info("base: %s", base.df.to_string())
 
-    logger.info(position.orders)
+    logger.info(position.current_position.orders)
 
-    assert 0 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 0 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.FLAT
 
 
@@ -334,8 +334,8 @@ async def test_kline_handling_for_special_short(
         historical_data=data_no_signal(),
     )
 
-    assert 0 == len(position.orders)
-    assert 1000 == position.saldo
+    assert len(position.current_position.orders) == 0
+    assert 1000 == position.balance
 
     # NO SIGNAL THEN NULL NULL
     kline_update = KlineUpdate(
@@ -357,8 +357,8 @@ async def test_kline_handling_for_special_short(
 
     logger.info("base.df: %s", base.df.to_string())
 
-    assert 0 == len(position.orders)
-    assert 1000 == position.saldo
+    assert len(position.current_position.orders) == 0
+    assert 1000 == position.balance
 
     # NO SIGNAL THEN NULL NULL LONG
     kline_update = KlineUpdate(
@@ -378,8 +378,8 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 4 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 4 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT
@@ -400,8 +400,8 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20
@@ -422,8 +422,8 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG
@@ -444,8 +444,8 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL
@@ -466,8 +466,8 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 1 == len(position.orders)
-    assert 1000 == position.saldo
+    assert 1 == len(position.current_position.orders)
+    assert 1000 == position.balance
     assert position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL CLOSE
@@ -488,6 +488,6 @@ async def test_kline_handling_for_special_short(
         historical_data=historical_data,
     )
 
-    assert 0 == len(position.orders)
-    assert 1000 == position.saldo
+    assert len(position.current_position.orders) == 0
+    assert 1000 == position.balance
     assert position.status == Signals.FLAT

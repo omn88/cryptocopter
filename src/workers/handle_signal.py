@@ -253,7 +253,6 @@ async def signal_handle(
         position = await orders.futures_position_close(client=client, position=position)
 
         position.current_position = CurrentPosition()
-        position.orders = []
         position.status = Signals.FLAT
 
         df.at[df.index[-1], "position"] = position.status

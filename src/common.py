@@ -69,3 +69,13 @@ async def position_information(
 
 async def print_last_n_rows(df: pandas.DataFrame, rows: int = 8):
     logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())
+
+
+async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
+    account_balance = await client.futures_account_balance(asset=asset)
+    assert asset == account_balance[6]["asset"]
+    balance = round(float(account_balance[6]["balance"]), 2)
+
+    logger.info("Balance for %s: %s", account_balance[6]["asset"], balance)
+
+    return balance
