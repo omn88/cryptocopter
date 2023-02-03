@@ -309,7 +309,7 @@ async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
         position=base.position,
@@ -329,7 +329,7 @@ async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.SHORT
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
         position=base.position,

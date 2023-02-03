@@ -139,12 +139,222 @@ def condition_to_close_special_position(
     )
 
 
+async def futures_long_position_open(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Opening Long")
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.LONG,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+    )
+    df.at[df.index[-1], "position"] = signal_update.signal
+
+    return position, df
+
+
+async def futures_short_position_open(
+    position: orders.Position,
+    signal_update: SignalUpdate,
+    client: binance.AsyncClient,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Opening short")
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.SHORT,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+    )
+    df.at[df.index[-1], "position"] = signal_update.signal
+
+    return position, df
+
+
+def futures_skip_signal(
+    df: pandas.DataFrame, signal: features.Signals, status: features.Signals
+) -> pandas.DataFrame:
+    logger.info("Skipping signal: %s", signal)
+    df.at[df.index[-1], "position"] = status
+
+    return df
+
+
+def futures_change_status_long20_short80(
+    position: orders.Position, signal: features.Signals, df: pandas.DataFrame
+) -> Tuple[orders.Position, pandas.DataFrame]:
+
+    logger.info("Status change from %s to %s", position.current_position.status, signal)
+    position.current_position.status = signal
+    df.at[df.index[-1], "position"] = position.current_position.status
+
+    return position, df
+
+
+async def futures_switch_from_long_to_short(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+):
+    logger.info("Switch from Long to Short")
+    position.current_position = await orders.futures_position_close(
+        client=client,
+        current_position=position.current_position,
+        symbol=position.symbol,
+    )
+
+    logger.info("Long closed, opening DCA Short")
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.SHORT,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+    )
+    df.at[df.index[-1], "position"] = signal_update.signal
+
+    return position, df
+
+
+async def futures_start_special_short(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Start special short")
+    position.current_position = await orders.futures_position_close(
+        client=client,
+        current_position=position.current_position,
+        symbol=position.symbol,
+    )
+
+    df.at[df.index[-1], "position"] = position.current_position.status
+    logger.info("Long closed, opening FULL Short")
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.SHORT,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+        mode=PositionMode.FULL,
+    )
+
+    df.at[df.index[-1], "position"] = position.current_position.status
+
+    return position, df
+
+
+async def futures_switch_from_short_to_long(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Switch from Short to Long")
+    position.current_position = await orders.futures_position_close(
+        client=client,
+        current_position=position.current_position,
+        symbol=position.symbol,
+    )
+    df.at[df.index[-1], "position"] = signal_update.signal
+    await log_signal_change(df=df, signal=signal_update.signal)
+
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.LONG,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+    )
+
+    return position, df
+
+
+async def futures_start_special_long(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Opening Special Long")
+    position.current_position = await orders.futures_position_close(
+        client=client,
+        current_position=position.current_position,
+        symbol=position.symbol,
+    )
+
+    logger.info("Short closed, opening FULL Long")
+    position.current_position = await orders.futures_position_open(
+        client=client,
+        entry_price=signal_update.price,
+        signal=signal_update.signal,
+        side=PositionSide.LONG,
+        balance=position.balance,
+        leverage=position.leverage,
+        number_of_dca_orders=position.number_of_dca_orders,
+        order_quantity_list=position.order_quantity_list,
+        symbol=position.symbol,
+        mode=PositionMode.FULL,
+    )
+    df.at[df.index[-1], "position"] = position.current_position.status
+
+    return position, df
+
+
+async def futures_close_special_position(
+    position: orders.Position,
+    client: binance.AsyncClient,
+    signal_update: SignalUpdate,
+    df: pandas.DataFrame,
+) -> Tuple[orders.Position, pandas.DataFrame]:
+    logger.info("Got signal: %s", signal_update.signal)
+    position.current_position = await orders.futures_position_close(
+        client=client,
+        current_position=position.current_position,
+        symbol=position.symbol,
+    )
+
+    position.current_position = CurrentPosition()
+
+    df.at[df.index[-1], "position"] = position.current_position.status
+
+    return position, df
+
+
 async def signal_handle(
     client: binance.AsyncClient,
     df: pandas.DataFrame,
     signal_update: SignalUpdate,
     position: orders.Position,
-) -> Tuple[pandas.DataFrame, orders.Position]:
+) -> Tuple[orders.Position, pandas.DataFrame]:
 
     current_position = position.current_position
 
@@ -158,162 +368,71 @@ async def signal_handle(
     price = signal_update.price
 
     if conditions_for_opening_long(status=current_position.status, signal=signal):
-        logger.info("Opening Long")
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.LONG,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
+        position, df = await futures_long_position_open(
+            client=client, position=position, df=df, signal_update=signal_update
         )
-        df.at[df.index[-1], "position"] = signal
 
     if conditions_for_opening_short(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Opening short")
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.SHORT,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
+        position, df = await futures_short_position_open(
+            client=client, df=df, position=position, signal_update=signal_update
         )
-        df.at[df.index[-1], "position"] = signal
 
     if conditions_for_skipping_signal(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Skipping signal: %s", signal)
-        df.at[df.index[-1], "position"] = position.current_position.status
+        df = futures_skip_signal(
+            df=df, signal=signal, status=position.current_position.status
+        )
 
     # CHANGE STATUS (ONLY FOR LONG_20 and SHORT_80)
     if conditions_for_changing_status(
         status=position.current_position.status, signal=signal
     ):
-        logger.info(
-            "Status change from %s to %s", position.current_position.status, signal
+        position, df = futures_change_status_long20_short80(
+            df=df, position=position, signal=signal
         )
-        position.current_position.status = signal
-        df.at[df.index[-1], "position"] = position.current_position.status
 
     if conditions_for_switch_from_long_to_short(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Switch from Long to Short")
-        position.current_position = await orders.futures_position_close(
-            client=client, current_position=current_position, symbol=position.symbol
+        position, df = await futures_switch_from_long_to_short(
+            client=client, signal_update=signal_update, df=df, position=position
         )
-
-        logger.info("Long closed, opening DCA Short")
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.SHORT,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
-        )
-        df.at[df.index[-1], "position"] = signal
 
     # START SPECIAL SHORT
     if conditions_for_special_short(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Start special short")
-        position.current_position = await orders.futures_position_close(
-            client=client, current_position=current_position, symbol=position.symbol
+        position, df = await futures_start_special_short(
+            client=client, signal_update=signal_update, df=df, position=position
         )
-
-        df.at[df.index[-1], "position"] = position.current_position.status
-        logger.info("Long closed, opening FULL Short")
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.SHORT,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
-            mode=PositionMode.FULL,
-        )
-
-        df.at[df.index[-1], "position"] = position.current_position.status
 
     # SWITCH FROM SHORT TO LONG
     if conditions_for_switch_from_short_to_long(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Switch from Short to Long")
-        position.current_position = await orders.futures_position_close(
-            client=client, current_position=current_position, symbol=position.symbol
-        )
-        df.at[df.index[-1], "position"] = signal
-        await log_signal_change(df=df, signal=signal)
-
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.LONG,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
+        position, df = await futures_switch_from_short_to_long(
+            client=client, signal_update=signal_update, df=df, position=position
         )
 
     # OPEN SPECIAL LONG
     if conditions_for_special_long(
         status=position.current_position.status, signal=signal
     ):
-        logger.info("Opening Special Long")
-        position.current_position = await orders.futures_position_close(
-            client=client, current_position=current_position, symbol=position.symbol
+        position, df = await futures_start_special_long(
+            client=client, signal_update=signal_update, df=df, position=position
         )
-
-        logger.info("Short closed, opening FULL Long")
-        position.current_position = await orders.futures_position_open(
-            client=client,
-            entry_price=price,
-            signal=signal,
-            side=PositionSide.LONG,
-            balance=position.balance,
-            leverage=position.leverage,
-            number_of_dca_orders=position.number_of_dca_orders,
-            order_quantity_list=position.order_quantity_list,
-            symbol=position.symbol,
-            mode=PositionMode.FULL,
-        )
-        df.at[df.index[-1], "position"] = position.current_position.status
 
     if condition_to_close_special_position(
         status=position.current_position.status, signal=signal
     ):
-
-        logger.info("Got signal: %s", signal)
-        position.current_position = await orders.futures_position_close(
-            client=client, current_position=current_position, symbol=position.symbol
+        position, df = await futures_close_special_position(
+            client=client, signal_update=signal_update, df=df, position=position
         )
-
-        position.current_position = CurrentPosition()
-
-        df.at[df.index[-1], "position"] = position.current_position.status
 
     await log_signal_change(df=df, signal=signal)
 
     logger.info("Exiting signal handle")
-    return df, position
+    return position, df

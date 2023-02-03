@@ -60,7 +60,7 @@ async def kline_handle(
             signal_update.signal,
             signal_update.price,
         )
-        df, position = await signal_handle(
+        position, df = await signal_handle(
             client=client,
             df=df,
             signal_update=signal_update,

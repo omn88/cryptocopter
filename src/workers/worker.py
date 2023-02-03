@@ -60,7 +60,7 @@ async def worker(
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            df, position = await signal_handle(
+            position, df = await signal_handle(
                 client=client,
                 df=df,
                 signal_update=event.content,
