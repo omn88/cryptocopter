@@ -147,7 +147,7 @@ async def determine_start_position(
 ) -> pandas.DataFrame:
     logger.info("Checking start position")
 
-    signal = None
+    signal = Signals.NULL
     price = 0
     signal_index = 0
     date_index = None
