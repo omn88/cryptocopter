@@ -57,8 +57,8 @@ async def position_liquidation(
 
     position.current_position = CurrentPosition()
     position.current_position.orders = []
-    position.status = Signals.FLAT
-    df.at[df.index[-1], "position"] = position.status
+    position.current_position.status = Signals.FLAT
+    df.at[df.index[-1], "position"] = position.current_position.status
 
     return position, df
 
@@ -112,8 +112,8 @@ async def target_reached(
 
         position.current_position = CurrentPosition()
         position.current_position.orders = []
-        position.status = Signals.FLAT
-        df.at[df.index[-1], "position"] = position.status
+        position.current_position.status = Signals.FLAT
+        df.at[df.index[-1], "position"] = position.current_position.status
 
     else:
         logger.info("Take profit order filled partially!")
@@ -214,8 +214,8 @@ async def order_handle(
 
             position.current_position = CurrentPosition()
             position.current_position.orders = []
-            position.status = Signals.FLAT
-            df.at[df.index[-1], "position"] = position.status
+            position.current_position.status = Signals.FLAT
+            df.at[df.index[-1], "position"] = position.current_position.status
 
         else:
             logger.info(

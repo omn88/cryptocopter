@@ -78,6 +78,7 @@ class Artifacts:
 class CurrentPosition:
     price: float = 0
     quantity: float = 0
+    status: features.Signals = features.Signals.FLAT
     side: str = PositionSide.FLAT
     orders: Optional[List[Order]] = None
     liquidation_price: float = 0
@@ -166,7 +167,6 @@ def order_quantity_list_prepare(
 class Position:
     symbol: str
     current_position: CurrentPosition = CurrentPosition()
-    status: features.Signals = features.Signals.FLAT
     order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
     number_of_dca_orders = 4
     balance: float = 0
@@ -175,7 +175,7 @@ class Position:
     def __repr__(self) -> str:
         return (
             f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"status={self.status}, balance={self.balance}, leverage={self.leverage}, "
+            f"balance={self.balance}, leverage={self.leverage}, "
             f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}"
         )
 
@@ -409,7 +409,7 @@ async def futures_position_open(
     position.current_position.artifacts.start_balance = position.balance
     position.current_position.artifacts.no_of_dca_orders = position.number_of_dca_orders
 
-    position.status = signal
+    position.current_position.status = signal
 
     position = prepare_orders(
         position=position,

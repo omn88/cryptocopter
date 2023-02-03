@@ -44,7 +44,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert len(position.current_position.orders) == 0
     assert 1000 == position.balance
-    assert position.status == Signals.FLAT
+    assert position.current_position.status == Signals.FLAT
 
     # NO SIGNAL THEN NULL LONG20
     kline_update = KlineUpdate(
@@ -68,7 +68,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert len(position.current_position.orders) == 4
     assert 1000 == position.balance
-    assert position.status == Signals.LONG_20
+    assert position.current_position.status == Signals.LONG_20
 
     # NO SIGNAL THEN NULL LONG20 LONG
     kline_update = KlineUpdate(
@@ -90,7 +90,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG
+    assert position.current_position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     kline_update = KlineUpdate(
@@ -112,7 +112,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG
+    assert position.current_position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80
     kline_update = KlineUpdate(
@@ -136,7 +136,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT_80
+    assert position.current_position.status == Signals.SHORT_80
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     kline_update = KlineUpdate(
@@ -158,7 +158,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT
+    assert position.current_position.status == Signals.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
     kline_update = KlineUpdate(
@@ -181,7 +181,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT
+    assert position.current_position.status == Signals.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
     kline_update = KlineUpdate(
@@ -204,7 +204,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG_SPECIAL
+    assert position.current_position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80
     kline_update = KlineUpdate(
@@ -227,7 +227,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG_SPECIAL
+    assert position.current_position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT
     kline_update = KlineUpdate(
@@ -250,7 +250,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG_SPECIAL
+    assert position.current_position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL
     kline_update = KlineUpdate(
@@ -273,7 +273,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG_SPECIAL
+    assert position.current_position.status == Signals.LONG_SPECIAL
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL NULL
     kline_update = KlineUpdate(
@@ -298,7 +298,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
 
     assert 0 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.FLAT
+    assert position.current_position.status == Signals.FLAT
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
@@ -380,7 +380,7 @@ async def test_kline_handling_for_special_short(
 
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.LONG
+    assert position.current_position.status == Signals.LONG
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT
     kline_update = KlineUpdate(
@@ -402,7 +402,7 @@ async def test_kline_handling_for_special_short(
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT_SPECIAL
+    assert position.current_position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20
     kline_update = KlineUpdate(
@@ -424,7 +424,7 @@ async def test_kline_handling_for_special_short(
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT_SPECIAL
+    assert position.current_position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG
     kline_update = KlineUpdate(
@@ -446,7 +446,7 @@ async def test_kline_handling_for_special_short(
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT_SPECIAL
+    assert position.current_position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL
     kline_update = KlineUpdate(
@@ -468,7 +468,7 @@ async def test_kline_handling_for_special_short(
 
     assert 1 == len(position.current_position.orders)
     assert 1000 == position.balance
-    assert position.status == Signals.SHORT_SPECIAL
+    assert position.current_position.status == Signals.SHORT_SPECIAL
 
     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL CLOSE
     kline_update = KlineUpdate(
@@ -490,4 +490,4 @@ async def test_kline_handling_for_special_short(
 
     assert len(position.current_position.orders) == 0
     assert 1000 == position.balance
-    assert position.status == Signals.FLAT
+    assert position.current_position.status == Signals.FLAT
