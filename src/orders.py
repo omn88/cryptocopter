@@ -307,40 +307,40 @@ def get_order_quantity(
 
 
 def prepare_orders(
-    side: str,
+    position: Position,
     mode: PositionMode,
     entry_price: float,
-    saldo: float,
-    number_of_dca_orders: int,
-    leverage: int,
-    order_quantity_list: pandas.DataFrame,
     dca_span: float = 0.005,
-) -> Tuple[List[Order], float]:
+) -> Position:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
+    number_of_dca_orders = (
+        1 if mode == PositionMode.FULL else position.number_of_dca_orders
+    )
+    order_quantity_stable = order_quantity_check(
+        oql=position.order_quantity_list, saldo=position.saldo
+    )
 
-    order_quantity_stable = order_quantity_check(oql=order_quantity_list, saldo=saldo)
     logger.info(
         "Saldo: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
-        saldo,
+        position.saldo,
         order_quantity_stable,
         number_of_dca_orders,
         dca_span,
     )
 
-    orders = [
+    position.orders = [
         Order(
             price=get_order_price(
-                side=side,
+                side=position.current_position.side,
                 entry_price=entry_price,
                 dca_span=dca_span,
                 order=order,
             ),
             quantity=get_order_quantity(
-                side=side,
+                side=position.current_position.side,
                 mode=mode,
-                leverage=leverage,
+                leverage=position.leverage,
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
                 dca_span=dca_span,
@@ -353,11 +353,11 @@ def prepare_orders(
         for order in range(number_of_dca_orders)
     ]
 
-    for order in orders:
-        logger.debug("Order: %s", order)
+    for order in position.orders:
+        logger.info("Order: %s", order)
 
     logger.info("Exiting prepare orders")
-    return orders, saldo
+    return position
 
 
 async def futures_position_open(
@@ -373,14 +373,10 @@ async def futures_position_open(
     position.current_position = CurrentPosition(side=side)
     position.status = signal
 
-    position.orders, position.saldo = prepare_orders(
-        side=position.current_position.side,
+    position = prepare_orders(
+        position=position,
         mode=mode,
         entry_price=entry_price,
-        saldo=position.saldo,
-        number_of_dca_orders=position.number_of_dca_orders,
-        leverage=position.leverage,
-        order_quantity_list=position.order_quantity_list,
     )
 
     position.orders = await send_orders(
