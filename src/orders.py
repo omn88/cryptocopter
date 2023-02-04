@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import logging
 import binance
 from binance.exceptions import BinanceAPIException
@@ -51,6 +51,7 @@ class Artifacts:
     no_of_dca_orders: int = 0
     leverage: int = 0
     order_quantity_stable: int = 0
+    order_level: int = 0
     max_position: float = 0
     price: float = 0
     quantity: float = 0
@@ -181,7 +182,7 @@ class Position:
         )
 
 
-def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
+def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, int]:
     logger.info("Balance: %s", balance)
 
     index_list = []
@@ -196,7 +197,7 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
         order_quantity = oql.order_value[0]
 
     logger.info("Order quantity: %s", order_quantity)
-    return order_quantity
+    return order_quantity, len(index_list) + 1
 
 
 async def send_order(
@@ -351,10 +352,11 @@ def prepare_orders(
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
-    order_quantity_stable = order_quantity_check(
+    order_quantity_stable, order_level = order_quantity_check(
         oql=order_quantity_list, balance=balance
     )
     current_position.artifacts.order_quantity_stable = order_quantity_stable
+    current_position.artifacts.order_level = order_level
     current_position.artifacts.max_position = order_quantity_stable * float(
         number_of_dca_orders
     )
