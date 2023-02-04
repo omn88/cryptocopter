@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import logging
 import binance
 from binance.exceptions import BinanceAPIException
@@ -51,6 +51,7 @@ class Artifacts:
     no_of_dca_orders: int = 0
     leverage: int = 0
     order_quantity_stable: int = 0
+    order_level: int = 0
     max_position: float = 0
     price: float = 0
     quantity: float = 0
@@ -181,7 +182,7 @@ class Position:
         )
 
 
-def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
+def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, int]:
     logger.info("Balance: %s", balance)
 
     index_list = []
@@ -196,7 +197,7 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> int:
         order_quantity = oql.order_value[0]
 
     logger.info("Order quantity: %s", order_quantity)
-    return order_quantity
+    return order_quantity, len(index_list) + 1
 
 
 async def send_order(
@@ -351,10 +352,11 @@ def prepare_orders(
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
-    order_quantity_stable = order_quantity_check(
+    order_quantity_stable, order_level = order_quantity_check(
         oql=order_quantity_list, balance=balance
     )
     current_position.artifacts.order_quantity_stable = order_quantity_stable
+    current_position.artifacts.order_level = order_level
     current_position.artifacts.max_position = order_quantity_stable * float(
         number_of_dca_orders
     )
@@ -520,72 +522,80 @@ async def cancel_remaining_limit_orders(
     return current_position
 
 
-async def update_take_profit_order(client: binance.AsyncClient, position: Position):
+async def update_take_profit_order(
+    client: binance.AsyncClient,
+    current_position: CurrentPosition,
+    symbol: str,
+    leverage: int,
+) -> CurrentPosition:
 
-    if isinstance(position.current_position.take_profit_order, Order):
+    if isinstance(current_position.take_profit_order, Order):
         logger.info(
             "Enter update take profit order: %s",
-            position.current_position.take_profit_order.order_id,
+            current_position.take_profit_order.order_id,
         )
-        position.current_position.take_profit_order.status = await cancel_order(
+        current_position.take_profit_order.status = await cancel_order(
             client=client,
-            order=position.current_position.take_profit_order,
-            symbol=position.symbol,
+            order=current_position.take_profit_order,
+            symbol=symbol,
         )
 
-    position.current_position.target_price = target_price_calculate(
-        side=position.current_position.side,
-        price=position.current_position.price,
-        leverage=position.leverage,
+    current_position.target_price = target_price_calculate(
+        side=current_position.side,
+        price=current_position.price,
+        leverage=leverage,
     )
 
     take_profit_order = Order(
-        price=position.current_position.target_price,
-        quantity=position.current_position.quantity,
+        price=current_position.target_price,
+        quantity=current_position.quantity,
         quantity_stable=round(
-            (
-                abs(position.current_position.quantity)
-                * position.current_position.price
-                / position.leverage
-            ),
+            (abs(current_position.quantity) * current_position.price / leverage),
             2,
         ),
     )
 
-    position.current_position.take_profit_order = await send_order(
+    current_position.take_profit_order = await send_order(
         client=client,
-        symbol=position.symbol,
+        symbol=symbol,
         side=PositionSide.LONG
-        if position.current_position.side == PositionSide.SHORT
+        if current_position.side == PositionSide.SHORT
         else PositionSide.SHORT,
         order=take_profit_order,
     )
 
-    assert isinstance(position.current_position.take_profit_order, Order)
+    assert isinstance(current_position.take_profit_order, Order)
     logger.info(
         "New take profit buy order send, price: %s, quantity: %s realized QUANT: %s",
-        position.current_position.target_price,
-        position.current_position.take_profit_order.quantity,
-        position.current_position.take_profit_order.realized_quantity,
+        current_position.target_price,
+        current_position.take_profit_order.quantity,
+        current_position.take_profit_order.realized_quantity,
     )
 
-    return position
+    return current_position
 
 
 async def update_position(
     client: binance.AsyncClient,
-    position: Position,
-) -> Position:
+    current_position: CurrentPosition,
+    symbol: str,
+    leverage: int,
+) -> CurrentPosition:
     logger.info("Entering update position")
 
     (
-        position.current_position.liquidation_price,
-        position.current_position.price,
-        position.current_position.quantity,
-    ) = await position_information(client=client, symbol=position.symbol)
+        current_position.liquidation_price,
+        current_position.price,
+        current_position.quantity,
+    ) = await position_information(client=client, symbol=symbol)
 
-    position = await update_take_profit_order(client=client, position=position)
+    current_position = await update_take_profit_order(
+        client=client,
+        current_position=current_position,
+        symbol=symbol,
+        leverage=leverage,
+    )
 
     logger.info("Exiting update position")
 
-    return position
+    return current_position

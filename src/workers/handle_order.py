@@ -42,6 +42,7 @@ async def cancel_take_profit_order(
 async def position_liquidation(
     client: binance.AsyncClient,
     current_position: CurrentPosition,
+    order_update: OrderUpdate,
     df: pandas.DataFrame,
     balance: float,
     leverage: int,
@@ -61,15 +62,16 @@ async def position_liquidation(
     assert current_position.orders is not None
     for order in current_position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
-        loss += (order.quantity * order.price) / float(leverage)
+        loss += order.quantity_stable
 
     balance -= round(loss, 2)
 
-    # ToDo: Add artifacts HEREEEEEE
-
-    current_position = CurrentPosition()
-    current_position.status = Signals.FLAT
-    df.at[df.index[-1], "position"] = current_position.status
+    current_position, df = update_artifacts_and_save(
+        current_position=current_position,
+        order_update=order_update,
+        balance=balance,
+        df=df,
+    )
 
     return current_position, df, balance
 
@@ -100,17 +102,17 @@ async def target_reached(
         current_position.take_profit_order.quantity,
     )
 
-    keep_balance = balance
-    balance += round(
+    realized_position = round(
         abs(
             order_update.last_filled_quantity
             * (current_position.take_profit_order.price - current_position.price)
         ),
         2,
     )
-    expected_balance = balance
 
-    logger.info("Earned: %s", round(balance - keep_balance, 2))
+    balance += realized_position
+
+    logger.info("Earned: %s", round(realized_position, 2))
 
     if (
         current_position.take_profit_order.quantity == 0
@@ -120,16 +122,17 @@ async def target_reached(
         current_position = await cancel_remaining_limit_orders(
             client=client, current_position=current_position, symbol=symbol
         )
-        # TODO: POSITION ARTIFACTS ARE NOT GATHERED HERE
-        current_position = CurrentPosition()
-        current_position.orders = []
-        current_position.status = Signals.FLAT
-        df.at[df.index[-1], "position"] = current_position.status
+        current_position, df = update_artifacts_and_save(
+            current_position=current_position,
+            order_update=order_update,
+            balance=balance,
+            df=df,
+        )
 
     else:
         logger.info("Take profit order filled partially!")
 
-    return current_position, df, expected_balance
+    return current_position, df, balance
 
 
 async def handle_order_update(
@@ -157,9 +160,11 @@ async def handle_order_update(
                 order.order_id = order_update.order_id
                 logger.info("Order: %s status: %s", order.order_id, order.status)
             else:
-                position = await update_position(
+                position.current_position = await update_position(
                     client=client,
-                    position=position,
+                    current_position=position.current_position,
+                    symbol=position.symbol,
+                    leverage=position.leverage,
                 )
 
     logger.info("Exit order update handle")
@@ -178,6 +183,36 @@ def save_to_file(artifacts: Artifacts):
 
     with open(file_path, "w") as f:
         json.dump(dataclasses.asdict(artifacts), f, default=str)
+
+
+def update_artifacts_and_save(
+    current_position: CurrentPosition,
+    order_update: OrderUpdate,
+    balance: float,
+    df: pandas.DataFrame,
+) -> Tuple[CurrentPosition, pandas.DataFrame]:
+
+    artifacts = current_position.artifacts
+    artifacts.orders = current_position.orders
+    artifacts.price = current_position.price
+    artifacts.quantity = order_update.quantity
+    artifacts.close_price = order_update.price
+    artifacts.per_cent_earned = order_update.price / current_position.price
+    artifacts.stable_earned = artifacts.quantity * (
+        artifacts.close_price - artifacts.price
+    )
+
+    balance += artifacts.stable_earned
+    artifacts.end_balance = balance
+
+    artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
+
+    save_to_file(artifacts=artifacts)
+
+    current_position = CurrentPosition()
+    df.at[df.index[-1], "position"] = current_position.status
+
+    return current_position, df
 
 
 async def order_handle(
@@ -202,6 +237,7 @@ async def order_handle(
                 symbol=position.symbol,
                 balance=position.balance,
                 leverage=position.leverage,
+                order_update=order_update,
             )
         else:
             logger.info(
@@ -213,30 +249,12 @@ async def order_handle(
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
             logger.info("MARKET order filled!")
 
-            current_position = position.current_position
-
-            artifacts = current_position.artifacts
-            artifacts.orders = current_position.orders
-            artifacts.price = current_position.price
-            artifacts.quantity = order_update.quantity
-            artifacts.close_price = order_update.price
-            artifacts.per_cent_earned = order_update.price / current_position.price
-            artifacts.stable_earned = artifacts.quantity * (
-                artifacts.close_price - artifacts.price
+            position.current_position, df = update_artifacts_and_save(
+                current_position=position.current_position,
+                order_update=order_update,
+                balance=position.balance,
+                df=df,
             )
-
-            position.balance += artifacts.stable_earned
-            artifacts.end_balance = position.balance
-
-            artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
-
-            save_to_file(artifacts=artifacts)
-
-            position.current_position = CurrentPosition()
-            position.current_position.orders = []
-            position.current_position.status = Signals.FLAT
-            df.at[df.index[-1], "position"] = position.current_position.status
-
         else:
             logger.info(
                 "Market order realization in progress, order status: %s!",

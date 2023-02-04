@@ -22,7 +22,7 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -48,7 +48,7 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -75,7 +75,7 @@ async def test_signal_handle_null_when_flat(mock_create_order, base):
 
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -101,7 +101,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -110,7 +110,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -142,7 +142,7 @@ async def test_signal_handle_short_when_long(
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -151,7 +151,7 @@ async def test_signal_handle_short_when_long(
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -181,7 +181,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -193,7 +193,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -225,7 +225,7 @@ async def test_signal_handle_long_when_short(
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -234,7 +234,7 @@ async def test_signal_handle_long_when_short(
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -262,7 +262,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -271,7 +271,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -298,7 +298,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -309,7 +309,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     signal = Signals.NULL
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -337,7 +337,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -346,7 +346,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -378,7 +378,7 @@ async def test_signal_handle_short_when_long_twenty(
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -387,7 +387,7 @@ async def test_signal_handle_short_when_long_twenty(
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -414,7 +414,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -425,7 +425,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     signal = Signals.NULL
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -457,7 +457,7 @@ async def test_signal_handle_long_when_short_eighty(
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -466,7 +466,7 @@ async def test_signal_handle_long_when_short_eighty(
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -494,7 +494,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -503,7 +503,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -529,7 +529,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=base.position,
@@ -538,7 +538,7 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
 
     position_status = position.current_position.status
     signal_update = SignalUpdate(signal=Signals.NULL, price=entry_price)
-    base.df, position = await signal_handle(
+    position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
         position=position,
