@@ -139,41 +139,20 @@ def condition_to_close_special_position(
     )
 
 
-async def futures_long_position_open(
+async def futures_position_open(
     position: orders.Position,
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
 ) -> Tuple[orders.Position, pandas.DataFrame]:
-    logger.info("Opening Long")
+    logger.info("Opening %s", signal_update.signal)
     position.current_position = await orders.futures_position_open(
         client=client,
         entry_price=signal_update.price,
         signal=signal_update.signal,
-        side=PositionSide.LONG,
-        balance=position.balance,
-        leverage=position.leverage,
-        number_of_dca_orders=position.number_of_dca_orders,
-        order_quantity_list=position.order_quantity_list,
-        symbol=position.symbol,
-    )
-    df.at[df.index[-1], "position"] = signal_update.signal
-
-    return position, df
-
-
-async def futures_short_position_open(
-    position: orders.Position,
-    signal_update: SignalUpdate,
-    client: binance.AsyncClient,
-    df: pandas.DataFrame,
-) -> Tuple[orders.Position, pandas.DataFrame]:
-    logger.info("Opening short")
-    position.current_position = await orders.futures_position_open(
-        client=client,
-        entry_price=signal_update.price,
-        signal=signal_update.signal,
-        side=PositionSide.SHORT,
+        side=PositionSide.LONG
+        if signal_update.signal in [Signals.LONG, Signals.LONG_20]
+        else PositionSide.SHORT,
         balance=position.balance,
         leverage=position.leverage,
         number_of_dca_orders=position.number_of_dca_orders,
@@ -368,14 +347,14 @@ async def signal_handle(
     price = signal_update.price
 
     if conditions_for_opening_long(status=current_position.status, signal=signal):
-        position, df = await futures_long_position_open(
+        position, df = await futures_position_open(
             client=client, position=position, df=df, signal_update=signal_update
         )
 
     if conditions_for_opening_short(
         status=position.current_position.status, signal=signal
     ):
-        position, df = await futures_short_position_open(
+        position, df = await futures_position_open(
             client=client, df=df, position=position, signal_update=signal_update
         )
 
