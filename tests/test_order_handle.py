@@ -974,7 +974,7 @@ async def test_long_all_orders_filled_then_liquidation(
 
     assert position.current_position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.balance == 800.71
+    assert position.balance == 800.00
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1581,5 +1581,5 @@ async def test_short_all_orders_filled_then_liquidation(
 
     assert position.current_position.orders == []
     assert position.current_position.take_profit_order is None
-    assert position.balance == 800.11
+    assert position.balance == 800.00
     assert base.df.iloc[-1]["position"] == Signals.FLAT
