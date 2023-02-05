@@ -4,6 +4,7 @@ import pandas
 from src import features, orders
 import logging
 from src.common import insert_to_pandas
+from src.orders import CurrentPosition
 from src.producers.producers import SignalUpdate
 from src.workers.handle_signal import signal_handle
 from src.common import print_last_n_rows
@@ -14,10 +15,15 @@ logger = logging.getLogger("handle_kline")
 async def kline_handle(
     client: binance.AsyncClient,
     df: pandas.DataFrame,
-    position: orders.Position,
+    current_position: CurrentPosition,
     historical_data: List,
     kline: List,
-) -> Tuple[List, pandas.DataFrame, orders.Position]:
+    symbol: str,
+    leverage: int,
+    number_of_dca_orders: int,
+    order_quantity_list: pandas.DataFrame,
+    balance: float,
+) -> Tuple[List, pandas.DataFrame, CurrentPosition]:
     logger.info("Entering Kline handling")
 
     expected_index = int(historical_data[-1][0]) + 900000
@@ -34,7 +40,7 @@ async def kline_handle(
     kline_signal = df.iloc[-1]["signal"]
 
     if (
-        position.current_position.status == features.Signals.LONG_SPECIAL
+        current_position.status == features.Signals.LONG_SPECIAL
         and df.iloc[-1]["RSI"] < 50
     ):
         logger.info("Closing special long")
@@ -42,7 +48,7 @@ async def kline_handle(
         df.at[df.index[-1], "signal"] = kline_signal
 
     if (
-        position.current_position.status == features.Signals.SHORT_SPECIAL
+        current_position.status == features.Signals.SHORT_SPECIAL
         and df.iloc[-1]["RSI"] > 50
     ):
         logger.info("Closing special short")
@@ -60,11 +66,16 @@ async def kline_handle(
             signal_update.signal,
             signal_update.price,
         )
-        position, df = await signal_handle(
+        current_position, df = await signal_handle(
             client=client,
             df=df,
             signal_update=signal_update,
-            position=position,
+            current_position=current_position,
+            symbol=symbol,
+            leverage=leverage,
+            number_of_dca_orders=number_of_dca_orders,
+            order_quantity_list=order_quantity_list,
+            balance=balance,
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -73,4 +84,4 @@ async def kline_handle(
     await print_last_n_rows(df=df)
 
     logger.info("Exiting Kline handling")
-    return historical_data, df, position
+    return historical_data, df, current_position

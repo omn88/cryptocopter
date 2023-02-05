@@ -1,7 +1,7 @@
 from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
-from src.orders import Position, Order
+from src.orders import Order, CurrentPosition
 from src.producers.producers import OrderUpdate, SignalUpdate
 from src.workers.handle_order import order_handle
 import logging
@@ -103,7 +103,7 @@ def mock_create_order_side_effect_short():
     ]
 
 
-async def first_order_filled(base, entry_price: float) -> Position:
+async def first_order_filled(base, entry_price: float) -> CurrentPosition:
 
     quantity = base.position.current_position.orders[0].quantity
 
@@ -116,34 +116,39 @@ async def first_order_filled(base, entry_price: float) -> Position:
         realized_quantity=quantity,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders is not None
+    assert current_position.orders is not None
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.price == entry_price
-    assert position.current_position.quantity == quantity
-    assert position.current_position.take_profit_order is not None
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.price == entry_price
+    assert current_position.quantity == quantity
+    assert current_position.take_profit_order is not None
     assert (
-        position.current_position.take_profit_order.quantity
-        == position.current_position.orders[0].quantity
+        current_position.take_profit_order.quantity
+        == current_position.orders[0].quantity
     )
-    assert position.current_position.orders[0].realized_quantity == quantity
-    return position
+    assert current_position.orders[0].realized_quantity == quantity
+    return current_position
 
 
-async def second_order_filled(base: pandas.DataFrame, position: Position) -> Position:
-    assert position.current_position.orders is not None
-    price = position.current_position.orders[1].price
-    quantity = position.current_position.orders[1].quantity
+async def second_order_filled(
+    base: pandas.DataFrame, current_position: CurrentPosition
+) -> CurrentPosition:
+    assert current_position.orders is not None
+    price = current_position.orders[1].price
+    quantity = current_position.orders[1].quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -155,47 +160,47 @@ async def second_order_filled(base: pandas.DataFrame, position: Position) -> Pos
         order_id=2,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders is not None
+    assert current_position.orders is not None
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.price == round(
-        (
-            position.current_position.orders[0].price
-            + position.current_position.orders[1].price
-        )
-        / 2,
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.price == round(
+        (current_position.orders[0].price + current_position.orders[1].price) / 2,
         1,
     )
-    assert position.current_position.quantity == round(
+    assert current_position.quantity == round(
         (
-            position.current_position.orders[0].realized_quantity
-            + position.current_position.orders[1].realized_quantity
+            current_position.orders[0].realized_quantity
+            + current_position.orders[1].realized_quantity
         ),
         3,
     )
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == (
-        position.current_position.orders[0].quantity
-        + position.current_position.orders[1].quantity
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == (
+        current_position.orders[0].quantity + current_position.orders[1].quantity
     )
 
-    return position
+    return current_position
 
 
-async def third_and_fourth_order_filled(base, position: Position) -> Position:
-    assert position.current_position.orders is not None
-    price = position.current_position.orders[2].price
-    quantity = position.current_position.orders[2].quantity
+async def third_and_fourth_order_filled(
+    base, current_position: CurrentPosition
+) -> CurrentPosition:
+    assert current_position.orders is not None
+    price = current_position.orders[2].price
+    quantity = current_position.orders[2].quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -207,29 +212,32 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=3,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders is not None
+    assert current_position.orders is not None
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
 
-    assert position.current_position.take_profit_order.quantity == (
-        position.current_position.orders[0].quantity
-        + position.current_position.orders[1].quantity
-        + position.current_position.orders[2].quantity
+    assert current_position.take_profit_order.quantity == (
+        current_position.orders[0].quantity
+        + current_position.orders[1].quantity
+        + current_position.orders[2].quantity
     )
 
-    price = position.current_position.orders[3].price
-    quantity = position.current_position.orders[3].quantity
+    price = current_position.orders[3].price
+    quantity = current_position.orders[3].quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -241,46 +249,49 @@ async def third_and_fourth_order_filled(base, position: Position) -> Position:
         order_id=4,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders is not None
+    assert current_position.orders is not None
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.price == round(
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.price == round(
         (
-            position.current_position.orders[0].price
-            + position.current_position.orders[1].price
-            + position.current_position.orders[2].price
-            + position.current_position.orders[3].price
+            current_position.orders[0].price
+            + current_position.orders[1].price
+            + current_position.orders[2].price
+            + current_position.orders[3].price
         )
         / 4,
         1,
     )
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == (
-        position.current_position.orders[0].quantity
-        + position.current_position.orders[1].quantity
-        + position.current_position.orders[2].quantity
-        + position.current_position.orders[3].quantity
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == (
+        current_position.orders[0].quantity
+        + current_position.orders[1].quantity
+        + current_position.orders[2].quantity
+        + current_position.orders[3].quantity
     )
 
-    return position
+    return current_position
 
 
-async def target_reached(base, position: Position):
+async def target_reached(base, current_position: CurrentPosition) -> CurrentPosition:
 
-    assert isinstance(position.current_position.take_profit_order, Order)
+    assert isinstance(current_position.take_profit_order, Order)
 
-    price = position.current_position.take_profit_order.price
-    quantity = position.current_position.take_profit_order.quantity
+    price = current_position.take_profit_order.price
+    quantity = current_position.take_profit_order.quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -292,56 +303,69 @@ async def target_reached(base, position: Position):
         order_id=5,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
 
-    return position
+    return current_position
 
 
-async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
+async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
 
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    position, base.df = await signal_handle(
+    current_position, base.df = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
+        number_of_dca_orders=base.position.number_of_dca_orders,
+        order_quantity_list=base.position.order_quantity_list,
     )
 
-    assert position.current_position.orders is not None
-    assert 4 == len(position.current_position.orders)
-    assert 1000 == position.balance
+    assert current_position.orders is not None
+    assert 4 == len(current_position.orders)
+    assert 1000 == base.position.balance
 
-    assert all(order.price <= entry_price for order in position.current_position.orders)
+    assert all(order.price <= entry_price for order in current_position.orders)
 
-    return base.df, position, entry_price
+    return base.df, current_position, entry_price
 
 
-async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
+async def start_short(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
 
     entry_signal = Signals.SHORT
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
-    position, base.df = await signal_handle(
+    current_position, base.df = await signal_handle(
         signal_update=SignalUpdate(signal=entry_signal, price=entry_price),
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
+        number_of_dca_orders=base.position.number_of_dca_orders,
+        order_quantity_list=base.position.order_quantity_list,
     )
 
-    assert position.current_position.orders is not None
-    assert 4 == len(position.current_position.orders)
-    assert 1000 == position.balance
-    assert all(order.price >= entry_price for order in position.current_position.orders)
+    assert current_position.orders is not None
+    assert 4 == len(current_position.orders)
+    assert 1000 == base.position.balance
+    assert all(order.price >= entry_price for order in current_position.orders)
 
-    return base.df, position, entry_price
+    return base.df, current_position, entry_price
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -375,7 +399,7 @@ async def test_long_first_order_filled_partially(
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
     ]
 
-    base.df, base.position, entry_price = await start_long(base=base)
+    base.df, base.position.current_position, entry_price = await start_long(base=base)
 
     realized_quantity = round(
         float(base.position.current_position.orders[0].quantity / 2), 3
@@ -393,11 +417,14 @@ async def test_long_first_order_filled_partially(
         realized_quantity=realized_quantity,
     )
 
-    base.position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     for order in base.position.current_position.orders:
@@ -439,73 +466,73 @@ async def test_long_first_order_filled_partially_twice(
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    realized_quantity = round(
-        float(position.current_position.orders[0].quantity / 2), 3
-    )
+    realized_quantity = round(float(current_position.orders[0].quantity / 2), 3)
 
     price = entry_price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
         price=price,
-        quantity=base.position.current_position.orders[0].quantity,
+        quantity=current_position.orders[0].quantity,
         status=status,
         realized_quantity=realized_quantity,
         last_filled_quantity=realized_quantity,
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert (
-        position.current_position.orders[0].status
-        == base.client.ORDER_STATUS_PARTIALLY_FILLED
+        current_position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == realized_quantity
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == realized_quantity
 
-    another_realized_quantity = round(
-        float(position.current_position.orders[0].quantity / 4), 3
-    )
+    another_realized_quantity = round(float(current_position.orders[0].quantity / 4), 3)
 
     price = entry_price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
         price=price,
-        quantity=position.current_position.orders[0].quantity,
+        quantity=current_position.orders[0].quantity,
         status=status,
         last_filled_quantity=another_realized_quantity,
         realized_quantity=(realized_quantity + another_realized_quantity),
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert (
-        position.current_position.orders[0].status
-        == base.client.ORDER_STATUS_PARTIALLY_FILLED
+        current_position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == (
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == (
         realized_quantity + another_realized_quantity
     )
     assert base.df.iloc[-1]["position"] == Signals.LONG
@@ -527,15 +554,17 @@ async def test_long_two_orders_filled(
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -550,10 +579,10 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
         [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
     price = entry_price
-    quantity = position.current_position.orders[0].quantity
+    quantity = current_position.orders[0].quantity
     status = base.client.ORDER_STATUS_NEW
 
     order_update = OrderUpdate(
@@ -565,17 +594,20 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -592,10 +624,10 @@ async def test_long_first_order_expired(
         [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
     price = entry_price
-    quantity = position.current_position.orders[0].quantity
+    quantity = current_position.orders[0].quantity
     status = base.client.ORDER_STATUS_EXPIRED
 
     order_update = OrderUpdate(
@@ -607,19 +639,20 @@ async def test_long_first_order_expired(
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert (
-        position.current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
-    )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -636,10 +669,10 @@ async def test_long_first_order_canceled(
         [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
     price = entry_price
-    quantity = position.current_position.orders[0].quantity
+    quantity = current_position.orders[0].quantity
     status = base.client.ORDER_STATUS_CANCELED
 
     order_update = OrderUpdate(
@@ -651,19 +684,20 @@ async def test_long_first_order_canceled(
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert (
-        position.current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
-    )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -685,17 +719,21 @@ async def test_long_two_orders_filled_then_target_reached(
 
     base.df, position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
 
-    position = await target_reached(base=base, position=position)
+    current_position = await target_reached(
+        base=base, current_position=current_position
+    )
 
-    assert position.balance == 1099.75
+    assert base.position.balance == 1099.75
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -715,25 +753,31 @@ async def test_long_all_orders_filled_then_target_reached(
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
 
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.liquidation_price == 19056
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.liquidation_price == 19056
 
-    position = await target_reached(base=base, position=position)
+    current_position = await target_reached(
+        base=base, current_position=current_position
+    )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert position.balance == 1199.29
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert base.position.balance == 1199.29
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -755,29 +799,29 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.126"}],
     ]
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
-
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.liquidation_price == 19056
-
-    partial_quantity = round(
-        position.current_position.take_profit_order.quantity / 2, 3
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
 
-    remaining_quantity = (
-        position.current_position.take_profit_order.quantity - partial_quantity
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.liquidation_price == 19056
 
-    price = position.current_position.take_profit_order.price
+    partial_quantity = round(current_position.take_profit_order.quantity / 2, 3)
+
+    remaining_quantity = current_position.take_profit_order.quantity - partial_quantity
+
+    price = current_position.take_profit_order.price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
@@ -789,25 +833,25 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.take_profit_order.quantity == remaining_quantity
-    assert (
-        position.current_position.take_profit_order.realized_quantity
-        == partial_quantity
-    )
-    assert position.balance == 1100.04
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.take_profit_order.quantity == remaining_quantity
+    assert current_position.take_profit_order.realized_quantity == partial_quantity
+    assert base.position.balance == 1100.04
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
@@ -829,30 +873,30 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0"}],
     ]
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
-
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.liquidation_price == 19056
-
-    partial_quantity = round(
-        position.current_position.take_profit_order.quantity / 2, 3
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
 
-    remaining_quantity = (
-        position.current_position.take_profit_order.quantity - partial_quantity
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.liquidation_price == 19056
+
+    partial_quantity = round(current_position.take_profit_order.quantity / 2, 3)
+
+    remaining_quantity = current_position.take_profit_order.quantity - partial_quantity
 
     order_update = OrderUpdate(
-        price=position.current_position.take_profit_order.price,
+        price=current_position.take_profit_order.price,
         quantity=partial_quantity,
         status=base.client.ORDER_STATUS_PARTIALLY_FILLED,
         realized_quantity=partial_quantity,
@@ -860,64 +904,52 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=6,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
-
     try:
 
-        assert (
-            position.current_position.orders[0].status
-            == base.client.ORDER_STATUS_FILLED
-        )
-        assert (
-            position.current_position.orders[1].status
-            == base.client.ORDER_STATUS_FILLED
-        )
-        assert (
-            position.current_position.orders[2].status
-            == base.client.ORDER_STATUS_FILLED
-        )
-        assert (
-            position.current_position.orders[3].status
-            == base.client.ORDER_STATUS_FILLED
-        )
-        assert position.current_position.take_profit_order is not None
-        assert position.current_position.take_profit_order.price == 20644.0
-        assert (
-            position.current_position.take_profit_order.quantity == remaining_quantity
-        )
-        assert (
-            position.current_position.take_profit_order.realized_quantity
-            == partial_quantity
-        )
-        assert position.balance == 1100.04
+        assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+        assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+        assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+        assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
+        assert current_position.take_profit_order is not None
+        assert current_position.take_profit_order.price == 20644.0
+        assert current_position.take_profit_order.quantity == remaining_quantity
+        assert current_position.take_profit_order.realized_quantity == partial_quantity
+        assert base.position.balance == 1100.04
     except AssertionError as error:
         logger.info(error)
         raise error
 
     order_update = OrderUpdate(
-        price=position.current_position.take_profit_order.price,
-        quantity=position.current_position.quantity,
+        price=current_position.take_profit_order.price,
+        quantity=current_position.quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=partial_quantity,
         last_filled_quantity=partial_quantity,
         order_id=7,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert position.balance == 1200.08
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert base.position.balance == 1200.08
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -937,22 +969,26 @@ async def test_long_all_orders_filled_then_liquidation(
         [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
 
-    base.df, position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 20800.0
-    assert position.current_position.liquidation_price == 19200
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20748.0
-    assert position.current_position.liquidation_price == 19152
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
 
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 20644.0
-    assert position.current_position.liquidation_price == 19056
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.liquidation_price == 19056
 
-    price = position.current_position.liquidation_price
-    quantity = position.current_position.take_profit_order.quantity
+    price = current_position.liquidation_price
+    quantity = current_position.take_profit_order.quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -965,16 +1001,19 @@ async def test_long_all_orders_filled_then_liquidation(
         last_filled_quantity=quantity,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert position.balance == 800.00
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert base.position.balance == 800.00
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1016,40 +1055,40 @@ async def test_short_first_order_filled_partially(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    realized_quantity = round(
-        float(position.current_position.orders[0].quantity / 2), 3
-    )
+    realized_quantity = round(float(current_position.orders[0].quantity / 2), 3)
 
     price = entry_price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
         price=price,
-        quantity=position.current_position.orders[0].quantity,
+        quantity=current_position.orders[0].quantity,
         status=status,
         realized_quantity=realized_quantity,
         last_filled_quantity=realized_quantity,
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert (
-        position.current_position.orders[0].status
-        == base.client.ORDER_STATUS_PARTIALLY_FILLED
+        current_position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == realized_quantity
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == realized_quantity
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
@@ -1070,73 +1109,73 @@ async def test_short_first_order_filled_partially_twice(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    realized_quantity = round(
-        float(position.current_position.orders[0].quantity / 2), 3
-    )
+    realized_quantity = round(float(current_position.orders[0].quantity / 2), 3)
 
     price = entry_price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
         price=price,
-        quantity=position.current_position.orders[0].quantity,
+        quantity=current_position.orders[0].quantity,
         status=status,
         realized_quantity=realized_quantity,
         last_filled_quantity=realized_quantity,
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert (
-        position.current_position.orders[0].status
-        == base.client.ORDER_STATUS_PARTIALLY_FILLED
+        current_position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.quantity == realized_quantity
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.quantity == realized_quantity
 
-    another_realized_quantity = round(
-        float(position.current_position.orders[0].quantity / 4), 3
-    )
+    another_realized_quantity = round(float(current_position.orders[0].quantity / 4), 3)
 
     price = entry_price
 
     order_update = OrderUpdate(
         price=price,
-        quantity=position.current_position.orders[0].quantity,
+        quantity=current_position.orders[0].quantity,
         status=base.client.ORDER_STATUS_PARTIALLY_FILLED,
         realized_quantity=realized_quantity + another_realized_quantity,
         last_filled_quantity=another_realized_quantity,
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert (
-        position.current_position.orders[0].status
-        == base.client.ORDER_STATUS_PARTIALLY_FILLED
+        current_position.orders[0].status == base.client.ORDER_STATUS_PARTIALLY_FILLED
     )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.take_profit_order is not None
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.take_profit_order is not None
     assert (
-        position.current_position.take_profit_order.quantity
+        current_position.take_profit_order.quantity
         == realized_quantity + another_realized_quantity
     )
 
@@ -1159,11 +1198,13 @@ async def test_short_two_orders_filled(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
 
-    position = await second_order_filled(base=base, position=position)
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
@@ -1183,17 +1224,20 @@ async def test_short_first_order_new(mock_create_order, base):
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
@@ -1213,19 +1257,20 @@ async def test_short_first_order_expired(mock_create_order, base):
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert (
-        position.current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
-    )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
@@ -1234,7 +1279,7 @@ async def test_short_first_order_expired(mock_create_order, base):
 async def test_short_first_order_canceled(mock_create_order, base):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
     order_update = OrderUpdate(
         price=entry_price,
@@ -1245,19 +1290,20 @@ async def test_short_first_order_canceled(mock_create_order, base):
         order_id=1,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert (
-        position.current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
-    )
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
@@ -1278,19 +1324,23 @@ async def test_short_two_orders_filled_then_target_reached(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 19200.0
-    assert position.current_position.liquidation_price == 20800.0
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 19200.0
+    assert current_position.liquidation_price == 20800.0
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19248.0
-    assert position.current_position.liquidation_price == 20852.0
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19248.0
+    assert current_position.liquidation_price == 20852.0
 
-    position = await target_reached(base=base, position=position)
+    current_position = await target_reached(
+        base=base, current_position=current_position
+    )
 
-    assert position.balance == 1099.45
+    assert base.position.balance == 1099.45
 
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
@@ -1311,22 +1361,26 @@ async def test_short_all_orders_filled_then_target_reached(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 19200.0
-    assert position.current_position.liquidation_price == 20800.0
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 19200.0
+    assert current_position.liquidation_price == 20800.0
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19248.0
-    assert position.current_position.liquidation_price == 20852.0
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19248.0
+    assert current_position.liquidation_price == 20852.0
 
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert position.current_position.liquidation_price == 20956.0
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.liquidation_price == 20956.0
 
-    price = position.current_position.take_profit_order.price
-    quantity = position.current_position.take_profit_order.quantity
+    price = current_position.take_profit_order.price
+    quantity = current_position.take_profit_order.quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -1338,16 +1392,19 @@ async def test_short_all_orders_filled_then_target_reached(
         realized_quantity=quantity,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert round(position.balance, 2) == 1199.89
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert round(base.position.balance, 2) == 1199.89
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1367,29 +1424,31 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 19200.0
-    assert position.current_position.liquidation_price == 20800.0
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 19200.0
+    assert current_position.liquidation_price == 20800.0
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19248.0
-    assert position.current_position.liquidation_price == 20852.0
-
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert position.current_position.liquidation_price == 20956.0
-
-    whole_quantity = position.current_position.take_profit_order.quantity
-
-    partial_quantity = round(
-        position.current_position.take_profit_order.quantity / 2, 3
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 19248.0
+    assert current_position.liquidation_price == 20852.0
+
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.liquidation_price == 20956.0
+
+    whole_quantity = current_position.take_profit_order.quantity
+
+    partial_quantity = round(current_position.take_profit_order.quantity / 2, 3)
 
     rest_of_order_quantity = whole_quantity - partial_quantity
 
-    price = position.current_position.take_profit_order.price
+    price = current_position.take_profit_order.price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
@@ -1401,27 +1460,25 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert (
-        position.current_position.take_profit_order.quantity == rest_of_order_quantity
-    )
-    assert (
-        position.current_position.take_profit_order.realized_quantity
-        == partial_quantity
-    )
-    assert position.balance == 1099.94
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.take_profit_order.quantity == rest_of_order_quantity
+    assert current_position.take_profit_order.realized_quantity == partial_quantity
+    assert base.position.balance == 1099.94
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
@@ -1441,29 +1498,31 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 19200.0
-    assert position.current_position.liquidation_price == 20800.0
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 19200.0
+    assert current_position.liquidation_price == 20800.0
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19248.0
-    assert position.current_position.liquidation_price == 20852.0
-
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert position.current_position.liquidation_price == 20956.0
-
-    whole_quantity = position.current_position.take_profit_order.quantity
-
-    partial_quantity = round(
-        position.current_position.take_profit_order.quantity / 2, 3
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
     )
+    assert current_position.take_profit_order.price == 19248.0
+    assert current_position.liquidation_price == 20852.0
+
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.liquidation_price == 20956.0
+
+    whole_quantity = current_position.take_profit_order.quantity
+
+    partial_quantity = round(current_position.take_profit_order.quantity / 2, 3)
 
     rest_of_order_quantity = whole_quantity - partial_quantity
 
-    price = position.current_position.take_profit_order.price
+    price = current_position.take_profit_order.price
     status = base.client.ORDER_STATUS_PARTIALLY_FILLED
 
     order_update = OrderUpdate(
@@ -1475,34 +1534,32 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=6,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
-    for order in position.current_position.orders:
+    for order in current_position.orders:
         logger.info("Order status: %s", order.status)
 
-    assert position.current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert position.current_position.take_profit_order is not None
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert (
-        position.current_position.take_profit_order.quantity == rest_of_order_quantity
-    )
-    assert (
-        position.current_position.take_profit_order.realized_quantity
-        == partial_quantity
-    )
-    assert position.balance == 1099.94
+    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert current_position.take_profit_order is not None
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.take_profit_order.quantity == rest_of_order_quantity
+    assert current_position.take_profit_order.realized_quantity == partial_quantity
+    assert base.position.balance == 1099.94
 
-    price = position.current_position.take_profit_order.price
+    price = current_position.take_profit_order.price
     quantity = rest_of_order_quantity
     status = base.client.ORDER_STATUS_FILLED
 
@@ -1515,16 +1572,19 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=7,
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert position.balance == 1199.88
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert base.position.balance == 1199.88
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
@@ -1544,22 +1604,26 @@ async def test_short_all_orders_filled_then_liquidation(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.248"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
-    assert position.current_position.take_profit_order.price == 19200.0
-    assert position.current_position.liquidation_price == 20800.0
+    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    assert current_position.take_profit_order.price == 19200.0
+    assert current_position.liquidation_price == 20800.0
 
-    position = await second_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19248.0
-    assert position.current_position.liquidation_price == 20852.0
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19248.0
+    assert current_position.liquidation_price == 20852.0
 
-    position = await third_and_fourth_order_filled(base=base, position=position)
-    assert position.current_position.take_profit_order.price == 19344.0
-    assert position.current_position.liquidation_price == 20956.0
+    current_position = await third_and_fourth_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.liquidation_price == 20956.0
 
-    price = position.current_position.liquidation_price
-    quantity = position.current_position.take_profit_order.quantity
+    price = current_position.liquidation_price
+    quantity = current_position.take_profit_order.quantity
     status = base.client.ORDER_STATUS_FILLED
 
     order_update = OrderUpdate(
@@ -1572,14 +1636,17 @@ async def test_short_all_orders_filled_then_liquidation(
         order_type="LIQUIDATION",
     )
 
-    position, base.df = await order_handle(
+    current_position, base.df = await order_handle(
         client=base.client,
-        position=base.position,
+        current_position=base.position.current_position,
         order_update=order_update,
         df=base.df,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        symbol=base.position.symbol,
     )
 
-    assert position.current_position.orders == []
-    assert position.current_position.take_profit_order is None
-    assert position.balance == 800.00
+    assert current_position.orders == []
+    assert current_position.take_profit_order is None
+    assert base.position.balance == 800.00
     assert base.df.iloc[-1]["position"] == Signals.FLAT

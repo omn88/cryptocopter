@@ -37,7 +37,7 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
     return df
 
 
-async def position_information(
+async def futures_get_position_info(
     client: binance.AsyncClient, symbol: str
 ) -> Tuple[float, float, float]:
     """
