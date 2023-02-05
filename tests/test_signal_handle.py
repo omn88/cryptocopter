@@ -11,12 +11,22 @@ logger = logging.getLogger("test_signal_handle")
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
+async def test_signal_handle_long_when_flat(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
 
@@ -42,12 +52,22 @@ async def test_signal_handle_long_when_flat(mock_create_order, signal, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
+async def test_signal_handle_short_when_flat(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
 
@@ -72,12 +92,20 @@ async def test_signal_handle_short_when_flat(mock_create_order, signal, base):
     assert base.df.at[base.df.index[-1], "position"] == signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_flat(mock_create_order, base):
+async def test_signal_handle_null_when_flat(mock_create_order, mock_get_order, base):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
@@ -104,12 +132,22 @@ async def test_signal_handle_null_when_flat(mock_create_order, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_long_when_long(mock_create_order, signal, base):
+async def test_signal_handle_long_when_long(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.LONG
@@ -133,7 +171,7 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -151,15 +189,23 @@ async def test_signal_handle_long_when_long(mock_create_order, signal, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_long(
-    mock_create_order, mock_cancel_order, signal, base
+    mock_create_order, mock_cancel_order, mock_get_order, signal, base
 ):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     mock_cancel_order.return_value = {"status": "CANCELED"}
 
@@ -184,7 +230,7 @@ async def test_signal_handle_short_when_long(
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -203,12 +249,20 @@ async def test_signal_handle_short_when_long(
     assert base.df.iloc[-1]["position"] == signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_long(mock_create_order, base):
+async def test_signal_handle_null_when_long(mock_create_order, mock_get_order, base):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.LONG
@@ -235,7 +289,7 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -253,15 +307,23 @@ async def test_signal_handle_null_when_long(mock_create_order, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_short(
-    mock_create_order, mock_cancel_order, signal, base
+    mock_create_order, mock_cancel_order, mock_get_order, signal, base
 ):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     mock_cancel_order.return_value = {"status": "CANCELED"}
 
@@ -286,7 +348,7 @@ async def test_signal_handle_long_when_short(
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -303,13 +365,23 @@ async def test_signal_handle_long_when_short(
     assert base.df.iloc[-1]["position"] == signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_short_when_short(mock_create_order, signal, base):
+async def test_signal_handle_short_when_short(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.SHORT
@@ -333,7 +405,7 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -350,12 +422,20 @@ async def test_signal_handle_short_when_short(mock_create_order, signal, base):
     assert base.df.iloc[-1]["position"] == entry_signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_short(mock_create_order, base):
+async def test_signal_handle_null_when_short(mock_create_order, mock_get_order, base):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.SHORT
@@ -381,7 +461,7 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -399,12 +479,22 @@ async def test_signal_handle_null_when_short(mock_create_order, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, base):
+async def test_signal_handle_long_when_long_twenty(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.LONG_20
@@ -428,7 +518,7 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -446,15 +536,23 @@ async def test_signal_handle_long_when_long_twenty(mock_create_order, signal, ba
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_long_twenty(
-    mock_create_order, mock_cancel_order, signal, base
+    mock_create_order, mock_cancel_order, mock_get_order, signal, base
 ):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     mock_cancel_order.return_value = {"status": "CANCELED"}
 
@@ -479,7 +577,7 @@ async def test_signal_handle_short_when_long_twenty(
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -496,12 +594,22 @@ async def test_signal_handle_short_when_long_twenty(
     assert base.df.iloc[-1]["position"] == signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
+async def test_signal_handle_null_when_long_twenty(
+    mock_create_order, mock_get_order, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.LONG_20
@@ -527,7 +635,7 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -545,15 +653,23 @@ async def test_signal_handle_null_when_long_twenty(mock_create_order, base):
 
 
 @pytest.mark.parametrize("signal", [Signals.LONG, Signals.LONG_20])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_short_eighty(
-    mock_create_order, mock_cancel_order, signal, base
+    mock_create_order, mock_cancel_order, mock_get_order, signal, base
 ):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     mock_cancel_order.return_value = {"status": "CANCELED"}
 
@@ -578,7 +694,7 @@ async def test_signal_handle_long_when_short_eighty(
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -596,12 +712,22 @@ async def test_signal_handle_long_when_short_eighty(
 
 
 @pytest.mark.parametrize("signal", [Signals.SHORT, Signals.SHORT_80])
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, base):
+async def test_signal_handle_short_when_short_eighty(
+    mock_create_order, mock_get_order, signal, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
 
     entry_signal = Signals.SHORT_80
@@ -625,7 +751,7 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,
@@ -642,12 +768,22 @@ async def test_signal_handle_short_when_short_eighty(mock_create_order, signal, 
     assert base.df.iloc[-1]["position"] == signal
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
+async def test_signal_handle_null_when_short_eighty(
+    mock_create_order, mock_get_order, base
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
         "status": base.client.ORDER_STATUS_NEW,
+    }
+
+    mock_get_order.return_value = {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": base.client.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
     }
     entry_signal = Signals.SHORT_80
     entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
@@ -666,12 +802,13 @@ async def test_signal_handle_null_when_short_eighty(mock_create_order, base):
     )
 
     position_status = current_position.status
+
     signal_update = SignalUpdate(signal=Signals.NULL, price=entry_price)
 
     current_position, base.df = await signal_handle(
         signal_update=signal_update,
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         symbol=base.symbol,

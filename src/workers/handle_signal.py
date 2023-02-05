@@ -409,14 +409,14 @@ async def signal_handle(
 
     # CHANGE STATUS (ONLY FOR LONG_20 and SHORT_80)
     if conditions_for_changing_status(status=current_position.status, signal=signal):
-        position, df = futures_change_status_long20_short80(
+        current_position, df = futures_change_status_long20_short80(
             df=df, current_position=current_position, signal=signal
         )
 
     if conditions_for_switch_from_long_to_short(
         status=current_position.status, signal=signal
     ):
-        position, df = await futures_switch_from_long_to_short(
+        current_position, df = await futures_switch_from_long_to_short(
             client=client,
             signal_update=signal_update,
             df=df,
@@ -430,7 +430,7 @@ async def signal_handle(
 
     # START SPECIAL SHORT
     if conditions_for_special_short(status=current_position.status, signal=signal):
-        position, df = await futures_start_special_short(
+        current_position, df = await futures_start_special_short(
             client=client,
             signal_update=signal_update,
             df=df,
@@ -446,7 +446,7 @@ async def signal_handle(
     if conditions_for_switch_from_short_to_long(
         status=current_position.status, signal=signal
     ):
-        position, df = await futures_switch_from_short_to_long(
+        current_position, df = await futures_switch_from_short_to_long(
             client=client,
             signal_update=signal_update,
             df=df,
@@ -460,7 +460,7 @@ async def signal_handle(
 
     # OPEN SPECIAL LONG
     if conditions_for_special_long(status=current_position.status, signal=signal):
-        position, df = await futures_start_special_long(
+        current_position, df = await futures_start_special_long(
             client=client,
             signal_update=signal_update,
             df=df,
@@ -475,7 +475,7 @@ async def signal_handle(
     if condition_to_close_special_position(
         status=current_position.status, signal=signal
     ):
-        position, df = await futures_close_special_position(
+        current_position, df = await futures_close_special_position(
             client=client,
             signal_update=signal_update,
             df=df,

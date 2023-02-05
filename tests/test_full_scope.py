@@ -5,9 +5,12 @@ from src.workers.worker import worker
 from src.producers.producers import Event, EventName, SignalUpdate, OrderUpdate
 import logging
 
+from tests.test_order_handle import mock_get_order_return_value
+
 logger = logging.getLogger("TEST")
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
@@ -15,8 +18,10 @@ async def test_full_scope(
     mock_create_order,
     mock_cancel_order,
     mock_position_information,
+    mock_get_order,
     base,
 ):
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_create_order.side_effect = [
         {"orderId": 1, "price": 20000.0, "status": base.client.ORDER_STATUS_NEW},
         {"orderId": 2, "price": 19900.0, "status": base.client.ORDER_STATUS_NEW},

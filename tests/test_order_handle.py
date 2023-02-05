@@ -103,35 +103,53 @@ def mock_create_order_side_effect_short():
     ]
 
 
-async def first_order_filled(base, entry_price: float) -> CurrentPosition:
+def mock_get_order_return_value():
+    return {
+        "orderId": 1,
+        "price": 19567.72,
+        "status": binance.AsyncClient.ORDER_STATUS_NEW,
+        "executedQty": 0.0,
+    }
 
-    quantity = base.position.current_position.orders[0].quantity
+
+async def first_order_filled(
+    current_position: CurrentPosition,
+    entry_price: float,
+    client: binance.AsyncClient,
+    df: pandas.DataFrame,
+    symbol: str,
+    balance: float,
+    leverage: int,
+) -> CurrentPosition:
+
+    assert current_position.orders is not None
+    quantity = current_position.orders[0].quantity
 
     order_update = OrderUpdate(
         price=entry_price,
         quantity=quantity,
-        status=base.client.ORDER_STATUS_FILLED,
+        status=binance.AsyncClient.ORDER_STATUS_FILLED,
         order_id=1,
         last_filled_quantity=quantity,
         realized_quantity=quantity,
     )
 
-    current_position, base.df = await order_handle(
-        client=base.client,
-        current_position=base.position.current_position,
+    current_position, df, balance = await order_handle(
+        client=client,
+        current_position=current_position,
         order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
+        df=df,
+        balance=balance,
+        leverage=leverage,
+        symbol=symbol,
     )
 
     assert current_position.orders is not None
 
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
+    assert current_position.orders[0].status == binance.AsyncClient.ORDER_STATUS_FILLED
+    assert current_position.orders[1].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert current_position.orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert current_position.orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert current_position.price == entry_price
     assert current_position.quantity == quantity
     assert current_position.take_profit_order is not None
@@ -160,9 +178,9 @@ async def second_order_filled(
         order_id=2,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -212,9 +230,9 @@ async def third_and_fourth_order_filled(
         order_id=3,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -249,9 +267,9 @@ async def third_and_fourth_order_filled(
         order_id=4,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -286,7 +304,9 @@ async def third_and_fourth_order_filled(
     return current_position
 
 
-async def target_reached(base, current_position: CurrentPosition) -> CurrentPosition:
+async def target_reached(
+    base, current_position: CurrentPosition
+) -> Tuple[CurrentPosition, pandas.DataFrame, float]:
 
     assert isinstance(current_position.take_profit_order, Order)
 
@@ -303,9 +323,9 @@ async def target_reached(base, current_position: CurrentPosition) -> CurrentPosi
         order_id=5,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -316,7 +336,7 @@ async def target_reached(base, current_position: CurrentPosition) -> CurrentPosi
     assert current_position.orders == []
     assert current_position.take_profit_order is None
 
-    return current_position
+    return current_position, base.df, balance
 
 
 async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
@@ -368,32 +388,42 @@ async def start_short(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
     return base.df, current_position, entry_price
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_filled(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
     ]
 
-    base.df, base.position, entry_price = await start_long(base=base)
+    base.df, current_position, entry_price = await start_long(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
 
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_filled_partially(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.062"}],
@@ -417,7 +447,7 @@ async def test_long_first_order_filled_partially(
         realized_quantity=realized_quantity,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
         current_position=base.position.current_position,
         order_update=order_update,
@@ -452,14 +482,19 @@ async def test_long_first_order_filled_partially(
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_filled_partially_twice(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.046"}],
@@ -482,7 +517,7 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
         current_position=current_position,
         order_update=order_update,
@@ -515,9 +550,9 @@ async def test_long_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -538,14 +573,19 @@ async def test_long_first_order_filled_partially_twice(
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_two_orders_filled(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -556,7 +596,15 @@ async def test_long_two_orders_filled(
 
     base.df, current_position, entry_price = await start_long(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
 
@@ -568,11 +616,14 @@ async def test_long_two_orders_filled(
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_new(mock_create_order, mock_position_information, base):
+async def test_long_first_order_new(
+    mock_create_order, mock_position_information, mock_get_order, base
+):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -594,9 +645,9 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -611,13 +662,14 @@ async def test_long_first_order_new(mock_create_order, mock_position_information
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_expired(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -639,9 +691,9 @@ async def test_long_first_order_expired(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -656,13 +708,14 @@ async def test_long_first_order_expired(
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_canceled(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -684,9 +737,9 @@ async def test_long_first_order_canceled(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -701,51 +754,20 @@ async def test_long_first_order_canceled(
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_two_orders_filled_then_target_reached(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-
-    base.df, position, entry_price = await start_long(base=base)
-
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
-    assert current_position.take_profit_order.price == 20800.0
-    assert current_position.liquidation_price == 19200
-
-    current_position = await second_order_filled(
-        base=base, current_position=current_position
-    )
-    assert current_position.take_profit_order.price == 20748.0
-    assert current_position.liquidation_price == 19152
-
-    current_position = await target_reached(
-        base=base, current_position=current_position
-    )
-
-    assert base.position.balance == 1099.75
-    assert base.df.iloc[-1]["position"] == Signals.FLAT
-
-
-@patch("binance.AsyncClient.futures_position_information")
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_long_all_orders_filled_then_target_reached(
-    mock_create_order, mock_cancel_order, mock_position_information, base
-):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -755,7 +777,64 @@ async def test_long_all_orders_filled_then_target_reached(
 
     base.df, current_position, entry_price = await start_long(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
+    assert current_position.take_profit_order.price == 20800.0
+    assert current_position.liquidation_price == 19200
+
+    current_position = await second_order_filled(
+        base=base, current_position=current_position
+    )
+    assert current_position.take_profit_order.price == 20748.0
+    assert current_position.liquidation_price == 19152
+
+    current_position, base.df, balance = await target_reached(
+        base=base, current_position=current_position
+    )
+
+    assert balance == 1099.75
+    assert base.df.iloc[-1]["position"] == Signals.FLAT
+
+
+@patch("binance.AsyncClient.futures_get_order")
+@patch("binance.AsyncClient.futures_position_information")
+@patch("binance.AsyncClient.futures_cancel_order")
+@patch("binance.AsyncClient.futures_create_order")
+async def test_long_all_orders_filled_then_target_reached(
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
+):
+    mock_create_order.side_effect = mock_create_order_side_effect_long()
+    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
+    mock_get_order.return_value = mock_get_order_return_value()
+    mock_position_information.side_effect = [
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
+    ]
+
+    base.df, current_position, entry_price = await start_long(base=base)
+
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
 
@@ -771,25 +850,30 @@ async def test_long_all_orders_filled_then_target_reached(
     assert current_position.take_profit_order.price == 20644.0
     assert current_position.liquidation_price == 19056
 
-    current_position = await target_reached(
+    current_position, base.df, balance = await target_reached(
         base=base, current_position=current_position
     )
 
     assert current_position.orders == []
     assert current_position.take_profit_order is None
-    assert base.position.balance == 1199.29
+    assert balance == 1199.29
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_all_orders_filled_then_target_reached_partially(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -801,7 +885,15 @@ async def test_long_all_orders_filled_then_target_reached_partially(
 
     base.df, current_position, entry_price = await start_long(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
 
@@ -833,9 +925,9 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -851,19 +943,24 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     assert current_position.take_profit_order.price == 20644.0
     assert current_position.take_profit_order.quantity == remaining_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
-    assert base.position.balance == 1100.04
+    assert balance == 1100.04
     assert base.df.iloc[-1]["position"] == Signals.LONG
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_all_orders_filled_then_target_reached_partially_then_filled_completely(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -875,7 +972,15 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
 
     base.df, current_position, entry_price = await start_long(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
 
@@ -904,9 +1009,9 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=6,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -923,7 +1028,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         assert current_position.take_profit_order.price == 20644.0
         assert current_position.take_profit_order.quantity == remaining_quantity
         assert current_position.take_profit_order.realized_quantity == partial_quantity
-        assert base.position.balance == 1100.04
+        assert balance == 1100.04
     except AssertionError as error:
         logger.info(error)
         raise error
@@ -937,31 +1042,36 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_id=7,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
-        balance=base.position.balance,
+        balance=balance,
         leverage=base.position.leverage,
         symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
     assert current_position.take_profit_order is None
-    assert base.position.balance == 1200.08
+    assert balance == 1200.08
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_all_orders_filled_then_liquidation(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_long()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -971,7 +1081,15 @@ async def test_long_all_orders_filled_then_liquidation(
 
     base.df, current_position, entry_price = await start_long(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
 
@@ -1001,9 +1119,9 @@ async def test_long_all_orders_filled_then_liquidation(
         last_filled_quantity=quantity,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1013,20 +1131,21 @@ async def test_long_all_orders_filled_then_liquidation(
 
     assert current_position.orders == []
     assert current_position.take_profit_order is None
-    assert base.position.balance == 800.00
+    assert balance == 800.00
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
 # ------------------------------ SHORT -------------------------------------#
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_filled(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
@@ -1034,20 +1153,29 @@ async def test_short_first_order_filled(
         [{"liquidationPrice": "20956", "entryPrice": "20150", "positionAmt": "0.124"}],
     ]
 
-    base.df, position, entry_price = await start_short(base=base)
+    base.df, current_position, entry_price = await start_short(base=base)
 
-    position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_filled_partially(
-    mock_create_order, mock_position_information, base
+    mock_create_order, mock_position_information, mock_get_order, base
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.062"}],
@@ -1071,9 +1199,9 @@ async def test_short_first_order_filled_partially(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1093,15 +1221,20 @@ async def test_short_first_order_filled_partially(
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_filled_partially_twice(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.046"}],
@@ -1125,9 +1258,9 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1157,9 +1290,9 @@ async def test_short_first_order_filled_partially_twice(
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1182,15 +1315,20 @@ async def test_short_first_order_filled_partially_twice(
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_two_orders_filled(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
@@ -1200,7 +1338,15 @@ async def test_short_two_orders_filled(
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
 
     current_position = await second_order_filled(
         base=base, current_position=current_position
@@ -1209,11 +1355,12 @@ async def test_short_two_orders_filled(
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_short_first_order_new(mock_create_order, base):
+async def test_short_first_order_new(mock_create_order, mock_get_order, base):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
-
-    base.df, position, entry_price = await start_short(base=base)
+    mock_get_order.return_value = mock_get_order_return_value()
+    base.df, current_position, entry_price = await start_short(base=base)
 
     order_update = OrderUpdate(
         price=entry_price,
@@ -1224,9 +1371,9 @@ async def test_short_first_order_new(mock_create_order, base):
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1242,11 +1389,12 @@ async def test_short_first_order_new(mock_create_order, base):
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_short_first_order_expired(mock_create_order, base):
+async def test_short_first_order_expired(mock_create_order, mock_get_order, base):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
-
-    base.df, position, entry_price = await start_short(base=base)
+    mock_get_order.return_value = mock_get_order_return_value()
+    base.df, current_position, entry_price = await start_short(base=base)
 
     order_update = OrderUpdate(
         price=entry_price,
@@ -1257,9 +1405,9 @@ async def test_short_first_order_expired(mock_create_order, base):
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1275,10 +1423,11 @@ async def test_short_first_order_expired(mock_create_order, base):
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_short_first_order_canceled(mock_create_order, base):
+async def test_short_first_order_canceled(mock_create_order, mock_get_order, base):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
-
+    mock_get_order.return_value = mock_get_order_return_value()
     base.df, current_position, entry_price = await start_short(base=base)
 
     order_update = OrderUpdate(
@@ -1290,9 +1439,9 @@ async def test_short_first_order_canceled(mock_create_order, base):
         order_id=1,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1308,15 +1457,20 @@ async def test_short_first_order_canceled(mock_create_order, base):
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_two_orders_filled_then_target_reached(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
@@ -1326,7 +1480,15 @@ async def test_short_two_orders_filled_then_target_reached(
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
 
@@ -1336,24 +1498,29 @@ async def test_short_two_orders_filled_then_target_reached(
     assert current_position.take_profit_order.price == 19248.0
     assert current_position.liquidation_price == 20852.0
 
-    current_position = await target_reached(
+    current_position, base.df, balance = await target_reached(
         base=base, current_position=current_position
     )
 
-    assert base.position.balance == 1099.45
+    assert balance == 1099.45
 
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_all_orders_filled_then_target_reached(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
@@ -1363,7 +1530,15 @@ async def test_short_all_orders_filled_then_target_reached(
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
 
@@ -1392,9 +1567,9 @@ async def test_short_all_orders_filled_then_target_reached(
         realized_quantity=quantity,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1404,19 +1579,24 @@ async def test_short_all_orders_filled_then_target_reached(
 
     assert current_position.orders == []
     assert current_position.take_profit_order is None
-    assert round(base.position.balance, 2) == 1199.89
+    assert round(balance, 2) == 1199.89
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_all_orders_filled_then_target_reached_partially(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
@@ -1426,7 +1606,15 @@ async def test_short_all_orders_filled_then_target_reached_partially(
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
 
@@ -1460,9 +1648,9 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         order_id=6,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1478,19 +1666,24 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     assert current_position.take_profit_order.price == 19344.0
     assert current_position.take_profit_order.quantity == rest_of_order_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
-    assert base.position.balance == 1099.94
+    assert balance == 1099.94
     assert base.df.iloc[-1]["position"] == Signals.SHORT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_all_orders_filled_then_target_reached_partially_then_filled_completely(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_position_information.side_effect = [
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20852", "entryPrice": "20050", "positionAmt": "0.124"}],
@@ -1500,7 +1693,15 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
 
@@ -1534,9 +1735,9 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=6,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
@@ -1557,7 +1758,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     assert current_position.take_profit_order.price == 19344.0
     assert current_position.take_profit_order.quantity == rest_of_order_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
-    assert base.position.balance == 1099.94
+    assert balance == 1099.94
 
     price = current_position.take_profit_order.price
     quantity = rest_of_order_quantity
@@ -1572,29 +1773,35 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_id=7,
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
-        balance=base.position.balance,
+        balance=balance,
         leverage=base.position.leverage,
         symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
     assert current_position.take_profit_order is None
-    assert base.position.balance == 1199.88
+    assert balance == 1199.88
     assert base.df.iloc[-1]["position"] == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_all_orders_filled_then_liquidation(
-    mock_create_order, mock_cancel_order, mock_position_information, base
+    mock_create_order,
+    mock_cancel_order,
+    mock_position_information,
+    mock_get_order,
+    base,
 ):
     mock_create_order.side_effect = mock_create_order_side_effect_short()
+    mock_get_order.return_value = mock_get_order_return_value()
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
 
     mock_position_information.side_effect = [
@@ -1606,7 +1813,18 @@ async def test_short_all_orders_filled_then_liquidation(
 
     base.df, current_position, entry_price = await start_short(base=base)
 
-    current_position = await first_order_filled(base=base, entry_price=entry_price)
+    for order in current_position.orders:
+        logger.info("Orderdddd: %s", order)
+
+    current_position = await first_order_filled(
+        current_position=current_position,
+        entry_price=entry_price,
+        balance=base.position.balance,
+        leverage=base.position.leverage,
+        client=base.client,
+        df=base.df,
+        symbol=base.position.symbol,
+    )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
 
@@ -1636,9 +1854,9 @@ async def test_short_all_orders_filled_then_liquidation(
         order_type="LIQUIDATION",
     )
 
-    current_position, base.df = await order_handle(
+    current_position, base.df, base.position.balance = await order_handle(
         client=base.client,
-        current_position=base.position.current_position,
+        current_position=current_position,
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,

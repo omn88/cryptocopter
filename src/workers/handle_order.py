@@ -53,7 +53,7 @@ async def futures_validate_orders(
                 realized_quantity=order.realized_quantity,
             )
 
-            current_position, df = await order_handle(
+            current_position, df, balance = await order_handle(
                 client=client,
                 df=df,
                 current_position=current_position,
@@ -429,13 +429,13 @@ async def order_handle(
     symbol: str,
     leverage: int,
     balance: float,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
+) -> Tuple[CurrentPosition, pandas.DataFrame, float]:
     logger.info("Entering order handle")
 
     assert isinstance(order_update, OrderUpdate)
     if order_update.order_type == "LIQUIDATION":
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
-            (current_position, df, balance,) = await position_liquidation(
+            current_position, df, balance = await position_liquidation(
                 client=client,
                 current_position=current_position,
                 df=df,
@@ -471,7 +471,7 @@ async def order_handle(
                 binance.AsyncClient.ORDER_STATUS_FILLED,
                 binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
             ]:
-                (current_position, df, balance,) = await target_reached(
+                current_position, df, balance = await target_reached(
                     client=client,
                     current_position=current_position,
                     order_update=order_update,
@@ -498,4 +498,4 @@ async def order_handle(
             )
 
     logger.info("Exiting order handle")
-    return current_position, df
+    return current_position, df, balance

@@ -56,7 +56,7 @@ async def worker(
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            current_position, df = await order_handle(
+            position.current_position, df, position.balance = await order_handle(
                 client=client,
                 current_position=position.current_position,
                 order_update=event.content,
@@ -71,7 +71,7 @@ async def worker(
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            current_position, df = await signal_handle(
+            position.current_position, df = await signal_handle(
                 client=client,
                 df=df,
                 signal_update=event.content,
