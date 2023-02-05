@@ -8,12 +8,17 @@ from src.workers.worker import worker
 from tests.data.sample_dataframes import data_no_signal
 import logging
 
+from tests.test_order_handle import mock_get_order_return_value
+
 logger = logging.getLogger("test")
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_kline_handling(mock_create_order, mock_cancel_order, base):
+async def test_kline_handling(
+    mock_create_order, mock_cancel_order, mock_get_order, base
+):
     mock_create_order.side_effect = [
         {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
         {"orderId": "2", "price": "18408.2", "status": base.client.ORDER_STATUS_NEW},
@@ -26,7 +31,7 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
         {"orderId": "9", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
         kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
@@ -301,10 +306,11 @@ async def test_kline_handling(mock_create_order, mock_cancel_order, base):
     assert position.current_position.status == Signals.FLAT
 
 
+@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_kline_handling_for_special_short(
-    mock_create_order, mock_cancel_order, base
+    mock_create_order, mock_cancel_order, mock_get_order, base
 ):
     mock_create_order.side_effect = [
         {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
@@ -318,7 +324,7 @@ async def test_kline_handling_for_special_short(
         {"orderId": "9", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
+    mock_get_order.return_value = mock_get_order_return_value()
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
         kline=["1672306200000", "19573.19", "19605.9", "17160.1", "17700.72", "0", "0"]

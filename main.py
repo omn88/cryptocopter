@@ -14,12 +14,12 @@ from src.common import (
     insert_to_pandas,
     futures_get_balance,
 )
-from src.orders import futures_position_close
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
     determine_start_position,
 )
+from src.workers.handle_order import futures_position_close
 from src.workers.worker import worker
 
 import warnings
