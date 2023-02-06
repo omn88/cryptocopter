@@ -71,7 +71,7 @@ async def main():
     asset = "USDT"
     interval = "15m"
     logger.info(
-        "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
+        "Initial params: symbol %s, asset %s, interval %s" % (SYMBOL, asset, interval)
     )
 
     client = await AsyncClient.create(
@@ -99,7 +99,6 @@ async def main():
 
     historical_data = await get_futures_historical_data(
         client=client,
-        symbol=symbol,
         interval=interval,
         lookback="4320",  # 44000 is approximately one month
     )
@@ -113,7 +112,6 @@ async def main():
     producers = [
         asyncio.create_task(
             kline_futures_socket(
-                symbol=symbol,
                 bm=bm,
                 queue=queue,
                 interval=interval,

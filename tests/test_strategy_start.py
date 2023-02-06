@@ -7,7 +7,7 @@ import pytest
 
 from src.backtest.lib import get_futures_historical_data
 from src.common import insert_to_pandas
-from src.producers.producers import determine_start_position, Event, SignalUpdate
+from src.producers.producers import determine_start_position, SignalUpdate
 from src.features import Signals
 
 from tests.data.sample_dataframes import dataframe_gen
@@ -22,7 +22,7 @@ async def test_get_historical_data(mock_get_historical_klines):
 
         # one_year = '528000'
         frame_historical_data = await get_futures_historical_data(
-            client=client, symbol="BTCUSDT", interval="15m", lookback="4000"
+            client=client, interval="15m", lookback="4000"
         )
         assert mock_get_historical_klines.called
         frame_historical_data = insert_to_pandas(data=frame_historical_data)

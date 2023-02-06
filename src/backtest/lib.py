@@ -6,6 +6,7 @@ import pandas
 from matplotlib import pyplot
 import binance
 
+from constants import SYMBOL
 from src.orders import Order, PositionSide
 
 logger = logging.getLogger("lib")
@@ -43,11 +44,11 @@ async def get_historical_data(
 
 
 async def get_futures_historical_data(
-    client: binance.AsyncClient, symbol: str, interval: str, lookback: str
+    client: binance.AsyncClient, interval: str, lookback: str
 ) -> List:
 
     historical_data = await client.futures_historical_klines(
-        symbol, interval, lookback + "min ago UTC"
+        SYMBOL, interval, lookback + "min ago UTC"
     )
     return historical_data[:-1]
 
