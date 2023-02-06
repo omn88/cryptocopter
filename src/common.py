@@ -8,6 +8,8 @@ import numpy
 import pandas
 from binance.exceptions import BinanceAPIException
 
+from constants import SYMBOL
+
 logger = logging.getLogger("common")
 
 
@@ -38,28 +40,26 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
 
 
 async def futures_get_position_info(
-    client: binance.AsyncClient, symbol: str
+    client: binance.AsyncClient,
 ) -> Tuple[float, float, float]:
     """
     Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
 
     :param client: An instance of the Binance async client
     :type client: binance.AsyncClient
-    :param symbol: The symbol for the futures contract
-    :type symbol: str
     :return: A dictionary containing the symbol, liquidation price, entry price and position amount for the given symbol
     :rtype: dict
     """
     logger.info("Enter position information")
     try:
-        resp = await client.futures_position_information(symbol=symbol)
+        resp = await client.futures_position_information(symbol=SYMBOL)
         logger.info("RESP: %s", resp)
         liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
         entry_price = round(float(resp[0]["entryPrice"]), 1)
         position_amt = float(resp[0]["positionAmt"])
     except BinanceAPIException as e:
         raise ValueError(
-            f"Failed to retrieve position information for symbol {symbol} due to {e}"
+            f"Failed to retrieve position information for symbol {SYMBOL} due to {e}"
         )
 
     logger.info("Exit position information")

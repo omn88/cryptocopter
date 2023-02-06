@@ -7,6 +7,8 @@ import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
 from decouple import config
+
+from constants import LEVERAGE, SYMBOL
 from src.backtest.lib import get_futures_historical_data
 from src import orders, features
 from src.common import (
@@ -31,13 +33,12 @@ async def shutdown(
     client: binance.AsyncClient,
     posix_signal: signal.Signals,
     current_position: orders.CurrentPosition,
-    symbol: str,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
 
     current_position = await futures_position_close(
-        client=client, current_position=current_position, symbol=symbol
+        client=client, current_position=current_position
     )
 
     logging.info("Nacking outstanding messages")
@@ -62,16 +63,13 @@ async def main():
                     client=client,
                     posix_signal=s,
                     current_position=position.current_position,
-                    symbol=position.symbol,
                 )
             ),
         )
 
     logger.info("RSI Based Futures: Start")
-    symbol = "BTCUSDT"
     asset = "USDT"
     interval = "15m"
-    leverage = 25
     logger.info(
         "Initial params: symbol %s, asset %s, interval %s" % (symbol, asset, interval)
     )
@@ -90,12 +88,12 @@ async def main():
     balance = await futures_get_balance(client=client, asset=asset)
 
     try:
-        await client.futures_change_margin_type(symbol=symbol, marginType="ISOLATED")
+        await client.futures_change_margin_type(symbol=SYMBOL, marginType="ISOLATED")
     except binance.exceptions.BinanceAPIException as e:
         logger.debug("All: %s" % e)
-    await client.futures_change_leverage(symbol=symbol, leverage=leverage)
+    await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
 
-    position = orders.Position(symbol=symbol, balance=balance)
+    position = orders.Position(balance=balance)
 
     logger.info("Order quantity list: \n%s", position.order_quantity_list)
 

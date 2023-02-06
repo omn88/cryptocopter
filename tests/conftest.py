@@ -29,7 +29,7 @@ async def base():
     base = Base(
         df=df,
         client=binance.AsyncClient(),
-        position=Position(symbol=Base.symbol, balance=1000),
+        position=Position(balance=1000),
     )
     base.df = await determine_start_position(df=base.df, queue=base.queue)
 

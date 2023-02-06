@@ -3,7 +3,7 @@ from typing import Tuple
 import binance
 import pandas
 
-from src import features, orders
+from src import features
 
 import logging
 
@@ -145,10 +145,7 @@ async def futures_signal_position_open(
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
     balance: float,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list,
-    symbol: str,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Opening %s", signal_update.signal)
     current_position = await handle_order.futures_position_open(
@@ -159,10 +156,7 @@ async def futures_signal_position_open(
         if signal_update.signal in [Signals.LONG, Signals.LONG_20]
         else PositionSide.SHORT,
         balance=balance,
-        leverage=leverage,
-        number_of_dca_orders=number_of_dca_orders,
         order_quantity_list=order_quantity_list,
-        symbol=symbol,
         df=df,
     )
     df.at[df.index[-1], "position"] = signal_update.signal
@@ -195,17 +189,13 @@ async def futures_switch_from_long_to_short(
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
-    symbol: str,
     balance: float,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Switch from Long to Short")
     current_position = await handle_order.futures_position_close(
         client=client,
         current_position=current_position,
-        symbol=symbol,
     )
 
     logger.info("Long closed, opening DCA Short")
@@ -215,10 +205,7 @@ async def futures_switch_from_long_to_short(
         signal=signal_update.signal,
         side=PositionSide.SHORT,
         balance=balance,
-        leverage=leverage,
-        number_of_dca_orders=number_of_dca_orders,
         order_quantity_list=order_quantity_list,
-        symbol=symbol,
         df=df,
     )
     df.at[df.index[-1], "position"] = signal_update.signal
@@ -231,17 +218,13 @@ async def futures_start_special_short(
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
-    symbol: str,
     balance: float,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Start special short")
     current_position = await handle_order.futures_position_close(
         client=client,
         current_position=current_position,
-        symbol=symbol,
     )
 
     df.at[df.index[-1], "position"] = current_position.status
@@ -252,10 +235,7 @@ async def futures_start_special_short(
         signal=signal_update.signal,
         side=PositionSide.SHORT,
         balance=balance,
-        leverage=leverage,
-        number_of_dca_orders=number_of_dca_orders,
         order_quantity_list=order_quantity_list,
-        symbol=symbol,
         mode=PositionMode.FULL,
         df=df,
     )
@@ -270,17 +250,13 @@ async def futures_switch_from_short_to_long(
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
-    symbol: str,
     balance: float,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Switch from Short to Long")
     current_position = await handle_order.futures_position_close(
         client=client,
         current_position=current_position,
-        symbol=symbol,
     )
     df.at[df.index[-1], "position"] = signal_update.signal
     await log_signal_change(df=df, signal=signal_update.signal)
@@ -291,10 +267,7 @@ async def futures_switch_from_short_to_long(
         signal=signal_update.signal,
         side=PositionSide.LONG,
         balance=balance,
-        leverage=leverage,
-        number_of_dca_orders=number_of_dca_orders,
         order_quantity_list=order_quantity_list,
-        symbol=symbol,
         df=df,
     )
 
@@ -306,17 +279,13 @@ async def futures_start_special_long(
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
-    symbol: str,
     balance: float,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Opening Special Long")
     current_position = await handle_order.futures_position_close(
         client=client,
         current_position=current_position,
-        symbol=symbol,
     )
 
     logger.info("Short closed, opening FULL Long")
@@ -326,10 +295,7 @@ async def futures_start_special_long(
         signal=signal_update.signal,
         side=PositionSide.LONG,
         balance=balance,
-        leverage=leverage,
-        number_of_dca_orders=number_of_dca_orders,
         order_quantity_list=order_quantity_list,
-        symbol=symbol,
         mode=PositionMode.FULL,
         df=df,
     )
@@ -343,13 +309,11 @@ async def futures_close_special_position(
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
-    symbol: str,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
     logger.info("Got signal: %s", signal_update.signal)
     current_position = await handle_order.futures_position_close(
         client=client,
         current_position=current_position,
-        symbol=symbol,
     )
 
     current_position = CurrentPosition()
@@ -365,9 +329,6 @@ async def signal_handle(
     signal_update: SignalUpdate,
     current_position: CurrentPosition,
     balance: float,
-    symbol: str,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
 
@@ -386,9 +347,6 @@ async def signal_handle(
             df=df,
             signal_update=signal_update,
             balance=balance,
-            symbol=symbol,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
         )
 
@@ -398,9 +356,6 @@ async def signal_handle(
             df=df,
             signal_update=signal_update,
             balance=balance,
-            symbol=symbol,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
         )
 
@@ -422,10 +377,7 @@ async def signal_handle(
             df=df,
             current_position=current_position,
             balance=balance,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
-            symbol=symbol,
         )
 
     # START SPECIAL SHORT
@@ -436,10 +388,7 @@ async def signal_handle(
             df=df,
             current_position=current_position,
             balance=balance,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
-            symbol=symbol,
         )
 
     # SWITCH FROM SHORT TO LONG
@@ -452,10 +401,7 @@ async def signal_handle(
             df=df,
             current_position=current_position,
             balance=balance,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
-            symbol=symbol,
         )
 
     # OPEN SPECIAL LONG
@@ -466,10 +412,7 @@ async def signal_handle(
             df=df,
             current_position=current_position,
             balance=balance,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
-            symbol=symbol,
         )
 
     if condition_to_close_special_position(
@@ -480,7 +423,6 @@ async def signal_handle(
             signal_update=signal_update,
             df=df,
             current_position=current_position,
-            symbol=symbol,
         )
 
     await log_signal_change(df=df, signal=signal)

@@ -18,9 +18,6 @@ async def kline_handle(
     current_position: CurrentPosition,
     historical_data: List,
     kline: List,
-    symbol: str,
-    leverage: int,
-    number_of_dca_orders: int,
     order_quantity_list: pandas.DataFrame,
     balance: float,
 ) -> Tuple[List, pandas.DataFrame, CurrentPosition]:
@@ -71,9 +68,6 @@ async def kline_handle(
             df=df,
             signal_update=signal_update,
             current_position=current_position,
-            symbol=symbol,
-            leverage=leverage,
-            number_of_dca_orders=number_of_dca_orders,
             order_quantity_list=order_quantity_list,
             balance=balance,
         )

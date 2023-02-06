@@ -38,9 +38,6 @@ async def test_signal_handle_long_when_flat(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -79,9 +76,6 @@ async def test_signal_handle_short_when_flat(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -119,9 +113,6 @@ async def test_signal_handle_null_when_flat(mock_create_order, mock_get_order, b
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -160,9 +151,6 @@ async def test_signal_handle_long_when_long(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -174,9 +162,6 @@ async def test_signal_handle_long_when_long(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -219,9 +204,6 @@ async def test_signal_handle_short_when_long(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -233,9 +215,6 @@ async def test_signal_handle_short_when_long(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -275,9 +254,6 @@ async def test_signal_handle_null_when_long(mock_create_order, mock_get_order, b
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -292,9 +268,6 @@ async def test_signal_handle_null_when_long(mock_create_order, mock_get_order, b
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -337,9 +310,6 @@ async def test_signal_handle_long_when_short(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -351,9 +321,6 @@ async def test_signal_handle_long_when_short(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -394,9 +361,6 @@ async def test_signal_handle_short_when_short(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -408,9 +372,6 @@ async def test_signal_handle_short_when_short(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -448,9 +409,6 @@ async def test_signal_handle_null_when_short(mock_create_order, mock_get_order, 
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -464,9 +422,6 @@ async def test_signal_handle_null_when_short(mock_create_order, mock_get_order, 
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -507,9 +462,6 @@ async def test_signal_handle_long_when_long_twenty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -521,9 +473,6 @@ async def test_signal_handle_long_when_long_twenty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -566,9 +515,6 @@ async def test_signal_handle_short_when_long_twenty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -580,9 +526,6 @@ async def test_signal_handle_short_when_long_twenty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -622,9 +565,6 @@ async def test_signal_handle_null_when_long_twenty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -638,9 +578,6 @@ async def test_signal_handle_null_when_long_twenty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -683,9 +620,6 @@ async def test_signal_handle_long_when_short_eighty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -697,9 +631,6 @@ async def test_signal_handle_long_when_short_eighty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -740,9 +671,6 @@ async def test_signal_handle_short_when_short_eighty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -754,9 +682,6 @@ async def test_signal_handle_short_when_short_eighty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -795,9 +720,6 @@ async def test_signal_handle_null_when_short_eighty(
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -811,9 +733,6 @@ async def test_signal_handle_null_when_short_eighty(
         current_position=current_position,
         df=base.df,
         balance=base.position.balance,
-        symbol=base.symbol,
-        leverage=base.position.leverage,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 

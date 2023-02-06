@@ -117,9 +117,7 @@ async def first_order_filled(
     entry_price: float,
     client: binance.AsyncClient,
     df: pandas.DataFrame,
-    symbol: str,
     balance: float,
-    leverage: int,
 ) -> CurrentPosition:
 
     assert current_position.orders is not None
@@ -140,8 +138,6 @@ async def first_order_filled(
         order_update=order_update,
         df=df,
         balance=balance,
-        leverage=leverage,
-        symbol=symbol,
     )
 
     assert current_position.orders is not None
@@ -184,8 +180,6 @@ async def second_order_filled(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders is not None
@@ -236,8 +230,6 @@ async def third_and_fourth_order_filled(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders is not None
@@ -273,8 +265,6 @@ async def third_and_fourth_order_filled(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders is not None
@@ -329,8 +319,6 @@ async def target_reached(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
@@ -349,9 +337,6 @@ async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -374,9 +359,6 @@ async def start_short(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
         current_position=base.position.current_position,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
-        number_of_dca_orders=base.position.number_of_dca_orders,
         order_quantity_list=base.position.order_quantity_list,
     )
 
@@ -407,10 +389,8 @@ async def test_long_first_order_filled(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
 
     assert base.df.iloc[-1]["position"] == Signals.LONG
@@ -453,8 +433,6 @@ async def test_long_first_order_filled_partially(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     for order in base.position.current_position.orders:
@@ -523,8 +501,6 @@ async def test_long_first_order_filled_partially_twice(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert (
@@ -556,8 +532,6 @@ async def test_long_first_order_filled_partially_twice(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert (
@@ -600,10 +574,8 @@ async def test_long_two_orders_filled(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -651,8 +623,6 @@ async def test_long_first_order_new(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_NEW
@@ -697,8 +667,6 @@ async def test_long_first_order_expired(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
@@ -743,8 +711,6 @@ async def test_long_first_order_canceled(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
@@ -781,10 +747,8 @@ async def test_long_two_orders_filled_then_target_reached(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -830,10 +794,8 @@ async def test_long_all_orders_filled_then_target_reached(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -889,10 +851,8 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -931,8 +891,6 @@ async def test_long_all_orders_filled_then_target_reached_partially(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -976,10 +934,8 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -1015,8 +971,6 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
     try:
 
@@ -1048,8 +1002,6 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         order_update=order_update,
         df=base.df,
         balance=balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
@@ -1085,10 +1037,8 @@ async def test_long_all_orders_filled_then_liquidation(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 20800.0
     assert current_position.liquidation_price == 19200
@@ -1125,8 +1075,6 @@ async def test_long_all_orders_filled_then_liquidation(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
@@ -1159,10 +1107,8 @@ async def test_short_first_order_filled(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
@@ -1205,8 +1151,6 @@ async def test_short_first_order_filled_partially(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert (
@@ -1264,8 +1208,6 @@ async def test_short_first_order_filled_partially_twice(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert (
@@ -1296,8 +1238,6 @@ async def test_short_first_order_filled_partially_twice(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert (
@@ -1342,10 +1282,8 @@ async def test_short_two_orders_filled(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
 
     current_position = await second_order_filled(
@@ -1377,8 +1315,6 @@ async def test_short_first_order_new(mock_create_order, mock_get_order, base):
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_NEW
@@ -1411,8 +1347,6 @@ async def test_short_first_order_expired(mock_create_order, mock_get_order, base
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
@@ -1445,8 +1379,6 @@ async def test_short_first_order_canceled(mock_create_order, mock_get_order, bas
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
@@ -1484,10 +1416,8 @@ async def test_short_two_orders_filled_then_target_reached(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
@@ -1534,10 +1464,8 @@ async def test_short_all_orders_filled_then_target_reached(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
@@ -1573,8 +1501,6 @@ async def test_short_all_orders_filled_then_target_reached(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
@@ -1610,10 +1536,8 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
@@ -1654,8 +1578,6 @@ async def test_short_all_orders_filled_then_target_reached_partially(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
@@ -1697,10 +1619,8 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
@@ -1741,8 +1661,6 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert base.df.iloc[-1]["position"] == Signals.SHORT
@@ -1779,8 +1697,6 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         order_update=order_update,
         df=base.df,
         balance=balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
@@ -1820,10 +1736,8 @@ async def test_short_all_orders_filled_then_liquidation(
         current_position=current_position,
         entry_price=entry_price,
         balance=base.position.balance,
-        leverage=base.position.leverage,
         client=base.client,
         df=base.df,
-        symbol=base.position.symbol,
     )
     assert current_position.take_profit_order.price == 19200.0
     assert current_position.liquidation_price == 20800.0
@@ -1860,8 +1774,6 @@ async def test_short_all_orders_filled_then_liquidation(
         order_update=order_update,
         df=base.df,
         balance=base.position.balance,
-        leverage=base.position.leverage,
-        symbol=base.position.symbol,
     )
 
     assert current_position.orders == []
