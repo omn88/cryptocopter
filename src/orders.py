@@ -6,6 +6,7 @@ import logging
 import binance
 from binance.exceptions import BinanceAPIException
 
+from constants import SYMBOL, LEVERAGE, DCA_SPAN, NUMBER_OF_DCA_ORDERS, LOSSES_PER_LEVEL
 from src import features
 import pandas
 
@@ -98,9 +99,7 @@ class CurrentPosition:
 
 
 def order_quantity_list_prepare(
-    number_of_dca_orders: int = 4,
     order_values: Optional[List[float]] = None,
-    losses_per_level: int = 4,
 ) -> pandas.DataFrame:
     order_values = (
         [
@@ -154,9 +153,8 @@ def order_quantity_list_prepare(
     # OQL stands for order quantity list
     oql = pandas.DataFrame(order_values, columns=["order_value"])
     oql.set_index(pandas.Index([i for i in range(len(order_values))]))
-    oql["sum_of_all_losses"] = oql.order_value * number_of_dca_orders * losses_per_level
+    oql["sum_of_all_losses"] = oql.order_value * NUMBER_OF_DCA_ORDERS * LOSSES_PER_LEVEL
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
-    # oql.threshold.iloc[0] = oql.sum_of_all_losses.iloc[0]
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
     return oql
@@ -164,19 +162,16 @@ def order_quantity_list_prepare(
 
 @dataclass
 class Position:
-    symbol: str
     current_position: CurrentPosition = CurrentPosition()
     order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
-    number_of_dca_orders = 4
     balance: float = 0
     expected_balance: float = 0
-    leverage: int = 25
 
     def __repr__(self) -> str:
         return (
-            f"Position(symbol={self.symbol}, current_position={self.current_position}, "
-            f"balance={self.balance}, leverage={self.leverage}, "
-            f"order_quantity_list={self.order_quantity_list}, number_of_dca_orders={self.number_of_dca_orders}"
+            f"Position(current_position={self.current_position}, "
+            f"balance={self.balance}, "
+            f"order_quantity_list={self.order_quantity_list}"
         )
 
 
@@ -198,12 +193,10 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
     return order_quantity, len(index_list) + 1
 
 
-async def send_order(
-    client: binance.AsyncClient, symbol: str, side: str, order: Order
-) -> Order:
+async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Order:
 
     resp = await client.futures_create_order(
-        symbol=symbol,
+        symbol=SYMBOL,
         price=round(order.price, 1),
         quantity=round(abs(order.quantity), 3),
         side=side,
@@ -225,11 +218,11 @@ async def send_order(
     return order
 
 
-async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
-    logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
+async def cancel_order(client: binance.AsyncClient, order: Order):
+    logger.info("Enter cancel order: %s, symbol: %s", order.order_id, SYMBOL)
 
     try:
-        resp = await client.futures_cancel_order(symbol=symbol, orderId=order.order_id)
+        resp = await client.futures_cancel_order(symbol=SYMBOL, orderId=order.order_id)
     except BinanceAPIException as e:
         # Log the exception
         logger.info(e)
@@ -247,13 +240,12 @@ async def cancel_order(client: binance.AsyncClient, order: Order, symbol: str):
 
 
 async def send_orders(
-    client: binance.AsyncClient, symbol: str, side: str, orders: List[Order]
+    client: binance.AsyncClient, side: str, orders: List[Order]
 ) -> List[Order]:
     """Send a list of orders concurrently.
 
     Args:
         client: A `binance.AsyncClient` object.
-        symbol: The symbol to send the orders for.
         side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
         orders: A list of `Order` objects to send.
 
@@ -262,19 +254,19 @@ async def send_orders(
     """
     tasks = []
     for order in orders:
-        task = asyncio.create_task(send_order(client, symbol, side, order))
+        task = asyncio.create_task(send_order(client=client, side=side, order=order))
         tasks.append(task)
     results = await asyncio.gather(*tasks)
 
     return list(results)
 
 
-def target_price_calculate(side: str, price: float, leverage: int) -> float:
+def target_price_calculate(side: str, price: float) -> float:
     logger.info("Entering target price calculate")
     if side == PositionSide.LONG:
-        target_price = round((1 + (100 / leverage / 100)) * price, 1)
+        target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)
     elif side == PositionSide.SHORT:
-        target_price = round((1 - (100 / leverage / 100)) * price, 1)
+        target_price = round((1 - (100 / LEVERAGE / 100)) * price, 1)
     else:
         raise AssertionError("Wrong position side: %s", side)
 
@@ -282,57 +274,54 @@ def target_price_calculate(side: str, price: float, leverage: int) -> float:
     return target_price
 
 
-def get_order_price(side: str, entry_price: float, dca_span: float, order: int):
+def get_order_price(side: str, entry_price: float, order: int):
 
     if side == PositionSide.LONG:
-        return round((entry_price - (dca_span * order * entry_price)), 1)
+        return round((entry_price - (DCA_SPAN * order * entry_price)), 1)
 
     if side == PositionSide.SHORT:
-        return round((entry_price + (dca_span * order * entry_price)), 1)
+        return round((entry_price + (DCA_SPAN * order * entry_price)), 1)
 
 
 def get_order_quantity(
     side: str,
     mode: PositionMode,
-    leverage: int,
     order_quantity: float,
     entry_price: float,
-    dca_span: float,
     order: int,
-    number_of_dca_orders: int,
 ):
 
     if side == PositionSide.LONG and mode == PositionMode.DCA:
         return round(
-            leverage
+            LEVERAGE
             * order_quantity
-            / (round((entry_price - (dca_span * order * entry_price)), 2)),
+            / (round((entry_price - (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
 
     if side == PositionSide.LONG and mode == PositionMode.FULL:
         return round(
-            leverage
+            LEVERAGE
             * order_quantity
-            * number_of_dca_orders
-            / (round((entry_price - (dca_span * order * entry_price)), 2)),
+            * NUMBER_OF_DCA_ORDERS
+            / (round((entry_price - (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
 
     if side == PositionSide.SHORT and mode == PositionMode.DCA:
         return round(
-            leverage
+            LEVERAGE
             * order_quantity
-            / (round((entry_price + (dca_span * order * entry_price)), 2)),
+            / (round((entry_price + (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
 
     if side == PositionSide.SHORT and mode == PositionMode.FULL:
         return round(
-            leverage
+            LEVERAGE
             * order_quantity
-            * number_of_dca_orders
-            / (round((entry_price + (dca_span * order * entry_price)), 2)),
+            * NUMBER_OF_DCA_ORDERS
+            / (round((entry_price + (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
 
@@ -341,15 +330,12 @@ def prepare_orders(
     current_position: CurrentPosition,
     mode: PositionMode,
     entry_price: float,
-    number_of_dca_orders: int,
     balance: float,
-    leverage: int,
     order_quantity_list: pandas.DataFrame,
-    dca_span: float = 0.005,
 ) -> CurrentPosition:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = 1 if mode == PositionMode.FULL else number_of_dca_orders
+    number_of_dca_orders = 1 if mode == PositionMode.FULL else NUMBER_OF_DCA_ORDERS
     order_quantity_stable, order_level = order_quantity_check(
         oql=order_quantity_list, balance=balance
     )
@@ -360,14 +346,14 @@ def prepare_orders(
     )
     current_position.artifacts.side = current_position.side
     current_position.artifacts.mode = mode
-    current_position.artifacts.leverage = leverage
+    current_position.artifacts.leverage = LEVERAGE
 
     logger.info(
         "Balance: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
         balance,
         order_quantity_stable,
         number_of_dca_orders,
-        dca_span,
+        DCA_SPAN,
     )
 
     current_position.orders = [
@@ -375,18 +361,14 @@ def prepare_orders(
             price=get_order_price(
                 side=current_position.side,
                 entry_price=entry_price,
-                dca_span=dca_span,
                 order=order,
             ),
             quantity=get_order_quantity(
                 side=current_position.side,
                 mode=mode,
-                leverage=leverage,
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
-                dca_span=dca_span,
                 order=order,
-                number_of_dca_orders=number_of_dca_orders,
             ),
             order_id=0,
             quantity_stable=order_quantity_stable,
@@ -398,11 +380,9 @@ def prepare_orders(
     return current_position
 
 
-async def futures_get_order(
-    client: binance.AsyncClient, symbol: str, order: Order
-) -> Order:
+async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
 
-    resp = await client.futures_get_order(symbol=symbol, orderId=order.order_id)
+    resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
     updated_status = resp["status"]
     realized_quantity = round(float(resp["executedQty"]), 3)
     order.realized_quantity = realized_quantity
@@ -418,13 +398,12 @@ async def futures_get_order(
 
 
 async def cancel_take_profit_order(
-    client: binance.AsyncClient, take_profit_order: Order, symbol: str
+    client: binance.AsyncClient, take_profit_order: Order
 ) -> str:
 
     take_profit_order.status = await cancel_order(
         client=client,
         order=take_profit_order,
-        symbol=symbol,
     )
     logger.info(
         "Take profit order: %s, status: %s",
@@ -439,11 +418,10 @@ async def send_market_order(
     client: binance.AsyncClient,
     current_position: CurrentPosition,
     side: str,
-    symbol: str,
 ):
     try:
         resp = await client.futures_create_order(
-            symbol=symbol,
+            symbol=SYMBOL,
             side=side,
             quantity=abs(current_position.quantity),
             type=client.FUTURE_ORDER_TYPE_MARKET,
@@ -459,7 +437,7 @@ async def send_market_order(
 
 
 async def cancel_remaining_limit_orders(
-    client: binance.AsyncClient, current_position: CurrentPosition, symbol: str
+    client: binance.AsyncClient, current_position: CurrentPosition
 ) -> CurrentPosition:
     logger.info("Cancelling remaining limit orders")
     assert current_position.orders is not None
@@ -468,7 +446,7 @@ async def cancel_remaining_limit_orders(
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
         ]:
-            order.status = await cancel_order(client=client, symbol=symbol, order=order)
+            order.status = await cancel_order(client=client, order=order)
             logger.info(
                 "Order with order_id: %s should be cancelled and is: %s",
                 order.order_id,

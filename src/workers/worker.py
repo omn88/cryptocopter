@@ -48,10 +48,7 @@ async def worker(
                 current_position=position.current_position,
                 kline=event.content.kline,
                 balance=position.balance,
-                leverage=position.leverage,
-                number_of_dca_orders=position.number_of_dca_orders,
                 order_quantity_list=position.order_quantity_list,
-                symbol=position.symbol,
             )
 
         elif producers.EventName.ORDER == event.name:
@@ -62,8 +59,6 @@ async def worker(
                 order_update=event.content,
                 df=df,
                 balance=position.balance,
-                leverage=position.leverage,
-                symbol=position.symbol,
             )
 
         elif producers.EventName.ACCOUNT == event.name:
@@ -77,10 +72,7 @@ async def worker(
                 signal_update=event.content,
                 current_position=position.current_position,
                 balance=position.balance,
-                leverage=position.leverage,
-                symbol=position.symbol,
                 order_quantity_list=position.order_quantity_list,
-                number_of_dca_orders=position.number_of_dca_orders,
             )
 
             await print_last_n_rows(df=df)

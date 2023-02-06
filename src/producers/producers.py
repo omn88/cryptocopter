@@ -8,7 +8,7 @@ from binance import BinanceSocketManager
 import pandas
 import numpy
 
-from src import features
+from constants import SYMBOL
 from src.features import Signals
 
 logger = logging.getLogger("producer")
@@ -99,13 +99,12 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
 async def kline_futures_socket(
     bm: BinanceSocketManager,
-    symbol: str,
     interval: str,
     queue: asyncio.Queue,
     last_index,
 ):
 
-    kfs = bm.kline_futures_socket(symbol=symbol, interval=interval)
+    kfs = bm.kline_futures_socket(symbol=SYMBOL, interval=interval)
     async with kfs:
         while True:
             msg = await kfs.recv()
