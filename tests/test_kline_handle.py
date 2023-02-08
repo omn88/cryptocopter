@@ -29,6 +29,7 @@ async def test_kline_handling(
         {"orderId": "7", "price": "20500.0", "status": base.client.ORDER_STATUS_NEW},
         {"orderId": "8", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
         {"orderId": "9", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
+        {"orderId": "10", "price": "20602.5", "status": base.client.ORDER_STATUS_NEW},
     ]
     mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
     mock_get_order.return_value = mock_get_order_return_value()

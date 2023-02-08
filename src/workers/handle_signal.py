@@ -316,9 +316,7 @@ async def futures_close_special_position(
         current_position=current_position,
     )
 
-    current_position = CurrentPosition()
-
-    df.at[df.index[-1], "position"] = current_position.status
+    df.at[df.index[-1], "position"] = features.Signals.FLAT
 
     return current_position, df
 
