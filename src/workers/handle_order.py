@@ -433,16 +433,32 @@ async def order_handle(
     elif order_update.order_type == "MARKET":
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
             logger.info("MARKET order filled!")
+            assert current_position.market_order is not None
 
             update_artifacts_and_save(
                 current_position=current_position,
                 order_update=order_update,
                 balance=balance,
             )
+
+            current_position.market_order.status = order_update.status
+            current_position.market_order.price = order_update.price
+            current_position.market_order.quantity = order_update.quantity
+            current_position.market_order.realized_quantity = (
+                order_update.realized_quantity
+            )
+
         else:
+            current_position.market_order = Order(
+                price=order_update.price,
+                quantity=order_update.quantity,
+                order_id=order_update.order_id,
+                realized_quantity=order_update.realized_quantity,
+                status=order_update.status,
+            )
             logger.info(
-                "Market order realization in progress, order status: %s!",
-                order_update.status,
+                "Market order realization in progress: %s!",
+                current_position.market_order,
             )
 
     elif order_update.order_type == "LIMIT":

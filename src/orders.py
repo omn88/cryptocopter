@@ -84,6 +84,7 @@ class CurrentPosition:
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Optional[Order] = None
+    market_order: Optional[Order] = None
     artifacts: Artifacts = Artifacts()
 
     def __post_init__(self):
