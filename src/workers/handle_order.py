@@ -229,8 +229,6 @@ async def position_liquidation(
         client=client,
         take_profit_order=current_position.take_profit_order,
     )
-    if status == binance.AsyncClient.ORDER_STATUS_CANCELED:
-        current_position.take_profit_order = None
 
     loss = 0.0
     assert current_position.orders is not None
