@@ -121,24 +121,44 @@ async def futures_position_close(
     client: binance.AsyncClient, current_position: CurrentPosition
 ) -> CurrentPosition:
 
+    close_side = (
+        client.SIDE_BUY
+        if current_position.side == client.SIDE_SELL
+        else client.SIDE_SELL
+    )
+
     if current_position.take_profit_order is not None:
-        logger.info(
-            "Entering position close, trying to Market %s",
-            current_position.side,
-        )
+        logger.info("Entering position close, trying to Market %s", close_side)
 
         await send_market_order(
             client=client,
             current_position=current_position,
-            side=client.SIDE_BUY
-            if current_position.side == client.SIDE_SELL
-            else client.SIDE_SELL,
+            side=close_side,
         )
+
         current_position.take_profit_order.status = await cancel_order(
             client=client,
             order=current_position.take_profit_order,
         )
         logger.info("Cancelled take profit order")
+
+    if current_position.status in [
+        features.Signals.SHORT_SPECIAL,
+        features.Signals.LONG_SPECIAL,
+    ]:
+        logger.info(
+            "Closing special position, trying to Market %s",
+            close_side,
+        )
+
+        await send_market_order(
+            client=client,
+            current_position=current_position,
+            side=close_side,
+        )
+
+        current_position.orders = []
+        current_position.status = features.Signals.FLAT
 
     await cancel_remaining_limit_orders(client, current_position=current_position)
 
@@ -209,8 +229,8 @@ async def position_liquidation(
         client=client,
         take_profit_order=current_position.take_profit_order,
     )
-    loss = 0.0
 
+    loss = 0.0
     assert current_position.orders is not None
     for order in current_position.orders:
         logger.info("quantity: %s, price: %s", order.quantity, order.price)
@@ -218,12 +238,12 @@ async def position_liquidation(
 
     balance -= round(loss, 2)
 
-    current_position, df = update_artifacts_and_save(
-        current_position=current_position,
-        order_update=order_update,
-        balance=balance,
-        df=df,
+    update_artifacts_and_save(
+        current_position=current_position, order_update=order_update, balance=balance
     )
+
+    current_position = CurrentPosition()
+    df.at[df.index[-1], "position"] = current_position.status
 
     return current_position, df, balance
 
@@ -273,12 +293,14 @@ async def target_reached(
         current_position = await cancel_remaining_limit_orders(
             client=client, current_position=current_position
         )
-        current_position, df = update_artifacts_and_save(
+        update_artifacts_and_save(
             current_position=current_position,
             order_update=order_update,
             balance=balance,
-            df=df,
         )
+
+        current_position = CurrentPosition()
+        df.at[df.index[-1], "position"] = current_position.status
 
     else:
         logger.info("Take profit order filled partially!")
@@ -362,9 +384,7 @@ def update_artifacts_and_save(
     current_position: CurrentPosition,
     order_update: OrderUpdate,
     balance: float,
-    df: pandas.DataFrame,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-
+) -> None:
     artifacts = current_position.artifacts
     artifacts.orders = current_position.orders
     artifacts.price = current_position.price
@@ -383,11 +403,6 @@ def update_artifacts_and_save(
     logger.info("Position artifacts: %s", pformat(artifacts))
 
     save_to_file(artifacts=artifacts)
-
-    current_position = CurrentPosition()
-    df.at[df.index[-1], "position"] = current_position.status
-
-    return current_position, df
 
 
 async def order_handle(
@@ -418,17 +433,32 @@ async def order_handle(
     elif order_update.order_type == "MARKET":
         if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
             logger.info("MARKET order filled!")
+            assert current_position.market_order is not None
 
-            current_position, df = update_artifacts_and_save(
+            update_artifacts_and_save(
                 current_position=current_position,
                 order_update=order_update,
                 balance=balance,
-                df=df,
             )
+
+            current_position.market_order.status = order_update.status
+            current_position.market_order.price = order_update.price
+            current_position.market_order.quantity = order_update.quantity
+            current_position.market_order.realized_quantity = (
+                order_update.realized_quantity
+            )
+
         else:
+            current_position.market_order = Order(
+                price=order_update.price,
+                quantity=order_update.quantity,
+                order_id=order_update.order_id,
+                realized_quantity=order_update.realized_quantity,
+                status=order_update.status,
+            )
             logger.info(
-                "Market order realization in progress, order status: %s!",
-                order_update.status,
+                "Market order realization in progress: %s!",
+                current_position.market_order,
             )
 
     elif order_update.order_type == "LIMIT":
