@@ -1,4 +1,11 @@
+import binance
+
 import lib
+from decouple import config
+
+from src import orders
+
+client = binance.Client(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
 
 
 class Backtest:
@@ -12,10 +19,11 @@ class Backtest:
         self.total_profit = 0
         self.depo_price = 0
         self.target_price = 0
-        self.df = lib.get_historical_data(
+        self.df = lib.get_futures_historical_data_sync(
             symbol=self.symbol,
             interval="15m",
-            lookback="528000",  # 44000 is approximately one month
+            lookback="44000",  # 44000 is approximately one month
+            client=client,
         )
         if self.df.empty:
             print("No data pulled")
@@ -52,12 +60,12 @@ class Backtest:
         number_of_dca_orders = 3
         position = lib.Order(price=0, quantity=self.order_quantity)
 
-        ovc = lib.order_quantity_list_prepare()
+        ovc = orders.order_quantity_list_prepare()
 
         for index, row in self.df.iterrows():
 
             self.df.at[index, "Saldo"] = self.saldo
-
+            index = str(index)
             if special_short:
                 if 100 - row["RSI"] < 50:
                     buy_price = row["Open"]
@@ -138,8 +146,8 @@ class Backtest:
                     )
                     long_position = False
                     sellprices_short.append(sell_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
@@ -173,8 +181,8 @@ class Backtest:
                     )
                     long_position = False
                     sellprices_short.append(sell_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
@@ -243,8 +251,8 @@ class Backtest:
                     )
                     short_position = False
                     buyprices_long.append(buy_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
@@ -278,8 +286,8 @@ class Backtest:
                     )
                     short_position = False
                     buyprices_long.append(buy_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
@@ -302,8 +310,8 @@ class Backtest:
                 if row["signal"] == "Buy":
                     buy_price = row["Open"]
                     buyprices_long.append(buy_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
@@ -323,8 +331,8 @@ class Backtest:
                 if row["signal"] == "Sell":
                     sell_price = row["Open"]
                     sellprices_short.append(sell_price)
-                    self.order_quantity = lib.order_quantity_check(
-                        saldo=self.saldo, ovc=ovc, index=index
+                    self.order_quantity, _ = orders.order_quantity_check(
+                        balance=self.saldo, oql=ovc
                     )
                     (
                         self.target_price,
