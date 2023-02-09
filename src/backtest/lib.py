@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import btalib
 import numpy
 import pandas
@@ -26,23 +26,6 @@ def target_depo_price_calculate(
         return target_price, depo_price
 
 
-async def get_historical_data(
-    symbol: str, interval: str, lookback: str, client: binance.AsyncClient
-) -> pandas.DataFrame:
-    # ToDo: Below Timedelta must react to time change (winter/summer)
-    pandas.Timedelta(hours=1)
-    historical_data = await client.get_historical_klines(
-        symbol, interval, lookback + "min ago UTC"
-    )
-    frame = pandas.DataFrame(historical_data)
-    frame = frame.iloc[:, :7]
-    frame.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    frame = frame.set_index("Date")
-    frame.index = pandas.to_datetime(frame.index, unit="ms") + numpy.timedelta64(1, "h")
-    frame = frame.astype(float)
-    return frame
-
-
 async def get_futures_historical_data(
     client: binance.AsyncClient, interval: str, lookback: str
 ) -> List:
@@ -54,13 +37,20 @@ async def get_futures_historical_data(
 
 
 def get_futures_historical_data_sync(
-    client: binance.Client, symbol: str, interval: str, lookback: str
+    client: binance.Client,
+    symbol: str,
+    interval: str,
+    lookback: str,
+    look_end: Optional[str] = None,
 ) -> pandas.DataFrame:
 
     # ToDo: Below Timedelta must react to time change (winter/summer)
     pandas.Timedelta(hours=1)
     historical_data = client.futures_historical_klines(
-        symbol, interval, lookback + "min ago UTC"
+        symbol=symbol,
+        interval=interval,
+        start_str=lookback + "min ago UTC",
+        end_str=look_end + "min ago UTC",
     )
     frame = pandas.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
