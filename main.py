@@ -33,12 +33,13 @@ async def shutdown(
     client: binance.AsyncClient,
     posix_signal: signal.Signals,
     current_position: orders.CurrentPosition,
+    balance: float,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
 
     current_position = await futures_position_close(
-        client=client, current_position=current_position
+        client=client, current_position=current_position, balance=balance
     )
 
     logging.info("Nacking outstanding messages")
@@ -63,6 +64,7 @@ async def main():
                     client=client,
                     posix_signal=s,
                     current_position=position.current_position,
+                    balance=balance,
                 )
             ),
         )

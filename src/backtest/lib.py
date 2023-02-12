@@ -50,7 +50,7 @@ def get_futures_historical_data_sync(
         symbol=symbol,
         interval=interval,
         start_str=lookback + "min ago UTC",
-        end_str=look_end + "min ago UTC",
+        end_str=look_end + "min ago UTC" if look_end is not None else None,
     )
     frame = pandas.DataFrame(historical_data)
     frame = frame.iloc[:, :7]
