@@ -141,6 +141,20 @@ async def test_kline_handling(
 
     logger.info("DF: %s", base.df.to_string())
 
+    event = await base.queue.get()
+
+    signal_update = event.content
+
+    position.current_position, base.df = await signal_handle(
+        signal_update=signal_update,
+        client=base.client,
+        current_position=position.current_position,
+        df=base.df,
+        balance=base.position.balance,
+        order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
+    )
+
     assert 4 == len(position.current_position.orders)
     assert 1000 == position.balance
     assert position.current_position.status == Signals.SHORT_80

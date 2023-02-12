@@ -210,6 +210,7 @@ async def test_full_scope(
     signal_update = SignalUpdate(signal=Signals.SHORT, price=20500)
 
     await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
     await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 
     historical_data, base.df, position = await worker(

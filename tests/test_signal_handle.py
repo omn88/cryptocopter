@@ -225,6 +225,18 @@ async def test_signal_handle_short_when_long(
         queue=base.queue,
     )
 
+    signal_update = SignalUpdate(signal=signal, price=entry_price)
+
+    current_position, base.df = await signal_handle(
+        signal_update=signal_update,
+        client=base.client,
+        current_position=current_position,
+        df=base.df,
+        balance=base.position.balance,
+        order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
+    )
+
     assert 4 == len(current_position.orders)
     assert 1000 == base.position.balance
     assert signal == current_position.status
@@ -542,6 +554,18 @@ async def test_signal_handle_short_when_long_twenty(
         signal_update=signal_update,
         client=base.client,
         current_position=base.position.current_position,
+        df=base.df,
+        balance=base.position.balance,
+        order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
+    )
+
+    signal_update = SignalUpdate(signal=signal, price=entry_price)
+
+    current_position, base.df = await signal_handle(
+        signal_update=signal_update,
+        client=base.client,
+        current_position=current_position,
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
