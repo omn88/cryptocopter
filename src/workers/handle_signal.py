@@ -215,7 +215,6 @@ async def futures_switch_from_long_to_short(
     await log_signal_change(df=df, signal=signal_update.signal)
 
     await asyncio.sleep(1)
-
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     return current_position, df
@@ -233,10 +232,10 @@ async def futures_start_special_short(
     current_position = await handle_order.futures_position_close(
         client=client, current_position=current_position, balance=balance
     )
-
+    logger.info("Sleep 1 sec to allow market order execution")
     await asyncio.sleep(1)
-
     df.at[df.index[-1], "position"] = features.Signals.FLAT
+    await log_signal_change(df=df, signal=signal_update.signal)
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     return current_position, df
@@ -256,9 +255,8 @@ async def futures_switch_from_short_to_long(
     )
     df.at[df.index[-1], "position"] = features.Signals.FLAT
     await log_signal_change(df=df, signal=signal_update.signal)
-
+    logger.info("Sleep 1 sec to allow market order execution")
     await asyncio.sleep(1)
-
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     return current_position, df
@@ -277,6 +275,7 @@ async def futures_start_special_long(
         client=client, current_position=current_position, balance=balance
     )
     df.at[df.index[-1], "position"] = current_position.status
+    logger.info("Sleep 1 sec to allow market order execution")
     await asyncio.sleep(1)
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
