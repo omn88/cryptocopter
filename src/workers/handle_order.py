@@ -1,6 +1,6 @@
 import dataclasses
 from pprint import pformat
-from typing import Tuple
+from typing import Tuple, Optional
 import json
 from datetime import datetime
 import binance
@@ -118,7 +118,7 @@ async def futures_position_open(
 
 
 async def futures_position_close(
-    client: binance.AsyncClient, current_position: CurrentPosition
+    client: binance.AsyncClient, current_position: CurrentPosition, balance: float
 ) -> CurrentPosition:
 
     close_side = (
@@ -141,6 +141,10 @@ async def futures_position_close(
             order=current_position.take_profit_order,
         )
         logger.info("Cancelled take profit order")
+    else:
+        update_artifacts_and_save(
+            current_position=current_position, order_update=None, balance=balance
+        )
 
     if current_position.status in [
         features.Signals.SHORT_SPECIAL,
@@ -158,7 +162,8 @@ async def futures_position_close(
         )
 
         current_position.orders = []
-        current_position.status = features.Signals.FLAT
+
+    current_position.status = features.Signals.FLAT
 
     await cancel_remaining_limit_orders(client, current_position=current_position)
 
@@ -382,23 +387,28 @@ def save_to_file(artifacts: Artifacts):
 
 def update_artifacts_and_save(
     current_position: CurrentPosition,
-    order_update: OrderUpdate,
+    order_update: Optional[OrderUpdate],
     balance: float,
 ) -> None:
+
     artifacts = current_position.artifacts
+
+    if order_update is not None:
+        artifacts.close_price = order_update.price
+        artifacts.per_cent_earned = order_update.price / current_position.price
+        artifacts.stable_earned = artifacts.quantity * (
+            order_update.price - artifacts.price
+        )
+
+        balance += artifacts.stable_earned
+        artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
+
     artifacts.orders = current_position.orders
     artifacts.price = current_position.price
-    artifacts.quantity = order_update.quantity
-    artifacts.close_price = order_update.price
-    artifacts.per_cent_earned = order_update.price / current_position.price
-    artifacts.stable_earned = artifacts.quantity * (
-        artifacts.close_price - artifacts.price
-    )
-
-    balance += artifacts.stable_earned
+    artifacts.quantity = current_position.quantity
     artifacts.end_balance = balance
 
-    artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
+    artifacts.status = "NO_POSITION"
 
     logger.info("Position artifacts: %s", pformat(artifacts))
 
