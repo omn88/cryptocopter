@@ -49,6 +49,7 @@ async def worker(
                 kline=event.content.kline,
                 balance=position.balance,
                 order_quantity_list=position.order_quantity_list,
+                queue=queue,
             )
 
         elif producers.EventName.ORDER == event.name:
@@ -73,6 +74,7 @@ async def worker(
                 current_position=position.current_position,
                 balance=position.balance,
                 order_quantity_list=position.order_quantity_list,
+                queue=queue,
             )
 
             await print_last_n_rows(df=df)

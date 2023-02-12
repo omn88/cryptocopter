@@ -279,6 +279,10 @@ async def test_full_scope(
 
     signal_update = SignalUpdate(signal=Signals.LONG, price=19814)
 
+    # ITS DONE TWICE AS THERE WAS A NEED WHEN CHAGNGING DIRECTLY FROM ONE POSITION TO OPPOSITE, TO GIVE SOME BREATH
+    # AFTER CLOSING FIRST POSITION WITH MARKET, AS THERE GONNA BE ORDER TRADE UPDATE MSGS WITH MARKET TYPE FILLED
+    # WHICH HAVE TO BE EXECUTED FIRST. SO FIRST SIGNAL UPDATE JUST CLOSES CURRENT POSITION, SECOND OPENS OPPOSITE ONE.
+    await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
     await base.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
     await base.queue.put(Event(name=EventName.SENTINEL, content=signal_update))
 

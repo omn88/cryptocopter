@@ -162,7 +162,8 @@ async def futures_position_close(
         )
 
         current_position.orders = []
-        current_position.status = features.Signals.FLAT
+
+    current_position.status = features.Signals.FLAT
 
     await cancel_remaining_limit_orders(client, current_position=current_position)
 

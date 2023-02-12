@@ -39,6 +39,7 @@ async def test_signal_handle_long_when_flat(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -77,6 +78,7 @@ async def test_signal_handle_short_when_flat(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -114,6 +116,7 @@ async def test_signal_handle_null_when_flat(mock_create_order, mock_get_order, b
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert len(current_position.orders) == 0
@@ -152,6 +155,7 @@ async def test_signal_handle_long_when_long(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -163,6 +167,7 @@ async def test_signal_handle_long_when_long(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -205,6 +210,7 @@ async def test_signal_handle_short_when_long(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -216,6 +222,7 @@ async def test_signal_handle_short_when_long(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -255,6 +262,7 @@ async def test_signal_handle_null_when_long(mock_create_order, mock_get_order, b
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     position_status = current_position.status
@@ -269,6 +277,7 @@ async def test_signal_handle_null_when_long(mock_create_order, mock_get_order, b
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -311,6 +320,7 @@ async def test_signal_handle_long_when_short(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -322,6 +332,19 @@ async def test_signal_handle_long_when_short(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
+    )
+
+    signal_update = SignalUpdate(signal=signal, price=entry_price)
+
+    current_position, base.df = await signal_handle(
+        signal_update=signal_update,
+        client=base.client,
+        current_position=current_position,
+        df=base.df,
+        balance=base.position.balance,
+        order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -362,6 +385,7 @@ async def test_signal_handle_short_when_short(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -373,6 +397,7 @@ async def test_signal_handle_short_when_short(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -410,6 +435,7 @@ async def test_signal_handle_null_when_short(mock_create_order, mock_get_order, 
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     position_status = current_position.status
@@ -423,6 +449,7 @@ async def test_signal_handle_null_when_short(mock_create_order, mock_get_order, 
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -463,6 +490,7 @@ async def test_signal_handle_long_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -474,6 +502,7 @@ async def test_signal_handle_long_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -516,6 +545,7 @@ async def test_signal_handle_short_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -527,6 +557,7 @@ async def test_signal_handle_short_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -566,6 +597,7 @@ async def test_signal_handle_null_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     position_status = current_position.status
@@ -579,6 +611,7 @@ async def test_signal_handle_null_when_long_twenty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -621,6 +654,7 @@ async def test_signal_handle_long_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -632,6 +666,19 @@ async def test_signal_handle_long_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
+    )
+
+    signal_update = SignalUpdate(signal=signal, price=entry_price)
+
+    current_position, base.df = await signal_handle(
+        signal_update=signal_update,
+        client=base.client,
+        current_position=current_position,
+        df=base.df,
+        balance=base.position.balance,
+        order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -672,6 +719,7 @@ async def test_signal_handle_short_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
@@ -683,6 +731,7 @@ async def test_signal_handle_short_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)
@@ -721,6 +770,7 @@ async def test_signal_handle_null_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     position_status = current_position.status
@@ -734,6 +784,7 @@ async def test_signal_handle_null_when_short_eighty(
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert 4 == len(current_position.orders)

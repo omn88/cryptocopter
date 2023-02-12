@@ -338,6 +338,7 @@ async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert current_position.orders is not None
@@ -360,6 +361,7 @@ async def start_short(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
         df=base.df,
         balance=base.position.balance,
         order_quantity_list=base.position.order_quantity_list,
+        queue=base.queue,
     )
 
     assert current_position.orders is not None

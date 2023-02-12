@@ -1,3 +1,4 @@
+import asyncio
 from typing import Tuple, List
 import binance
 import pandas
@@ -20,6 +21,7 @@ async def kline_handle(
     kline: List,
     order_quantity_list: pandas.DataFrame,
     balance: float,
+    queue: asyncio.Queue,
 ) -> Tuple[List, pandas.DataFrame, CurrentPosition]:
     logger.info("Entering Kline handling")
 
@@ -70,6 +72,7 @@ async def kline_handle(
             current_position=current_position,
             order_quantity_list=order_quantity_list,
             balance=balance,
+            queue=queue,
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
