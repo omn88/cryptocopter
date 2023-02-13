@@ -396,7 +396,7 @@ def update_artifacts_and_save(
     if order_update is not None:
         artifacts.close_price = (
             order_update.average_price
-            if order_update.order_type == "MARKET"
+            if order_update.order_type in ["MARKET", "LIQUIDATION"]
             else order_update.price
         )
         artifacts.per_cent_earned = order_update.price / current_position.price
