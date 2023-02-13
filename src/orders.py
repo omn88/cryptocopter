@@ -34,7 +34,7 @@ class Order:
     realized_quantity: float = 0
     time_in_force: str = binance.AsyncClient.TIME_IN_FORCE_GTC
     status: str = binance.AsyncClient.ORDER_STATUS_NEW
-    type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
+    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
         return (
@@ -207,7 +207,7 @@ async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Or
     order.status = resp["status"]
     logger.info(
         "New %s order, price: %s, quantity: %s, side: %s, order_id: %s, status: %s",
-        order.type,
+        order.order_type,
         order.price,
         order.quantity,
         side,
