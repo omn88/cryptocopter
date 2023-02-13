@@ -394,7 +394,11 @@ def update_artifacts_and_save(
     artifacts = current_position.artifacts
 
     if order_update is not None:
-        artifacts.close_price = order_update.price
+        artifacts.close_price = (
+            order_update.average_price
+            if order_update.order_type in ["MARKET", "LIQUIDATION"]
+            else order_update.price
+        )
         artifacts.per_cent_earned = order_update.price / current_position.price
         artifacts.stable_earned = artifacts.quantity * (
             order_update.price - artifacts.price
@@ -403,12 +407,13 @@ def update_artifacts_and_save(
         balance += artifacts.stable_earned
         artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
 
+    else:
+        artifacts.status = "NO_POSITION"
+
     artifacts.orders = current_position.orders
     artifacts.price = current_position.price
     artifacts.quantity = current_position.quantity
     artifacts.end_balance = balance
-
-    artifacts.status = "NO_POSITION"
 
     logger.info("Position artifacts: %s", pformat(artifacts))
 
@@ -445,18 +450,20 @@ async def order_handle(
             logger.info("MARKET order filled!")
             assert current_position.market_order is not None
 
-            update_artifacts_and_save(
-                current_position=current_position,
-                order_update=order_update,
-                balance=balance,
-            )
-
             current_position.market_order.status = order_update.status
             current_position.market_order.price = order_update.price
             current_position.market_order.quantity = order_update.quantity
             current_position.market_order.realized_quantity = (
                 order_update.realized_quantity
             )
+
+            update_artifacts_and_save(
+                current_position=current_position,
+                order_update=order_update,
+                balance=balance,
+            )
+
+            current_position.orders = []
 
         else:
             current_position.market_order = Order(

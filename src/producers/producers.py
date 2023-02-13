@@ -21,6 +21,7 @@ class OrderUpdate(NamedTuple):
     realized_quantity: float
     last_filled_quantity: float
     order_id: int
+    average_price: float = 0
     order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
@@ -71,6 +72,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
                 price = round(float(order_info["p"]), 1)
+                average_price = round(float(order_info["ap"]), 1)
                 quantity = round(float(order_info["z"]), 3)
                 order_id = int(order_info["i"])
                 status = order_info["X"]
@@ -79,6 +81,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                 last_filled_quantity = round(float(order_info["l"]), 3)
                 order_update = OrderUpdate(
                     price=price,
+                    average_price=average_price,
                     quantity=quantity,
                     status=status,
                     order_id=order_id,
