@@ -34,6 +34,7 @@ class Order:
     realized_quantity: float = 0
     time_in_force: str = binance.AsyncClient.TIME_IN_FORCE_GTC
     status: str = binance.AsyncClient.ORDER_STATUS_NEW
+    type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
         return (
@@ -177,8 +178,6 @@ class Position:
 
 
 def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, int]:
-    logger.info("Balance: %s", balance)
-
     index_list = []
 
     for threshold in oql.threshold:
@@ -190,7 +189,6 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
     else:
         order_quantity = oql.order_value[0]
 
-    logger.info("Order quantity: %s", order_quantity)
     return order_quantity, len(index_list) + 1
 
 
@@ -208,7 +206,8 @@ async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Or
     order.order_id = int(resp["orderId"])
     order.status = resp["status"]
     logger.info(
-        "New LIMIT order, Price: %s, quantity: %s, side: %s, order_id: %s, status: %s",
+        "New %s order, price: %s, quantity: %s, side: %s, order_id: %s, status: %s",
+        order.type,
         order.price,
         order.quantity,
         side,
@@ -382,14 +381,13 @@ def prepare_orders(
 
 
 async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
-
     resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
     updated_status = resp["status"]
     realized_quantity = round(float(resp["executedQty"]), 3)
     order.realized_quantity = realized_quantity
     order.status = updated_status
     logger.info(
-        "Order: %s, realized qty: %s, status: %s",
+        "Validation, order: %s, realized qty: %s, status: %s",
         resp["orderId"],
         realized_quantity,
         updated_status,
