@@ -22,7 +22,7 @@ class Backtest:
         self.df = lib.get_futures_historical_data_sync(
             symbol=self.symbol,
             interval="15m",
-            lookback="44000",  # 44000 is approximately one month
+            lookback="100000",  # 44000 is approximately one month
             client=client,
         )
         if self.df.empty:
@@ -260,7 +260,7 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         "LONG", price=buy_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.long_position_open(
+                    dca_orders, position = lib.long_position_open(
                         buy_price=buy_price,
                         order_quantity=self.order_quantity,
                         number_of_dca_orders=number_of_dca_orders,
@@ -295,7 +295,7 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         "LONG", price=buy_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.long_position_open(
+                    dca_orders, position = lib.long_position_open(
                         buy_price=buy_price,
                         order_quantity=self.order_quantity,
                         number_of_dca_orders=number_of_dca_orders,
@@ -319,7 +319,7 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         "LONG", price=buy_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.long_position_open(
+                    dca_orders, position = lib.long_position_open(
                         buy_price=buy_price,
                         order_quantity=self.order_quantity,
                         depo_price=self.depo_price,

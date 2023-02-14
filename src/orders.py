@@ -154,7 +154,7 @@ def order_quantity_list_prepare(
 
     # OQL stands for order quantity list
     oql = pandas.DataFrame(order_values, columns=["order_value"])
-    oql.set_index(pandas.Index([i for i in range(len(order_values))]))
+    oql.set_index(pandas.Index(list(range(len(order_values)))))
     oql["sum_of_all_losses"] = oql.order_value * NUMBER_OF_DCA_ORDERS * LOSSES_PER_LEVEL
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]

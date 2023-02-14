@@ -166,7 +166,7 @@ async def futures_signal_position_open(
         entry_price=signal_update.price,
         signal=signal_update.signal,
         side=PositionSide.LONG
-        if signal_update.signal in [Signals.LONG, Signals.LONG_20]
+        if signal_update.signal in [Signals.LONG, Signals.LONG_20, Signals.LONG_SPECIAL]
         else PositionSide.SHORT,
         balance=balance,
         order_quantity_list=order_quantity_list,
@@ -197,7 +197,7 @@ def futures_change_status_long20_short80(
     return current_position, df
 
 
-async def futures_switch_from_long_to_short(
+async def market_close_and_send_signal(
     current_position: CurrentPosition,
     client: binance.AsyncClient,
     signal_update: SignalUpdate,
@@ -205,70 +205,15 @@ async def futures_switch_from_long_to_short(
     balance: float,
     queue: asyncio.Queue,
 ) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Switch from Long to Short")
-    current_position = await handle_order.futures_position_close(
-        client=client, current_position=current_position, balance=balance
-    )
 
-    df.at[df.index[-1], "position"] = features.Signals.FLAT
-    await log_signal_change(df=df, signal=signal_update.signal)
-
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-
-    return current_position, df
-
-
-async def futures_start_special_short(
-    current_position: CurrentPosition,
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-    queue: asyncio.Queue,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Start special short")
+    # Close current position
     current_position = await handle_order.futures_position_close(
         client=client, current_position=current_position, balance=balance
     )
     df.at[df.index[-1], "position"] = features.Signals.FLAT
     await log_signal_change(df=df, signal=signal_update.signal)
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
-    return current_position, df
-
-
-async def futures_switch_from_short_to_long(
-    current_position: CurrentPosition,
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-    queue: asyncio.Queue,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Switch from Short to Long")
-    current_position = await handle_order.futures_position_close(
-        client=client, current_position=current_position, balance=balance
-    )
-    df.at[df.index[-1], "position"] = features.Signals.FLAT
-    await log_signal_change(df=df, signal=signal_update.signal)
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-
-    return current_position, df
-
-
-async def futures_start_special_long(
-    current_position: CurrentPosition,
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-    queue: asyncio.Queue,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Opening Special Long")
-    current_position = await handle_order.futures_position_close(
-        client=client, current_position=current_position, balance=balance
-    )
-    df.at[df.index[-1], "position"] = current_position.status
+    # Add new signal to queue
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     return current_position, df
@@ -365,20 +310,10 @@ async def signal_handle(
             df=df, signal=signal_update.signal, status=current_position.status
         )
 
-    # OPEN LONG
+    # OPEN LONG OR SHORT
     if conditions_for_opening_long(
         status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_signal_position_open(
-            client=client,
-            df=df,
-            signal_update=signal_update,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
-        )
-
-    # OPEN SHORT
-    if conditions_for_opening_short(
+    ) or conditions_for_opening_short(
         status=current_position.status, signal=signal_update.signal
     ):
         current_position, df = await futures_signal_position_open(
@@ -397,50 +332,22 @@ async def signal_handle(
             df=df, current_position=current_position, signal=signal_update.signal
         )
 
-    # SWITCH FROM LONG TO SHORT
-    if conditions_for_switch_from_long_to_short(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_switch_from_long_to_short(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+    # CLOSE CURRENT POSITION AND SEND SIGNAL TO OPEN NEW
+    if (
+        conditions_for_switch_from_long_to_short(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # START SPECIAL SHORT CLOSE LONG
-    if conditions_for_special_short_close_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_start_special_short(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+        or conditions_for_special_long_close_short(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # SWITCH FROM SHORT TO LONG
-    if conditions_for_switch_from_short_to_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_switch_from_short_to_long(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+        or conditions_for_special_short_close_long(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # OPEN SPECIAL LONG CLOSE SHORT
-    if conditions_for_special_long_close_short(
-        status=current_position.status, signal=signal_update.signal
+        or conditions_for_switch_from_short_to_long(
+            status=current_position.status, signal=signal_update.signal
+        )
     ):
-        current_position, df = await futures_start_special_long(
+        current_position, df = await market_close_and_send_signal(
             client=client,
             signal_update=signal_update,
             df=df,
