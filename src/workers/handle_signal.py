@@ -166,7 +166,7 @@ async def futures_signal_position_open(
         entry_price=signal_update.price,
         signal=signal_update.signal,
         side=PositionSide.LONG
-        if signal_update.signal in [Signals.LONG, Signals.LONG_20]
+        if signal_update.signal in [Signals.LONG, Signals.LONG_20, Signals.LONG_SPECIAL]
         else PositionSide.SHORT,
         balance=balance,
         order_quantity_list=order_quantity_list,
@@ -310,20 +310,10 @@ async def signal_handle(
             df=df, signal=signal_update.signal, status=current_position.status
         )
 
-    # OPEN LONG
+    # OPEN LONG OR SHORT
     if conditions_for_opening_long(
         status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_signal_position_open(
-            client=client,
-            df=df,
-            signal_update=signal_update,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
-        )
-
-    # OPEN SHORT
-    if conditions_for_opening_short(
+    ) or conditions_for_opening_short(
         status=current_position.status, signal=signal_update.signal
     ):
         current_position, df = await futures_signal_position_open(
@@ -342,48 +332,20 @@ async def signal_handle(
             df=df, current_position=current_position, signal=signal_update.signal
         )
 
-    # SWITCH FROM LONG TO SHORT
-    if conditions_for_switch_from_long_to_short(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await market_close_and_send_signal(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+    # CLOSE CURRENT POSITION AND SEND SIGNAL TO OPEN NEW
+    if (
+        conditions_for_switch_from_long_to_short(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # START SPECIAL SHORT CLOSE LONG
-    if conditions_for_special_short_close_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await market_close_and_send_signal(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+        or conditions_for_special_long_close_short(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # SWITCH FROM SHORT TO LONG
-    if conditions_for_switch_from_short_to_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await market_close_and_send_signal(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            current_position=current_position,
-            balance=balance,
-            queue=queue,
+        or conditions_for_special_short_close_long(
+            status=current_position.status, signal=signal_update.signal
         )
-
-    # OPEN SPECIAL LONG CLOSE SHORT
-    if conditions_for_special_long_close_short(
-        status=current_position.status, signal=signal_update.signal
+        or conditions_for_switch_from_short_to_long(
+            status=current_position.status, signal=signal_update.signal
+        )
     ):
         current_position, df = await market_close_and_send_signal(
             client=client,
