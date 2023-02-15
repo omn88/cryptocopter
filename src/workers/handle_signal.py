@@ -213,6 +213,10 @@ async def market_close_and_send_signal(
     df.at[df.index[-1], "position"] = features.Signals.FLAT
     await log_signal_change(df=df, signal=signal_update.signal)
 
+    logger.info(
+        "Market order send, remaining orders cancelled, adding %s to queue",
+        signal_update,
+    )
     # Add new signal to queue
     await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
