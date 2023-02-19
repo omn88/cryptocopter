@@ -314,6 +314,30 @@ async def signal_handle(
             df=df, signal=signal_update.signal, status=current_position.status
         )
 
+    # OPEN SPECIAL LONG
+    if conditions_for_special_long(
+        status=current_position.status, signal=signal_update.signal
+    ):
+        current_position, df = await futures_open_special_long(
+            client=client,
+            signal_update=signal_update,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
+        )
+
+    # OPEN SPECIAL SHORT
+    if conditions_for_special_short(
+        status=current_position.status, signal=signal_update.signal
+    ):
+        current_position, df = await futures_open_special_short(
+            client=client,
+            signal_update=signal_update,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
+        )
+
     # OPEN LONG OR SHORT
     if conditions_for_opening_long(
         status=current_position.status, signal=signal_update.signal
@@ -358,30 +382,6 @@ async def signal_handle(
             current_position=current_position,
             balance=balance,
             queue=queue,
-        )
-
-    # OPEN SPECIAL LONG
-    if conditions_for_special_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_open_special_long(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
-        )
-
-    # OPEN SPECIAL SHORT
-    if conditions_for_special_short(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_open_special_short(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
         )
 
     # CLOSE SPECIAL POSITION
