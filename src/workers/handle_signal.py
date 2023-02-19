@@ -306,6 +306,10 @@ async def signal_handle(
         signal_update.signal,
     )
 
+    # ToDo: This is place where being careful is needed as the order of these funcs matters.
+    # So last example is need for moving conditions for opening special long/short higher
+    # as it was being performed too early.
+
     # SKIP SIGNAL
     if conditions_for_skipping_signal(
         status=current_position.status, signal=signal_update.signal
