@@ -306,12 +306,40 @@ async def signal_handle(
         signal_update.signal,
     )
 
+    # ToDo: This is place where being careful is needed as the order of these funcs matters.
+    # So last example is need for moving conditions for opening special long/short higher
+    # as it was being performed too early.
+
     # SKIP SIGNAL
     if conditions_for_skipping_signal(
         status=current_position.status, signal=signal_update.signal
     ):
         df = futures_skip_signal(
             df=df, signal=signal_update.signal, status=current_position.status
+        )
+
+    # OPEN SPECIAL LONG
+    if conditions_for_special_long(
+        status=current_position.status, signal=signal_update.signal
+    ):
+        current_position, df = await futures_open_special_long(
+            client=client,
+            signal_update=signal_update,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
+        )
+
+    # OPEN SPECIAL SHORT
+    if conditions_for_special_short(
+        status=current_position.status, signal=signal_update.signal
+    ):
+        current_position, df = await futures_open_special_short(
+            client=client,
+            signal_update=signal_update,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
         )
 
     # OPEN LONG OR SHORT
@@ -358,30 +386,6 @@ async def signal_handle(
             current_position=current_position,
             balance=balance,
             queue=queue,
-        )
-
-    # OPEN SPECIAL LONG
-    if conditions_for_special_long(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_open_special_long(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
-        )
-
-    # OPEN SPECIAL SHORT
-    if conditions_for_special_short(
-        status=current_position.status, signal=signal_update.signal
-    ):
-        current_position, df = await futures_open_special_short(
-            client=client,
-            signal_update=signal_update,
-            df=df,
-            balance=balance,
-            order_quantity_list=order_quantity_list,
         )
 
     # CLOSE SPECIAL POSITION
