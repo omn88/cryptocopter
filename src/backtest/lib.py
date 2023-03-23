@@ -90,7 +90,6 @@ def generate_signals(df: pandas.DataFrame) -> None:
 
     choices = ["Buy", "Sell"]
     df["signal"] = numpy.select(conditions, choices)
-    df.signal = df.signal.shift()
     df.dropna(inplace=True)
 
 
