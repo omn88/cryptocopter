@@ -22,7 +22,7 @@ class Backtest:
         self.df = lib.get_futures_historical_data_sync(
             symbol=self.symbol,
             interval="15m",
-            lookback="100000",  # 44000 is approximately one month
+            lookback="132000",  # 44000 is approximately one month
             client=client,
         )
         if self.df.empty:
@@ -68,7 +68,7 @@ class Backtest:
             index = str(index)
             if special_short:
                 if 100 - row["RSI"] < 50:
-                    buy_price = row["Open"]
+                    buy_price = row["Close"]
                     buyprices_short.append(buy_price)
                     self.saldo = lib.short_position_close(
                         buy_price=buy_price,
@@ -83,7 +83,7 @@ class Backtest:
 
             if special_long:
                 if 100 - row["RSI"] > 50:
-                    sell_price = row["Open"]
+                    sell_price = row["Close"]
                     sellprices_long.append(sell_price)
                     self.saldo = lib.long_position_close(
                         sell_price=sell_price,
@@ -134,7 +134,7 @@ class Backtest:
                     sellprices_long.append(self.target_price)
 
                 if long_position and row["signal"] == "Sell":
-                    sell_price = row["Open"]
+                    sell_price = row["Close"]
                     sellprices_long.append(sell_price)
                     self.saldo = lib.long_position_close(
                         sell_price=sell_price,
@@ -169,7 +169,7 @@ class Backtest:
                         f"{index}: Condition for Special Short triggered! Closing Long immediately "
                         f"and opening Special Short"
                     )
-                    sell_price = row["Open"]
+                    sell_price = row["Close"]
                     sellprices_long.append(sell_price)
                     self.saldo = lib.long_position_close(
                         sell_price=sell_price,
@@ -239,7 +239,7 @@ class Backtest:
                     buyprices_short.append(self.target_price)
 
                 if short_position and row["signal"] == "Buy":
-                    buy_price = row["Open"]
+                    buy_price = row["Close"]
                     buyprices_short.append(buy_price)
                     self.saldo = lib.short_position_close(
                         buy_price=buy_price,
@@ -274,7 +274,7 @@ class Backtest:
                         f"{index}: Condition for Special Long triggered! Closing Short immediately "
                         f"and opening Special Long"
                     )
-                    buy_price = row["Open"]
+                    buy_price = row["Close"]
                     buyprices_short.append(buy_price)
                     self.saldo = lib.short_position_close(
                         buy_price=buy_price,
@@ -308,7 +308,7 @@ class Backtest:
 
             if not long_position and not short_position:
                 if row["signal"] == "Buy":
-                    buy_price = row["Open"]
+                    buy_price = row["Close"]
                     buyprices_long.append(buy_price)
                     self.order_quantity, _ = orders.order_quantity_check(
                         balance=self.saldo, oql=ovc
@@ -329,7 +329,7 @@ class Backtest:
                     long_position = True
 
                 if row["signal"] == "Sell":
-                    sell_price = row["Open"]
+                    sell_price = row["Close"]
                     sellprices_short.append(sell_price)
                     self.order_quantity, _ = orders.order_quantity_check(
                         balance=self.saldo, oql=ovc
