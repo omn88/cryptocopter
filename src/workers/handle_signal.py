@@ -1,6 +1,6 @@
 import asyncio
 from typing import Tuple
-
+from transitions import Machine
 import binance
 import pandas
 

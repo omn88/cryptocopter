@@ -5,7 +5,7 @@ from pprint import pformat
 import binance
 import pandas
 from src import orders
-from src.common import print_last_n_rows
+from src.common.common import print_last_n_rows
 from src.producers import producers
 from src.producers.producers import (
     OrderUpdate,
@@ -40,6 +40,7 @@ async def worker(
         logger.info("New event from queue: %s", event)
 
         if producers.EventName.KLINE == event.name:
+            logger.info("Do debugu dla MYPY, <nothing> has no attribute kline, event content: %s", event.content)
             assert isinstance(event.content, KlineUpdate)
             historical_data, df, position.current_position = await kline_handle(
                 client=client,

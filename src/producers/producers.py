@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from enum import Enum
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Dict
 
 import binance
 from binance import BinanceSocketManager
@@ -106,7 +106,7 @@ async def kline_futures_socket(
     queue: asyncio.Queue,
     last_index,
 ):
-
+    last_msg_before_new_kline: Dict = {}
     kfs = bm.kline_futures_socket(symbol=SYMBOL, interval=interval)
     async with kfs:
         while True:

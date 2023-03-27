@@ -4,11 +4,11 @@ import binance
 import pandas
 from src import features, orders
 import logging
-from src.common import insert_to_pandas
+from src.common.common import insert_to_pandas
 from src.orders import CurrentPosition
 from src.producers.producers import SignalUpdate
 from src.workers.handle_signal import signal_handle
-from src.common import print_last_n_rows
+from src.common.common import print_last_n_rows
 
 logger = logging.getLogger("handle_kline")
 

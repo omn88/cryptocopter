@@ -8,7 +8,7 @@ import pandas
 
 from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
 from src import features
-from src.common import futures_get_position_info
+from src.common.common import futures_get_position_info
 from src.orders import (
     cancel_remaining_limit_orders,
     CurrentPosition,
