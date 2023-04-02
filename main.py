@@ -10,18 +10,21 @@ from decouple import config
 
 from constants import LEVERAGE, SYMBOL
 from src.backtest.lib import get_futures_historical_data
-from src import orders, features
+from src import orders
 from src.common.common import (
     create_directory_with_timestamp,
     insert_to_pandas,
     futures_get_balance,
 )
+from src.features.features import State, signals_from_features_generate
+from src.orders import order_quantity_list_prepare
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
     determine_start_position,
 )
 from src.workers.handle_order import futures_position_close
+from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
 
 import warnings
@@ -95,9 +98,7 @@ async def main():
         logger.debug("All: %s" % e)
     await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
 
-    position = orders.Position(balance=balance)
-
-    logger.info("Order quantity list: \n%s", position.order_quantity_list)
+    # position = orders.Position(balance=balance)
 
     historical_data = await get_futures_historical_data(
         client=client,
@@ -106,10 +107,21 @@ async def main():
     )
 
     df = insert_to_pandas(data=historical_data)
-    df = features.signals_from_features_generate(df=df)
-    df["position"] = features.Signals.FLAT
+    df = signals_from_features_generate(df=df)
+    df["position"] = State.FLAT
 
     df = await determine_start_position(df=df, queue=queue)
+
+    order_quantity_list = order_quantity_list_prepare()
+    state_machine = TradingStateMachine(
+        client=client,
+        df=df,
+        balance=balance,
+        order_quantity_list=order_quantity_list,
+        queue=queue,
+    )
+
+    logger.info("Order quantity list: \n%s", order_quantity_list)
 
     producers = [
         asyncio.create_task(
@@ -125,13 +137,7 @@ async def main():
 
     workers = [
         asyncio.create_task(
-            worker(
-                df=df,
-                queue=queue,
-                client=client,
-                historical_data=historical_data,
-                position=position,
-            )
+            worker(df=df, historical_data=historical_data, state_machine=state_machine)
         )
     ]
 

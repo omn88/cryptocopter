@@ -1,31 +1,35 @@
+import asyncio
+from typing import Tuple, List
+
 import binance
 import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
-from src.features import Signals
-from src.features.features import State
-from src.orders import CurrentPosition
-from src.producers.producers import SignalUpdate
-from src.workers.state_conditions import conditions_for_opening_long
+from src.common.common import log_signal_change
+from src.features.features import State, Signal
+from src.orders import CurrentPosition, PositionSide
+from src.producers.producers import SignalUpdate, Event, EventName
+from src.workers import handle_order
 
 logger = logging.getLogger("state_actions")
 
 
 class TradingStateMachine:
-    def __init__(self, client, balance, order_quantity_list, queue):
-        self.client = client
-        self.balance = balance
+    def __init__(self, client, df, balance, order_quantity_list, queue):
+        self.client: binance.AsyncClient = client
+        self.balance: float = balance
         self.order_quantity_list = order_quantity_list
-        self.queue = queue
+        self.queue: asyncio.Queue = queue
+        self.df: pandas.DataFrame = df
 
-        self.states = list(State)
+        self.states: List[State] = list(State)
         self.transitions = []
 
         self.machine = AsyncMachine(
             model=self,
             states=self.states,
             transitions=self.transitions,
-            initial=Signals.FLAT,
+            initial=State.FLAT,
             send_event=True,
             queued=True,
         )
@@ -37,10 +41,100 @@ class TradingStateMachine:
             model=self,
             states=self.states,
             transitions=self.transitions,
-            initial=Signals.FLAT,
+            initial=State.FLAT,
             send_event=True,
             queued=True,
         )
+
+    @staticmethod
+    def conditions_for_opening_long(status: State, signal: Signal) -> bool:
+        return status == State.FLAT and signal in [
+            Signal.LONG,
+            Signal.LONG_20,
+        ]
+
+    @staticmethod
+    def conditions_for_opening_short(status: State, signal: Signal) -> bool:
+        return status == State.FLAT and signal in [
+            Signal.SHORT,
+            Signal.SHORT_80,
+        ]
+
+    @staticmethod
+    def conditions_for_skipping_signal(status: State, signal: Signal) -> bool:
+        long_signals = [Signal.LONG, Signal.LONG_20]
+        short_signals = [Signal.SHORT, Signal.SHORT_80]
+
+        return (
+            (status == State.LONG and signal in long_signals)
+            or (status == State.LONG_20 and signal == Signal.LONG_20)
+            or (status == State.SHORT and signal in short_signals)
+            or (status == State.SHORT_80 and signal == Signal.SHORT_80)
+            or (
+                status in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
+                and signal in [long_signals, short_signals]
+            )
+        )
+
+    @staticmethod
+    def conditions_for_switch_to_short(status: State, signal: Signal) -> bool:
+        valid_signals = [Signal.SHORT, Signal.SHORT_80]
+        return status in [State.LONG, State.LONG_20] and signal in valid_signals
+
+    @staticmethod
+    def conditions_for_switch_to_long(status: State, signal: Signal) -> bool:
+        valid_signals = [Signal.LONG, Signal.LONG_20]
+        return status in [State.SHORT, State.SHORT_80] and signal in valid_signals
+
+    def skip_signal(
+        self, df: pandas.DataFrame, signal: Signal, status: State
+    ) -> pandas.DataFrame:
+        logger.info("Skipping signal: %s", signal)
+        df.at[df.index[-1], "position"] = status
+
+        return df
+
+    async def open_position(
+        self,
+        signal_update: SignalUpdate,
+    ) -> CurrentPosition:
+        logger.info("Opening %s", signal_update.signal)
+        current_position = await handle_order.futures_position_open(
+            client=self.client,
+            entry_price=signal_update.price,
+            signal=signal_update.signal,
+            side=PositionSide.LONG
+            if signal_update.signal
+            in [Signal.LONG, Signal.LONG_20, Signal.LONG_SPECIAL]
+            else PositionSide.SHORT,
+            balance=self.balance,
+            order_quantity_list=self.order_quantity_list,
+            df=self.df,
+        )
+        self.df.at[self.df.index[-1], "position"] = signal_update.signal
+
+        return current_position
+
+    async def send_market_order_and_signal(
+        self,
+        current_position: CurrentPosition,
+        signal_update: SignalUpdate,
+    ) -> CurrentPosition:
+        # Close current position
+        current_position = await handle_order.futures_position_close(
+            client=self.client, current_position=current_position, balance=self.balance
+        )
+        self.df.at[self.df.index[-1], "position"] = State.FLAT
+        await log_signal_change(df=self.df, signal=signal_update.signal)
+
+        logger.info(
+            "Market order send, remaining orders cancelled, adding %s to queue",
+            signal_update,
+        )
+        # Add new signal to queue
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+
+        return current_position
 
     # async def on_enter(self, event):
     #     signal = event.kwargs.get("signal_update")
@@ -50,24 +144,13 @@ class TradingStateMachine:
     #     if self.machine.state == signal.signal:
     #         return
     #
-    #     if self.machine.state in [Signals.LONG, Signals.SHORT]:
-    #         current_position, df = await market_close_and_send_signal(
-    #             self.client,
-    #             signal,
-    #             df,
-    #             current_position,
-    #             self.balance,
-    #             self.queue,
-    #         )
-    #
     #     await log_signal_change(df, signal.signal)
     #     self.machine.set_state(signal.signal)
 
-    async def process_signal(self, signal_update, df, current_position):
+    async def process_signal(self, signal_update, current_position):
         await self.machine.trigger(
             "process_signal",
             signal_update=signal_update,
-            df=df,
             current_position=current_position,
         )
 
@@ -81,27 +164,7 @@ class TradingStateMachine:
 #
 #         self.states = list(Signals)
 #         self.transitions = [
-#             {
-#                 "trigger": "process_signal",
-#                 "source": "*",
-#                 "dest": "=",
-#                 "conditions": "conditions_for_skipping_signal",
-#                 "after": "futures_skip_signal",
-#             },
-#             {
-#                 "trigger": "process_signal",
-#                 "source": Signals.FLAT,
-#                 "dest": Signals.LONG,
-#                 "conditions": "conditions_for_opening_long",
-#                 "after": "futures_signal_position_open",
-#             },
-#             {
-#                 "trigger": "process_signal",
-#                 "source": Signals.FLAT,
-#                 "dest": Signals.SHORT,
-#                 "conditions": "conditions_for_opening_short",
-#                 "after": "futures_signal_position_open",
-#             },
+#
 #             {
 #                 "trigger": "process_signal",
 #                 "source": [Signals.LONG_20, Signals.SHORT_80],

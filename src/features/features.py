@@ -16,7 +16,7 @@ class State(Enum):
     SHORT_SPECIAL = "SHORT_SPECIAL"
 
 
-class Signals(State):
+class Signal(Enum):
     LONG = "LONG"
     LONG_20 = "LONG_20"
     SHORT = "SHORT"
@@ -37,7 +37,7 @@ def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
 
 def rsi_signal_basic_generate(
     df: pandas.DataFrame,
-) -> Tuple[pandas.DataFrame, List, List[Signals]]:
+) -> Tuple[pandas.DataFrame, List, List[Signal]]:
     assert "RSI" in df.columns
 
     df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
@@ -48,14 +48,14 @@ def rsi_signal_basic_generate(
         (df.RsiAboveSeventy.diff() == 0) & (df.RsiAboveSeventy.diff(periods=2) == -1),
     ]
 
-    signals = [Signals.LONG, Signals.SHORT]
+    signals = [Signal.LONG, Signal.SHORT]
 
     return df, conditions, signals
 
 
 def rsi_signal_extended_generate(
     df: pandas.DataFrame,
-) -> Tuple[pandas.DataFrame, List, List[Signals]]:
+) -> Tuple[pandas.DataFrame, List, List[Signal]]:
     assert "RSI" in df.columns
 
     df["RsiBelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
@@ -66,14 +66,14 @@ def rsi_signal_extended_generate(
         (df.RsiAboveEighty.diff() == -1),
     ]
 
-    signals = [Signals.LONG_20, Signals.SHORT_80]
+    signals = [Signal.LONG_20, Signal.SHORT_80]
 
     return df, conditions, signals
 
 
 def rsi_signal_special_generate(
     df: pandas.DataFrame,
-) -> Tuple[pandas.DataFrame, List, List[Signals]]:
+) -> Tuple[pandas.DataFrame, List, List[Signal]]:
     assert "RSI" in df.columns
 
     df["RsiBelowEighteen"] = numpy.where(df["RSI"] < 18, 1, 0)
@@ -84,7 +84,7 @@ def rsi_signal_special_generate(
         (df.RsiAboveEightyTwo.diff() == 1),
     ]
 
-    signals = [Signals.SHORT_SPECIAL, Signals.LONG_SPECIAL]
+    signals = [Signal.SHORT_SPECIAL, Signal.LONG_SPECIAL]
 
     return df, conditions, signals
 

@@ -6,46 +6,13 @@ from src import features
 import logging
 
 from src.common.common import log_signal_change
-from src.features import Signals
+from src.features.features import Signal, State
 from src.orders import PositionMode, CurrentPosition, PositionSide
 from src.producers.producers import SignalUpdate, Event, EventName
 from src.workers import handle_order
 from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("state_actions")
-
-
-async def futures_signal_position_open(
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-    order_quantity_list,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Opening %s", signal_update.signal)
-    current_position = await handle_order.futures_position_open(
-        client=client,
-        entry_price=signal_update.price,
-        signal=signal_update.signal,
-        side=PositionSide.LONG
-        if signal_update.signal in [Signals.LONG, Signals.LONG_20, Signals.LONG_SPECIAL]
-        else PositionSide.SHORT,
-        balance=balance,
-        order_quantity_list=order_quantity_list,
-        df=df,
-    )
-    df.at[df.index[-1], "position"] = signal_update.signal
-
-    return current_position, df
-
-
-def futures_skip_signal(
-    df: pandas.DataFrame, signal: features.Signals, status: features.Signals
-) -> pandas.DataFrame:
-    logger.info("Skipping signal: %s", signal)
-    df.at[df.index[-1], "position"] = status
-
-    return df
 
 
 def futures_change_status_long20_short80(
@@ -55,32 +22,6 @@ def futures_change_status_long20_short80(
     logger.info("Status change from %s to %s", current_position.status, signal)
     current_position.status = signal
     df.at[df.index[-1], "position"] = current_position.status
-
-    return current_position, df
-
-
-async def market_close_and_send_signal(
-    current_position: CurrentPosition,
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-    queue: asyncio.Queue,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-
-    # Close current position
-    current_position = await handle_order.futures_position_close(
-        client=client, current_position=current_position, balance=balance
-    )
-    df.at[df.index[-1], "position"] = features.Signals.FLAT
-    await log_signal_change(df=df, signal=signal_update.signal)
-
-    logger.info(
-        "Market order send, remaining orders cancelled, adding %s to queue",
-        signal_update,
-    )
-    # Add new signal to queue
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     return current_position, df
 
@@ -269,14 +210,8 @@ async def futures_close_special_position(
 
 
 async def signal_handle(
-    client,
-    df,
-    signal_update,
-    current_position,
-    balance,
-    order_quantity_list,
-    queue,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
+    signal_update, current_position, state_machine: TradingStateMachine
+) -> Tuple[CurrentPosition, TradingStateMachine]:
 
     logger.info(
         "Entering signal handle, current status: %s, signal: %s",
@@ -284,20 +219,14 @@ async def signal_handle(
         signal_update.signal,
     )
 
-    state_machine = TradingStateMachine(
-        client=client,
-        balance=balance,
-        order_quantity_list=order_quantity_list,
-        queue=queue,
-    )
-
     await state_machine.process_signal(
         signal_update=signal_update,
-        df=df,
         current_position=current_position,
     )
 
     current_position.status = state_machine.machine.state
 
+    # TODO: Need to retrieve CURRENT POSITION.
+
     logger.info("Exiting signal handle")
-    return current_position, df
+    return current_position, state_machine

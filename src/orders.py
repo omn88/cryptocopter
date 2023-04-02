@@ -5,10 +5,10 @@ from typing import List, Optional, Tuple
 import logging
 import binance
 from binance.exceptions import BinanceAPIException
-
 from constants import SYMBOL, LEVERAGE, DCA_SPAN, NUMBER_OF_DCA_ORDERS, LOSSES_PER_LEVEL
-from src import features
 import pandas
+
+from src.features.features import State
 
 logger = logging.getLogger("orders")
 
@@ -79,7 +79,7 @@ class Artifacts:
 class CurrentPosition:
     price: float = 0
     quantity: float = 0
-    status: features.Signals = features.Signals.FLAT
+    status: State = State.FLAT
     side: str = PositionSide.FLAT
     orders: Optional[List[Order]] = None
     liquidation_price: float = 0
@@ -162,19 +162,17 @@ def order_quantity_list_prepare(
     return oql
 
 
-@dataclass
-class Position:
-    current_position: CurrentPosition = CurrentPosition()
-    order_quantity_list: pandas.DataFrame = order_quantity_list_prepare()
-    balance: float = 0
-    expected_balance: float = 0
-
-    def __repr__(self) -> str:
-        return (
-            f"Position(current_position={self.current_position}, "
-            f"balance={self.balance}, "
-            f"order_quantity_list={self.order_quantity_list}"
-        )
+# @dataclass
+# class Position:
+#     current_position: CurrentPosition = CurrentPosition()
+#     balance: float = 0
+#     expected_balance: float = 0
+#
+#     def __repr__(self) -> str:
+#         return (
+#             f"Position(current_position={self.current_position}, "
+#             f"balance={self.balance}, "
+#         )
 
 
 def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, int]:
