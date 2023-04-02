@@ -4,7 +4,7 @@ from unittest.mock import patch
 from src.features import Signals
 from src.orders import PositionSide
 from src.producers.producers import Event, EventName, KlineUpdate
-from src.workers.handle_signal import signal_handle
+from src.workers.state_actions import signal_handle
 from src.workers.worker import worker
 from tests.data.sample_dataframes import data_no_signal
 import logging

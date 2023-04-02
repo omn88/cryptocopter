@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 from src.producers.producers import SignalUpdate
-from src.workers.handle_signal import signal_handle
+from src.workers.state_actions import signal_handle
 from src.features import Signals
 import logging
 

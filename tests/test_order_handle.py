@@ -8,7 +8,7 @@ import logging
 import pandas
 import binance
 
-from src.workers.handle_signal import signal_handle
+from src.workers.state_actions import signal_handle
 
 logger = logging.getLogger("TEST")
 

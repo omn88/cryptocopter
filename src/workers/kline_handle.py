@@ -7,7 +7,7 @@ import logging
 from src.common.common import insert_to_pandas
 from src.orders import CurrentPosition
 from src.producers.producers import SignalUpdate
-from src.workers.handle_signal import signal_handle
+from src.workers.state_actions import signal_handle
 from src.common.common import print_last_n_rows
 
 logger = logging.getLogger("handle_kline")

@@ -14,7 +14,7 @@ from src.producers.producers import (
 )
 from src.workers.handle_account import account_handle
 from src.workers.handle_order import order_handle
-from src.workers.handle_signal import signal_handle
+from src.workers.state_actions import signal_handle
 from src.workers.kline_handle import kline_handle
 
 logger = logging.getLogger("worker_main")
@@ -40,7 +40,10 @@ async def worker(
         logger.info("New event from queue: %s", event)
 
         if producers.EventName.KLINE == event.name:
-            logger.info("Do debugu dla MYPY, <nothing> has no attribute kline, event content: %s", event.content)
+            logger.info(
+                "Do debugu dla MYPY, <nothing> has no attribute kline, event content: %s",
+                event.content,
+            )
             assert isinstance(event.content, KlineUpdate)
             historical_data, df, position.current_position = await kline_handle(
                 client=client,
