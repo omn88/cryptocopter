@@ -411,12 +411,11 @@ def update_artifacts_and_save(
 
 
 async def order_handle(
-    df: pandas.DataFrame,
-    balance: float,
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
-) -> Tuple[Position, pandas.DataFrame, float]:
+    tsm: TradingStateMachine,
+) -> Tuple[Position, TradingStateMachine]:
     logger.info("Entering order handle")
 
     assert isinstance(order_update, OrderUpdate)
@@ -425,8 +424,8 @@ async def order_handle(
             position, df, balance = await position_liquidation(
                 client=client,
                 position=position,
-                df=df,
-                balance=balance,
+                df=tsm.df,
+                balance=tsm.balance,
                 order_update=order_update,
             )
         else:
@@ -448,7 +447,7 @@ async def order_handle(
             update_artifacts_and_save(
                 position=position,
                 order_update=order_update,
-                balance=balance,
+                balance=tsm.balance,
             )
 
             position.orders = []
@@ -476,8 +475,8 @@ async def order_handle(
                     client=client,
                     position=position,
                     order_update=order_update,
-                    df=df,
-                    balance=balance,
+                    df=tsm.df,
+                    balance=tsm.balance,
                 )
             if order_update.status == binance.AsyncClient.ORDER_STATUS_NEW:
                 logger.info(
@@ -496,4 +495,4 @@ async def order_handle(
             )
 
     logger.info("Exiting order handle")
-    return position, df, balance
+    return position, tsm

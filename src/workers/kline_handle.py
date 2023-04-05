@@ -19,7 +19,7 @@ async def kline_handle(
     position: Position,
     historical_data: List,
     kline: List,
-    state_machine: TradingStateMachine,
+    tsm: TradingStateMachine,
 ) -> Tuple[List, Position]:
     logger.info("Entering Kline handling")
 
@@ -33,7 +33,7 @@ async def kline_handle(
     temp_df = insert_to_pandas(data=historical_data)
     temp_df = signals_from_features_generate(df=temp_df)
 
-    df = state_machine.df.append(temp_df.iloc[-1])
+    df = tsm.df.append(temp_df.iloc[-1])
     kline_signal = df.iloc[-1]["signal"]
 
     if position.status == State.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
@@ -60,7 +60,7 @@ async def kline_handle(
         position, tsm = await signal_handle(
             signal_update=signal_update,
             position=position,
-            state_machine=state_machine,
+            tsm=tsm,
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]

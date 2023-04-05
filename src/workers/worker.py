@@ -26,10 +26,9 @@ async def worker(
     client: binance.AsyncClient,
     queue: asyncio.Queue,
     historical_data: List,
-    strategy,
+    tsm: TradingStateMachine,
     position: Position,
 ):
-
     while True:
         logger.info("Current position: %s", pformat(position))
         logger.info("Orders: \n%s", pformat(position.orders))
@@ -51,33 +50,31 @@ async def worker(
                 historical_data=historical_data,
                 position=position,
                 kline=event.content.kline,
-                state_machine=state_machine,
+                tsm=tsm,
             )
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            position, state_machine = await order_handle(
-                position=position,
-                order_update=event.content,
-                state_machine=state_machine,
+            position, tsm = await order_handle(
+                position=position, order_update=event.content, tsm=tsm, client=client
             )
 
         elif producers.EventName.ACCOUNT == event.name:
-            df, position = await account_handle(df=state_machine.df, position=position)
+            df, position = await account_handle(df=tsm.df, position=position)
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            position, state_machine = await signal_handle(
+            position, tsm = await signal_handle(
                 signal_update=event.content,
                 position=position,
-                state_machine=state_machine,
+                tsm=tsm,
             )
 
-            await print_last_n_rows(df=state_machine.df)
+            await print_last_n_rows(df=tsm.df)
 
         elif producers.EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return historical_data, state_machine.df
+            return historical_data, tsm.df
 
         logger.info("Task Done: %s", event.content)
-        state_machine.queue.task_done()
+        queue.task_done()

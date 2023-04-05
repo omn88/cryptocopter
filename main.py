@@ -2,16 +2,15 @@ import asyncio
 import signal
 import os
 import shutil
-
+from typing import List, Tuple
 import pandas
-
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
 from decouple import config
 
-from constants import LEVERAGE, SYMBOL
+from constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
 from src.backtest.lib import get_futures_historical_data
 from src import orders
 from src.common.common import (
@@ -30,10 +29,12 @@ from src.strategies.rsi_special import SpecialStrategy
 from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
-
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
+
+
+logger = logging.getLogger("main")
 
 
 async def shutdown(
@@ -92,55 +93,27 @@ def prepare_producers(
 
 def prepare_workers(
     client: binance.AsyncClient,
-    strategy,
-    historical_data: pandas.DataFrame,
+    tsm: TradingStateMachine,
+    historical_data: List,
     position: Position,
+    queue: asyncio.Queue,
 ):
     return [
         asyncio.create_task(
             worker(
                 client=client,
                 historical_data=historical_data,
-                strategy=strategy,
+                tsm=tsm,
                 position=position,
+                queue=queue,
             )
         )
     ]
 
 
-async def main():
-
-    logger.info("RSI Based Futures: Start")
-    asset = "USDT"
-    interval = "15m"
-    logger.info(
-        "Initial params: symbol %s, asset %s, interval %s" % (SYMBOL, asset, interval)
-    )
-
-    loop = asyncio.get_event_loop()
-
-    client = await AsyncClient.create(
-        api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
-    )
-    logger.info("Async client created")
-    bsm = BinanceSocketManager(client)
-    logger.info("Binance socket manager ready")
-    queue = asyncio.Queue()
-    logger.info("Async FIFO Queue started")
-    balance = await futures_get_balance(client=client, asset=asset)
-    position = Position()
-
-    # May want to catch other signals too
-    register_signal_handlers(
-        loop=loop, client=client, position=position, balance=balance
-    )
-
-    try:
-        await client.futures_change_margin_type(symbol=SYMBOL, marginType="ISOLATED")
-    except binance.exceptions.BinanceAPIException as e:
-        logger.debug("All: %s" % e)
-    await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
-
+async def prepare_initial_df(
+    client: binance.AsyncClient, interval: str
+) -> Tuple[pandas.DataFrame, List]:
     historical_data = await get_futures_historical_data(
         client=client,
         interval=interval,
@@ -150,44 +123,85 @@ async def main():
     df = signals_from_features_generate(df=df)
     df["position"] = State.FLAT
 
+    return df, historical_data
+
+
+async def change_margin_type(client: binance.AsyncClient) -> None:
+    try:
+        await client.futures_change_margin_type(symbol=SYMBOL, marginType="ISOLATED")
+    except binance.exceptions.BinanceAPIException as e:
+        logger.debug("All: %s" % e)
+
+
+async def create_async_client() -> binance.AsyncClient:
+    client = await AsyncClient.create(
+        api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
+    )
+    logger.info("Async client created")
+
+    return client
+
+
+async def create_socket_manager(client: binance.AsyncClient) -> BinanceSocketManager:
+    bsm = BinanceSocketManager(client)
+    logger.info("Binance socket manager ready")
+
+    return bsm
+
+
+async def create_async_queue() -> asyncio.Queue:
+    queue = asyncio.Queue()
+    logger.info("Async FIFO Queue started")
+
+    return queue
+
+
+async def main():
+
+    logger.info(
+        "RSI Based Futures: Start. Initial parameters: symbol %s, asset %s, interval %s",
+        SYMBOL,
+        ASSET,
+        INTERVAL,
+    )
+    loop = asyncio.get_event_loop()
+
+    client = await create_async_client()
+    bsm = await create_socket_manager(client=client)
+    queue = await create_async_queue()
+    balance = await futures_get_balance(client=client, asset=ASSET)
+    position = Position()
+
+    register_signal_handlers(
+        loop=loop, client=client, position=position, balance=balance
+    )
+
+    await change_margin_type(client=client)
+    await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
+
+    df, historical_data = await prepare_initial_df(client=client, interval=INTERVAL)
     df = await determine_start_position(df=df, queue=queue)
 
-    order_quantity_list = order_quantity_list_prepare()
-
-    strategy = SpecialStrategy(
+    # Strategy returns trading state machine
+    tsm = SpecialStrategy(
         client=client,
         balance=balance,
-        order_quantity_list=order_quantity_list,
+        order_quantity_list=order_quantity_list_prepare(),
         queue=queue,
         df=df,
     )
 
-    # tsm = TradingStateMachine(
-    #     client=client,
-    #     df=df,
-    #     balance=balance,
-    #     order_quantity_list=order_quantity_list,
-    #     queue=queue,
-    # )
-
-    producers = prepare_producers(bsm=bsm, df=df, interval=interval, queue=queue)
-
-    workers = prepare_workers(
-        client=client,
-        historical_data=historical_data,
-        position=position,
-        strategy=strategy,
+    await asyncio.gather(
+        *prepare_producers(bsm=bsm, df=df, interval=INTERVAL, queue=queue),
+        *prepare_workers(
+            client=client,
+            historical_data=historical_data,
+            position=position,
+            tsm=tsm,
+            queue=queue,
+        ),
+        return_exceptions=True,
     )
-
-    await asyncio.gather(*producers, return_exceptions=True)
-    await asyncio.gather(*workers, return_exceptions=True)
-
-    # try:
-    #     await asyncio.gather(*producers)
-    #     await asyncio.gather(*workers)
-    # except KeyboardInterrupt:
-    #     await queue.put(Event(name=EventName.SENTINEL, content=KlineUpdate(kline=[])))
-    #     await client.close_connection()
 
     # shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
     # shutil.copyfile(
@@ -199,11 +213,8 @@ async def main():
 if __name__ == "__main__":
 
     # artifacts_dir = create_directory_with_timestamp()
-    logger = logging.getLogger("main")
 
     try:
         asyncio.run(main())
     except asyncio.exceptions.CancelledError:
-        # loop = asyncio.get_event_loop()
         logging.info("Strategy cancelled")
-        # loop.close()

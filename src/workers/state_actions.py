@@ -16,7 +16,7 @@ logger = logging.getLogger("state_actions")
 
 
 def futures_change_status_long20_short80(
-    current_position: Position, signal: features.Signals, df: pandas.DataFrame
+    current_position: Position, signal: Signal, df: pandas.DataFrame
 ) -> Tuple[Position, pandas.DataFrame]:
 
     logger.info("Status change from %s to %s", current_position.status, signal)
@@ -193,7 +193,7 @@ async def futures_open_special_short(
 
 
 async def signal_handle(
-    signal_update, position, state_machine: TradingStateMachine
+    signal_update, position, tsm: TradingStateMachine
 ) -> Tuple[Position, TradingStateMachine]:
 
     logger.info(
@@ -202,14 +202,14 @@ async def signal_handle(
         signal_update.signal,
     )
 
-    await state_machine.process_signal(
+    await tsm.process_signal(
         signal_update=signal_update,
         position=position,
     )
 
-    position.status = state_machine.machine.state
+    position.status = tsm.machine.state
 
     # TODO: Need to retrieve CURRENT POSITION.
 
     logger.info("Exiting signal handle")
-    return position, state_machine
+    return position, tsm
