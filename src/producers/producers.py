@@ -101,13 +101,13 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
 
 async def kline_futures_socket(
-    bm: BinanceSocketManager,
+    bsm: BinanceSocketManager,
     interval: str,
     queue: asyncio.Queue,
     last_index,
 ):
     last_msg_before_new_kline: Dict = {}
-    kfs = bm.kline_futures_socket(symbol=SYMBOL, interval=interval)
+    kfs = bsm.kline_futures_socket(symbol=SYMBOL, interval=interval)
     async with kfs:
         while True:
             msg = await kfs.recv()

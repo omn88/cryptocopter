@@ -76,7 +76,7 @@ class Artifacts:
 
 
 @dataclass()
-class CurrentPosition:
+class Position:
     price: float = 0
     quantity: float = 0
     status: State = State.FLAT
@@ -158,6 +158,8 @@ def order_quantity_list_prepare(
     oql["sum_of_all_losses"] = oql.order_value * NUMBER_OF_DCA_ORDERS * LOSSES_PER_LEVEL
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
+
+    logger.info("Order quantity list: \n%s", oql)
 
     return oql
 
@@ -325,26 +327,26 @@ def get_order_quantity(
 
 
 def prepare_orders(
-    current_position: CurrentPosition,
+    position: Position,
     mode: PositionMode,
     entry_price: float,
     balance: float,
     order_quantity_list: pandas.DataFrame,
-) -> CurrentPosition:
+) -> Position:
     logger.info("Entering prepare orders")
 
     number_of_dca_orders = 1 if mode == PositionMode.FULL else NUMBER_OF_DCA_ORDERS
     order_quantity_stable, order_level = order_quantity_check(
         oql=order_quantity_list, balance=balance
     )
-    current_position.artifacts.order_quantity_stable = order_quantity_stable
-    current_position.artifacts.order_level = order_level
-    current_position.artifacts.max_position = order_quantity_stable * float(
+    position.artifacts.order_quantity_stable = order_quantity_stable
+    position.artifacts.order_level = order_level
+    position.artifacts.max_position = order_quantity_stable * float(
         number_of_dca_orders
     )
-    current_position.artifacts.side = current_position.side
-    current_position.artifacts.mode = mode
-    current_position.artifacts.leverage = LEVERAGE
+    position.artifacts.side = position.side
+    position.artifacts.mode = mode
+    position.artifacts.leverage = LEVERAGE
 
     logger.info(
         "Balance: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
@@ -354,15 +356,15 @@ def prepare_orders(
         DCA_SPAN,
     )
 
-    current_position.orders = [
+    position.orders = [
         Order(
             price=get_order_price(
-                side=current_position.side,
+                side=position.side,
                 entry_price=entry_price,
                 order=order,
             ),
             quantity=get_order_quantity(
-                side=current_position.side,
+                side=position.side,
                 mode=mode,
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
@@ -375,7 +377,7 @@ def prepare_orders(
     ]
 
     logger.info("Exiting prepare orders")
-    return current_position
+    return position
 
 
 async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
@@ -413,14 +415,14 @@ async def cancel_take_profit_order(
 
 async def send_market_order(
     client: binance.AsyncClient,
-    current_position: CurrentPosition,
+    position: Position,
     side: str,
 ):
     try:
         resp = await client.futures_create_order(
             symbol=SYMBOL,
             side=side,
-            quantity=abs(current_position.quantity),
+            quantity=abs(position.quantity),
             type=client.FUTURE_ORDER_TYPE_MARKET,
         )
         logger.info(
@@ -434,11 +436,11 @@ async def send_market_order(
 
 
 async def cancel_remaining_limit_orders(
-    client: binance.AsyncClient, current_position: CurrentPosition
-) -> CurrentPosition:
+    client: binance.AsyncClient, position: Position
+) -> Position:
     logger.info("Cancelling remaining limit orders")
-    assert current_position.orders is not None
-    for order in current_position.orders:
+    assert position.orders is not None
+    for order in position.orders:
         if order.status in [
             client.ORDER_STATUS_PARTIALLY_FILLED,
             client.ORDER_STATUS_NEW,
@@ -450,4 +452,4 @@ async def cancel_remaining_limit_orders(
                 order.status,
             )
 
-    return current_position
+    return position

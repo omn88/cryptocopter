@@ -7,7 +7,7 @@ import logging
 
 from src.common.common import log_signal_change
 from src.features.features import Signal, State
-from src.orders import PositionMode, CurrentPosition, PositionSide
+from src.orders import PositionMode, Position, PositionSide
 from src.producers.producers import SignalUpdate, Event, EventName
 from src.workers import handle_order
 from src.workers.trading_state_machine import TradingStateMachine
@@ -16,8 +16,8 @@ logger = logging.getLogger("state_actions")
 
 
 def futures_change_status_long20_short80(
-    current_position: CurrentPosition, signal: features.Signals, df: pandas.DataFrame
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
+    current_position: Position, signal: features.Signals, df: pandas.DataFrame
+) -> Tuple[Position, pandas.DataFrame]:
 
     logger.info("Status change from %s to %s", current_position.status, signal)
     current_position.status = signal
@@ -32,7 +32,7 @@ async def futures_open_special_long(
     df: pandas.DataFrame,
     balance: float,
     order_quantity_list: pandas.DataFrame,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
+) -> Tuple[Position, pandas.DataFrame]:
     logger.info("Opening Special Long")
 
     current_position = await handle_order.futures_position_open(
@@ -57,7 +57,7 @@ async def futures_open_special_short(
     df: pandas.DataFrame,
     balance: float,
     order_quantity_list: pandas.DataFrame,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
+) -> Tuple[Position, pandas.DataFrame]:
     logger.info("Opening Special Short")
 
     current_position = await handle_order.futures_position_open(
@@ -72,23 +72,6 @@ async def futures_open_special_short(
     )
 
     df.at[df.index[-1], "position"] = signal_update.signal
-
-    return current_position, df
-
-
-async def futures_close_special_position(
-    current_position: CurrentPosition,
-    client: binance.AsyncClient,
-    signal_update: SignalUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-) -> Tuple[CurrentPosition, pandas.DataFrame]:
-    logger.info("Got signal: %s", signal_update.signal)
-    current_position = await handle_order.futures_position_close(
-        client=client, current_position=current_position, balance=balance
-    )
-
-    df.at[df.index[-1], "position"] = features.Signals.FLAT
 
     return current_position, df
 
@@ -210,23 +193,23 @@ async def futures_close_special_position(
 
 
 async def signal_handle(
-    signal_update, current_position, state_machine: TradingStateMachine
-) -> Tuple[CurrentPosition, TradingStateMachine]:
+    signal_update, position, state_machine: TradingStateMachine
+) -> Tuple[Position, TradingStateMachine]:
 
     logger.info(
         "Entering signal handle, current status: %s, signal: %s",
-        current_position.status,
+        position.status,
         signal_update.signal,
     )
 
     await state_machine.process_signal(
         signal_update=signal_update,
-        current_position=current_position,
+        position=position,
     )
 
-    current_position.status = state_machine.machine.state
+    position.status = state_machine.machine.state
 
     # TODO: Need to retrieve CURRENT POSITION.
 
     logger.info("Exiting signal handle")
-    return current_position, state_machine
+    return position, state_machine

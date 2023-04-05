@@ -1,7 +1,7 @@
 from typing import Tuple
 from unittest.mock import patch
 from src.features import Signals
-from src.orders import Order, CurrentPosition
+from src.orders import Order, Position
 from src.producers.producers import OrderUpdate, SignalUpdate
 from src.workers.handle_order import order_handle
 import logging
@@ -113,12 +113,12 @@ def mock_get_order_return_value():
 
 
 async def first_order_filled(
-    current_position: CurrentPosition,
+    current_position: Position,
     entry_price: float,
     client: binance.AsyncClient,
     df: pandas.DataFrame,
     balance: float,
-) -> CurrentPosition:
+) -> Position:
 
     assert current_position.orders is not None
     quantity = current_position.orders[0].quantity
@@ -158,8 +158,8 @@ async def first_order_filled(
 
 
 async def second_order_filled(
-    base: pandas.DataFrame, current_position: CurrentPosition
-) -> CurrentPosition:
+    base: pandas.DataFrame, current_position: Position
+) -> Position:
     assert current_position.orders is not None
     price = current_position.orders[1].price
     quantity = current_position.orders[1].quantity
@@ -207,9 +207,7 @@ async def second_order_filled(
     return current_position
 
 
-async def third_and_fourth_order_filled(
-    base, current_position: CurrentPosition
-) -> CurrentPosition:
+async def third_and_fourth_order_filled(base, current_position: Position) -> Position:
     assert current_position.orders is not None
     price = current_position.orders[2].price
     quantity = current_position.orders[2].quantity
@@ -295,8 +293,8 @@ async def third_and_fourth_order_filled(
 
 
 async def target_reached(
-    base, current_position: CurrentPosition
-) -> Tuple[CurrentPosition, pandas.DataFrame, float]:
+    base, current_position: Position
+) -> Tuple[Position, pandas.DataFrame, float]:
 
     assert isinstance(current_position.take_profit_order, Order)
 
@@ -327,7 +325,7 @@ async def target_reached(
     return current_position, base.df, balance
 
 
-async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
+async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
@@ -350,7 +348,7 @@ async def start_long(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
     return base.df, current_position, entry_price
 
 
-async def start_short(base) -> Tuple[pandas.DataFrame, CurrentPosition, float]:
+async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
 
     entry_signal = Signals.SHORT
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)

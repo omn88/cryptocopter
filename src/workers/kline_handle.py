@@ -6,7 +6,7 @@ from src import features, orders
 import logging
 from src.common.common import insert_to_pandas
 from src.features.features import signals_from_features_generate, State, Signal
-from src.orders import CurrentPosition
+from src.orders import Position
 from src.producers.producers import SignalUpdate
 from src.workers.state_actions import signal_handle
 from src.common.common import print_last_n_rows
@@ -16,11 +16,11 @@ logger = logging.getLogger("handle_kline")
 
 
 async def kline_handle(
-    current_position: CurrentPosition,
+    position: Position,
     historical_data: List,
     kline: List,
     state_machine: TradingStateMachine,
-) -> Tuple[List, CurrentPosition]:
+) -> Tuple[List, Position]:
     logger.info("Entering Kline handling")
 
     expected_index = int(historical_data[-1][0]) + 900000
@@ -36,12 +36,12 @@ async def kline_handle(
     df = state_machine.df.append(temp_df.iloc[-1])
     kline_signal = df.iloc[-1]["signal"]
 
-    if current_position.status == State.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
+    if position.status == State.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
         logger.info("Closing special long")
         kline_signal = Signal.CLOSE_SPECIAL
         df.at[df.index[-1], "signal"] = kline_signal
 
-    if current_position.status == State.SHORT_SPECIAL and df.iloc[-1]["RSI"] > 50:
+    if position.status == State.SHORT_SPECIAL and df.iloc[-1]["RSI"] > 50:
         logger.info("Closing special short")
         kline_signal = Signal.CLOSE_SPECIAL
         df.at[df.index[-1], "signal"] = kline_signal
@@ -57,9 +57,9 @@ async def kline_handle(
             signal_update.signal,
             signal_update.price,
         )
-        current_position = await signal_handle(
+        position, tsm = await signal_handle(
             signal_update=signal_update,
-            current_position=current_position,
+            position=position,
             state_machine=state_machine,
         )
     else:
@@ -69,4 +69,4 @@ async def kline_handle(
     await print_last_n_rows(df=df)
 
     logger.info("Exiting Kline handling")
-    return historical_data, df, current_position
+    return historical_data, position

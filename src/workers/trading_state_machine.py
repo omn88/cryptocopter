@@ -7,7 +7,7 @@ from transitions.extensions.asyncio import AsyncMachine
 import logging
 from src.common.common import log_signal_change
 from src.features.features import State, Signal
-from src.orders import CurrentPosition, PositionSide
+from src.orders import Position, PositionSide
 from src.producers.producers import SignalUpdate, Event, EventName
 from src.workers import handle_order
 
@@ -86,6 +86,7 @@ class TradingStateMachine:
         valid_signals = [Signal.LONG, Signal.LONG_20]
         return status in [State.SHORT, State.SHORT_80] and signal in valid_signals
 
+    # ToDo: Skip signal may need to be created per strategy as some fuckups might happen, so skip_extended_signal
     def skip_signal(
         self, df: pandas.DataFrame, signal: Signal, status: State
     ) -> pandas.DataFrame:
@@ -97,7 +98,7 @@ class TradingStateMachine:
     async def open_position(
         self,
         signal_update: SignalUpdate,
-    ) -> CurrentPosition:
+    ) -> Position:
         logger.info("Opening %s", signal_update.signal)
         current_position = await handle_order.futures_position_open(
             client=self.client,
@@ -117,9 +118,9 @@ class TradingStateMachine:
 
     async def send_market_order_and_signal(
         self,
-        current_position: CurrentPosition,
+        current_position: Position,
         signal_update: SignalUpdate,
-    ) -> CurrentPosition:
+    ) -> Position:
         # Close current position
         current_position = await handle_order.futures_position_close(
             client=self.client, current_position=current_position, balance=self.balance
@@ -136,6 +137,22 @@ class TradingStateMachine:
 
         return current_position
 
+    async def futures_close_special_position(
+        position: Position,
+        client: binance.AsyncClient,
+        signal_update: SignalUpdate,
+        df: pandas.DataFrame,
+        balance: float,
+    ) -> Tuple[Position, pandas.DataFrame]:
+        logger.info("Got signal: %s", signal_update.signal)
+        position = await handle_order.futures_position_close(
+            client=client, position=position, balance=balance
+        )
+
+        df.at[df.index[-1], "position"] = State.FLAT
+
+        return position, df
+
     # async def on_enter(self, event):
     #     signal = event.kwargs.get("signal_update")
     #     df = event.kwargs.get("df")
@@ -147,11 +164,16 @@ class TradingStateMachine:
     #     await log_signal_change(df, signal.signal)
     #     self.machine.set_state(signal.signal)
 
-    async def process_signal(self, signal_update, current_position):
+    async def process_signal(self, signal_update, position):
         await self.machine.trigger(
             "process_signal",
             signal_update=signal_update,
-            current_position=current_position,
+            current_position=position,
+        )
+
+    async def process_kline(self, kline_update, position):
+        await self.machine.trigger(
+            "process_kline", kline_update=kline_update, position=position
         )
 
 
