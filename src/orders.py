@@ -164,19 +164,6 @@ def order_quantity_list_prepare(
     return oql
 
 
-# @dataclass
-# class Position:
-#     current_position: CurrentPosition = CurrentPosition()
-#     balance: float = 0
-#     expected_balance: float = 0
-#
-#     def __repr__(self) -> str:
-#         return (
-#             f"Position(current_position={self.current_position}, "
-#             f"balance={self.balance}, "
-#         )
-
-
 def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, int]:
     index_list = []
 
@@ -437,19 +424,20 @@ async def send_market_order(
 
 async def cancel_remaining_limit_orders(
     client: binance.AsyncClient, position: Position
-) -> Position:
+) -> Tuple[Position, bool]:
     logger.info("Cancelling remaining limit orders")
     assert position.orders is not None
+    new_orders_count = 0
+    cancelled_orders_count = 0
     for order in position.orders:
-        if order.status in [
-            client.ORDER_STATUS_PARTIALLY_FILLED,
-            client.ORDER_STATUS_NEW,
-        ]:
+        if order.status == client.ORDER_STATUS_PARTIALLY_FILLED:
             order.status = await cancel_order(client=client, order=order)
-            logger.info(
-                "Order with order_id: %s should be cancelled and is: %s",
-                order.order_id,
-                order.status,
-            )
+            logger.info("Cancelled partially filled order_id: %s", order.order_id)
+            cancelled_orders_count += 1
+        elif order.status == client.ORDER_STATUS_NEW:
+            new_orders_count += 1
+            order.status = await cancel_order(client=client, order=order)
+            logger.info("Cancelled new order_id: %s", order.order_id)
+            cancelled_orders_count += 1
 
-    return position
+    return position, new_orders_count != cancelled_orders_count

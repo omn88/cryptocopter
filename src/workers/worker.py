@@ -3,8 +3,6 @@ import logging
 from typing import List
 from pprint import pformat
 import binance
-import pandas
-from src import orders
 from src.common.common import print_last_n_rows
 from src.orders import Position
 from src.producers import producers

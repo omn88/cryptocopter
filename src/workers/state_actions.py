@@ -1,14 +1,10 @@
-import asyncio
 from typing import Tuple
 import binance
 import pandas
-from src import features
 import logging
-
-from src.common.common import log_signal_change
-from src.features.features import Signal, State
+from src.features.features import Signal
 from src.orders import PositionMode, Position, PositionSide
-from src.producers.producers import SignalUpdate, Event, EventName
+from src.producers.producers import SignalUpdate
 from src.workers import handle_order
 from src.workers.trading_state_machine import TradingStateMachine
 
