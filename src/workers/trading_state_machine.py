@@ -1,5 +1,5 @@
 import asyncio
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Optional
 
 import binance
 import pandas
@@ -8,8 +8,9 @@ import logging
 from src.common.common import log_signal_change
 from src.features.features import State, Signal
 from src.orders import Position, PositionSide
-from src.producers.producers import SignalUpdate, Event, EventName
+from src.producers.producers import SignalUpdate, Event, EventName, OrderUpdate
 from src.workers import handle_order
+from src.workers.handle_order import position_liquidation, target_reached
 
 logger = logging.getLogger("state_actions")
 
@@ -19,11 +20,13 @@ class TradingStateMachine:
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
         self.position: Position = position
+        self.position_old: Optional[Position] = None
         self.df: pandas.DataFrame = df
         self.balance: float = balance
         self.order_quantity_list = order_quantity_list
         self.state: State = State.FLAT
-        self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
+        self.signal_update: Optional[SignalUpdate] = None
+        self.order_update: Optional[OrderUpdate] = None
         self.states: List[State] = list(State)
         self.transitions = []
 
@@ -134,38 +137,37 @@ class TradingStateMachine:
         )
 
     async def close_long(self):
-        logger.info("Closing %s", self.signal_update.signal)
-        self.position = await handle_order.close_long(
-            client=self.client,
-            entry_price=self.signal_update.price,
-            signal=self.signal_update.signal,
-            side=self.position.side,
-            balance=self.balance,
-            order_quantity_list=self.order_quantity_list,
-            df=self.df,
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_long(
+            client=self.client, balance=self.balance, position=self.position
         )
 
-        self.update_position_in_df(update=self.signal_update.signal)
+    async def close_short(self):
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_short(
+            client=self.client, balance=self.balance, position=self.position
+        )
 
-    # async def send_market_order_and_signal(
-    #     self,
-    #     position: Position,
-    # ) -> Position:
-    #     # Close current position
-    #     position = await handle_order.futures_position_close(
-    #         client=self.client, position=position, balance=self.balance
-    #     )
-    #     self.df.at[self.df.index[-1], "position"] = State.FLAT
-    #     await log_signal_change(df=self.df, signal=self.signal_update.signal)
-    #
-    #     logger.info(
-    #         "Market order send, remaining orders cancelled, adding %s to queue",
-    #         self.signal_update,
-    #     )
-    #     # Add new signal to queue
-    #     await self.queue.put(Event(name=EventName.SIGNAL, content=self.signal_update))
-    #
-    #     return position
+    async def handle_liquidation(self):
+        self.position, self.df, self.balance = await position_liquidation(
+            client=self.client,
+            position=self.position,
+            order_update=self.order_update,
+            df=self.df,
+            balance=self.balance,
+        )
+
+    async def enter_flat(self):
+        self.position = Position()
+
+    async def handle_target_reached(self):
+        self.position, self.df, self.balance = await target_reached(
+            client=self.client,
+            position=self.position,
+            order_update=self.order_update,
+            df=self.df,
+            balance=self.balance,
+        )
 
     # async def futures_close_special_position(
     #     self,

@@ -16,14 +16,14 @@ class FeatureRsiBasic:
             "source": State.FLAT,
             "dest": State.LONG,
             "conditions": "conditions_for_opening_long",
-            "after": "open_long",
+            "after": "open_dca_long",
         },
         {
             "trigger": "process_signal",
             "source": State.FLAT,
             "dest": State.SHORT,
             "conditions": "conditions_for_opening_short",
-            "after": "open_short",
+            "after": "open_dca_short",
         },
         {
             "trigger": "process_signal",

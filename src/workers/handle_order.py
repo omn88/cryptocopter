@@ -167,9 +167,37 @@ async def close_long(
     else:
         update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
-    position.status = State.FLAT
+    logger.info("Exiting close long")
+    return position
 
-    logger.info("Exiting position close")
+
+async def close_short(
+    client: binance.AsyncClient, position: Position, balance: float
+) -> Position:
+
+    close_side = client.SIDE_BUY
+    position, position_was_opened = await cancel_remaining_limit_orders(
+        client, position=position
+    )
+
+    if position_was_opened:
+        logger.info("Entering position close, trying to Market %s", close_side)
+        await send_market_order(
+            client=client,
+            position=position,
+            side=close_side,
+        )
+
+        position.take_profit_order.status = await cancel_order(
+            client=client,
+            order=position.take_profit_order,
+        )
+        logger.info("Cancelled take profit order")
+
+    else:
+        update_artifacts_and_save(position=position, order_update=None, balance=balance)
+
+    logger.info("Exiting close short")
     return position
 
 
@@ -298,9 +326,6 @@ async def position_liquidation(
     update_artifacts_and_save(
         position=position, order_update=order_update, balance=balance
     )
-
-    position = Position()
-    df.at[df.index[-1], "position"] = position.status
 
     return position, df, balance
 
