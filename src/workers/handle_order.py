@@ -303,9 +303,8 @@ async def position_liquidation(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
-    df: pandas.DataFrame,
     balance: float,
-) -> Tuple[Position, pandas.DataFrame, float]:
+) -> Tuple[Position, float]:
     logger.info("Position liquidation")
 
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
@@ -327,16 +326,45 @@ async def position_liquidation(
         position=position, order_update=order_update, balance=balance
     )
 
-    return position, df, balance
+    return position, balance
+
+
+async def partial_position_liquidation(
+    client: binance.AsyncClient,
+    position: Position,
+    order_update: OrderUpdate,
+    balance: float,
+) -> Tuple[Position, float]:
+    logger.info("Position liquidation")
+
+    # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
+    assert isinstance(position.take_profit_order, Order)
+    status = await cancel_take_profit_order(
+        client=client,
+        take_profit_order=position.take_profit_order,
+    )
+
+    loss = 0.0
+    assert position.orders is not None
+    for order in position.orders:
+        logger.info("quantity: %s, price: %s", order.quantity, order.price)
+        loss += order.quantity_stable
+
+    balance -= round(loss, 2)
+
+    update_artifacts_and_save(
+        position=position, order_update=order_update, balance=balance
+    )
+
+    return position, balance
 
 
 async def target_reached(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
-    df: pandas.DataFrame,
     balance: float,
-) -> Tuple[Position, pandas.DataFrame, float]:
+) -> Tuple[Position, float]:
     logger.info("Target price reached.")
 
     assert isinstance(position.take_profit_order, Order)
@@ -379,13 +407,10 @@ async def target_reached(
             balance=balance,
         )
 
-        position = Position()
-        df.at[df.index[-1], "position"] = position.status
-
     else:
         logger.info("Take profit order filled partially!")
 
-    return position, df, balance
+    return position, balance
 
 
 async def update_position(
@@ -495,6 +520,38 @@ def update_artifacts_and_save(
     save_to_file(artifacts=artifacts)
 
 
+async def market_order(order_update: OrderUpdate, position: Position, balance: float):
+    if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
+        logger.info("MARKET order filled!")
+        assert position.market_order is not None
+
+        position.market_order.status = order_update.status
+        position.market_order.price = order_update.price
+        position.market_order.quantity = order_update.quantity
+        position.market_order.realized_quantity = order_update.realized_quantity
+
+        update_artifacts_and_save(
+            position=position,
+            order_update=order_update,
+            balance=balance,
+        )
+
+        position.orders = []
+
+    else:
+        position.market_order = Order(
+            price=order_update.price,
+            quantity=order_update.quantity,
+            order_id=order_update.order_id,
+            realized_quantity=order_update.realized_quantity,
+            status=order_update.status,
+        )
+        logger.info(
+            "Market order realization in progress: %s!",
+            position.market_order,
+        )
+
+
 async def order_handle(
     client: binance.AsyncClient,
     position: Position,
@@ -505,53 +562,8 @@ async def order_handle(
     logger.info("Entering order handle")
 
     assert isinstance(order_update, OrderUpdate)
-    if order_update.order_type == "LIQUIDATION":
-        if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
-            position, df, balance = await position_liquidation(
-                client=client,
-                position=position,
-                df=df,
-                balance=balance,
-                order_update=order_update,
-            )
-        else:
-            logger.info(
-                "Position liquidation in progress, order status: %s!",
-                order_update.status,
-            )
 
-    elif order_update.order_type == "MARKET":
-        if order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED:
-            logger.info("MARKET order filled!")
-            assert position.market_order is not None
-
-            position.market_order.status = order_update.status
-            position.market_order.price = order_update.price
-            position.market_order.quantity = order_update.quantity
-            position.market_order.realized_quantity = order_update.realized_quantity
-
-            update_artifacts_and_save(
-                position=position,
-                order_update=order_update,
-                balance=balance,
-            )
-
-            position.orders = []
-
-        else:
-            position.market_order = Order(
-                price=order_update.price,
-                quantity=order_update.quantity,
-                order_id=order_update.order_id,
-                realized_quantity=order_update.realized_quantity,
-                status=order_update.status,
-            )
-            logger.info(
-                "Market order realization in progress: %s!",
-                position.market_order,
-            )
-
-    elif order_update.order_type == "LIMIT":
+    if order_update.order_type == "LIMIT":
         if order_update.price == position.target_price:
             if order_update.status in [
                 binance.AsyncClient.ORDER_STATUS_FILLED,

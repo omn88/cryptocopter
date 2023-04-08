@@ -7,7 +7,7 @@ import logging
 from src.features.features import State, Signal
 from src.orders import Position, PositionMode
 from src.producers.producers import SignalUpdate, OrderUpdate
-from src.workers.handle_order import position_liquidation, target_reached
+from src.workers.handle_order import position_liquidation, target_reached, market_order
 
 logger = logging.getLogger("state_actions")
 
@@ -35,7 +35,21 @@ class TradingStateMachine:
                 "after": "skip_signal",
             },
             {
-                "trigger": "process_signal",
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_new_order_confirmation",
+                "after": "log_new_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_partial_position_liquidation",
+                "before": "handle_partial_liquidation",
+            },
+            {
+                "trigger": "process_order",
                 "source": "*",
                 "dest": State.FLAT,
                 "conditions": "conditions_for_liquidation",
@@ -43,11 +57,19 @@ class TradingStateMachine:
                 "after": "enter_flat",
             },
             {
-                "trigger": "process_signal",
+                "trigger": "process_order",
                 "source": "*",
                 "dest": State.FLAT,
                 "conditions": "conditions_for_target_reached",
                 "before": "handle_target_reached",
+                "after": "enter_flat",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": State.FLAT,
+                "conditions": "conditions_for_market_order",
+                "before": "handle_market_order",
                 "after": "enter_flat",
             },
         ]
@@ -76,6 +98,33 @@ class TradingStateMachine:
     def conditions_for_skipping_same_signal(self) -> bool:
         return self.state == self.signal_update.signal
 
+    def conditions_for_position_liquidation(self) -> bool:
+        return (
+            self.order_update.order_type == "LIQUIDATION"
+            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+        )
+
+    def conditions_for_partial_position_liquidation(self) -> bool:
+        return (
+            self.order_update.order_type == "LIQUIDATION"
+            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+        )
+
+    def conditions_for_new_order_confirmation(self) -> bool:
+        return (
+            self.order_update.order_type == self.client.ORDER_TYPE_LIMIT
+            and self.order_update.status == self.client.ORDER_STATUS_NEW
+        )
+
+    def conditions_for_target_reached(self) -> bool:
+        return (
+            self.position.take_profit_order.price == self.order_update.price
+            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+        )
+
+    def conditions_for_market_order(self) -> bool:
+        return self.order_update.order_type == "MARKET"
+
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "position"] = update
 
@@ -84,11 +133,18 @@ class TradingStateMachine:
         self.update_position_in_df(update=self.state)
 
     async def handle_liquidation(self):
-        self.position, self.df, self.balance = await position_liquidation(
+        self.position, self.balance = await position_liquidation(
             client=self.client,
             position=self.position,
             order_update=self.order_update,
-            df=self.df,
+            balance=self.balance,
+        )
+
+    async def handle_partial_liquidation(self):
+        self.position, self.balance = await position_liquidation(
+            client=self.client,
+            position=self.position,
+            order_update=self.order_update,
             balance=self.balance,
         )
 
@@ -96,11 +152,17 @@ class TradingStateMachine:
         self.position = Position()
 
     async def handle_target_reached(self):
-        self.position, self.df, self.balance = await target_reached(
+        self.position, self.balance = await target_reached(
             client=self.client,
             position=self.position,
             order_update=self.order_update,
-            df=self.df,
+            balance=self.balance,
+        )
+
+    async def handle_market_order(self):
+        self.position, self.balance = await market_order(
+            position=self.position,
+            order_update=self.order_update,
             balance=self.balance,
         )
 
@@ -108,5 +170,12 @@ class TradingStateMachine:
         await self.machine.trigger(
             "process_signal",
             signal_update=signal_update,
+            position=position,
+        )
+
+    async def process_order(self, order_update, position):
+        await self.machine.trigger(
+            "process_order",
+            order_update=order_update,
             position=position,
         )
