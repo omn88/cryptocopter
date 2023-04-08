@@ -7,7 +7,14 @@ import logging
 from src.features.features import State, Signal
 from src.orders import Position, PositionMode
 from src.producers.producers import SignalUpdate, OrderUpdate
-from src.workers.handle_order import position_liquidation, target_reached, market_order
+from src.workers.handle_order import (
+    position_liquidation,
+    target_reached,
+    partial_position_liquidation,
+    target_partially_reached,
+    market_order_filled,
+    market_order_filled_partially,
+)
 
 logger = logging.getLogger("state_actions")
 
@@ -52,9 +59,16 @@ class TradingStateMachine:
                 "trigger": "process_order",
                 "source": "*",
                 "dest": State.FLAT,
-                "conditions": "conditions_for_liquidation",
+                "conditions": "conditions_for_position_liquidation",
                 "before": "handle_liquidation",
                 "after": "enter_flat",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_target_partially_reached",
+                "before": "handle_target_partially_reached",
             },
             {
                 "trigger": "process_order",
@@ -68,9 +82,16 @@ class TradingStateMachine:
                 "trigger": "process_order",
                 "source": "*",
                 "dest": State.FLAT,
-                "conditions": "conditions_for_market_order",
-                "before": "handle_market_order",
+                "conditions": "conditions_for_market_order_filled",
+                "before": "handle_market_order_filled",
                 "after": "enter_flat",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_market_order_filled_partially",
+                "before": "handle_market_order_filled_partially",
             },
         ]
 
@@ -122,8 +143,23 @@ class TradingStateMachine:
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
 
-    def conditions_for_market_order(self) -> bool:
-        return self.order_update.order_type == "MARKET"
+    def conditions_for_target_partially_reached(self) -> bool:
+        return (
+            self.position.take_profit_order.price == self.order_update.price
+            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+        )
+
+    def conditions_for_market_order_filled(self) -> bool:
+        return (
+            self.order_update.order_type == "MARKET"
+            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+        )
+
+    def conditions_for_market_order_filled_partially(self) -> bool:
+        return (
+            self.order_update.order_type == "MARKET"
+            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+        )
 
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "position"] = update
@@ -141,11 +177,8 @@ class TradingStateMachine:
         )
 
     async def handle_partial_liquidation(self):
-        self.position, self.balance = await position_liquidation(
-            client=self.client,
-            position=self.position,
+        await partial_position_liquidation(
             order_update=self.order_update,
-            balance=self.balance,
         )
 
     async def enter_flat(self):
@@ -159,11 +192,22 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-    async def handle_market_order(self):
-        self.position, self.balance = await market_order(
+    async def handle_target_partially_reached(self):
+        self.position.market_order = await target_partially_reached(
+            order_update=self.order_update,
+        )
+
+    async def handle_market_order_filled(self):
+        self.position, self.balance = await market_order_filled(
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
+        )
+
+    async def handle_market_order_filled_partially(self):
+        self.position, self.balance = await market_order_filled_partially(
+            position=self.position,
+            order_update=self.order_update,
         )
 
     async def process_signal(self, signal_update, position):
