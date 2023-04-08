@@ -370,7 +370,9 @@ async def target_reached(
         or order_update.status == client.ORDER_STATUS_FILLED
     ):
         logger.info("Take profit order filled!")
-        position = await cancel_remaining_limit_orders(client=client, position=position)
+        position, _ = await cancel_remaining_limit_orders(
+            client=client, position=position
+        )
         update_artifacts_and_save(
             position=position,
             order_update=order_update,

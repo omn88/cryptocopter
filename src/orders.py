@@ -440,4 +440,6 @@ async def cancel_remaining_limit_orders(
             logger.info("Cancelled new order_id: %s", order.order_id)
             cancelled_orders_count += 1
 
-    return position, new_orders_count != cancelled_orders_count
+    position_opened = new_orders_count != len(position.orders)
+
+    return position, position_opened
