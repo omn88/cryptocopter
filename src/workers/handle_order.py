@@ -486,7 +486,7 @@ async def market_order_filled(
     position.orders = []
 
 
-async def market_order_filled_partially(order_update: OrderUpdate, position: Position):
+async def market_order_partially_filled(order_update: OrderUpdate, position: Position):
     position.market_order = Order(
         price=order_update.price,
         quantity=order_update.quantity,
@@ -498,47 +498,3 @@ async def market_order_filled_partially(order_update: OrderUpdate, position: Pos
         "Market order realization in progress: %s!",
         position.market_order,
     )
-
-
-async def order_handle(
-    client: binance.AsyncClient,
-    position: Position,
-    order_update: OrderUpdate,
-    df: pandas.DataFrame,
-    balance: float,
-) -> Tuple[Position, pandas.DataFrame, float]:
-    logger.info("Entering order handle")
-
-    assert isinstance(order_update, OrderUpdate)
-
-    if order_update.order_type == "LIMIT":
-        if order_update.price == position.target_price:
-            if order_update.status in [
-                binance.AsyncClient.ORDER_STATUS_FILLED,
-                binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED,
-            ]:
-                position, df, balance = await target_reached(
-                    client=client,
-                    position=position,
-                    order_update=order_update,
-                    df=df,
-                    balance=balance,
-                )
-            if order_update.status == binance.AsyncClient.ORDER_STATUS_NEW:
-                logger.info(
-                    "New take profit order created, id: %s", order_update.order_id
-                )
-            if order_update.status == binance.AsyncClient.ORDER_STATUS_CANCELED:
-                logger.info("Cancelled take profit order: %s", order_update.order_id)
-            if order_update.status == binance.AsyncClient.ORDER_STATUS_EXPIRED:
-                logger.info("Expired take profit order: %s", order_update.order_id)
-
-        else:
-            position = await handle_order_update(
-                client=client,
-                order_update=order_update,
-                position=position,
-            )
-
-    logger.info("Exiting order handle")
-    return position, df, balance

@@ -53,8 +53,8 @@ async def worker(
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            position, tsm = await order_handle(
-                position=position, order_update=event.content, tsm=tsm, client=client
+            position = await tsm.process_order(
+                order_update=event.content, position=position
             )
 
         elif producers.EventName.ACCOUNT == event.name:
@@ -62,10 +62,10 @@ async def worker(
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            position, tsm = await signal_handle(
+
+            position = await tsm.process_signal(
                 signal_update=event.content,
                 position=position,
-                tsm=tsm,
             )
 
             await print_last_n_rows(df=tsm.df)

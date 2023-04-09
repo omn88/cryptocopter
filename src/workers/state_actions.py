@@ -198,14 +198,5 @@ async def signal_handle(
         signal_update.signal,
     )
 
-    await tsm.process_signal(
-        signal_update=signal_update,
-        position=position,
-    )
-
-    position.status = tsm.machine.state
-
-    # TODO: Need to retrieve CURRENT POSITION.
-
     logger.info("Exiting signal handle")
     return position, tsm

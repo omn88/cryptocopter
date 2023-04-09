@@ -13,7 +13,8 @@ from src.workers.handle_order import (
     partial_position_liquidation,
     target_partially_reached,
     market_order_filled,
-    market_order_filled_partially,
+    market_order_partially_filled,
+    handle_order_update,
 )
 
 logger = logging.getLogger("state_actions")
@@ -47,6 +48,20 @@ class TradingStateMachine:
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
                 "after": "log_new_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_cancellation",
+                "after": "log_cancelled_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_new_order_expiration",
+                "after": "log_expired_order",
             },
             {
                 "trigger": "process_order",
@@ -93,6 +108,13 @@ class TradingStateMachine:
                 "conditions": "conditions_for_market_order_filled_partially",
                 "before": "handle_market_order_filled_partially",
             },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_update",
+                "before": "handle_order_update",
+            },
         ]
 
         self.machine = AsyncMachine(
@@ -132,33 +154,58 @@ class TradingStateMachine:
         )
 
     def conditions_for_new_order_confirmation(self) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
         return (
-            self.order_update.order_type == self.client.ORDER_TYPE_LIMIT
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_NEW
+        )
+
+    def conditions_for_order_cancellation(self) -> bool:
+        return (
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == self.client.ORDER_STATUS_CANCELED
+        )
+
+    def conditions_for_order_expiration(self) -> bool:
+        return (
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == self.client.ORDER_STATUS_EXPIRED
         )
 
     def conditions_for_target_reached(self) -> bool:
         return (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
+            and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
 
     def conditions_for_target_partially_reached(self) -> bool:
         return (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+            and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
 
     def conditions_for_market_order_filled(self) -> bool:
         return (
-            self.order_update.order_type == "MARKET"
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
 
     def conditions_for_market_order_filled_partially(self) -> bool:
         return (
-            self.order_update.order_type == "MARKET"
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+        )
+
+    def conditions_for_order_update(self):
+        return (
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status
+            in [
+                self.client.ORDER_STATUS_FILLED,
+                self.client.ORDER_STATUS_PARTIALLY_FILLED,
+            ]
         )
 
     def update_position_in_df(self, update: Union[Signal, State]):
@@ -167,6 +214,15 @@ class TradingStateMachine:
     def skip_signal(self) -> None:
         logger.info("Skipping signal: %s", self.signal_update.signal)
         self.update_position_in_df(update=self.state)
+
+    def log_new_order(self) -> None:
+        logger.info("New order: %s", self.order_update.order_id)
+
+    def log_cancelled_order(self) -> None:
+        logger.info("Cancelled order: %s", self.order_update.order_id)
+
+    def log_expired_order(self) -> None:
+        logger.info("Expired order: %s", self.order_update.order_id)
 
     async def handle_liquidation(self):
         self.position, self.balance = await position_liquidation(
@@ -205,21 +261,32 @@ class TradingStateMachine:
         )
 
     async def handle_market_order_filled_partially(self):
-        self.position, self.balance = await market_order_filled_partially(
+        self.position, self.balance = await market_order_partially_filled(
             position=self.position,
             order_update=self.order_update,
         )
 
-    async def process_signal(self, signal_update, position):
+    async def handle_order_update(self):
+        self.position = await handle_order_update(
+            client=self.client,
+            order_update=self.order_update,
+            position=self.position,
+        )
+
+    async def process_signal(self, signal_update, position) -> Position:
         await self.machine.trigger(
             "process_signal",
             signal_update=signal_update,
             position=position,
         )
 
-    async def process_order(self, order_update, position):
+        return self.position
+
+    async def process_order(self, order_update, position) -> Position:
         await self.machine.trigger(
             "process_order",
             order_update=order_update,
             position=position,
         )
+
+        return self.position
