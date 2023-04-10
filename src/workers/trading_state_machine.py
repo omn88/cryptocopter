@@ -5,7 +5,7 @@ import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
 from src.features.features import State, Signal
-from src.orders import Position, PositionMode
+from src.common.orders import Position, PositionMode
 from src.producers.producers import SignalUpdate, OrderUpdate
 from src.workers.handle_order import (
     position_liquidation,

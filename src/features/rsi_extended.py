@@ -1,40 +1,184 @@
-from src.features.features import State
+import logging
+from typing import Optional, Union
+
+import binance
+import pandas
+
+from src.common.orders import Position, PositionMode
+from src.features.features import State, Signal
+from src.producers.producers import SignalUpdate
+from src.workers import handle_order
+
+logger = logging.getLogger("feature_rsi_basic")
+
+#     def conditions_for_skipping_signal(self) -> bool:
+#         long_signals = [Signal.LONG, Signal.LONG_20]
+#         short_signals = [Signal.SHORT, Signal.SHORT_80]
+#
+#         return (
+#             (self.state == State.LONG and self.signal_update.signal in long_signals)
+#             or (
+#                 self.state == State.LONG_20
+#                 and self.signal_update.signal == Signal.LONG_20
+#             )
+#             or (
+#                 self.state == State.SHORT and self.signal_update.signal in short_signals
+#             )
+#             or (
+#                 self.state == State.SHORT_80
+#                 and self.signal_update.signal == Signal.SHORT_80
+#             )
+#             or (
+#                 self.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
+#                 and self.signal_update.signal in [long_signals, short_signals]
+#             )
+#         )
 
 
 class FeatureRsiExtended:
-    states = [State.FLAT, State.LONG, State.SHORT]
+    def __init__(self, df, client, balance, order_quantity_list, position, mode):
+        self.client: binance.AsyncClient = client
+        self.balance: float = balance
+        self.df = df
+        self.position: Position = position
+        self.position_old: Optional[Position] = None
+        self.order_quantity_list: pandas.DataFrame = order_quantity_list
+        self.state: State = State.FLAT
+        self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
+        self.mode: PositionMode = mode
+
+    states = [State.LONG_20, State.SHORT_80]
     transitions = [
         {
-            "trigger": "go_flat",
-            "source": [State.LONG, State.SHORT],
-            "dest": State.FLAT,
+            "trigger": "process_signal",
+            "source": State.FLAT,
+            "dest": State.LONG_20,
+            "conditions": "conditions_for_opening_extended_long",
+            "after": "open_extended_dca_long",
         },
         {
-            "trigger": "exit_flat",
+            "trigger": "process_signal",
             "source": State.FLAT,
-            "dest": "*",
+            "dest": State.SHORT_80,
+            "conditions": "conditions_for_opening_extended_short",
+            "after": "open_extended_dca_short",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.LONG_20,
+            "dest": State.SHORT_80,
+            "conditions": "conditions_for_switch_from_extended_long_to_extended_short",
+            "before": "close_long",
+            "after": "open_extended_dca_short",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.SHORT_80,
+            "dest": State.LONG_20,
+            "conditions": "conditions_for_switch_from_extended_short_to_extended_long",
+            "before": "close_short",
+            "after": "open_extended_dca_long",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.LONG_20,
+            "dest": State.SHORT,
+            "conditions": "conditions_for_switch_from_extended_long_to_basic_short",
+            "before": "close_long",
+            "after": "open_basic_dca_short",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.SHORT_80,
+            "dest": State.LONG,
+            "conditions": "conditions_for_switch_from_extended_short_to_basic_long",
+            "before": "close_short",
+            "after": "open_basic_dca_long",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.LONG_20,
+            "dest": State.LONG,
+            "conditions": "conditions_for_switch_from_extended_long_to_basic_long",
+            "before": "change_position_state",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.SHORT_80,
+            "dest": State.SHORT,
+            "conditions": "conditions_for_switch_from_extended_short_to_basic_short",
+            "before": "change_position_state",
         },
     ]
 
-    def conditions_for_skipping_signal(self) -> bool:
-        long_signals = [Signal.LONG, Signal.LONG_20]
-        short_signals = [Signal.SHORT, Signal.SHORT_80]
+    def conditions_for_opening_extended_long(self) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20
 
+    def conditions_for_opening_extended_short(self) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.SHORT_80
+
+    def conditions_for_switch_from_extended_long_to_extended_short(self) -> bool:
         return (
-            (self.state == State.LONG and self.signal_update.signal in long_signals)
-            or (
-                self.state == State.LONG_20
-                and self.signal_update.signal == Signal.LONG_20
-            )
-            or (
-                self.state == State.SHORT and self.signal_update.signal in short_signals
-            )
-            or (
-                self.state == State.SHORT_80
-                and self.signal_update.signal == Signal.SHORT_80
-            )
-            or (
-                self.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
-                and self.signal_update.signal in [long_signals, short_signals]
-            )
+            self.state == State.LONG_20 and self.signal_update.signal == State.SHORT_80
         )
+
+    def conditions_for_switch_from_extended_short_to_extended_long(self) -> bool:
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == State.LONG_20
+        )
+
+    def conditions_for_switch_from_extended_long_to_basic_short(self) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == State.SHORT
+
+    def conditions_for_switch_from_extended_short_to_basic_long(self) -> bool:
+        return self.state == State.SHORT_80 and self.signal_update.signal == State.LONG
+
+    def conditions_for_switch_from_extended_long_to_basic_long(self) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == State.LONG
+
+    def conditions_for_switch_from_extended_short_to_basic_short(self) -> bool:
+        return self.state == State.SHORT_80 and self.signal_update.signal == State.SHORT
+
+    async def open_extended_dca_long(self):
+        logger.debug("Opening %s", self.signal_update.signal)
+
+        self.position = await handle_order.prepare_and_send_orders(
+            client=self.client,
+            entry_price=self.signal_update.price,
+            signal=self.signal_update.signal,
+            side=self.position.side,
+            balance=self.balance,
+            order_quantity_list=self.order_quantity_list,
+            df=self.df,
+            mode=self.mode,
+        )
+
+    async def open_extended_dca_short(self):
+        logger.info("Opening %s", self.signal_update.signal)
+
+        self.position = await handle_order.prepare_and_send_orders(
+            client=self.client,
+            entry_price=self.signal_update.price,
+            signal=self.signal_update.signal,
+            side=self.position.side,
+            balance=self.balance,
+            order_quantity_list=self.order_quantity_list,
+            df=self.df,
+            mode=self.mode,
+        )
+
+    async def close_long(self):
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_long(
+            client=self.client, balance=self.balance, position=self.position
+        )
+
+    async def close_short(self):
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_short(
+            client=self.client, balance=self.balance, position=self.position
+        )
+
+    async def change_position_state(self):
+        logger.info("Changing status to %s", self.signal_update.signal)
+        self.position.status = self.signal_update.signal

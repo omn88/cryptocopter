@@ -1,8 +1,6 @@
-from pprint import pformat
 from unittest.mock import patch
 
 from src.features import Signals
-from src.orders import PositionSide
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.state_actions import signal_handle
 from src.workers.worker import worker

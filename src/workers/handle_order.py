@@ -9,7 +9,7 @@ import pandas
 from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
 from src.common.common import futures_get_position_info
 from src.features.features import Signal, State
-from src.orders import (
+from src.common.orders import (
     cancel_remaining_limit_orders,
     Position,
     cancel_order,
@@ -27,7 +27,6 @@ from src.orders import (
 )
 import logging
 from src.producers.producers import OrderUpdate
-from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("handle_order")
 

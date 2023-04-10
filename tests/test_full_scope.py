@@ -1,6 +1,6 @@
 from unittest.mock import patch
 from src.features import Signals
-from src.orders import PositionSide
+from src.common.orders import PositionSide
 from src.workers.worker import worker
 from src.producers.producers import Event, EventName, SignalUpdate, OrderUpdate
 import logging

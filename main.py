@@ -1,10 +1,7 @@
 import asyncio
 import signal
-import os
-import shutil
 from typing import List, Tuple
 import pandas
-import logging_config  # noinspection PyUnresolvedReferences
 import logging
 import binance.exceptions
 from binance import AsyncClient, BinanceSocketManager
@@ -12,14 +9,14 @@ from decouple import config
 
 from constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
 from src.backtest.lib import get_futures_historical_data
-from src import orders
+from src.common import orders
 from src.common.common import (
     create_directory_with_timestamp,
     insert_to_pandas,
     futures_get_balance,
 )
 from src.features.features import State, signals_from_features_generate
-from src.orders import order_quantity_list_prepare, Position
+from src.common.orders import order_quantity_list_prepare, Position
 from src.producers.producers import (
     futures_user_socket,
     kline_futures_socket,
@@ -30,6 +27,9 @@ from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
 import warnings
+import os
+import shutil
+import logging_config  # noinspection PyUnresolvedReferences
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 

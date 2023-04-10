@@ -4,7 +4,7 @@ from typing import List
 from pprint import pformat
 import binance
 from src.common.common import print_last_n_rows
-from src.orders import Position
+from src.common.orders import Position
 from src.producers import producers
 from src.producers.producers import (
     OrderUpdate,
@@ -12,8 +12,6 @@ from src.producers.producers import (
     KlineUpdate,
 )
 from src.workers.handle_account import account_handle
-from src.workers.handle_order import order_handle
-from src.workers.state_actions import signal_handle
 from src.workers.kline_handle import kline_handle
 from src.workers.trading_state_machine import TradingStateMachine
 

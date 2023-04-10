@@ -3,7 +3,7 @@ import binance
 import pandas
 import logging
 from src.features.features import Signal
-from src.orders import PositionMode, Position, PositionSide
+from src.common.orders import PositionMode, Position, PositionSide
 from src.producers.producers import SignalUpdate
 from src.workers import handle_order
 from src.workers.trading_state_machine import TradingStateMachine
