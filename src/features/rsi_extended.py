@@ -9,30 +9,7 @@ from src.features.features import State, Signal
 from src.producers.producers import SignalUpdate
 from src.workers import handle_order
 
-logger = logging.getLogger("feature_rsi_basic")
-
-#     def conditions_for_skipping_signal(self) -> bool:
-#         long_signals = [Signal.LONG, Signal.LONG_20]
-#         short_signals = [Signal.SHORT, Signal.SHORT_80]
-#
-#         return (
-#             (self.state == State.LONG and self.signal_update.signal in long_signals)
-#             or (
-#                 self.state == State.LONG_20
-#                 and self.signal_update.signal == Signal.LONG_20
-#             )
-#             or (
-#                 self.state == State.SHORT and self.signal_update.signal in short_signals
-#             )
-#             or (
-#                 self.state == State.SHORT_80
-#                 and self.signal_update.signal == Signal.SHORT_80
-#             )
-#             or (
-#                 self.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
-#                 and self.signal_update.signal in [long_signals, short_signals]
-#             )
-#         )
+logger = logging.getLogger("feature_rsi_extended")
 
 
 class FeatureRsiExtended:
@@ -114,7 +91,7 @@ class FeatureRsiExtended:
             "source": State.LONG,
             "dest": State.LONG_20,
             "conditions": "conditions_for_skipping_extended_signal",
-            "before": "skip_extended_signal",
+            "before": "skip_signal",
         },
         {
             "trigger": "process_signal",
@@ -133,32 +110,34 @@ class FeatureRsiExtended:
 
     def conditions_for_switch_from_extended_long_to_extended_short(self) -> bool:
         return (
-            self.state == State.LONG_20 and self.signal_update.signal == State.SHORT_80
+            self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT_80
         )
 
     def conditions_for_switch_from_extended_short_to_extended_long(self) -> bool:
         return (
-            self.state == State.SHORT_80 and self.signal_update.signal == State.LONG_20
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG_20
         )
 
     def conditions_for_switch_from_extended_long_to_basic_short(self) -> bool:
-        return self.state == State.LONG_20 and self.signal_update.signal == State.SHORT
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT
 
     def conditions_for_switch_from_extended_short_to_basic_long(self) -> bool:
-        return self.state == State.SHORT_80 and self.signal_update.signal == State.LONG
+        return self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG
 
     def conditions_for_switch_from_extended_long_to_basic_long(self) -> bool:
-        return self.state == State.LONG_20 and self.signal_update.signal == State.LONG
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.LONG
 
     def conditions_for_switch_from_extended_short_to_basic_short(self) -> bool:
-        return self.state == State.SHORT_80 and self.signal_update.signal == State.SHORT
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.SHORT
+        )
 
     def conditions_for_skipping_extended_signal(self) -> bool:
         return (
             self.state == State.LONG
-            and self.signal_update.signal == State.LONG_20
+            and self.signal_update.signal == Signal.LONG_20
             or self.state == State.SHORT
-            and self.signal_update.signal == State.SHORT_80
+            and self.signal_update.signal == Signal.SHORT_80
         )
 
     async def open_extended_dca_long(self):

@@ -66,10 +66,10 @@ class FeatureRsiBasic:
         return self.state == State.FLAT and self.signal_update.signal == Signal.SHORT
 
     def conditions_for_switch_to_short(self) -> bool:
-        return self.state == State.LONG and self.signal_update.signal == State.SHORT
+        return self.state == State.LONG and self.signal_update.signal == Signal.SHORT
 
     def conditions_for_switch_to_long(self) -> bool:
-        return self.state == State.SHORT and self.signal_update.signal == State.LONG
+        return self.state == State.SHORT and self.signal_update.signal == Signal.LONG
 
     async def open_basic_dca_long(self):
         logger.debug("Opening %s", self.signal_update.signal)
