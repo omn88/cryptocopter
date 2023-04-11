@@ -109,6 +109,20 @@ class FeatureRsiExtended:
             "conditions": "conditions_for_switch_from_extended_short_to_basic_short",
             "before": "change_position_state",
         },
+        {
+            "trigger": "process_signal",
+            "source": State.LONG,
+            "dest": State.LONG_20,
+            "conditions": "conditions_for_skipping_extended_signal",
+            "before": "skip_extended_signal",
+        },
+        {
+            "trigger": "process_signal",
+            "source": State.SHORT,
+            "dest": State.SHORT_80,
+            "conditions": "conditions_for_skipping_extended_signal",
+            "before": "skip_signal",
+        },
     ]
 
     def conditions_for_opening_extended_long(self) -> bool:
@@ -138,6 +152,14 @@ class FeatureRsiExtended:
 
     def conditions_for_switch_from_extended_short_to_basic_short(self) -> bool:
         return self.state == State.SHORT_80 and self.signal_update.signal == State.SHORT
+
+    def conditions_for_skipping_extended_signal(self) -> bool:
+        return (
+            self.state == State.LONG
+            and self.signal_update.signal == State.LONG_20
+            or self.state == State.SHORT
+            and self.signal_update.signal == State.SHORT_80
+        )
 
     async def open_extended_dca_long(self):
         logger.debug("Opening %s", self.signal_update.signal)
