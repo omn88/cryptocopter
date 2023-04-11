@@ -2,7 +2,6 @@ import asyncio
 import logging
 from typing import List
 from pprint import pformat
-import binance
 from src.common.common import print_last_n_rows
 from src.common.orders import Position
 from src.producers import producers
@@ -19,15 +18,13 @@ logger = logging.getLogger("worker_main")
 
 
 async def worker(
-    client: binance.AsyncClient,
     queue: asyncio.Queue,
     historical_data: List,
     tsm: TradingStateMachine,
-    position: Position,
 ):
     while True:
-        logger.info("Current position: %s", pformat(position))
-        logger.info("Orders: \n%s", pformat(position.orders))
+        logger.info("Current position: %s", pformat(tsm.position))
+        logger.info("Orders: \n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
@@ -42,28 +39,28 @@ async def worker(
                 event.content,
             )
             assert isinstance(event.content, KlineUpdate)
-            historical_data, position = await kline_handle(
+            historical_data, tsm.position = await kline_handle(
                 historical_data=historical_data,
-                position=position,
+                position=tsm.position,
                 kline=event.content.kline,
                 tsm=tsm,
             )
 
         elif producers.EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            position = await tsm.process_order(
-                order_update=event.content, position=position
+            tsm.position = await tsm.process_order(
+                order_update=event.content, position=tsm.position
             )
 
         elif producers.EventName.ACCOUNT == event.name:
-            df, position = await account_handle(df=tsm.df, position=position)
+            df, tsm.position = await account_handle(df=tsm.df, position=tsm.position)
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
 
-            position = await tsm.process_signal(
+            tsm.position = await tsm.process_signal(
                 signal_update=event.content,
-                position=position,
+                position=tsm.position,
             )
 
             await print_last_n_rows(df=tsm.df)

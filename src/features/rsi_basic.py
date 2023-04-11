@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Optional
+from typing import Optional
 
 import binance
 import pandas
