@@ -15,24 +15,6 @@ def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
     return df
 
 
-def rsi_signal_basic_generate(
-    df: pandas.DataFrame,
-) -> Tuple[pandas.DataFrame, List, List[Signal]]:
-    assert "RSI" in df.columns
-
-    df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
-    df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
-
-    conditions = [
-        (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
-        (df.RsiAboveSeventy.diff() == 0) & (df.RsiAboveSeventy.diff(periods=2) == -1),
-    ]
-
-    signals = [Signal.LONG, Signal.SHORT]
-
-    return df, conditions, signals
-
-
 def rsi_signal_extended_generate(
     df: pandas.DataFrame,
 ) -> Tuple[pandas.DataFrame, List, List[Signal]]:

@@ -1,7 +1,8 @@
 import logging
-from typing import Optional
+from typing import Optional, List, Tuple
 
 import binance
+import numpy
 import pandas
 
 from src.common.identifiers import State, Signal, Position, SignalUpdate, PositionMode
@@ -22,6 +23,7 @@ class FeatureRsiBasic:
         self.state: State = State.FLAT
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.mode: PositionMode = mode
+        self.basic_signal_conditions = []
 
     states = [State.LONG, State.SHORT]
     transitions = [
@@ -56,6 +58,18 @@ class FeatureRsiBasic:
             "after": "open_basic_dca_long",
         },
     ]
+
+    def rsi_signal_basic_generate(self):
+        assert "RSI" in self.df.columns
+
+        self.df["RsiBelowThirty"] = numpy.where(self.df["RSI"] < 30, 1, 0)
+        self.df["RsiAboveSeventy"] = numpy.where(self.df["RSI"] > 70, 1, 0)
+        self.basic_signal_conditions = [
+            (self.df.RsiBelowThirty.diff() == 0)
+            & (self.df.RsiBelowThirty.diff(periods=2) == -1),
+            (self.df.RsiAboveSeventy.diff() == 0)
+            & (self.df.RsiAboveSeventy.diff(periods=2) == -1),
+        ]
 
     def conditions_for_opening_long(self) -> bool:
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG
