@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from src.features import Signals
+from src.features.features import Signal, State
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.state_actions import signal_handle
 from src.workers.worker import worker
@@ -49,7 +49,7 @@ async def test_kline_handling(
 
     assert len(position.current_position.orders) == 0
     assert 1000 == position.balance
-    assert position.current_position.status == Signals.FLAT
+    assert position.current_position.status == State.FLAT
 
     # NO SIGNAL THEN NULL LONG20
     kline_update = KlineUpdate(

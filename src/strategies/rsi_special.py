@@ -5,7 +5,9 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 
 class SpecialStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
-    def __init__(self, client, balance, order_quantity_list, queue, df, position):
+    def __init__(
+        self, client, balance, order_quantity_list, queue, df, position, raw_data
+    ):
         super().__init__(
             client=client,
             balance=balance,
@@ -13,6 +15,7 @@ class SpecialStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
             queue=queue,
             df=df,
             position=position,
+            raw_data=raw_data,
         )
         self.add_states_and_transitions(
             FeatureRsiBasic.states, FeatureRsiBasic.transitions

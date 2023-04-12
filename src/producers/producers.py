@@ -28,6 +28,13 @@ class OrderUpdate(NamedTuple):
         return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type})"
 
 
+class AccountUpdate(NamedTuple):
+    account_update: Dict
+
+    def __repr__(self) -> str:
+        return f"AccountUpdate(kline={self.account_update})"
+
+
 class KlineUpdate(NamedTuple):
     kline: List
 

@@ -1,9 +1,13 @@
+import asyncio
 from typing import Tuple, List
 import logging
+
+import pandas
+
 from src.common.common import insert_to_pandas
 from src.features.features import signals_from_features_generate, State, Signal
 from src.common.orders import Position
-from src.producers.producers import SignalUpdate
+from src.producers.producers import SignalUpdate, Event, EventName
 from src.workers.state_actions import signal_handle
 from src.common.common import print_last_n_rows
 from src.workers.trading_state_machine import TradingStateMachine
@@ -12,24 +16,25 @@ logger = logging.getLogger("handle_kline")
 
 
 async def kline_handle(
-    position: Position,
-    historical_data: List,
     kline: List,
-    tsm: TradingStateMachine,
-) -> Tuple[List, Position]:
+    raw_data: List,
+    df: pandas.DataFrame,
+    position: Position,
+    queue: asyncio.Queue,
+) -> Tuple[Position, List, pandas.DataFrame]:
     logger.info("Entering Kline handling")
 
-    expected_index = int(historical_data[-1][0]) + 900000
+    expected_index = int(raw_data[-1][0]) + 900000
 
     # I need historical data here, then add the kline, generate temp dataframe, then copy last
     assert expected_index == int(kline[0])
-    len_hist_data = len(historical_data)
-    historical_data.append(kline)
-    assert len(historical_data) == len_hist_data + 1
-    temp_df = insert_to_pandas(data=historical_data)
+    len_hist_data = len(raw_data)
+    raw_data.append(kline)
+    assert len(raw_data) == len_hist_data + 1
+    temp_df = insert_to_pandas(data=raw_data)
     temp_df = signals_from_features_generate(df=temp_df)
 
-    df = tsm.df.append(temp_df.iloc[-1])
+    df = df.append(temp_df.iloc[-1])
     kline_signal = df.iloc[-1]["signal"]
 
     if position.status == State.LONG_SPECIAL and df.iloc[-1]["RSI"] < 50:
@@ -53,10 +58,11 @@ async def kline_handle(
             signal_update.signal,
             signal_update.price,
         )
-        position, tsm = await signal_handle(
-            signal_update=signal_update,
-            position=position,
-            tsm=tsm,
+        await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+        logger.info(
+            "Added signal to queue: signal: %s, price: %s",
+            signal_update.signal,
+            signal_update.price,
         )
     else:
         df.at[df.index[-1], "position"] = df.at[df.index[-2], "position"]
@@ -65,4 +71,4 @@ async def kline_handle(
     await print_last_n_rows(df=df)
 
     logger.info("Exiting Kline handling")
-    return historical_data, position
+    return position, raw_data, df

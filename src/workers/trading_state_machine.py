@@ -6,7 +6,13 @@ from transitions.extensions.asyncio import AsyncMachine
 import logging
 from src.features.features import State, Signal
 from src.common.orders import Position, PositionMode
-from src.producers.producers import SignalUpdate, OrderUpdate
+from src.producers.producers import (
+    SignalUpdate,
+    OrderUpdate,
+    KlineUpdate,
+    AccountUpdate,
+)
+from src.workers.handle_account import account_handle
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -16,22 +22,28 @@ from src.workers.handle_order import (
     market_order_partially_filled,
     handle_order_update,
 )
+from src.workers.kline_handle import kline_handle
 
-logger = logging.getLogger("state_actions")
+logger = logging.getLogger("trading_state_machine")
 
 
 class TradingStateMachine:
-    def __init__(self, client, queue, position, df, balance, order_quantity_list):
+    def __init__(
+        self, client, queue, position, df, balance, order_quantity_list, raw_data
+    ):
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
         self.position: Position = position
         self.position_old: Optional[Position] = None
+        self.raw_data: List = raw_data
         self.df: pandas.DataFrame = df
         self.balance: float = balance
         self.order_quantity_list = order_quantity_list
         self.state: State = State.FLAT
         self.signal_update: Optional[SignalUpdate] = None
         self.order_update: Optional[OrderUpdate] = None
+        self.kline_update: Optional[KlineUpdate] = None
+        self.account_update: Optional[AccountUpdate] = None
         self.mode: PositionMode = PositionMode.DCA
         self.states: List[State] = [self.state]
         self.transitions = [
@@ -41,6 +53,18 @@ class TradingStateMachine:
                 "dest": "=",
                 "conditions": "conditions_for_skipping_same_signal",
                 "after": "skip_signal",
+            },
+            {
+                "trigger": "process_kline",
+                "source": "*",
+                "dest": "=",
+                "after": "handle_kline",
+            },
+            {
+                "trigger": "process_account",
+                "source": "*",
+                "dest": "=",
+                "after": "handle_account",
             },
             {
                 "trigger": "process_order",
@@ -224,6 +248,22 @@ class TradingStateMachine:
     def log_expired_order(self) -> None:
         logger.info("Expired order: %s", self.order_update.order_id)
 
+    async def handle_kline(self):
+
+        self.position, self.raw_data, self.df = await kline_handle(
+            df=self.df,
+            kline=self.kline_update.kline,
+            queue=self.queue,
+            position=self.position,
+            raw_data=self.raw_data,
+        )
+
+    async def handle_account(self):
+
+        self.df, self.position = await account_handle(
+            df=self.df, position=self.position, account_update=self.account_update
+        )
+
     async def handle_liquidation(self):
         self.position, self.balance = await position_liquidation(
             client=self.client,
@@ -279,7 +319,6 @@ class TradingStateMachine:
             signal_update=signal_update,
             position=position,
         )
-
         return self.position
 
     async def process_order(self, order_update, position) -> Position:
@@ -288,5 +327,20 @@ class TradingStateMachine:
             order_update=order_update,
             position=position,
         )
+        return self.position
 
+    async def process_kline(self, kline_update, position) -> Position:
+        await self.machine.trigger(
+            "process_kline",
+            kline_update=kline_update,
+            position=position,
+        )
+        return self.position
+
+    async def process_account(self, account_update, position) -> Position:
+        await self.machine.trigger(
+            "process_account",
+            account_update=account_update,
+            position=position,
+        )
         return self.position

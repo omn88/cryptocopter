@@ -1,6 +1,6 @@
 from unittest.mock import patch
-from src.features import Signals
 from src.common.orders import PositionSide
+from src.features.features import Signal
 from src.workers.worker import worker
 from src.producers.producers import Event, EventName, SignalUpdate, OrderUpdate
 import logging
@@ -148,7 +148,7 @@ async def test_full_scope(
     position = base.position
 
     logger.info("################ START LONG ####################")
-    entry_signal = Signals.LONG
+    entry_signal = Signal.LONG
     entry_price = round(base.df.at[base.df.index[-1], "Close"], 1)
     signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 

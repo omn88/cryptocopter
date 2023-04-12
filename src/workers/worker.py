@@ -39,11 +39,8 @@ async def worker(
                 event.content,
             )
             assert isinstance(event.content, KlineUpdate)
-            historical_data, tsm.position = await kline_handle(
-                historical_data=historical_data,
-                position=tsm.position,
-                kline=event.content.kline,
-                tsm=tsm,
+            tsm.position = tsm.process_kline(
+                kline_update=event.content, position=tsm.position
             )
 
         elif producers.EventName.ORDER == event.name:
@@ -53,11 +50,12 @@ async def worker(
             )
 
         elif producers.EventName.ACCOUNT == event.name:
-            df, tsm.position = await account_handle(df=tsm.df, position=tsm.position)
+            tsm.position = tsm.process_account(
+                account_update=event.content, position=tsm.position
+            )
 
         elif producers.EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-
             tsm.position = await tsm.process_signal(
                 signal_update=event.content,
                 position=tsm.position,

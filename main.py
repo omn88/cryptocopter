@@ -92,19 +92,15 @@ def prepare_producers(
 
 
 def prepare_workers(
-    client: binance.AsyncClient,
     tsm: TradingStateMachine,
     historical_data: List,
-    position: Position,
     queue: asyncio.Queue,
 ):
     return [
         asyncio.create_task(
             worker(
-                client=client,
                 historical_data=historical_data,
                 tsm=tsm,
-                position=position,
                 queue=queue,
             )
         )
@@ -150,7 +146,7 @@ async def create_socket_manager(client: binance.AsyncClient) -> BinanceSocketMan
 
 
 async def create_async_queue() -> asyncio.Queue:
-    queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue()
     logger.info("Async FIFO Queue started")
 
     return queue
@@ -189,14 +185,13 @@ async def main():
         order_quantity_list=order_quantity_list_prepare(),
         queue=queue,
         df=df,
+        position=position,
     )
 
     await asyncio.gather(
         *prepare_producers(bsm=bsm, df=df, interval=INTERVAL, queue=queue),
         *prepare_workers(
-            client=client,
             historical_data=historical_data,
-            position=position,
             tsm=tsm,
             queue=queue,
         ),
