@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from src.common.orders import Position
-from src.features import Signals
+from src.features.features import Signal, State
 from src.producers.producers import determine_start_position
 from tests.data.sample_dataframes import dataframe_gen
 
@@ -24,12 +24,12 @@ class Base:
 
 @pytest.fixture
 async def base():
-    df = dataframe_gen(desired_signal=Signals.NULL)
-    df["position"] = Signals.FLAT
+    df = dataframe_gen(desired_signal=Signal.NULL)
+    df["position"] = State.FLAT
     base = Base(
         df=df,
         client=binance.AsyncClient(),
-        position=Position(balance=1000),
+        position=Position(),
     )
     base.df = await determine_start_position(df=base.df, queue=base.queue)
 

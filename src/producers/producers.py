@@ -9,18 +9,18 @@ import pandas
 import numpy
 
 from constants import SYMBOL
-from src.features import Signals
+from src.features.features import Signal
 
 logger = logging.getLogger("producer")
 
 
 class OrderUpdate(NamedTuple):
-    price: float
-    quantity: float
     status: str
-    realized_quantity: float
-    last_filled_quantity: float
-    order_id: int
+    price: float = 0
+    quantity: float = 0
+    realized_quantity: float = 0
+    last_filled_quantity: float = 0
+    order_id: int = 0
     average_price: float = 0
     order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
 
@@ -43,7 +43,7 @@ class KlineUpdate(NamedTuple):
 
 
 class SignalUpdate(NamedTuple):
-    signal: Signals
+    signal: Signal
     price: float
 
     def __repr__(self) -> str:
@@ -156,7 +156,7 @@ async def determine_start_position(
 ) -> pandas.DataFrame:
     logger.info("Checking start position")
 
-    signal = Signals.NULL
+    signal = Signal.NULL
     price = 0
     signal_index = 0
     date_index = None

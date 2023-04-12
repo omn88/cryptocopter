@@ -1,14 +1,11 @@
 from typing import Tuple
 from unittest.mock import patch
-from src.features import Signals
+from src.features.features import Signal
 from src.common.orders import Order, Position
 from src.producers.producers import OrderUpdate, SignalUpdate
-from src.workers.handle_order import order_handle
 import logging
 import pandas
 import binance
-
-from src.workers.state_actions import signal_handle
 
 logger = logging.getLogger("TEST")
 

@@ -40,9 +40,11 @@ class TradingStateMachine:
         self.balance: float = balance
         self.order_quantity_list = order_quantity_list
         self.state: State = State.FLAT
-        self.signal_update: Optional[SignalUpdate] = None
-        self.order_update: Optional[OrderUpdate] = None
-        self.kline_update: Optional[KlineUpdate] = None
+        self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
+        self.order_update: OrderUpdate = OrderUpdate(
+            status=self.client.ORDER_STATUS_NEW
+        )
+        self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: Optional[AccountUpdate] = None
         self.mode: PositionMode = PositionMode.DCA
         self.states: List[State] = [self.state]

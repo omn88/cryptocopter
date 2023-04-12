@@ -39,7 +39,7 @@ async def worker(
                 event.content,
             )
             assert isinstance(event.content, KlineUpdate)
-            tsm.position = tsm.process_kline(
+            tsm.position = await tsm.process_kline(
                 kline_update=event.content, position=tsm.position
             )
 
@@ -50,7 +50,7 @@ async def worker(
             )
 
         elif producers.EventName.ACCOUNT == event.name:
-            tsm.position = tsm.process_account(
+            tsm.position = await tsm.process_account(
                 account_update=event.content, position=tsm.position
             )
 

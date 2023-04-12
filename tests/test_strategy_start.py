@@ -8,7 +8,7 @@ import pytest
 from src.backtest.lib import get_futures_historical_data
 from src.common.common import insert_to_pandas
 from src.producers.producers import determine_start_position, SignalUpdate
-from src.features import Signals
+from src.features.features import Signal, State
 
 from tests.data.sample_dataframes import dataframe_gen
 
@@ -35,7 +35,7 @@ async def test_get_historical_data(mock_get_historical_klines):
 
 @pytest.mark.parametrize(
     "signal",
-    [Signals.LONG, Signals.LONG_20, Signals.SHORT, Signals.SHORT_80],
+    [Signal.LONG, Signal.LONG_20, Signal.SHORT, Signal.SHORT_80],
 )
 async def test_determine_start_position(signal):
     client = binance.AsyncClient()
@@ -44,7 +44,7 @@ async def test_determine_start_position(signal):
 
     try:
         df = dataframe_gen(desired_signal=signal)
-        df["position"] = Signals.FLAT
+        df["position"] = State.FLAT
 
         await determine_start_position(df=df, queue=queue)
 

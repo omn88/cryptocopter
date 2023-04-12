@@ -1,4 +1,4 @@
-from src.features import signals_from_features_generate, Signals
+from src.features.features import signals_from_features_generate, Signal
 import pandas
 import logging
 import numpy
@@ -6,18 +6,18 @@ import numpy
 logger = logging.getLogger("sample_dataframes")
 
 
-def dataframe_gen(desired_signal: Signals) -> pandas.DataFrame:
+def dataframe_gen(desired_signal: Signal) -> pandas.DataFrame:
     data = []
 
-    if desired_signal == Signals.LONG:
+    if desired_signal == Signal.LONG:
         data = data_long()
-    elif desired_signal == Signals.SHORT:
+    elif desired_signal == Signal.SHORT:
         data = data_short()
-    elif desired_signal == Signals.SHORT_80:
+    elif desired_signal == Signal.SHORT_80:
         data = data_short_eighty()
-    elif desired_signal == Signals.LONG_20:
+    elif desired_signal == Signal.LONG_20:
         data = data_long_twenty()
-    elif desired_signal == Signals.NULL:
+    elif desired_signal == Signal.NULL:
         data = data_no_signal()
     else:
         logger.info(
