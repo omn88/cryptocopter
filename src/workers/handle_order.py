@@ -70,6 +70,8 @@ logger = logging.getLogger("handle_order")
 #             )
 #
 #     return position, df, balance
+def signal_to_state(signal: Signal) -> State:
+    return State(signal.value)
 
 
 async def prepare_and_send_orders(
@@ -86,7 +88,7 @@ async def prepare_and_send_orders(
     position = Position(side=side)
     position.artifacts.start_balance = balance
     position.artifacts.no_of_dca_orders = NUMBER_OF_DCA_ORDERS
-    position.status = signal.value
+    position.status = signal_to_state(signal=signal)
 
     position = prepare_orders(
         position=position,
@@ -500,3 +502,13 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
         "Market order realization in progress: %s!",
         position.market_order,
     )
+
+
+async def futures_position_close(
+    client: binance.AsyncClient, position: Position, balance: float
+):
+
+    if position.status in [State.LONG, State.LONG_20, State.LONG_SPECIAL]:
+        _ = await close_long(client=client, position=position, balance=balance)
+    elif position.status in [State.SHORT, State.SHORT_80, State.SHORT_SPECIAL]:
+        _ = await close_short(client=client, position=position, balance=balance)

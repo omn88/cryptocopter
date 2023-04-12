@@ -5,8 +5,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from src.common.orders import Position
-from src.features.features import Signal, State
+from src.common.identifiers import Position, Signal, State
 from src.producers.producers import determine_start_position
 from tests.data.sample_dataframes import dataframe_gen
 

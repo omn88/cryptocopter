@@ -153,7 +153,7 @@ class Position:
     orders: Optional[List[Order]] = None
     liquidation_price: float = 0
     target_price: float = 0
-    take_profit_order: Optional[Order] = None
+    take_profit_order: Order = Order(price=0, quantity=0)
     market_order: Optional[Order] = None
     artifacts: Artifacts = Artifacts()
 

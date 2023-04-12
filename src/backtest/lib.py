@@ -26,16 +26,6 @@ def target_depo_price_calculate(
         return target_price, depo_price
 
 
-async def get_futures_historical_data(
-    client: binance.AsyncClient, interval: str, lookback: str
-) -> List:
-
-    historical_data = await client.futures_historical_klines(
-        SYMBOL, interval, lookback + "min ago UTC"
-    )
-    return historical_data[:-1]
-
-
 def get_futures_historical_data_sync(
     client: binance.Client,
     symbol: str,

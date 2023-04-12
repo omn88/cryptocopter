@@ -18,7 +18,6 @@ logger = logging.getLogger("worker_main")
 
 async def worker(
     queue: asyncio.Queue,
-    historical_data: List,
     tsm: TradingStateMachine,
 ):
     while True:
@@ -65,7 +64,7 @@ async def worker(
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return historical_data, tsm.df
+            return tsm.raw_data, tsm.df
 
         logger.info("Task Done: %s", event.content)
         queue.task_done()
