@@ -1,6 +1,4 @@
 import asyncio
-from dataclasses import dataclass
-from enum import Enum
 from typing import List, Optional, Tuple
 import logging
 import binance
@@ -8,96 +6,9 @@ from binance.exceptions import BinanceAPIException
 from constants import SYMBOL, LEVERAGE, DCA_SPAN, NUMBER_OF_DCA_ORDERS, LOSSES_PER_LEVEL
 import pandas
 
-from src.features.features import State
+from src.common.identifiers import Order, PositionSide, PositionMode, Position
 
 logger = logging.getLogger("orders")
-
-
-class PositionSide:
-    LONG = "BUY"
-    SHORT = "SELL"
-    FLAT = "FLAT"
-
-
-class PositionMode(Enum):
-    DCA = "DCA"
-    FULL = "FULL"
-    NEW = "NEW"
-
-
-@dataclass
-class Order:
-    price: float
-    quantity: float
-    quantity_stable: float = 0
-    order_id: int = 0
-    realized_quantity: float = 0
-    time_in_force: str = binance.AsyncClient.TIME_IN_FORCE_GTC
-    status: str = binance.AsyncClient.ORDER_STATUS_NEW
-    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
-
-    def __repr__(self) -> str:
-        return (
-            f"Order(price={self.price}, quantity={self.quantity}, "
-            f"quantity_stable={self.quantity_stable}, order_id={self.order_id}, "
-            f"realized_quantity={self.realized_quantity}, "
-            f"time_in_force={self.time_in_force}, status={self.status})"
-        )
-
-
-@dataclass()
-class Artifacts:
-    start_balance: float = 0
-    no_of_dca_orders: int = 0
-    leverage: int = 0
-    order_quantity_stable: int = 0
-    order_level: int = 0
-    max_position: float = 0
-    price: float = 0
-    quantity: float = 0
-    side: str = "NEW"
-    mode: PositionMode = PositionMode.NEW
-    close_price: float = 0
-    orders: Optional[List[Order]] = None
-    per_cent_earned: float = 0
-    stable_earned: float = 0
-    end_balance: float = 0
-    status: str = "NEW"
-
-    def __repr__(self):
-        return (
-            f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_dca_orders},"
-            f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
-            f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
-            f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
-            f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
-            f" end_balance={self.end_balance}, status='{self.status}')"
-        )
-
-
-@dataclass()
-class Position:
-    price: float = 0
-    quantity: float = 0
-    status: State = State.FLAT
-    side: str = PositionSide.FLAT
-    orders: Optional[List[Order]] = None
-    liquidation_price: float = 0
-    target_price: float = 0
-    take_profit_order: Optional[Order] = None
-    market_order: Optional[Order] = None
-    artifacts: Artifacts = Artifacts()
-
-    def __post_init__(self):
-        if self.orders is None:
-            self.orders = []
-
-    def __repr__(self) -> str:
-        return (
-            f"\nCurrentPosition(price={self.price}, quantity={self.quantity}, side={self.side}, "
-            f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
-            f"take_profit_order={self.take_profit_order})"
-        )
 
 
 def order_quantity_list_prepare(

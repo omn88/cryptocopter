@@ -8,14 +8,17 @@ import pandas
 
 from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
 from src.common.common import futures_get_position_info
-from src.features.features import Signal, State
+from src.common.identifiers import (
+    Signal,
+    PositionMode,
+    Position,
+    State,
+    Order,
+    Artifacts,
+)
 from src.common.orders import (
     cancel_remaining_limit_orders,
-    Position,
     cancel_order,
-    Artifacts,
-    Order,
-    PositionMode,
     prepare_orders,
     send_orders,
     PositionSide,
@@ -100,9 +103,9 @@ async def prepare_and_send_orders(
         side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
     )
 
-    position, df, balance = await futures_validate_orders(
-        position=position, client=client, df=df, balance=balance
-    )
+    # position, df, balance = await futures_validate_orders(
+    #     position=position, client=client, df=df, balance=balance
+    # )
 
     logger.info(
         "Exiting %s position open, opened orders: %s",

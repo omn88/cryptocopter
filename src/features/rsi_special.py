@@ -4,9 +4,7 @@ from typing import Optional
 import binance
 import pandas
 
-from src.common.orders import Position, PositionMode
-from src.features.features import State, Signal
-from src.producers.producers import SignalUpdate
+from src.common.identifiers import Position, State, SignalUpdate, PositionMode, Signal
 from src.workers import handle_order
 
 logger = logging.getLogger("feature_rsi_extended")

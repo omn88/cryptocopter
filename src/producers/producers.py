@@ -1,70 +1,22 @@
 import asyncio
 import logging
-from enum import Enum
-from typing import NamedTuple, List, Dict
-
-import binance
+from typing import Dict
 from binance import BinanceSocketManager
 import pandas
 import numpy
 
 from constants import SYMBOL
-from src.features.features import Signal
+from src.common.identifiers import (
+    Event,
+    EventName,
+    AccountUpdate,
+    OrderUpdate,
+    KlineUpdate,
+    SignalUpdate,
+    Signal,
+)
 
 logger = logging.getLogger("producer")
-
-
-class OrderUpdate(NamedTuple):
-    status: str
-    price: float = 0
-    quantity: float = 0
-    realized_quantity: float = 0
-    last_filled_quantity: float = 0
-    order_id: int = 0
-    average_price: float = 0
-    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
-
-    def __repr__(self) -> str:
-        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type})"
-
-
-class AccountUpdate(NamedTuple):
-    account_update: Dict
-
-    def __repr__(self) -> str:
-        return f"AccountUpdate(kline={self.account_update})"
-
-
-class KlineUpdate(NamedTuple):
-    kline: List
-
-    def __repr__(self) -> str:
-        return f"KlineUpdate(kline={self.kline})"
-
-
-class SignalUpdate(NamedTuple):
-    signal: Signal
-    price: float
-
-    def __repr__(self) -> str:
-        return f"SignalUpdate(signal={self.signal}, price={self.price})"
-
-
-class EventName(Enum):
-
-    KLINE = "Kline"
-    ACCOUNT = "Account"
-    ORDER = "Order"
-    SIGNAL = "Signal"
-    SENTINEL = "Sentinel"
-
-
-class Event(NamedTuple):
-    name: EventName
-    content: NamedTuple
-
-    def __repr__(self) -> str:
-        return f"Event(name={self.name}, content={self.content})"
 
 
 async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
@@ -74,7 +26,12 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
         while True:
             msg = await fus.recv()
             if msg["e"] == "ACCOUNT_UPDATE":
-                await queue.put(Event(name=EventName.ACCOUNT, content=msg))
+                await queue.put(
+                    Event(
+                        name=EventName.ACCOUNT,
+                        content=AccountUpdate(account_update=msg),
+                    )
+                )
                 logger.info("Account update msg: %s", msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]

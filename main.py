@@ -37,6 +37,9 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 logger = logging.getLogger("main")
 
 
+# CREATE IDENTIFIERS MODULE
+
+
 async def shutdown(
     client: binance.AsyncClient,
     posix_signal: signal.Signals,

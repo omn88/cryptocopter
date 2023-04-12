@@ -1,30 +1,10 @@
-from enum import Enum
 from typing import Tuple, List
 
 import btalib
 import numpy
 import pandas
 
-
-class State(Enum):
-    FLAT = "FLAT"
-    LONG = "LONG"
-    LONG_20 = "LONG_20"
-    SHORT = "SHORT"
-    SHORT_80 = "SHORT_80"
-    LONG_SPECIAL = "LONG_SPECIAL"
-    SHORT_SPECIAL = "SHORT_SPECIAL"
-
-
-class Signal(Enum):
-    LONG = "LONG"
-    LONG_20 = "LONG_20"
-    SHORT = "SHORT"
-    SHORT_80 = "SHORT_80"
-    LONG_SPECIAL = "LONG_SPECIAL"
-    SHORT_SPECIAL = "SHORT_SPECIAL"
-    CLOSE_SPECIAL = "CLOSE_SPECIAL"
-    NULL = "NULL"
+from src.common.identifiers import Signal
 
 
 def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:

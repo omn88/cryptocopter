@@ -4,7 +4,7 @@ import pandas
 from src.common import orders
 import logging
 
-from src.producers.producers import AccountUpdate
+from src.common.identifiers import AccountUpdate
 
 logger = logging.getLogger("handle_account")
 

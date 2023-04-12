@@ -4,9 +4,7 @@ from typing import Optional
 import binance
 import pandas
 
-from src.features.features import State, Signal
-from src.common.orders import Position, PositionMode
-from src.producers.producers import SignalUpdate
+from src.common.identifiers import State, Signal, Position, SignalUpdate, PositionMode
 from src.workers import handle_order
 from src.workers.handle_order import prepare_and_send_orders
 

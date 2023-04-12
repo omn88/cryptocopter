@@ -4,13 +4,16 @@ import binance
 import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
-from src.features.features import State, Signal
-from src.common.orders import Position, PositionMode
-from src.producers.producers import (
+
+from src.common.identifiers import (
+    Position,
+    State,
     SignalUpdate,
     OrderUpdate,
+    Signal,
     KlineUpdate,
     AccountUpdate,
+    PositionMode,
 )
 from src.workers.handle_account import account_handle
 from src.workers.handle_order import (
