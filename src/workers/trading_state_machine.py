@@ -34,6 +34,7 @@ class TradingStateMachine:
     def __init__(
         self, client, queue, position, df, balance, order_quantity_list, raw_data
     ):
+        self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
         self.position: Position = position
@@ -42,7 +43,7 @@ class TradingStateMachine:
         self.df: pandas.DataFrame = df
         self.balance: float = balance
         self.order_quantity_list = order_quantity_list
-        self.state: State = State.FLAT
+
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.order_update: OrderUpdate = OrderUpdate(
             status=self.client.ORDER_STATUS_NEW

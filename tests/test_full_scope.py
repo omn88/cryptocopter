@@ -167,7 +167,9 @@ async def test_full_scope(
     assert 1000 == position.balance
     assert position.current_position.status == entry_signal
 
-    assert all(order.price <= entry_price for order in position.current_position.orders)
+    assert all(
+        order.entry_price <= entry_price for order in position.current_position.orders
+    )
 
     logger.info("################ REALIZE 1 ORDER ####################")
 
@@ -203,7 +205,7 @@ async def test_full_scope(
         == position.current_position.orders[0].quantity
     )
     assert position.current_position.status == entry_signal
-    assert position.current_position.take_profit_order.price == 20800.0
+    assert position.current_position.take_profit_order.entry_price == 20800.0
 
     logger.info("################ SELL SIGNAL ####################")
 
@@ -233,7 +235,7 @@ async def test_full_scope(
     quantity_second_order = position.current_position.orders[0].quantity
 
     order_update_1 = OrderUpdate(
-        price=position.current_position.orders[0].price,
+        price=position.current_position.orders[0].entry_price,
         quantity=quantity_first_order,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=quantity_first_order,
@@ -241,7 +243,7 @@ async def test_full_scope(
         order_id=7,
     )
     order_update_2 = OrderUpdate(
-        price=position.current_position.orders[1].price,
+        price=position.current_position.orders[1].entry_price,
         quantity=quantity_second_order,
         status=base.client.ORDER_STATUS_FILLED,
         last_filled_quantity=quantity_second_order,
@@ -273,7 +275,7 @@ async def test_full_scope(
         == position.current_position.orders[0].quantity
         + position.current_position.orders[1].quantity
     )
-    assert position.current_position.take_profit_order.price == 19729.4
+    assert position.current_position.take_profit_order.entry_price == 19729.4
     assert position.current_position.status == signal_update.signal
 
     logger.info("################ SIGNAL LONG ####################")
@@ -305,7 +307,7 @@ async def test_full_scope(
     logger.info("################ REALIZE ALL ORDERS ####################")
 
     order_update_1 = OrderUpdate(
-        price=position.current_position.orders[0].price,
+        price=position.current_position.orders[0].entry_price,
         quantity=position.current_position.orders[0].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[0].quantity,
@@ -313,7 +315,7 @@ async def test_full_scope(
         order_id=14,
     )
     order_update_2 = OrderUpdate(
-        price=position.current_position.orders[1].price,
+        price=position.current_position.orders[1].entry_price,
         quantity=position.current_position.orders[1].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[1].quantity,
@@ -321,7 +323,7 @@ async def test_full_scope(
         order_id=15,
     )
     order_update_3 = OrderUpdate(
-        price=position.current_position.orders[2].price,
+        price=position.current_position.orders[2].entry_price,
         quantity=position.current_position.orders[2].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[2].quantity,
@@ -329,7 +331,7 @@ async def test_full_scope(
         order_id=16,
     )
     order_update_4 = OrderUpdate(
-        price=position.current_position.orders[3].price,
+        price=position.current_position.orders[3].entry_price,
         quantity=position.current_position.orders[3].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[3].quantity,
@@ -364,13 +366,13 @@ async def test_full_scope(
         + position.current_position.orders[2].quantity
         + position.current_position.orders[3].quantity
     )
-    assert position.current_position.take_profit_order.price == 20297.5
+    assert position.current_position.take_profit_order.entry_price == 20297.5
     assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
     order_update = OrderUpdate(
-        price=position.current_position.take_profit_order.price,
+        price=position.current_position.take_profit_order.entry_price,
         quantity=position.current_position.take_profit_order.quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.take_profit_order.quantity,
@@ -419,7 +421,7 @@ async def test_full_scope(
     logger.info("################ REALIZE ALL SHORT ORDERS ####################")
 
     order_update_1 = OrderUpdate(
-        price=position.current_position.orders[0].price,
+        price=position.current_position.orders[0].entry_price,
         quantity=position.current_position.orders[0].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[0].quantity,
@@ -427,7 +429,7 @@ async def test_full_scope(
         order_id=22,
     )
     order_update_2 = OrderUpdate(
-        price=position.current_position.orders[1].price,
+        price=position.current_position.orders[1].entry_price,
         quantity=position.current_position.orders[1].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[1].quantity,
@@ -435,7 +437,7 @@ async def test_full_scope(
         order_id=23,
     )
     order_update_3 = OrderUpdate(
-        price=position.current_position.orders[2].price,
+        price=position.current_position.orders[2].entry_price,
         quantity=position.current_position.orders[2].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[2].quantity,
@@ -443,7 +445,7 @@ async def test_full_scope(
         order_id=24,
     )
     order_update_4 = OrderUpdate(
-        price=position.current_position.orders[3].price,
+        price=position.current_position.orders[3].entry_price,
         quantity=position.current_position.orders[3].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[3].quantity,
@@ -478,13 +480,13 @@ async def test_full_scope(
         + position.current_position.orders[2].quantity
         + position.current_position.orders[3].quantity
     )
-    assert position.current_position.take_profit_order.price == 19824.0
+    assert position.current_position.take_profit_order.entry_price == 19824.0
     assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
     order_update = OrderUpdate(
-        price=position.current_position.take_profit_order.price,
+        price=position.current_position.take_profit_order.entry_price,
         quantity=position.current_position.take_profit_order.quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.take_profit_order.quantity,
@@ -533,7 +535,7 @@ async def test_full_scope(
     logger.info("################ REALIZE ALL SHORT ORDERS ####################")
 
     order_update_1 = OrderUpdate(
-        price=position.current_position.orders[0].price,
+        price=position.current_position.orders[0].entry_price,
         quantity=position.current_position.orders[0].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[0].quantity,
@@ -541,7 +543,7 @@ async def test_full_scope(
         order_id=27,
     )
     order_update_2 = OrderUpdate(
-        price=position.current_position.orders[1].price,
+        price=position.current_position.orders[1].entry_price,
         quantity=position.current_position.orders[1].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[1].quantity,
@@ -549,7 +551,7 @@ async def test_full_scope(
         order_id=28,
     )
     order_update_3 = OrderUpdate(
-        price=position.current_position.orders[2].price,
+        price=position.current_position.orders[2].entry_price,
         quantity=position.current_position.orders[2].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[2].quantity,
@@ -557,7 +559,7 @@ async def test_full_scope(
         order_id=29,
     )
     order_update_4 = OrderUpdate(
-        price=position.current_position.orders[3].price,
+        price=position.current_position.orders[3].entry_price,
         quantity=position.current_position.orders[3].quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.orders[3].quantity,
@@ -592,13 +594,13 @@ async def test_full_scope(
         + position.current_position.orders[2].quantity
         + position.current_position.orders[3].quantity
     )
-    assert position.current_position.take_profit_order.price == 19824.0
+    assert position.current_position.take_profit_order.entry_price == 19824.0
     assert position.current_position.status == signal_update.signal
 
     logger.info("################ TARGET PRICE REACHED ####################")
 
     order_update = OrderUpdate(
-        price=position.current_position.take_profit_order.price,
+        price=position.current_position.take_profit_order.entry_price,
         quantity=position.current_position.take_profit_order.quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=position.current_position.take_profit_order.quantity,
@@ -622,7 +624,7 @@ async def test_full_scope(
     assert position.current_position.take_profit_order is None
     assert position.current_position.side == PositionSide.FLAT
     assert position.current_position.status.value == PositionSide.FLAT
-    assert position.current_position.price == 0
+    assert position.current_position.entry_price == 0
     assert position.current_position.quantity == 0
     assert position.current_position.target_price == 0
     assert position.current_position.liquidation_price == 0

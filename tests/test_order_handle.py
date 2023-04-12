@@ -143,7 +143,7 @@ async def first_order_filled(
     assert current_position.orders[1].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert current_position.orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert current_position.orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
-    assert current_position.price == entry_price
+    assert current_position.entry_price == entry_price
     assert current_position.quantity == quantity
     assert current_position.take_profit_order is not None
     assert (
@@ -185,7 +185,7 @@ async def second_order_filled(
     assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
     assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert current_position.price == round(
+    assert current_position.entry_price == round(
         (current_position.orders[0].price + current_position.orders[1].price) / 2,
         1,
     )
@@ -268,7 +268,7 @@ async def third_and_fourth_order_filled(base, current_position: Position) -> Pos
     assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.price == round(
+    assert current_position.entry_price == round(
         (
             current_position.orders[0].price
             + current_position.orders[1].price
@@ -340,7 +340,7 @@ async def start_long(base) -> Tuple[pandas.DataFrame, Position, float]:
     assert 4 == len(current_position.orders)
     assert 1000 == base.position.balance
 
-    assert all(order.price <= entry_price for order in current_position.orders)
+    assert all(order.entry_price <= entry_price for order in current_position.orders)
 
     return base.df, current_position, entry_price
 
@@ -362,7 +362,7 @@ async def start_short(base) -> Tuple[pandas.DataFrame, Position, float]:
     assert current_position.orders is not None
     assert 4 == len(current_position.orders)
     assert 1000 == base.position.balance
-    assert all(order.price >= entry_price for order in current_position.orders)
+    assert all(order.entry_price >= entry_price for order in current_position.orders)
 
     return base.df, current_position, entry_price
 
@@ -895,7 +895,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert current_position.take_profit_order is not None
-    assert current_position.take_profit_order.price == 20644.0
+    assert current_position.take_profit_order.entry_price == 20644.0
     assert current_position.take_profit_order.quantity == remaining_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
     assert balance == 1100.04
@@ -976,7 +976,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
         assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
         assert current_position.take_profit_order is not None
-        assert current_position.take_profit_order.price == 20644.0
+        assert current_position.take_profit_order.entry_price == 20644.0
         assert current_position.take_profit_order.quantity == remaining_quantity
         assert current_position.take_profit_order.realized_quantity == partial_quantity
         assert balance == 1100.04
@@ -985,7 +985,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         raise error
 
     order_update = OrderUpdate(
-        price=current_position.take_profit_order.price,
+        price=current_position.take_profit_order.entry_price,
         quantity=current_position.quantity,
         status=base.client.ORDER_STATUS_FILLED,
         realized_quantity=partial_quantity,
@@ -1582,7 +1582,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(
     assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert current_position.take_profit_order is not None
-    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.take_profit_order.entry_price == 19344.0
     assert current_position.take_profit_order.quantity == rest_of_order_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
     assert balance == 1099.94
@@ -1670,12 +1670,12 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
     assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
     assert current_position.take_profit_order is not None
-    assert current_position.take_profit_order.price == 19344.0
+    assert current_position.take_profit_order.entry_price == 19344.0
     assert current_position.take_profit_order.quantity == rest_of_order_quantity
     assert current_position.take_profit_order.realized_quantity == partial_quantity
     assert balance == 1099.94
 
-    price = current_position.take_profit_order.price
+    price = current_position.take_profit_order.entry_price
     quantity = rest_of_order_quantity
     status = base.client.ORDER_STATUS_FILLED
 

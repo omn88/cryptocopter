@@ -222,14 +222,14 @@ async def update_take_profit_order(
 
     position.target_price = target_price_calculate(
         side=position.side,
-        price=position.price,
+        price=position.entry_price,
     )
 
     take_profit_order = Order(
         price=position.target_price,
         quantity=position.quantity,
         quantity_stable=round(
-            (abs(position.quantity) * position.price / LEVERAGE),
+            (abs(position.quantity) * position.entry_price / LEVERAGE),
             2,
         ),
     )
@@ -334,7 +334,7 @@ async def target_reached(
     realized_position = round(
         abs(
             order_update.last_filled_quantity
-            * (position.take_profit_order.price - position.price)
+            * (position.take_profit_order.price - position.entry_price)
         ),
         2,
     )
@@ -371,7 +371,7 @@ async def update_position(
 
     (
         position.liquidation_price,
-        position.price,
+        position.entry_price,
         position.quantity,
     ) = await futures_get_position_info(client=client)
 
@@ -449,7 +449,7 @@ def update_artifacts_and_save(
             if order_update.order_type in ["MARKET", "LIQUIDATION"]
             else order_update.price
         )
-        artifacts.per_cent_earned = order_update.price / position.price
+        artifacts.per_cent_earned = order_update.price / position.entry_price
         artifacts.stable_earned = artifacts.quantity * (
             order_update.price - artifacts.price
         )
@@ -461,7 +461,7 @@ def update_artifacts_and_save(
         artifacts.status = "NO_POSITION"
 
     artifacts.orders = position.orders
-    artifacts.price = position.price
+    artifacts.price = position.entry_price
     artifacts.quantity = position.quantity
     artifacts.end_balance = balance
 
