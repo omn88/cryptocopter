@@ -13,7 +13,6 @@ from src.common.identifiers import (
     Event,
     EventName,
 )
-from src.features.features import signals_from_features_generate
 from src.common.common import print_last_n_rows
 
 logger = logging.getLogger("handle_kline")

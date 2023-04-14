@@ -87,6 +87,7 @@ class FeatureRsiSpecial:
         self.special_signal_conditions = [
             (self.df.RsiBelowEighteen.diff() == 1),
             (self.df.RsiAboveEightyTwo.diff() == 1),
+            # TODO: NEEDED THIRD CONDITION FOR CLOSING SPECIAL POSITION
         ]
 
     def conditions_for_opening_special_short(self) -> bool:

@@ -116,7 +116,6 @@ async def determine_start_position(
     signal = Signal.NULL
     price = 0
     signal_index = 0
-    date_index = None
 
     for index, row in df[::-1].iterrows():
         if row["signal"] != 0:

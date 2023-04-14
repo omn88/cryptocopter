@@ -16,6 +16,7 @@ from src.common.identifiers import (
     AccountUpdate,
     PositionMode,
 )
+from src.producers.producers import determine_start_position
 from src.workers.handle_account import account_handle
 from src.workers.handle_order import (
     position_liquidation,
@@ -180,8 +181,11 @@ class TradingStateMachine:
             for choice in signal_list:
                 self.signals.append(choice)
 
-        # ToDO: This needs function probably as this is the signal updater in the DF
+    def signals_from_features_generate(self):
         self.df["signal"] = numpy.select(self.conditions, self.signals)
+
+    async def determine_start_position(self):
+        self.df = await determine_start_position(df=self.df, queue=self.queue)
 
     def conditions_for_skipping_same_signal(self) -> bool:
         return self.state == self.signal_update.signal

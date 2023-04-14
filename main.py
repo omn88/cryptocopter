@@ -8,12 +8,13 @@ from src.common.common import (
     create_async_queue,
     register_signal_handlers,
     change_margin_type,
-    prepare_initial_df,
     prepare_producers,
     prepare_workers,
+    get_futures_historical_data,
+    insert_to_pandas,
 )
+from src.common.identifiers import State
 from src.common.orders import order_quantity_list_prepare, Position
-from src.producers.producers import determine_start_position
 from src.strategies.rsi_special import SpecialStrategy
 import warnings
 import os
@@ -49,8 +50,12 @@ async def main():
     await change_margin_type(client=client)
     await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
 
-    df, raw_data = await prepare_initial_df(client=client, interval=INTERVAL)
-    df = await determine_start_position(df=df, queue=queue)
+    raw_data = await get_futures_historical_data(
+        client=client,
+        interval=INTERVAL,
+        lookback="4320",  # 44000 is approximately one month
+    )
+    df = insert_to_pandas(data=raw_data)
 
     # Strategy returns trading state machine
     tsm = SpecialStrategy(
@@ -62,6 +67,9 @@ async def main():
         position=position,
         raw_data=raw_data,
     )
+    tsm.signals_from_features_generate()
+    tsm.df["position"] = State.FLAT
+    await tsm.determine_start_position()
 
     await asyncio.gather(
         *prepare_producers(bsm=bsm, df=df, interval=INTERVAL, queue=queue),

@@ -14,7 +14,6 @@ from decouple import config
 
 from constants import SYMBOL
 from src.common.identifiers import Position, State
-from src.features.features import signals_from_features_generate
 from src.producers.producers import kline_futures_socket, futures_user_socket
 from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
@@ -176,21 +175,6 @@ def prepare_workers(
             )
         )
     ]
-
-
-async def prepare_initial_df(
-    client: binance.AsyncClient, interval: str
-) -> Tuple[pandas.DataFrame, List]:
-    historical_data = await get_futures_historical_data(
-        client=client,
-        interval=interval,
-        lookback="4320",  # 44000 is approximately one month
-    )
-    df = insert_to_pandas(data=historical_data)
-    df = signals_from_features_generate(df=df)
-    df["position"] = State.FLAT
-
-    return df, historical_data
 
 
 async def change_margin_type(client: binance.AsyncClient) -> None:
