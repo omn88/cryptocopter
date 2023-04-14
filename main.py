@@ -69,8 +69,7 @@ async def main():
         position=position,
         raw_data=raw_data,
     )
-    tsm.signals_from_features_generate()
-    tsm.df["Position"] = State.FLAT
+    tsm.df = tsm.signals_from_features_generate(tsm.df)
     await tsm.determine_start_position()
 
     await asyncio.gather(

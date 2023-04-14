@@ -138,10 +138,10 @@ async def determine_start_position(
         )
 
     signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-    if signal_update.signal != 0:
+    if signal_update.signal == 0:
+        logger.info("No signal created, starting flat and awaiting new signal.")
+    else:
         await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
         logger.info("Added signal to queue: signal: %s, price: %s", signal, price)
-    else:
-        logger.info("No signal created, starting flat and awaiting new signal.")
 
     return df

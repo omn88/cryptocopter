@@ -20,7 +20,6 @@ from src.common.identifiers import (
     EventName,
 )
 from src.producers.producers import determine_start_position
-from src.workers.handle_account import account_handle
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -30,7 +29,6 @@ from src.workers.handle_order import (
     market_order_partially_filled,
     handle_order_update,
 )
-from src.workers.kline_handle import kline_handle
 
 logger = logging.getLogger("trading_state_machine")
 
@@ -296,23 +294,17 @@ class TradingStateMachine:
         )
 
         if signal_update.signal == 0:
-            self.skip_signal()
+            logger.info("Kline did not produce new signal")
             self.df.at[self.df.index[-1], "Position"] = self.df.at[
                 self.df.index[-2], "Position"
             ]
-            logger.info("Kline did not produce new signal")
         else:
             logger.info(
-                "Kline produced new signal: %s, price: %s",
+                "New signal produced by Kline: signal: %s, price: %s; Adding to queue...",
                 signal_update.signal,
                 signal_update.price,
             )
             await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-            logger.info(
-                "Added signal to queue: signal: %s, price: %s",
-                signal_update.signal,
-                signal_update.price,
-            )
 
     async def handle_account(self):
 
