@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import binance
+import numpy
 import pandas
 
 from src.common.identifiers import Position, State, SignalUpdate, Signal, PositionMode
@@ -21,6 +22,8 @@ class FeatureRsiExtended:
         self.state: State = State.FLAT
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.mode: PositionMode = mode
+        self.extended_signal_conditions = []
+        self.extended_signals_list = []
 
     states = [State.LONG_20, State.SHORT_80]
     transitions = [
@@ -99,6 +102,18 @@ class FeatureRsiExtended:
             "before": "skip_signal",
         },
     ]
+
+    def rsi_signal_extended_generate(self):
+        assert "RSI" in self.df.columns
+        self.extended_signals_list = [Signal.LONG_20, Signal.SHORT_80]
+
+        self.df["RsiBelowTwenty"] = numpy.where(self.df["RSI"] < 20, 1, 0)
+        self.df["RsiAboveEighty"] = numpy.where(self.df["RSI"] > 80, 1, 0)
+
+        self.extended_signal_conditions = [
+            (self.df.RsiBelowTwenty.diff() == -1),
+            (self.df.RsiAboveEighty.diff() == -1),
+        ]
 
     def conditions_for_opening_extended_long(self) -> bool:
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20

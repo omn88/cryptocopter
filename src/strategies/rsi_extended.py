@@ -22,3 +22,11 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
         self.add_states_and_transitions(
             FeatureRsiExtended.states, FeatureRsiExtended.transitions
         )
+        self.add_conditions_and_signals(
+            condition_lists=self.basic_signal_conditions,
+            signal_lists=self.basic_signals_list,
+        )
+        self.add_conditions_and_signals(
+            condition_lists=self.extended_signal_conditions,
+            signal_lists=self.extended_signals_list,
+        )

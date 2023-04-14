@@ -1,6 +1,7 @@
 import asyncio
 from typing import List, Union, Optional
 import binance
+import numpy
 import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
@@ -51,6 +52,8 @@ class TradingStateMachine:
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: Optional[AccountUpdate] = None
         self.mode: PositionMode = PositionMode.DCA
+        self.conditions = []
+        self.signals = []
         self.states: List[State] = [self.state]
         self.transitions = [
             {
@@ -167,6 +170,18 @@ class TradingStateMachine:
             send_event=True,
             queued=True,
         )
+
+    def add_conditions_and_signals(self, condition_lists: List, signal_lists: List):
+        for condition_list in condition_lists:
+            for condition in condition_list:
+                self.conditions.append(condition)
+
+        for signal_list in signal_lists:
+            for choice in signal_list:
+                self.signals.append(choice)
+
+        # ToDO: This needs function probably as this is the signal updater in the DF
+        self.df["signal"] = numpy.select(self.conditions, self.signals)
 
     def conditions_for_skipping_same_signal(self) -> bool:
         return self.state == self.signal_update.signal

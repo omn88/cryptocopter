@@ -4,7 +4,9 @@ from src.features.rsi_special import FeatureRsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
 
 
-class SpecialStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
+class SpecialStrategy(
+    TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended, FeatureRsiSpecial
+):
     def __init__(
         self, client, balance, order_quantity_list, queue, df, position, raw_data
     ):
@@ -25,4 +27,16 @@ class SpecialStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
         )
         self.add_states_and_transitions(
             FeatureRsiSpecial.states, FeatureRsiSpecial.transitions
+        )
+        self.add_conditions_and_signals(
+            condition_lists=self.basic_signal_conditions,
+            signal_lists=self.basic_signals_list,
+        )
+        self.add_conditions_and_signals(
+            condition_lists=self.extended_signal_conditions,
+            signal_lists=self.extended_signals_list,
+        )
+        self.add_conditions_and_signals(
+            condition_lists=self.special_signal_conditions,
+            signal_lists=self.special_signals_list,
         )

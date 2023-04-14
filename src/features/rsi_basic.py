@@ -24,6 +24,7 @@ class FeatureRsiBasic:
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.mode: PositionMode = mode
         self.basic_signal_conditions = []
+        self.basic_signals_list = []
 
     states = [State.LONG, State.SHORT]
     transitions = [
@@ -61,6 +62,7 @@ class FeatureRsiBasic:
 
     def rsi_signal_basic_generate(self):
         assert "RSI" in self.df.columns
+        self.basic_signals_list = [Signal.LONG, Signal.SHORT]
 
         self.df["RsiBelowThirty"] = numpy.where(self.df["RSI"] < 30, 1, 0)
         self.df["RsiAboveSeventy"] = numpy.where(self.df["RSI"] > 70, 1, 0)

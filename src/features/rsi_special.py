@@ -1,7 +1,8 @@
 import logging
-from typing import Optional
+from typing import Optional, List
 
 import binance
+import numpy
 import pandas
 
 from src.common.identifiers import Position, State, SignalUpdate, PositionMode, Signal
@@ -21,6 +22,8 @@ class FeatureRsiSpecial:
         self.state: State = State.FLAT
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.mode: PositionMode = mode
+        self.special_signals_list = []
+        self.special_signal_conditions = []
 
     states = [State.LONG_SPECIAL, State.SHORT_SPECIAL]
     transitions = [
@@ -69,6 +72,22 @@ class FeatureRsiSpecial:
             "before": "skip_signal",
         },
     ]
+
+    def rsi_signal_special_generate(self):
+        assert "RSI" in self.df.columns
+        self.special_signals_list = [
+            Signal.SHORT_SPECIAL,
+            Signal.LONG_SPECIAL,
+            Signal.CLOSE_SPECIAL,
+        ]
+
+        self.df["RsiBelowEighteen"] = numpy.where(self.df["RSI"] < 18, 1, 0)
+        self.df["RsiAboveEightyTwo"] = numpy.where(self.df["RSI"] > 82, 1, 0)
+
+        self.special_signal_conditions = [
+            (self.df.RsiBelowEighteen.diff() == 1),
+            (self.df.RsiAboveEightyTwo.diff() == 1),
+        ]
 
     def conditions_for_opening_special_short(self) -> bool:
         return (
