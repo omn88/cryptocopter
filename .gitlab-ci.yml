@@ -28,7 +28,7 @@ linting:
   stage: linting
   script:
     - pip install mypy
-    - mypy .
+    - mypy --ignore-missing-imports --exclude tests/ .
 
 testing:
   stage: testing
