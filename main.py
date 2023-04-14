@@ -12,6 +12,7 @@ from src.common.common import (
     prepare_workers,
     get_futures_historical_data,
     insert_to_pandas,
+    rsi_indicator_apply,
 )
 from src.common.identifiers import State
 from src.common.orders import order_quantity_list_prepare, Position
@@ -56,6 +57,7 @@ async def main():
         lookback="4320",  # 44000 is approximately one month
     )
     df = insert_to_pandas(data=raw_data)
+    df = rsi_indicator_apply(df=df)
 
     # Strategy returns trading state machine
     tsm = SpecialStrategy(
@@ -68,7 +70,7 @@ async def main():
         raw_data=raw_data,
     )
     tsm.signals_from_features_generate()
-    tsm.df["position"] = State.FLAT
+    tsm.df["Position"] = State.FLAT
     await tsm.determine_start_position()
 
     await asyncio.gather(

@@ -84,10 +84,28 @@ class FeatureRsiSpecial:
         self.df["RsiBelowEighteen"] = numpy.where(self.df["RSI"] < 18, 1, 0)
         self.df["RsiAboveEightyTwo"] = numpy.where(self.df["RSI"] > 82, 1, 0)
 
+        # Updated column names
+        self.df["CloseSpecialLong_RsiCrossesFiftyFromAbove"] = numpy.where(
+            (self.df["RSI"] < 50)
+            & (self.df["RSI"].shift(1) >= 50)
+            & (self.df["Position"].shift(1) == Signal.LONG_SPECIAL),
+            1,
+            0,
+        )
+        self.df["CloseSpecialShort_RsiCrossesFiftyFromBelow"] = numpy.where(
+            (self.df["RSI"] > 50)
+            & (self.df["RSI"].shift(1) <= 50)
+            & (self.df["Position"].shift(1) == Signal.SHORT_SPECIAL),
+            1,
+            0,
+        )
+
         self.special_signal_conditions = [
             (self.df.RsiBelowEighteen.diff() == 1),
             (self.df.RsiAboveEightyTwo.diff() == 1),
-            # TODO: NEEDED THIRD CONDITION FOR CLOSING SPECIAL POSITION
+            # Conditions for closing special LONG_SPECIAL and SHORT_SPECIAL positions
+            (self.df.CloseSpecialLong_RsiCrossesFiftyFromAbove.diff() == 1)
+            or (self.df.CloseSpecialShort_RsiCrossesFiftyFromBelow.diff() == 1),
         ]
 
     def conditions_for_opening_special_short(self) -> bool:

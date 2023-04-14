@@ -6,6 +6,7 @@ import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
 
+from src.common.common import insert_to_pandas
 from src.common.identifiers import (
     Position,
     State,
@@ -15,6 +16,8 @@ from src.common.identifiers import (
     KlineUpdate,
     AccountUpdate,
     PositionMode,
+    Event,
+    EventName,
 )
 from src.producers.producers import determine_start_position
 from src.workers.handle_account import account_handle
@@ -181,8 +184,10 @@ class TradingStateMachine:
             for choice in signal_list:
                 self.signals.append(choice)
 
-    def signals_from_features_generate(self):
-        self.df["signal"] = numpy.select(self.conditions, self.signals)
+    def signals_from_features_generate(self, df):
+        df["signal"] = numpy.select(self.conditions, self.signals)
+
+        return df
 
     async def determine_start_position(self):
         self.df = await determine_start_position(df=self.df, queue=self.queue)
@@ -258,11 +263,13 @@ class TradingStateMachine:
         )
 
     def update_position_in_df(self, update: Union[Signal, State]):
-        self.df.at[self.df.index[-1], "position"] = update
+        self.df.at[self.df.index[-1], "Position"] = update
 
     def skip_signal(self) -> None:
         logger.info("Skipping signal: %s", self.signal_update.signal)
-        self.update_position_in_df(update=self.state)
+        self.df.at[self.df.index[-1], "Position"] = self.df.at[
+            self.df.index[-2], "Position"
+        ]
 
     def log_new_order(self) -> None:
         logger.info("New order: %s", self.order_update.order_id)
@@ -275,19 +282,43 @@ class TradingStateMachine:
 
     async def handle_kline(self):
 
-        self.position, self.raw_data, self.df = await kline_handle(
-            df=self.df,
-            kline=self.kline_update.kline,
-            queue=self.queue,
-            position=self.position,
-            raw_data=self.raw_data,
+        expected_index = int(self.raw_data[-1][0]) + 900000
+        # I need historical data here, then add the kline, generate temp dataframe, then copy last
+        assert expected_index == int(self.kline_update.kline[0])
+        self.raw_data.append(self.kline_update.kline)
+        temp_df = insert_to_pandas(data=self.raw_data)
+        temp_df = self.signals_from_features_generate(df=temp_df)
+        self.df = self.df.append(temp_df.iloc[-1])
+
+        signal_update = SignalUpdate(
+            signal=self.df.iloc[-1]["signal"],
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
         )
+
+        if signal_update.signal == 0:
+            self.skip_signal()
+            self.df.at[self.df.index[-1], "Position"] = self.df.at[
+                self.df.index[-2], "Position"
+            ]
+            logger.info("Kline did not produce new signal")
+        else:
+            logger.info(
+                "Kline produced new signal: %s, price: %s",
+                signal_update.signal,
+                signal_update.price,
+            )
+            await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+            logger.info(
+                "Added signal to queue: signal: %s, price: %s",
+                signal_update.signal,
+                signal_update.price,
+            )
 
     async def handle_account(self):
 
-        self.df, self.position = await account_handle(
-            df=self.df, position=self.position, account_update=self.account_update
-        )
+        logger.info("Entering account handle")
+        logger.info("Account update: %s", self.account_update.account_update)
+        logger.info("Exiting account handle")
 
     async def handle_liquidation(self):
         self.position, self.balance = await position_liquidation(

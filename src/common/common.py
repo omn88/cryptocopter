@@ -6,6 +6,7 @@ import signal
 from typing import List, Tuple
 import datetime
 import binance
+import btalib
 import numpy
 import pandas
 from binance import BinanceSocketManager, AsyncClient
@@ -13,7 +14,7 @@ from binance.exceptions import BinanceAPIException
 from decouple import config
 
 from constants import SYMBOL
-from src.common.identifiers import Position, State
+from src.common.identifiers import Position, State, Signal
 from src.producers.producers import kline_futures_socket, futures_user_socket
 from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
@@ -205,3 +206,13 @@ async def create_async_queue() -> asyncio.Queue:
     logger.info("Async FIFO Queue started")
 
     return queue
+
+
+def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
+    rsi = btalib.rsi(df, period=14)
+    df["RSI"] = rsi.df
+    df["Signal"] = Signal.NULL
+    df["Position"] = State.FLAT
+    df.dropna(inplace=True)
+
+    return df
