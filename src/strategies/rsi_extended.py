@@ -4,14 +4,11 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 
 class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
-    def __init__(
-        self, client, balance, order_quantity_list, queue, df, position, raw_data
-    ):
+    def __init__(self, client, balance, order_quantity_list, df, position, raw_data):
         super().__init__(
             client=client,
             balance=balance,
             order_quantity_list=order_quantity_list,
-            queue=queue,
             df=df,
             position=position,
             raw_data=raw_data,

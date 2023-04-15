@@ -1,4 +1,3 @@
-import asyncio
 from typing import List, Union, Optional
 import binance
 import numpy
@@ -19,7 +18,6 @@ from src.common.identifiers import (
     Event,
     EventName,
 )
-from src.producers.producers import determine_start_position
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -34,12 +32,9 @@ logger = logging.getLogger("trading_state_machine")
 
 
 class TradingStateMachine:
-    def __init__(
-        self, client, queue, position, df, balance, order_quantity_list, raw_data
-    ):
+    def __init__(self, client, position, df, balance, order_quantity_list, raw_data):
         self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
-        self.queue: asyncio.Queue = queue
         self.position: Position = position
         self.position_old: Optional[Position] = None
         self.raw_data: List = raw_data
@@ -179,8 +174,8 @@ class TradingStateMachine:
                 self.conditions.append(condition)
 
         for signal_list in signal_lists:
-            for choice in signal_list:
-                self.signals.append(choice)
+            for signal in signal_list:
+                self.signals.append(signal)
 
     def signals_from_features_generate(self, df):
         df["signal"] = numpy.select(self.conditions, self.signals)
@@ -188,7 +183,42 @@ class TradingStateMachine:
         return df
 
     async def determine_start_position(self):
-        self.df = await determine_start_position(df=self.df, queue=self.queue)
+
+        signal = Signal.NULL
+        price = 0
+        signal_index = 0
+
+        for index, row in self.df[::-1].iterrows():
+            if row["signal"] != 0:
+                signal = row["signal"]
+                price = row["Close"]
+                # Adding extra lines to see what happened before signal
+                signal_index += 4
+                break
+
+            price = row["Close"]
+            signal_index += 1
+
+        try:
+            assert signal_index <= len(self.df.index)
+            self.df = self.df.iloc[len(self.df.index) - signal_index : :]
+            logger.debug(
+                "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
+            )
+        except AssertionError as e:
+            logger.debug(
+                "Last signal almost on top of df, leaving df as is: \n%s",
+                self.df.to_string(),
+            )
+
+        signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
+        if signal_update.signal == 0:
+            logger.info("No signal created, starting flat and awaiting new signal.")
+        else:
+            await self.process_signal(
+                signal_update=signal_update, position=self.position
+            )
+            logger.info("Processing signal: %s, price: %s", signal, price)
 
     def conditions_for_skipping_same_signal(self) -> bool:
         return self.state == self.signal_update.signal
@@ -300,11 +330,13 @@ class TradingStateMachine:
             ]
         else:
             logger.info(
-                "New signal produced by Kline: signal: %s, price: %s; Adding to queue...",
+                "New signal produced by Kline, processing signal: %s, price: %s",
                 signal_update.signal,
                 signal_update.price,
             )
-            await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+            await self.process_signal(
+                signal_update=signal_update, position=self.position
+            )
 
     async def handle_account(self):
 

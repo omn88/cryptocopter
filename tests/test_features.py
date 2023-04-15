@@ -1,12 +1,7 @@
 import pandas
 
-from src.features.features import (
-    rsi_indicator_apply,
-    rsi_signal_extended_generate,
-    rsi_signal_basic_generate,
-    Signal,
-    combined_signals_generate,
-)
+from src.common.common import rsi_indicator_apply
+from src.common.identifiers import Signal
 
 
 def test_basic_rsi_signal_generate():

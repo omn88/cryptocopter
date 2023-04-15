@@ -113,35 +113,4 @@ async def determine_start_position(
 ) -> pandas.DataFrame:
     logger.info("Checking start position")
 
-    signal = Signal.NULL
-    price = 0
-    signal_index = 0
-
-    for index, row in df[::-1].iterrows():
-        if row["signal"] != 0:
-            signal = row["signal"]
-            price = row["Close"]
-            # Adding extra lines to see what happened before signal
-            signal_index += 4
-            break
-
-        price = row["Close"]
-        signal_index += 1
-
-    try:
-        assert signal_index <= len(df.index)
-        df = df.iloc[len(df.index) - signal_index : :]
-        logger.debug("New DF shortened to last signal + 3 rows: \n%s", df.to_string())
-    except AssertionError as e:
-        logger.debug(
-            "Last signal almost on top of df, leaving df as is: \n%s", df.to_string()
-        )
-
-    signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-    if signal_update.signal == 0:
-        logger.info("No signal created, starting flat and awaiting new signal.")
-    else:
-        await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-        logger.info("Added signal to queue: signal: %s, price: %s", signal, price)
-
     return df
