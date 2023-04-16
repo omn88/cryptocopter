@@ -168,16 +168,15 @@ class TradingStateMachine:
             queued=True,
         )
 
-    def add_conditions_and_signals(self, condition_lists: List, signal_lists: List):
-        for condition_list in condition_lists:
-            for condition in condition_list:
-                self.conditions.append(condition)
-
-        for signal_list in signal_lists:
-            for signal in signal_list:
-                self.signals.append(signal)
+    def add_signals_and_conditions(
+        self, new_conditions: List[bool], new_signals: List[Signal]
+    ):
+        self.conditions.extend(new_conditions)
+        self.signals.extend(new_signals)
 
     def signals_from_features_generate(self, df):
+        logger.info("Conditions: %s", self.conditions)
+        logger.info("Signals: %s", self.signals)
         df["signal"] = numpy.select(self.conditions, self.signals)
 
         return df

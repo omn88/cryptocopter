@@ -5,9 +5,9 @@ import json
 from datetime import datetime
 import binance
 import pandas
+from binance.exceptions import BinanceAPIException
 
-from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
-from src.common.common import futures_get_position_info
+from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
 from src.common.identifiers import (
     Signal,
     PositionMode,
@@ -512,3 +512,31 @@ async def futures_position_close(
         _ = await close_long(client=client, position=position, balance=balance)
     elif position.status in [State.SHORT, State.SHORT_80, State.SHORT_SPECIAL]:
         _ = await close_short(client=client, position=position, balance=balance)
+
+
+async def futures_get_position_info(
+    client: binance.AsyncClient,
+) -> Tuple[float, float, float]:
+    """
+    Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
+
+    :param client: An instance of the Binance async client
+    :type client: binance.AsyncClient
+    :return: A dictionary containing the symbol, liquidation price, entry price and position amount for the given symbol
+    :rtype: dict
+    """
+    logger.info("Enter position information")
+    try:
+        resp = await client.futures_position_information(symbol=SYMBOL)
+        logger.info("RESP: %s", resp)
+        liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
+        entry_price = round(float(resp[0]["entryPrice"]), 1)
+        position_amt = float(resp[0]["positionAmt"])
+    except BinanceAPIException as e:
+        raise ValueError(
+            f"Failed to retrieve position information for symbol {SYMBOL} due to {e}"
+        )
+
+    logger.info("Exit position information")
+
+    return liquidation_price, entry_price, position_amt

@@ -15,7 +15,10 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         self.add_states_and_transitions(
             FeatureRsiBasic.states, FeatureRsiBasic.transitions
         )
-        self.add_conditions_and_signals(
-            condition_lists=self.basic_signal_conditions,
-            signal_lists=self.basic_signals_list,
+        (
+            basic_signals,
+            basic_conditions,
+        ) = FeatureRsiBasic.rsi_generate_basic_signals_and_conditions(self)
+        self.add_signals_and_conditions(
+            signal_list=basic_signals, condition_list=basic_conditions
         )

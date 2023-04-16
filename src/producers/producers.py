@@ -12,8 +12,6 @@ from src.common.identifiers import (
     AccountUpdate,
     OrderUpdate,
     KlineUpdate,
-    SignalUpdate,
-    Signal,
 )
 
 logger = logging.getLogger("producer")
@@ -106,11 +104,3 @@ async def kline_futures_socket(
                 last_msg_before_new_kline = msg
 
             await asyncio.sleep(0.1)
-
-
-async def determine_start_position(
-    df: pandas.DataFrame, queue: asyncio.Queue
-) -> pandas.DataFrame:
-    logger.info("Checking start position")
-
-    return df

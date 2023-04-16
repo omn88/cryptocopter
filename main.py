@@ -3,18 +3,20 @@ import logging
 from constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
 from src.common.common import (
     futures_get_balance,
-    create_async_client,
-    create_socket_manager,
-    create_async_queue,
-    register_signal_handlers,
-    change_margin_type,
-    prepare_producers,
-    prepare_workers,
     get_futures_historical_data,
     insert_to_pandas,
     rsi_indicator_apply,
 )
 from src.common.identifiers import State
+from src.common.initialize_trading_environment import (
+    create_async_client,
+    create_socket_manager,
+    create_async_queue,
+    change_margin_type,
+    prepare_producers,
+    prepare_workers,
+    register_signal_handlers,
+)
 from src.common.orders import order_quantity_list_prepare, Position
 from src.strategies.rsi_special import SpecialStrategy
 import warnings
@@ -64,12 +66,12 @@ async def main():
         client=client,
         balance=balance,
         order_quantity_list=order_quantity_list_prepare(),
-        queue=queue,
         df=df,
         position=position,
         raw_data=raw_data,
     )
     tsm.df = tsm.signals_from_features_generate(tsm.df)
+    tsm.df["Position"] = State.FLAT
     await tsm.determine_start_position()
 
     await asyncio.gather(

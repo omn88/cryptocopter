@@ -1,37 +1,45 @@
 import pandas
 import pytest
-import binance
-import asyncio
 import logging
 from dataclasses import dataclass
 
-from src.common.identifiers import Position, Signal, State
-from src.producers.producers import determine_start_position
-from tests.data.sample_dataframes import dataframe_gen
+from constants import SYMBOL
+from src.common.common import insert_to_pandas, rsi_indicator_apply
+from src.common.identifiers import Position, Signal
+from src.common.initialize_trading_environment import create_async_client
+from src.common.orders import order_quantity_list_prepare
+from src.strategies.rsi_basic import BasicStrategy
+from src.workers.trading_state_machine import TradingStateMachine
+from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
 
 
 @dataclass()
-class Base:
-    df: pandas.DataFrame
-    client: binance.AsyncClient
-    position: Position
-    queue: asyncio.Queue = asyncio.Queue()
-    symbol: str = "BTCUSDT"
+class TestBasicRsi:
+    tsm: TradingStateMachine
+    symbol: str = SYMBOL
 
 
 @pytest.fixture
-async def base():
-    df = dataframe_gen(desired_signal=Signal.NULL)
-    df["position"] = State.FLAT
-    base = Base(
+async def basic_rsi():
+    raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df = insert_to_pandas(data=raw_data)
+    df = rsi_indicator_apply(df=df)
+    client = await create_async_client()
+    position = Position()
+
+    tsm = BasicStrategy(
+        client=client,
+        balance=1000,
+        order_quantity_list=order_quantity_list_prepare(),
         df=df,
-        client=binance.AsyncClient(),
-        position=Position(),
+        position=position,
+        raw_data=raw_data,
     )
-    base.df = await determine_start_position(df=base.df, queue=base.queue)
+
+    base = TestBasicRsi(tsm=tsm)
 
     yield base
 
-    await base.client.close_connection()
+    await base.tsm.client.close_connection()
