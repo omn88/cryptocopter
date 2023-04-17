@@ -9,7 +9,7 @@ import numpy
 import pandas
 
 from constants import SYMBOL
-from src.common.identifiers import State, Signal
+from src.common.identifiers import Signal
 
 logger = logging.getLogger("common")
 
@@ -78,7 +78,6 @@ async def log_signal_change(df, signal):
 def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
     rsi = btalib.rsi(df, period=14)
     df["RSI"] = rsi.df
-    df["Signal"] = Signal.NULL
     df.dropna(inplace=True)
 
     return df

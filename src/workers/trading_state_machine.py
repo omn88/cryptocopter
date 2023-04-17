@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Dict
 import binance
 import numpy
 import pandas
@@ -51,6 +51,7 @@ class TradingStateMachine:
         self.mode: PositionMode = PositionMode.DCA
         self.conditions = []
         self.signals = []
+        self.columns = []
         self.states: List[State] = [self.state]
         self.transitions = [
             {
@@ -156,7 +157,9 @@ class TradingStateMachine:
             queued=True,
         )
 
-    def add_states_and_transitions(self, new_states, new_transitions):
+    def add_states_and_transitions(
+        self, new_states: List[State], new_transitions: List[Dict]
+    ):
         self.states.extend(new_states)
         self.transitions.extend(new_transitions)
         self.machine = AsyncMachine(
@@ -167,19 +170,6 @@ class TradingStateMachine:
             send_event=True,
             queued=True,
         )
-
-    def add_signals_and_conditions(
-        self, new_conditions: List[bool], new_signals: List[Signal]
-    ):
-        self.conditions.extend(new_conditions)
-        self.signals.extend(new_signals)
-
-    def signals_from_features_generate(self, df):
-        logger.info("Conditions: %s", self.conditions)
-        logger.info("Signals: %s", self.signals)
-        df["signal"] = numpy.select(self.conditions, self.signals)
-
-        return df
 
     async def determine_start_position(self):
 
@@ -393,32 +383,28 @@ class TradingStateMachine:
         )
 
     async def process_signal(self, signal_update, position) -> Position:
-        await self.machine.trigger(
-            "process_signal",
+        await self.process_signal(
             signal_update=signal_update,
             position=position,
         )
         return self.position
 
     async def process_order(self, order_update, position) -> Position:
-        await self.machine.trigger(
-            "process_order",
+        await self.process_order(
             order_update=order_update,
             position=position,
         )
         return self.position
 
     async def process_kline(self, kline_update, position) -> Position:
-        await self.machine.trigger(
-            "process_kline",
+        await self.process_kline(
             kline_update=kline_update,
             position=position,
         )
         return self.position
 
     async def process_account(self, account_update, position) -> Position:
-        await self.machine.trigger(
-            "process_account",
+        await self.process_account(
             account_update=account_update,
             position=position,
         )

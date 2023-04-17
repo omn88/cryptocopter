@@ -23,10 +23,6 @@ class FeatureRsiBasic:
         self.state: State = State.FLAT
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.mode: PositionMode = mode
-        self.basic_signals = []
-        self.basic_conditions = []
-        self.signals = []
-        self.conditions = []
 
     states = [State.LONG, State.SHORT]
     transitions = [
@@ -62,24 +58,20 @@ class FeatureRsiBasic:
         },
     ]
 
-    def rsi_generate_basic_signals_and_conditions(
-        self,
-    ):
-        assert "RSI" in self.df.columns
-        self.basic_signals = [Signal.LONG, Signal.SHORT]
+    signals = [Signal.LONG, Signal.SHORT]
 
-        # self.basic_columns = [Column(name=)]
+    conditions = [
+        lambda df: (df.RsiBelowThirty.diff() == 0)
+        & (df.RsiBelowThirty.diff(periods=2) == -1),
+        lambda df: (df.RsiAboveSeventy.diff() == 0)
+        & (df.RsiAboveSeventy.diff(periods=2) == -1),
+    ]
 
-        self.df["RsiBelowThirty"] = numpy.where(self.df["RSI"] < 30, 1, 0)
-        self.df["RsiAboveSeventy"] = numpy.where(self.df["RSI"] > 70, 1, 0)
-        self.basic_conditions = [
-            (self.df.RsiBelowThirty.diff() == 0)
-            & (self.df.RsiBelowThirty.diff(periods=2) == -1),
-            (self.df.RsiAboveSeventy.diff() == 0)
-            & (self.df.RsiAboveSeventy.diff(periods=2) == -1),
-        ]
-
-        self.conditions.append(self.basic_conditions)
+    @staticmethod
+    def add_columns_for_rsi_basic(df):
+        df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
+        df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
+        return df
 
     def conditions_for_opening_long(self) -> bool:
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG

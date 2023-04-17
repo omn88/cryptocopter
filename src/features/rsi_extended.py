@@ -103,17 +103,18 @@ class FeatureRsiExtended:
         },
     ]
 
-    def rsi_signal_extended_generate(self):
-        assert "RSI" in self.df.columns
-        self.extended_signals_list = [Signal.LONG_20, Signal.SHORT_80]
+    signals = [Signal.LONG_20, Signal.SHORT_80]
 
-        self.df["RsiBelowTwenty"] = numpy.where(self.df["RSI"] < 20, 1, 0)
-        self.df["RsiAboveEighty"] = numpy.where(self.df["RSI"] > 80, 1, 0)
+    conditions = [
+        lambda df: (df.RsiBelowTwenty.diff() == -1),
+        lambda df: (df.RsiAboveEighty.diff() == -1),
+    ]
 
-        self.extended_signal_conditions = [
-            (self.df.RsiBelowTwenty.diff() == -1),
-            (self.df.RsiAboveEighty.diff() == -1),
-        ]
+    @staticmethod
+    def add_columns_for_rsi_extended(df):
+        df["RsiBelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
+        df["RsiAboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
+        return df
 
     def conditions_for_opening_extended_long(self) -> bool:
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20

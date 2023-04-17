@@ -8,8 +8,8 @@ logger = logging.getLogger("test_features")
 
 
 def test_basic_rsi_signal_generate(basic_rsi):
-    raw_data = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
-    test_df = raw_data.set_index("Date")
+    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_df = test_df.set_index("Date")
 
     expected_data = [
         ["2022-10-18 10:30:00", 49.76, 0, 0, 0],
@@ -50,7 +50,7 @@ def test_basic_rsi_signal_generate(basic_rsi):
 
     logger.info("Test DF with RSI: %s", test_df)
 
-    test_df = basic_rsi.tsm.signals_from_features_generate(test_df)
+    test_df = basic_rsi.signals_from_features_generate(test_df)
 
     logger.info("Test DF with signals: %s", test_df)
 
@@ -66,7 +66,7 @@ def test_basic_rsi_signal_generate(basic_rsi):
     )
 
 
-def test_rsi_signal_extended_generate():
+def test_rsi_signal_extended_generate(extended_rsi):
     test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
     test_df = test_df.set_index("Date")
 
@@ -101,7 +101,7 @@ def test_rsi_signal_extended_generate():
         "RsiAboveSeventy",
         "RsiBelowTwenty",
         "RsiAboveEighty",
-        "signal",
+        "Signal",
     ]
     expected_df = expected_df.set_index("Date")
 
@@ -109,21 +109,7 @@ def test_rsi_signal_extended_generate():
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
 
-    test_df, conditions_basic, choices_basic = rsi_signal_basic_generate(df=test_df)
-    assert "RsiBelowThirty" in test_df.columns
-    assert "RsiAboveSeventy" in test_df.columns
-
-    test_df, conditions_extended, choices_extended = rsi_signal_extended_generate(
-        df=test_df
-    )
-    assert "RsiBelowTwenty" in test_df.columns
-    assert "RsiAboveEighty" in test_df.columns
-
-    test_df = combined_signals_generate(
-        df=test_df,
-        condition_lists=[conditions_basic, conditions_extended],
-        choice_lists=[choices_basic, choices_extended],
-    )
+    test_df = extended_rsi.signals_from_features_generate(test_df)
 
     test_df_shortened = test_df[
         [
@@ -132,7 +118,7 @@ def test_rsi_signal_extended_generate():
             "RsiAboveSeventy",
             "RsiBelowTwenty",
             "RsiAboveEighty",
-            "signal",
+            "Signal",
         ]
     ].copy()
 
