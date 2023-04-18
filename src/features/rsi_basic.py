@@ -74,6 +74,7 @@ class FeatureRsiBasic:
         return df
 
     def conditions_for_opening_long(self) -> bool:
+        logger.info("Entering conditions for opening basic long")
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG
 
     def conditions_for_opening_short(self) -> bool:

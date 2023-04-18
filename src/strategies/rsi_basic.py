@@ -1,7 +1,13 @@
 import numpy
+import pandas
 
 from src.features.rsi_basic import FeatureRsiBasic
 from src.workers.trading_state_machine import TradingStateMachine
+
+
+import logging
+
+logger = logging.getLogger("BasicStrategy")
 
 
 class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
@@ -20,7 +26,7 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         )
         self.signals = FeatureRsiBasic.signals
 
-    def signals_from_features_generate(self, df):
+    def signals_from_features_generate(self, df) -> pandas.DataFrame:
         df = self.add_columns_for_rsi_basic(df)
         self.conditions = [condition(df=df) for condition in FeatureRsiBasic.conditions]
 

@@ -161,7 +161,9 @@ class TradingStateMachine:
         self, new_states: List[State], new_transitions: List[Dict]
     ):
         self.states.extend(new_states)
+        logger.info("New states: %s", new_states)
         self.transitions.extend(new_transitions)
+        logger.info("New transitions: %s", new_transitions)
         self.machine = AsyncMachine(
             model=self,
             states=self.states,
@@ -209,7 +211,13 @@ class TradingStateMachine:
             )
             logger.info("Processing signal: %s, price: %s", signal, price)
 
-    def conditions_for_skipping_same_signal(self) -> bool:
+    def conditions_for_skipping_same_signal(self, event_data) -> bool:
+        logger.info("EVENT DATA: %s", event_data)
+        logger.info(
+            "Entering conditions for skipping same signal, state: %s, signal: %s",
+            self.state,
+            self.signal_update.signal,
+        )
         return self.state == self.signal_update.signal
 
     def conditions_for_position_liquidation(self) -> bool:
@@ -382,30 +390,30 @@ class TradingStateMachine:
             position=self.position,
         )
 
-    async def process_signal(self, signal_update, position) -> Position:
-        await self.process_signal(
-            signal_update=signal_update,
-            position=position,
-        )
-        return self.position
-
-    async def process_order(self, order_update, position) -> Position:
-        await self.process_order(
-            order_update=order_update,
-            position=position,
-        )
-        return self.position
-
-    async def process_kline(self, kline_update, position) -> Position:
-        await self.process_kline(
-            kline_update=kline_update,
-            position=position,
-        )
-        return self.position
-
-    async def process_account(self, account_update, position) -> Position:
-        await self.process_account(
-            account_update=account_update,
-            position=position,
-        )
-        return self.position
+    # async def process_signal(self, signal_update, position) -> Position:
+    #     await self.process_signal(
+    #         signal_update=signal_update,
+    #         position=position,
+    #     )
+    #     return self.position
+    #
+    # async def process_order(self, order_update, position) -> Position:
+    #     await self.process_order(
+    #         order_update=order_update,
+    #         position=position,
+    #     )
+    #     return self.position
+    #
+    # async def process_kline(self, kline_update, position) -> Position:
+    #     await self.process_kline(
+    #         kline_update=kline_update,
+    #         position=position,
+    #     )
+    #     return self.position
+    #
+    # async def process_account(self, account_update, position) -> Position:
+    #     await self.process_account(
+    #         account_update=account_update,
+    #         position=position,
+    #     )
+    #     return self.position

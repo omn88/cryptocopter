@@ -30,10 +30,17 @@ async def test_signal_handle_long_when_flat(
 
     signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    basic_rsi.position = await basic_rsi.process_signal(
-        signal_update=signal_update, position=basic_rsi.position
-    )
+    basic_rsi.signal_update = signal_update
 
+    for transition in basic_rsi.transitions:
+        if transition["trigger"] == "process_signal":
+            logger.info("Process signal order: \n%s", transition)
+
+    # logger.info("Basic RSI transitions: %s", basic_rsi.transitions)
+
+    await basic_rsi.process_signal()
+
+    logger.info(basic_rsi.df.to_string())
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.position.balance
     assert signal == basic_rsi.position.status
