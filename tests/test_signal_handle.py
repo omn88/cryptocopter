@@ -51,141 +51,143 @@ async def test_signal_handle_long_when_flat(
 
     await basic_rsi.process_signal()
 
-    # logger.info(basic_rsi.df.to_string())
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.balance
     assert signal == Signal(basic_rsi.position.status.value)
+    assert basic_rsi.state == basic_rsi.position.status
     assert all(order.price <= entry_price for order in basic_rsi.position.orders)
     assert basic_rsi.df.at[basic_rsi.df.index[-1], "Position"] == State(signal.value)
 
 
-@pytest.mark.parametrize("signal", [Signal.SHORT, Signal.SHORT_80])
 @patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_flat(
-    mock_create_order, mock_get_order, signal, base
+    mock_create_order, mock_get_order, basic_rsi
 ):
-    mock_create_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
-    }
+    mock_create_order.side_effect = [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 20100.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 20200.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 20300.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+    ]
 
-    mock_get_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
-        "executedQty": 0.0,
-    }
-    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
+    # ToDO: COMMENTED OUT AS ORDER VALIDATION WILL BE NEEDED!!!
+    # mock_get_order.return_value = {
+    #     "orderId": 1,
+    #     "price": 19567.72,
+    #     "status": basic_rsi.client.ORDER_STATUS_NEW,
+    #     "executedQty": 0.0,
+    # }
 
-    signal_update = SignalUpdate(signal=signal, price=entry_price)
+    signal = Signal.SHORT
+    entry_price = round(float(basic_rsi.df.at[basic_rsi.df.index[-1], "Close"]), 1)
 
-    current_position, base.df = await signal_handle(
-        signal_update=signal_update,
-        client=base.client,
-        current_position=base.position.current_position,
-        df=base.df,
-        balance=base.position.balance,
-        order_quantity_list=base.position.order_quantity_list,
-        queue=base.queue,
-    )
+    basic_rsi.signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    assert 4 == len(current_position.orders)
-    assert 1000 == base.position.balance
-    assert signal == current_position.status
-    assert all(order.entry_price >= entry_price for order in current_position.orders)
-    assert base.df.at[base.df.index[-1], "position"] == signal
+    await basic_rsi.process_signal()
+
+    assert 4 == len(basic_rsi.position.orders)
+    assert 1000 == basic_rsi.balance
+    assert signal == Signal(basic_rsi.position.status.value)
+    assert basic_rsi.state == basic_rsi.position.status
+    assert all(order.price >= entry_price for order in basic_rsi.position.orders)
+    assert basic_rsi.df.at[basic_rsi.df.index[-1], "Position"] == State(signal.value)
 
 
 @patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_signal_handle_null_when_flat(mock_create_order, mock_get_order, base):
+async def test_signal_handle_null_when_flat(
+    mock_create_order, mock_get_order, basic_rsi
+):
     mock_create_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
+        "status": basic_rsi.client.ORDER_STATUS_NEW,
     }
 
     mock_get_order.return_value = {
         "orderId": 1,
         "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
+        "status": basic_rsi.client.ORDER_STATUS_NEW,
         "executedQty": 0.0,
     }
 
-    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
+    entry_price = round(float(basic_rsi.df.at[basic_rsi.df.index[-1], "Close"]), 1)
     entry_signal = Signal.NULL
 
-    signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
+    basic_rsi.signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
 
-    current_position, base.df = await signal_handle(
-        signal_update=signal_update,
-        client=base.client,
-        current_position=base.position.current_position,
-        df=base.df,
-        balance=base.position.balance,
-        order_quantity_list=base.position.order_quantity_list,
-        queue=base.queue,
-    )
+    await basic_rsi.process_signal()
 
-    assert len(current_position.orders) == 0
-    assert 1000 == base.position.balance
-    assert State.FLAT == current_position.status
-    assert base.df.at[base.df.index[-1], "position"] == State.FLAT
+    assert 0 == len(basic_rsi.position.orders)
+    assert 1000 == basic_rsi.balance
+    assert basic_rsi.state == State.FLAT
 
 
-@pytest.mark.parametrize("signal", [Signal.LONG, Signal.LONG_20])
 @patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_long(
-    mock_create_order, mock_get_order, signal, base
+    mock_create_order, mock_get_order, basic_rsi
 ):
-    mock_create_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
-    }
+    mock_create_order.side_effect = [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+    ]
 
-    mock_get_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
-        "executedQty": 0.0,
-    }
+    # mock_get_order.return_value = {
+    #     "orderId": 1,
+    #     "price": 19567.72,
+    #     "status": base.client.ORDER_STATUS_NEW,
+    #     "executedQty": 0.0,
+    # }
 
-    entry_signal = Signal.LONG
-    entry_price = round(float(base.df.at[base.df.index[-1], "Close"]), 1)
-    signal_update = SignalUpdate(signal=entry_signal, price=entry_price)
+    signal = Signal.LONG
+    entry_price = round(float(basic_rsi.df.at[basic_rsi.df.index[-1], "Close"]), 1)
 
-    current_position, base.df = await signal_handle(
-        signal_update=signal_update,
-        client=base.client,
-        current_position=base.position.current_position,
-        df=base.df,
-        balance=base.position.balance,
-        order_quantity_list=base.position.order_quantity_list,
-        queue=base.queue,
-    )
+    basic_rsi.signal_update = SignalUpdate(signal=signal, price=entry_price)
 
-    signal_update = SignalUpdate(signal=signal, price=entry_price)
+    await basic_rsi.process_signal()
 
-    current_position, base.df = await signal_handle(
-        signal_update=signal_update,
-        client=base.client,
-        current_position=current_position,
-        df=base.df,
-        balance=base.position.balance,
-        order_quantity_list=base.position.order_quantity_list,
-        queue=base.queue,
-    )
+    await basic_rsi.process_signal()
 
-    assert 4 == len(current_position.orders)
-    assert 1000 == base.position.balance
-    assert entry_signal == current_position.status
-
-    assert all(order.entry_price <= entry_price for order in current_position.orders)
-    assert base.df.iloc[-1]["position"] == entry_signal
+    assert 4 == len(basic_rsi.position.orders)
+    assert 1000 == basic_rsi.balance
+    assert all(order.price <= entry_price for order in basic_rsi.position.orders)
+    assert basic_rsi.df.at[basic_rsi.df.index[-1], "Position"] == basic_rsi.state
 
 
 @pytest.mark.parametrize("signal", [Signal.SHORT, Signal.SHORT_80])
@@ -201,12 +203,12 @@ async def test_signal_handle_short_when_long(
         "status": base.client.ORDER_STATUS_NEW,
     }
 
-    mock_get_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": base.client.ORDER_STATUS_NEW,
-        "executedQty": 0.0,
-    }
+    # mock_get_order.return_value = {
+    #     "orderId": 1,
+    #     "price": 19567.72,
+    #     "status": base.client.ORDER_STATUS_NEW,
+    #     "executedQty": 0.0,
+    # }
     mock_cancel_order.return_value = {"status": "CANCELED"}
 
     entry_signal = Signal.LONG

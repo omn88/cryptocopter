@@ -54,7 +54,7 @@ class FeatureRsiBasic:
                 "source": "*",
                 "dest": "=",
                 "conditions": "conditions_for_no_signal",
-                "before": "skip_signal",
+                "after": "skip_signal",
             },
         ]
 

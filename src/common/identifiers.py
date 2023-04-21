@@ -150,7 +150,7 @@ class Position:
     entry_price: float = 0
     quantity: float = 0
     status: State = State.FLAT
-    side: str = PositionSide.FLAT
+    side: str = PositionSide.FLAT  # ToDo: create a function
     orders: Optional[List[Order]] = None
     liquidation_price: float = 0
     target_price: float = 0

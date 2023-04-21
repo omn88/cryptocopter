@@ -197,13 +197,17 @@ class TradingStateMachine:
             logger.info("Processing signal: %s, price: %s", signal, price)
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
-        logger.info("EVENT DATA: %s", *args)
+
+        condition = self.state.value == self.signal_update.signal.value
+
         logger.info(
-            "Entering conditions for skipping same signal, state: %s, signal: %s",
+            "Skip same signal: %s, state: %s signal: %s",
+            condition,
             self.state,
             self.signal_update.signal,
         )
-        return self.state == self.signal_update.signal
+
+        return condition
 
     def conditions_for_position_liquidation(self) -> bool:
         return (
