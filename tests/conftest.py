@@ -33,7 +33,7 @@ async def basic_rsi():
         raw_data=raw_data,
     )
 
-    tsm.df = tsm.signals_from_features_generate(tsm.df)
+    await tsm.determine_start_position()
 
     yield tsm
 

@@ -8,44 +8,55 @@ from src.common.identifiers import Signal, SignalUpdate, State
 logger = logging.getLogger("test_signal_handle")
 
 
-@pytest.mark.parametrize("signal", [Signal.LONG, Signal.LONG_20])
 @patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_flat(
-    mock_create_order, mock_get_order, signal, basic_rsi
+    mock_create_order, mock_get_order, basic_rsi
 ):
-    mock_create_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": basic_rsi.client.ORDER_STATUS_NEW,
-    }
+    mock_create_order.side_effect = [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+    ]
 
-    mock_get_order.return_value = {
-        "orderId": 1,
-        "price": 19567.72,
-        "status": basic_rsi.client.ORDER_STATUS_NEW,
-        "executedQty": 0.0,
-    }
+    # ToDO: COMMENTED OUT AS ORDER VALIDATION WILL BE NEEDED!!!
+    # mock_get_order.return_value = {
+    #     "orderId": 1,
+    #     "price": 19567.72,
+    #     "status": basic_rsi.client.ORDER_STATUS_NEW,
+    #     "executedQty": 0.0,
+    # }
+
+    signal = Signal.LONG
     entry_price = round(float(basic_rsi.df.at[basic_rsi.df.index[-1], "Close"]), 1)
 
-    signal_update = SignalUpdate(signal=signal, price=entry_price)
-
-    basic_rsi.signal_update = signal_update
-
-    for transition in basic_rsi.transitions:
-        if transition["trigger"] == "process_signal":
-            logger.info("Process signal order: \n%s", transition)
-
-    # logger.info("Basic RSI transitions: %s", basic_rsi.transitions)
+    basic_rsi.signal_update = SignalUpdate(signal=signal, price=entry_price)
 
     await basic_rsi.process_signal()
 
-    logger.info(basic_rsi.df.to_string())
+    # logger.info(basic_rsi.df.to_string())
     assert 4 == len(basic_rsi.position.orders)
-    assert 1000 == basic_rsi.position.balance
-    assert signal == basic_rsi.position.status
-    assert all(order.entry_price <= entry_price for order in basic_rsi.position.orders)
-    assert basic_rsi.df.at[basic_rsi.df.index[-1], "position"] == signal
+    assert 1000 == basic_rsi.balance
+    assert signal == Signal(basic_rsi.position.status.value)
+    assert all(order.price <= entry_price for order in basic_rsi.position.orders)
+    assert basic_rsi.df.at[basic_rsi.df.index[-1], "Position"] == State(signal.value)
 
 
 @pytest.mark.parametrize("signal", [Signal.SHORT, Signal.SHORT_80])

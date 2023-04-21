@@ -76,7 +76,6 @@ def signal_to_state(signal: Signal) -> State:
 
 async def prepare_and_send_orders(
     client: binance.AsyncClient,
-    df: pandas.DataFrame,
     balance: float,
     order_quantity_list: pandas.DataFrame,
     signal: Signal,

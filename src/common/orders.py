@@ -70,7 +70,7 @@ def order_quantity_list_prepare(
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
-    logger.info("Order quantity list: \n%s", oql)
+    logger.debug("Order quantity list: \n%s", oql)
 
     return oql
 

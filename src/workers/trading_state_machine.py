@@ -1,4 +1,4 @@
-from typing import List, Union, Optional, Dict
+from typing import List, Union, Optional
 import binance
 import numpy
 import pandas
@@ -15,8 +15,6 @@ from src.common.identifiers import (
     KlineUpdate,
     AccountUpdate,
     PositionMode,
-    Event,
-    EventName,
 )
 from src.workers.handle_order import (
     position_liquidation,
@@ -49,10 +47,9 @@ class TradingStateMachine:
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: Optional[AccountUpdate] = None
         self.mode: PositionMode = PositionMode.DCA
-        self.conditions = []
-        self.signals = []
-        self.columns = []
         self.states: List[State] = [self.state]
+        self.signals: List[Signal] = []
+        self.conditions: List = []
         self.transitions = [
             {
                 "trigger": "process_signal",
@@ -157,21 +154,10 @@ class TradingStateMachine:
             queued=True,
         )
 
-    def add_states_and_transitions(
-        self, new_states: List[State], new_transitions: List[Dict]
-    ):
-        self.states.extend(new_states)
-        logger.info("New states: %s", new_states)
-        self.transitions.extend(new_transitions)
-        logger.info("New transitions: %s", new_transitions)
-        self.machine = AsyncMachine(
-            model=self,
-            states=self.states,
-            transitions=self.transitions,
-            initial=State.FLAT,
-            send_event=True,
-            queued=True,
-        )
+    def signals_from_features_generate(self, df) -> pandas.DataFrame:
+        df["Signal"] = numpy.select(self.conditions, self.signals)
+        df["Position"] = State.FLAT
+        return df
 
     async def determine_start_position(self):
 
@@ -180,7 +166,7 @@ class TradingStateMachine:
         signal_index = 0
 
         for index, row in self.df[::-1].iterrows():
-            if row["signal"] != 0:
+            if row["Signal"] != 0:
                 signal = row["signal"]
                 price = row["Close"]
                 # Adding extra lines to see what happened before signal
@@ -206,13 +192,12 @@ class TradingStateMachine:
         if signal_update.signal == 0:
             logger.info("No signal created, starting flat and awaiting new signal.")
         else:
-            await self.process_signal(
-                signal_update=signal_update, position=self.position
-            )
+            self.signal_update = signal_update
+            await self.process_signal()
             logger.info("Processing signal: %s, price: %s", signal, price)
 
-    def conditions_for_skipping_same_signal(self, event_data) -> bool:
-        logger.info("EVENT DATA: %s", event_data)
+    def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
+        logger.info("EVENT DATA: %s", *args)
         logger.info(
             "Entering conditions for skipping same signal, state: %s, signal: %s",
             self.state,
