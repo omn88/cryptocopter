@@ -20,8 +20,7 @@ class BasicStrategy(TradingStateMachine):
         self.feature_rsi_basic = FeatureRsiBasic(df=df)
 
         self.import_feature_configuration(feature=self.feature_rsi_basic)
-        self.df = self.feature_rsi_basic.df
-        self.df = self.signals_from_features_generate(self.df)
+        self.df = self.signals_from_features_generate(self.feature_rsi_basic.df)
         # logger.info("DF: %s", self.df)
 
     def import_feature_configuration(self, feature: FeatureRsiBasic):
