@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import List
 from pprint import pformat
 from src.common.common import print_last_n_rows
 from src.common.identifiers import (

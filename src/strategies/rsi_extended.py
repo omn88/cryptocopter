@@ -1,38 +1,79 @@
-import numpy
+import logging
 
-from src.features.rsi_basic import FeatureRsiBasic
+from src.common.identifiers import State, Signal
 from src.features.rsi_extended import FeatureRsiExtended
-from src.workers.trading_state_machine import TradingStateMachine
+from src.strategies.rsi_basic import BasicStrategy
 
 
-class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
+logger = logging.getLogger("BasicStrategy")
+
+
+class ExtendedStrategy(BasicStrategy):
     def __init__(self, client, balance, order_quantity_list, df, position, raw_data):
+
         super().__init__(
             client=client,
+            position=position,
+            df=df,
             balance=balance,
             order_quantity_list=order_quantity_list,
-            df=df,
-            position=position,
             raw_data=raw_data,
         )
-        self.add_states_and_transitions(
-            FeatureRsiBasic.states, FeatureRsiBasic.transitions
+        self.feature_rsi_extended = FeatureRsiExtended(df=df)
+
+        self.import_feature_configuration(feature=self.feature_rsi_extended)
+        self.df = self.signals_from_features_generate(self.feature_rsi_extended.df)
+
+    def conditions_for_opening_extended_long(self, *args, **kwargs) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20
+
+    def conditions_for_opening_extended_short(self, *args, **kwargs) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.SHORT_80
+
+    def conditions_for_switch_from_extended_long_to_extended_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT_80
         )
-        self.add_states_and_transitions(
-            FeatureRsiExtended.states, FeatureRsiExtended.transitions
+
+    def conditions_for_switch_from_extended_short_to_extended_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG_20
         )
-        self.signals = FeatureRsiBasic.signals + FeatureRsiExtended.signals
 
-    def signals_from_features_generate(self, df):
-        df = self.add_columns_for_rsi_basic(df)
-        df = self.add_columns_for_rsi_extended(df)
-        self.conditions = [
-            condition(df=df)
-            for condition in (
-                FeatureRsiBasic.conditions + FeatureRsiExtended.conditions
-            )
-        ]
+    def conditions_for_switch_from_extended_long_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT
 
-        df["Signal"] = numpy.select(self.conditions, self.signals)
+    def conditions_for_switch_from_extended_short_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG
 
-        return df
+    def conditions_for_switch_from_extended_long_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.LONG
+
+    def conditions_for_switch_from_extended_short_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.SHORT
+        )
+
+    def conditions_for_skipping_extended_signal(self, *args, **kwargs) -> bool:
+        return (
+            self.state == State.LONG
+            and self.signal_update.signal == Signal.LONG_20
+            or self.state == State.SHORT
+            and self.signal_update.signal == Signal.SHORT_80
+        )
+
+    async def change_position_state(self, *args, **kwargs):
+        logger.info("Changing status to %s", self.signal_update.signal)
+        self.position.status = self.signal_update.signal

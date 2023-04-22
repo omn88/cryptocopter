@@ -8,6 +8,7 @@ logger = logging.getLogger("feature_rsi_basic")
 
 class FeatureRsiBasic:
     def __init__(self, df):
+
         self.df = self.add_columns_for_rsi_basic(df=df)
         self.signals = [Signal.LONG, Signal.SHORT]
         self.conditions = [
@@ -24,14 +25,14 @@ class FeatureRsiBasic:
                 "source": State.FLAT,
                 "dest": State.LONG,
                 "conditions": "conditions_for_opening_basic_long",
-                "after": "open_basic_dca_long",
+                "after": "open_dca_long",
             },
             {
                 "trigger": "process_signal",
                 "source": State.FLAT,
                 "dest": State.SHORT,
                 "conditions": "conditions_for_opening_basic_short",
-                "after": "open_basic_dca_short",
+                "after": "open_dca_short",
             },
             {
                 "trigger": "process_signal",
@@ -39,7 +40,7 @@ class FeatureRsiBasic:
                 "dest": State.SHORT,
                 "conditions": "conditions_for_switch_to_short",
                 "before": "close_long",
-                "after": "open_basic_dca_short",
+                "after": "open_dca_short",
             },
             {
                 "trigger": "process_signal",
@@ -47,7 +48,7 @@ class FeatureRsiBasic:
                 "dest": State.LONG,
                 "conditions": "conditions_for_switch_to_long",
                 "before": "close_short",
-                "after": "open_basic_dca_long",
+                "after": "open_dca_long",
             },
             {
                 "trigger": "process_signal",

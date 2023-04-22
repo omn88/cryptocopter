@@ -13,13 +13,20 @@ logger = logging.getLogger("BasicStrategy")
 class BasicStrategy(TradingStateMachine):
     def __init__(self, client, balance, order_quantity_list, df, position, raw_data):
 
-        super().__init__(client, position, df, balance, order_quantity_list, raw_data)
+        super().__init__(
+            client=client,
+            position=position,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
+            raw_data=raw_data,
+        )
         self.feature_rsi_basic = FeatureRsiBasic(df=df)
 
         self.import_feature_configuration(feature=self.feature_rsi_basic)
         self.df = self.signals_from_features_generate(self.feature_rsi_basic.df)
 
-    def import_feature_configuration(self, feature: FeatureRsiBasic):
+    def import_feature_configuration(self, feature):
         self.machine.add_states(feature.states)
         self.signals.extend(self.feature_rsi_basic.signals)
         self.conditions.extend(self.feature_rsi_basic.conditions)
@@ -94,7 +101,7 @@ class BasicStrategy(TradingStateMachine):
         )
         return condition
 
-    async def open_basic_dca_long(self, *args, **kwargs):
+    async def open_dca_long(self, *args, **kwargs):
         logger.debug("Opening %s", self.signal_update.signal)
 
         self.position.side = PositionSide.LONG
@@ -111,7 +118,7 @@ class BasicStrategy(TradingStateMachine):
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
-    async def open_basic_dca_short(self, *args, **kwargs):
+    async def open_dca_short(self, *args, **kwargs):
         logger.info("Opening %s", self.signal_update.signal)
 
         self.position.side = PositionSide.SHORT

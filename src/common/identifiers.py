@@ -6,7 +6,6 @@ from enum import Enum
 from typing import NamedTuple, Dict, List, Optional
 
 import binance
-import numpy
 
 
 class State(Enum):
