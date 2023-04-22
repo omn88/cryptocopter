@@ -1,6 +1,3 @@
-import numpy
-import pandas
-
 from src.common.identifiers import PositionSide, State, Signal
 from src.features.rsi_basic import FeatureRsiBasic
 from src.workers import handle_order
@@ -21,7 +18,6 @@ class BasicStrategy(TradingStateMachine):
 
         self.import_feature_configuration(feature=self.feature_rsi_basic)
         self.df = self.signals_from_features_generate(self.feature_rsi_basic.df)
-        # logger.info("DF: %s", self.df)
 
     def import_feature_configuration(self, feature: FeatureRsiBasic):
         self.machine.add_states(feature.states)

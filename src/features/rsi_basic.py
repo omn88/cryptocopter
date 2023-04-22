@@ -1,7 +1,7 @@
 import logging
 import numpy
 
-from src.common.identifiers import State, Signal, SignalUpdate
+from src.common.identifiers import State, Signal
 
 logger = logging.getLogger("feature_rsi_basic")
 

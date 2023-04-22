@@ -2,7 +2,12 @@ from typing import List, Union, Optional
 import binance
 import numpy
 import pandas
-from transitions.extensions.asyncio import AsyncMachine
+from transitions.extensions.asyncio import (
+    AsyncMachine,
+    AsyncState,
+    AsyncEvent,
+    AsyncEventData,
+)
 import logging
 
 from src.common.common import insert_to_pandas
@@ -378,31 +383,3 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
         )
-
-    # async def process_signal(self, signal_update, position) -> Position:
-    #     await self.process_signal(
-    #         signal_update=signal_update,
-    #         position=position,
-    #     )
-    #     return self.position
-    #
-    # async def process_order(self, order_update, position) -> Position:
-    #     await self.process_order(
-    #         order_update=order_update,
-    #         position=position,
-    #     )
-    #     return self.position
-    #
-    # async def process_kline(self, kline_update, position) -> Position:
-    #     await self.process_kline(
-    #         kline_update=kline_update,
-    #         position=position,
-    #     )
-    #     return self.position
-    #
-    # async def process_account(self, account_update, position) -> Position:
-    #     await self.process_account(
-    #         account_update=account_update,
-    #         position=position,
-    #     )
-    #     return self.position

@@ -1,7 +1,11 @@
 from unittest.mock import patch
 
 from src.common.identifiers import Signal, State
-from tests.common import generate_signal, assert_dca_long_opened, assert_dca_short_opened
+from tests.common import (
+    generate_signal,
+    assert_dca_long_opened,
+    assert_dca_short_opened,
+)
 
 
 @patch("binance.AsyncClient.futures_create_order")
@@ -123,7 +127,10 @@ async def test_signal_handle_null_when_long(mock_create_orders_long, basic_rsi):
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.balance
     assert basic_rsi.state == basic_rsi.position.status
-    assert all(order.price <= basic_rsi.signal_update.price for order in basic_rsi.position.orders)
+    assert all(
+        order.price <= basic_rsi.signal_update.price
+        for order in basic_rsi.position.orders
+    )
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
@@ -203,4 +210,7 @@ async def test_signal_handle_null_when_short(mock_create_orders_short, basic_rsi
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.balance
     assert basic_rsi.state == basic_rsi.position.status
-    assert all(order.price >= basic_rsi.signal_update.price for order in basic_rsi.position.orders)
+    assert all(
+        order.price >= basic_rsi.signal_update.price
+        for order in basic_rsi.position.orders
+    )
