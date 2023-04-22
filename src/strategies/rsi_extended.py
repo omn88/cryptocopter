@@ -5,7 +5,7 @@ from src.features.rsi_extended import FeatureRsiExtended
 from src.strategies.rsi_basic import BasicStrategy
 
 
-logger = logging.getLogger("BasicStrategy")
+logger = logging.getLogger("ExtendedStrategy")
 
 
 class ExtendedStrategy(BasicStrategy):

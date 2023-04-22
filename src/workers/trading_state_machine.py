@@ -35,7 +35,15 @@ logger = logging.getLogger("trading_state_machine")
 
 
 class TradingStateMachine:
-    def __init__(self, client, position, df, balance, order_quantity_list, raw_data):
+    def __init__(
+        self,
+        client: binance.AsyncClient,
+        position: Position,
+        df: pandas.DataFrame,
+        balance: float,
+        order_quantity_list,
+        raw_data,
+    ):
         self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
         self.position: Position = position
