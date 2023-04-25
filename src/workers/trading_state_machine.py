@@ -222,64 +222,64 @@ class TradingStateMachine:
 
         return condition
 
-    def conditions_for_position_liquidation(self) -> bool:
+    def conditions_for_position_liquidation(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == "LIQUIDATION"
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
 
-    def conditions_for_partial_position_liquidation(self) -> bool:
+    def conditions_for_partial_position_liquidation(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == "LIQUIDATION"
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
         )
 
-    def conditions_for_new_order_confirmation(self) -> bool:
+    def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_NEW
         )
 
-    def conditions_for_order_cancellation(self) -> bool:
+    def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_CANCELED
         )
 
-    def conditions_for_order_expiration(self) -> bool:
+    def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_EXPIRED
         )
 
-    def conditions_for_target_reached(self) -> bool:
+    def conditions_for_target_reached(self, *args, **kwargs) -> bool:
         return (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
             and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
 
-    def conditions_for_target_partially_reached(self) -> bool:
+    def conditions_for_target_partially_reached(self, *args, **kwargs) -> bool:
         return (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
             and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
 
-    def conditions_for_market_order_filled(self) -> bool:
+    def conditions_for_market_order_filled(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
 
-    def conditions_for_market_order_filled_partially(self) -> bool:
+    def conditions_for_market_order_filled_partially(self, *args, **kwargs) -> bool:
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
         )
 
-    def conditions_for_order_update(self):
+    def conditions_for_order_update(self, *args, **kwargs):
         return (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status
@@ -292,22 +292,22 @@ class TradingStateMachine:
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "Position"] = update
 
-    def skip_signal(self) -> None:
+    def skip_signal(self, *args, **kwargs) -> None:
         logger.info("Skipping signal: %s", self.signal_update.signal)
         self.df.at[self.df.index[-1], "Position"] = self.df.at[
             self.df.index[-2], "Position"
         ]
 
-    def log_new_order(self) -> None:
+    def log_new_order(self, *args, **kwargs) -> None:
         logger.info("New order: %s", self.order_update.order_id)
 
-    def log_cancelled_order(self) -> None:
+    def log_cancelled_order(self, *args, **kwargs) -> None:
         logger.info("Cancelled order: %s", self.order_update.order_id)
 
-    def log_expired_order(self) -> None:
+    def log_expired_order(self, *args, **kwargs) -> None:
         logger.info("Expired order: %s", self.order_update.order_id)
 
-    async def handle_kline(self):
+    async def handle_kline(self, *args, **kwargs):
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -337,13 +337,13 @@ class TradingStateMachine:
                 signal_update=signal_update, position=self.position
             )
 
-    async def handle_account(self):
+    async def handle_account(self, *args, **kwargs):
 
         logger.info("Entering account handle")
         logger.info("Account update: %s", self.account_update.account_update)
         logger.info("Exiting account handle")
 
-    async def handle_liquidation(self):
+    async def handle_liquidation(self, *args, **kwargs):
         self.position, self.balance = await position_liquidation(
             client=self.client,
             position=self.position,
@@ -351,15 +351,15 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-    async def handle_partial_liquidation(self):
+    async def handle_partial_liquidation(self, *args, **kwargs):
         await partial_position_liquidation(
             order_update=self.order_update,
         )
 
-    async def enter_flat(self):
+    async def enter_flat(self, *args, **kwargs):
         self.position = Position()
 
-    async def handle_target_reached(self):
+    async def handle_target_reached(self, *args, **kwargs):
         self.position, self.balance = await target_reached(
             client=self.client,
             position=self.position,
@@ -367,25 +367,25 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-    async def handle_target_partially_reached(self):
+    async def handle_target_partially_reached(self, *args, **kwargs):
         self.position.market_order = await target_partially_reached(
             order_update=self.order_update,
         )
 
-    async def handle_market_order_filled(self):
+    async def handle_market_order_filled(self, *args, **kwargs):
         self.position, self.balance = await market_order_filled(
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
         )
 
-    async def handle_market_order_filled_partially(self):
+    async def handle_market_order_filled_partially(self, *args, **kwargs):
         self.position, self.balance = await market_order_partially_filled(
             position=self.position,
             order_update=self.order_update,
         )
 
-    async def handle_order_update(self):
+    async def handle_order_update(self, *args, **kwargs):
         self.position = await handle_order_update(
             client=self.client,
             order_update=self.order_update,
