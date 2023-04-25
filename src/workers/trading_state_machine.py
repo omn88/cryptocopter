@@ -235,64 +235,129 @@ class TradingStateMachine:
         return condition
 
     def conditions_for_position_liquidation(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == "LIQUIDATION"
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
+        logger.info(
+            "Position liquidation: %s, state: %s order update type: %s",
+            condition,
+            self.state,
+            self.order_update.order_type,
+        )
+        return condition
 
     def conditions_for_partial_position_liquidation(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == "LIQUIDATION"
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
         )
+
+        logger.info(
+            "Partial position liquidation: %s, state: %s order update type: %s",
+            condition,
+            self.state,
+            self.order_update.order_type,
+        )
+        return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
-        return (
+
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_NEW
         )
+        logger.info(
+            "New order confirmation: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_CANCELED
         )
+        logger.info(
+            "Order cancelled: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == self.client.ORDER_STATUS_EXPIRED
         )
+        logger.info(
+            "Order expired: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_target_reached(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
             and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
+        logger.info(
+            "Target reached: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_target_partially_reached(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.position.take_profit_order.price == self.order_update.price
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
             and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
         )
+        logger.info(
+            "Target partially reached: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_market_order_filled(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
+        logger.info(
+            "Market order filled: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_market_order_filled_partially(self, *args, **kwargs) -> bool:
-        return (
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
         )
+        logger.info(
+            "Market order partially filled: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def conditions_for_order_update(self, *args, **kwargs):
-        return (
+        condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status
             in [
@@ -300,6 +365,13 @@ class TradingStateMachine:
                 self.client.ORDER_STATUS_PARTIALLY_FILLED,
             ]
         )
+        logger.info(
+            "Order update: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
 
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "Position"] = update
