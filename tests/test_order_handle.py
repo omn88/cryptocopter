@@ -8,7 +8,7 @@ logger = logging.getLogger("TEST")
 
 
 @patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_filled(mock_create_orders_long, basic_rsi):
+async def test_long_first_order_filled(mock_create_orders_long_then_short, basic_rsi):
     await start_long(base=basic_rsi)
 
     await first_order_filled(base=basic_rsi)

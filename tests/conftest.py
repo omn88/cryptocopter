@@ -1,16 +1,12 @@
-import pandas
 import pytest
 import logging
-from dataclasses import dataclass
 
-from constants import SYMBOL
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
 from src.common.initialize_trading_environment import create_async_client
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
-from src.workers.trading_state_machine import TradingStateMachine
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -39,8 +35,75 @@ def mock_create_orders_long():
             "price": 19700.00,
             "status": basic_rsi.client.ORDER_STATUS_NEW,
         },
+        {
+            "orderId": 5,
+            "price": 20800.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
     ]
     return mock_create_orders_long
+
+
+@pytest.fixture()
+def mock_create_orders_short():
+    mock_create_orders_short.side_effect = [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 20100.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 20200.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 20300.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 5,
+            "price": 19200.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 19300.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 19400.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 19500.00,
+            "status": basic_rsi.client.ORDER_STATUS_NEW,
+        },
+    ]
+    return mock_create_orders_short
 
 
 @pytest.fixture()
@@ -135,33 +198,6 @@ def mock_create_orders_short_then_long():
         },
     ]
     return mock_create_orders_short_then_long
-
-
-@pytest.fixture()
-def mock_create_orders_short():
-    mock_create_orders_short.side_effect = [
-        {
-            "orderId": 1,
-            "price": 20000.00,
-            "status": basic_rsi.client.ORDER_STATUS_NEW,
-        },
-        {
-            "orderId": 2,
-            "price": 20100.00,
-            "status": basic_rsi.client.ORDER_STATUS_NEW,
-        },
-        {
-            "orderId": 3,
-            "price": 20200.00,
-            "status": basic_rsi.client.ORDER_STATUS_NEW,
-        },
-        {
-            "orderId": 4,
-            "price": 20300.00,
-            "status": basic_rsi.client.ORDER_STATUS_NEW,
-        },
-    ]
-    return mock_create_orders_short
 
 
 @pytest.fixture()

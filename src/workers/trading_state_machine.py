@@ -28,7 +28,7 @@ from src.workers.handle_order import (
     target_partially_reached,
     market_order_filled,
     market_order_partially_filled,
-    handle_order_update,
+    handle_order_filled,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -85,35 +85,35 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
                 "after": "log_new_order",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
                 "after": "log_cancelled_order",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
-                "conditions": "conditions_for_new_order_expiration",
+                "conditions": "conditions_for_order_expiration",
                 "after": "log_expired_order",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_partial_position_liquidation",
                 "before": "handle_partial_liquidation",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_position_liquidation",
                 "before": "handle_liquidation",
@@ -121,14 +121,14 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_target_partially_reached",
                 "before": "handle_target_partially_reached",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_target_reached",
                 "before": "handle_target_reached",
@@ -136,7 +136,7 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_market_order_filled",
                 "before": "handle_market_order_filled",
@@ -144,17 +144,31 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_market_order_filled_partially",
                 "before": "handle_market_order_filled_partially",
             },
             {
                 "trigger": "process_order",
-                "source": "*",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_order_update",
                 "before": "handle_order_update",
+            },
+            {
+                "trigger": "process_order",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "dest": "=",
+                "conditions": "conditions_for_order_filled",
+                "before": "handle_order_filled",
+            },
+            {
+                "trigger": "process_order",
+                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "dest": "=",
+                "conditions": "conditions_for_order_partially_filled",
+                "before": "handle_order_partially filled",
             },
         ]
 
@@ -356,14 +370,10 @@ class TradingStateMachine:
         )
         return condition
 
-    def conditions_for_order_update(self, *args, **kwargs):
+    def conditions_for_order_filled(self, *args, **kwargs):
         condition = (
             self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
-            and self.order_update.status
-            in [
-                self.client.ORDER_STATUS_FILLED,
-                self.client.ORDER_STATUS_PARTIALLY_FILLED,
-            ]
+            and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
         logger.info(
             "Order update: %s, state: %s order update status: %s",
@@ -372,6 +382,21 @@ class TradingStateMachine:
             self.order_update.status,
         )
         return condition
+
+    def conditions_for_order_partially_filled(self, *args, **kwargs):
+        condition = (
+            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+        )
+        logger.info(
+            "Order update: %s, state: %s order update status: %s",
+            condition,
+            self.state,
+            self.order_update.status,
+        )
+        return condition
+
+    # TODo: Maybe needed condition for order already filled.
 
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "Position"] = update
@@ -383,13 +408,25 @@ class TradingStateMachine:
         ]
 
     def log_new_order(self, *args, **kwargs) -> None:
-        logger.info("New order: %s", self.order_update.order_id)
+        for order in self.position.orders:
+            if order.order_id == self.order_update.order_id:
+                order.status = self.order_update.status
+                order.order_id = self.order_update.order_id
+                logger.info("New order: %s", self.order_update.order_id)
 
     def log_cancelled_order(self, *args, **kwargs) -> None:
-        logger.info("Cancelled order: %s", self.order_update.order_id)
+        for order in self.position.orders:
+            if order.order_id == self.order_update.order_id:
+                order.status = self.order_update.status
+                order.order_id = self.order_update.order_id
+                logger.info("Cancelled order: %s", self.order_update.order_id)
 
     def log_expired_order(self, *args, **kwargs) -> None:
-        logger.info("Expired order: %s", self.order_update.order_id)
+        for order in self.position.orders:
+            if order.order_id == self.order_update.order_id:
+                order.status = self.order_update.status
+                order.order_id = self.order_update.order_id
+                logger.info("Expired order: %s", self.order_update.order_id)
 
     async def handle_kline(self, *args, **kwargs):
 
@@ -469,8 +506,15 @@ class TradingStateMachine:
             order_update=self.order_update,
         )
 
-    async def handle_order_update(self, *args, **kwargs):
-        self.position = await handle_order_update(
+    async def handle_order_filled(self, *args, **kwargs):
+        self.position = await handle_order_filled(
+            client=self.client,
+            order_update=self.order_update,
+            position=self.position,
+        )
+
+    async def handle_order_partially_filled(self, *args, **kwargs):
+        self.position = await handle_order_partially_filled(
             client=self.client,
             order_update=self.order_update,
             position=self.position,

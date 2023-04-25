@@ -70,6 +70,8 @@ logger = logging.getLogger("handle_order")
 #             )
 #
 #     return position, df, balance
+
+
 def signal_to_state(signal: Signal) -> State:
     return State(signal.value)
 
@@ -362,36 +364,12 @@ async def target_reached(
     return position, balance
 
 
-async def update_position(
-    client: binance.AsyncClient,
-    position: Position,
-) -> Position:
-    logger.info("Entering update position")
-
-    (
-        position.liquidation_price,
-        position.entry_price,
-        position.quantity,
-    ) = await futures_get_position_info(client=client)
-
-    position = await update_take_profit_order(
-        client=client,
-        position=position,
-    )
-
-    logger.info("Exiting update position")
-
-    return position
-
-
-async def handle_order_update(
+async def handle_order_filled(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
 ) -> Position:
     logger.info("Enter order update handle")
-
-    assert position.orders is not None
 
     for order in position.orders:
         if order_update.order_id == order.order_id:
@@ -402,19 +380,23 @@ async def handle_order_update(
             order.quantity = order_update.quantity
             order.realized_quantity = order_update.realized_quantity
 
-            if order_update.status in [
+            if order_update.status not in [
                 client.ORDER_STATUS_NEW,
                 client.ORDER_STATUS_CANCELED,
                 client.ORDER_STATUS_EXPIRED,
             ]:
-                order.status = order_update.status
-                order.order_id = order_update.order_id
-                logger.info("Order: %s status: %s", order.order_id, order.status)
-            else:
-                position = await update_position(
+                (
+                    position.liquidation_price,
+                    position.entry_price,
+                    position.quantity,
+                ) = await futures_get_position_info(client=client)
+
+                position = await update_take_profit_order(
                     client=client,
                     position=position,
                 )
+
+                logger.info("Exiting update position")
 
     logger.info("Exit order update handle")
     return position
