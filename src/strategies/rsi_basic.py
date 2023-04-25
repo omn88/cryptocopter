@@ -24,15 +24,3 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
 
         self.import_feature_configuration(feature=FeatureRsiBasic(df=self.df))
         self.df = self.signals_from_features_generate(self.df)
-
-    def import_feature_configuration(self, feature):
-        self.machine.add_states(feature.states)
-        self.signals.extend(feature.signals)
-        self.conditions.extend(feature.conditions)
-
-        updated_transitions = []
-        for transition in feature.transitions:
-            updated_transition = transition.copy()
-            updated_transitions.append(updated_transition)
-
-            self.machine.add_transition(**updated_transition)

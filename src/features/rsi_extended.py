@@ -1,7 +1,7 @@
 import logging
 import numpy
 
-from src.common.identifiers import State
+from src.common.identifiers import State, Signal
 
 logger = logging.getLogger("feature_rsi_extended")
 
@@ -97,3 +97,58 @@ class FeatureRsiExtended:
         df["RsiBelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
         df["RsiAboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
         return df
+
+    def conditions_for_opening_extended_long(self, *args, **kwargs) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20
+
+    def conditions_for_opening_extended_short(self, *args, **kwargs) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.SHORT_80
+
+    def conditions_for_switch_from_extended_long_to_extended_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT_80
+        )
+
+    def conditions_for_switch_from_extended_short_to_extended_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG_20
+        )
+
+    def conditions_for_switch_from_extended_long_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT
+
+    def conditions_for_switch_from_extended_short_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.SHORT_80 and self.signal_update.signal == Signal.LONG
+
+    def conditions_for_switch_from_extended_long_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG_20 and self.signal_update.signal == Signal.LONG
+
+    def conditions_for_switch_from_extended_short_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_80 and self.signal_update.signal == Signal.SHORT
+        )
+
+    def conditions_for_skipping_extended_signal(self, *args, **kwargs) -> bool:
+        return (
+            self.state == State.LONG
+            and self.signal_update.signal == Signal.LONG_20
+            or self.state == State.SHORT
+            and self.signal_update.signal == Signal.SHORT_80
+        )
+
+    async def change_position_state(self, *args, **kwargs):
+        logger.info("Changing status to %s", self.signal_update.signal)
+        self.position.status = State(self.signal_update.signal.value)
+        self.update_position_in_df(self.position.status)

@@ -172,6 +172,18 @@ class TradingStateMachine:
         df["Position"] = State.FLAT
         return df
 
+    def import_feature_configuration(self, feature):
+        self.machine.add_states(feature.states)
+        self.signals.extend(feature.signals)
+        self.conditions.extend(feature.conditions)
+
+        updated_transitions = []
+        for transition in feature.transitions:
+            updated_transition = transition.copy()
+            updated_transitions.append(updated_transition)
+
+            self.machine.add_transition(**updated_transition)
+
     async def determine_start_position(self):
 
         signal = Signal.NULL
