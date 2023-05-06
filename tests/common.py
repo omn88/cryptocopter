@@ -1,3 +1,4 @@
+import logging
 from typing import Tuple
 
 import binance
@@ -11,6 +12,8 @@ from src.common.identifiers import (
     OrderUpdate,
     Order,
 )
+
+logger = logging.getLogger("common")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:
@@ -50,9 +53,7 @@ def assert_dca_short_opened(
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
 
 
-async def first_order_filled(
-    base,
-):
+async def first_order_filled(base):
 
     assert base.position.orders is not None
     price = base.position.orders[0].price
@@ -278,3 +279,190 @@ async def start_short(base) -> None:
         signal_update=base.signal_update,
         df=base.df,
     )
+
+
+def get_orders_long(base):
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 5,
+            "price": 20800.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+    ]
+
+
+def get_orders_short(base):
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 20100.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 20200.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 20300.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 5,
+            "price": 19200.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 19300.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 19400.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 19500.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+    ]
+
+
+def get_orders_long_then_short(base):
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 5,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 20100.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 20200.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 20300.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+    ]
+
+
+def get_orders_short_then_long(base):
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 2,
+            "price": 20100.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 3,
+            "price": 20200.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 4,
+            "price": 20300.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 5,
+            "price": 20000.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 6,
+            "price": 19900.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 7,
+            "price": 19800.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+        {
+            "orderId": 8,
+            "price": 19700.00,
+            "status": base.client.ORDER_STATUS_NEW,
+        },
+    ]
+
+
+def get_position_information():
+    return [
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+    ]

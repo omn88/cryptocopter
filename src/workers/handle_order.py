@@ -211,7 +211,7 @@ async def update_take_profit_order(
     position: Position,
 ) -> Position:
 
-    if isinstance(position.take_profit_order, Order):
+    if position.take_profit_order.order_id != 0:
         logger.info(
             "Enter update take profit order: %s",
             position.take_profit_order.order_id,
@@ -364,7 +364,7 @@ async def target_reached(
     return position, balance
 
 
-async def handle_order_filled(
+async def handle_order_partially_filled(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
@@ -373,30 +373,59 @@ async def handle_order_filled(
 
     for order in position.orders:
         if order_update.order_id == order.order_id:
-            if order.status == client.ORDER_STATUS_FILLED:
-                logger.info("Order: %s already filled", order.order_id)
+
             order.status = order_update.status
             order.price = order_update.price
             order.quantity = order_update.quantity
             order.realized_quantity = order_update.realized_quantity
+            logger.info("Order: %s partially filled", order.order_id)
 
-            if order_update.status not in [
-                client.ORDER_STATUS_NEW,
-                client.ORDER_STATUS_CANCELED,
-                client.ORDER_STATUS_EXPIRED,
-            ]:
-                (
-                    position.liquidation_price,
-                    position.entry_price,
-                    position.quantity,
-                ) = await futures_get_position_info(client=client)
+            (
+                position.liquidation_price,
+                position.entry_price,
+                position.quantity,
+            ) = await futures_get_position_info(client=client)
 
-                position = await update_take_profit_order(
-                    client=client,
-                    position=position,
-                )
+            position = await update_take_profit_order(
+                client=client,
+                position=position,
+            )
 
-                logger.info("Exiting update position")
+            logger.info("Exiting update position")
+
+    logger.info("Exit order update handle")
+    return position
+
+
+async def handle_order_filled(
+    client: binance.AsyncClient,
+    position: Position,
+    order_update: OrderUpdate,
+) -> Position:
+    logger.info("Enter order update handle")
+    for order in position.orders:
+        if order_update.order_id == order.order_id:
+            if order.status == client.ORDER_STATUS_FILLED:
+                logger.info("Order: %s already filled", order.order_id)
+            else:
+                order.status = order_update.status
+                order.price = order_update.price
+                order.quantity = order_update.quantity
+                order.realized_quantity = order_update.realized_quantity
+                logger.info("Order: %s filled", order.order_id)
+
+            (
+                position.liquidation_price,
+                position.entry_price,
+                position.quantity,
+            ) = await futures_get_position_info(client=client)
+
+            position = await update_take_profit_order(
+                client=client,
+                position=position,
+            )
+
+            logger.info("Exiting update position: %s", position.quantity)
 
     logger.info("Exit order update handle")
     return position
@@ -507,16 +536,12 @@ async def futures_get_position_info(
     :rtype: dict
     """
     logger.info("Enter position information")
-    try:
-        resp = await client.futures_position_information(symbol=SYMBOL)
-        logger.info("RESP: %s", resp)
-        liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
-        entry_price = round(float(resp[0]["entryPrice"]), 1)
-        position_amt = float(resp[0]["positionAmt"])
-    except BinanceAPIException as e:
-        raise ValueError(
-            f"Failed to retrieve position information for symbol {SYMBOL} due to {e}"
-        )
+
+    resp = await client.futures_position_information(symbol=SYMBOL)
+    logger.info("RESP: %s", resp)
+    liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
+    entry_price = round(float(resp[0]["entryPrice"]), 1)
+    position_amt = float(resp[0]["positionAmt"])
 
     logger.info("Exit position information")
 

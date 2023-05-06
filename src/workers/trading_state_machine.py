@@ -29,6 +29,7 @@ from src.workers.handle_order import (
     market_order_filled,
     market_order_partially_filled,
     handle_order_filled,
+    handle_order_partially_filled,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -153,13 +154,6 @@ class TradingStateMachine:
                 "trigger": "process_order",
                 "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
-                "conditions": "conditions_for_order_update",
-                "before": "handle_order_update",
-            },
-            {
-                "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
-                "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
             },
@@ -168,7 +162,7 @@ class TradingStateMachine:
                 "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled",
-                "before": "handle_order_partially filled",
+                "before": "handle_order_partially_filled",
             },
         ]
 
@@ -227,13 +221,14 @@ class TradingStateMachine:
                 self.df.to_string(),
             )
 
+        signal = Signal.NULL if signal == 0 else signal
         signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-        if signal_update.signal == 0:
+        if signal_update.signal == Signal.NULL:
             logger.info("No signal created, starting flat and awaiting new signal.")
         else:
+            logger.info("Processing signal: %s, price: %s", signal, price)
             self.signal_update = signal_update
             await self.process_signal()
-            logger.info("Processing signal: %s, price: %s", signal, price)
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
 
@@ -376,7 +371,7 @@ class TradingStateMachine:
             and self.order_update.status == self.client.ORDER_STATUS_FILLED
         )
         logger.info(
-            "Order update: %s, state: %s order update status: %s",
+            "Order filled: %s, state: %s order update status: %s",
             condition,
             self.state,
             self.order_update.status,
@@ -389,14 +384,12 @@ class TradingStateMachine:
             and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
         )
         logger.info(
-            "Order update: %s, state: %s order update status: %s",
+            "Order partially filled: %s, state: %s order update status: %s",
             condition,
             self.state,
             self.order_update.status,
         )
         return condition
-
-    # TODo: Maybe needed condition for order already filled.
 
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "Position"] = update
@@ -489,24 +482,28 @@ class TradingStateMachine:
         )
 
     async def handle_target_partially_reached(self, *args, **kwargs):
+        logger.info("Entering handle market order partially filled")
         self.position.market_order = await target_partially_reached(
             order_update=self.order_update,
         )
 
     async def handle_market_order_filled(self, *args, **kwargs):
+        logger.info("Entering handle market order filled")
         self.position, self.balance = await market_order_filled(
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
         )
 
-    async def handle_market_order_filled_partially(self, *args, **kwargs):
+    async def handle_market_order_partially_filled(self, *args, **kwargs):
+        logger.info("Entering handle market order partially filled")
         self.position, self.balance = await market_order_partially_filled(
             position=self.position,
             order_update=self.order_update,
         )
 
     async def handle_order_filled(self, *args, **kwargs):
+        logger.info("Entering handle order filled")
         self.position = await handle_order_filled(
             client=self.client,
             order_update=self.order_update,
@@ -514,6 +511,7 @@ class TradingStateMachine:
         )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
+        logger.info("Entering handle order partially filled")
         self.position = await handle_order_partially_filled(
             client=self.client,
             order_update=self.order_update,
