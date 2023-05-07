@@ -13,14 +13,6 @@ logger = logging.getLogger("conftest")
 
 
 @pytest.fixture()
-def mock_cancel_order():
-
-    mock_cancel_order.return_value = {"status": "CANCELED"}
-
-    return mock_cancel_order
-
-
-@pytest.fixture()
 async def basic_rsi():
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)

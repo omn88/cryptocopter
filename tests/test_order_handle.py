@@ -3,12 +3,17 @@ from unittest.mock import patch
 
 import binance
 
-from src.common.identifiers import State, OrderUpdate
+from src.common.identifiers import State, OrderUpdate, Order
 from tests.common import (
     start_long,
     first_order_filled,
     get_orders_long_then_short,
     get_position_information,
+    get_position_information_for_order_partially_filled,
+    second_order_filled,
+    get_cancel_order,
+    target_reached,
+    third_and_fourth_order_filled,
 )
 
 logger = logging.getLogger("TEST")
@@ -38,15 +43,17 @@ async def test_long_first_order_filled_partially(
     mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
         base=basic_rsi
     )
-    mock_position_information.side_effect = get_position_information()
+    mock_position_information.side_effect = (
+        get_position_information_for_order_partially_filled()
+    )
 
     await start_long(base=basic_rsi)
-
-    realized_quantity = round(float(basic_rsi.position.orders[0].quantity / 2), 3)
 
     price = basic_rsi.position.orders[0].price
     quantity = basic_rsi.position.orders[0].quantity
     status = basic_rsi.client.ORDER_STATUS_PARTIALLY_FILLED
+
+    realized_quantity = round(float(quantity / 2), 3)
 
     basic_rsi.order_update = OrderUpdate(
         price=price,
@@ -57,13 +64,7 @@ async def test_long_first_order_filled_partially(
         realized_quantity=realized_quantity,
     )
 
-    assert basic_rsi.position.orders is not None
-    price = basic_rsi.position.orders[0].price
-    quantity = basic_rsi.position.orders[0].quantity
-
     await basic_rsi.process_order()
-
-    assert basic_rsi.position.orders is not None
 
     assert (
         basic_rsi.position.orders[0].status
@@ -73,12 +74,9 @@ async def test_long_first_order_filled_partially(
     assert basic_rsi.position.orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert basic_rsi.position.orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert basic_rsi.position.entry_price == price
-    assert basic_rsi.position.quantity == quantity
+    assert basic_rsi.position.quantity == realized_quantity
     assert basic_rsi.position.take_profit_order is not None
-    assert (
-        basic_rsi.position.take_profit_order.quantity
-        == basic_rsi.position.orders[0].quantity
-    )
+    assert basic_rsi.position.take_profit_order.quantity == realized_quantity
     assert basic_rsi.position.orders[0].realized_quantity == realized_quantity
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
@@ -92,15 +90,17 @@ async def test_long_first_order_filled_partially_twice(
     mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
         base=basic_rsi
     )
-    mock_position_information.side_effect = get_position_information()
+    mock_position_information.side_effect = (
+        get_position_information_for_order_partially_filled()
+    )
 
     await start_long(base=basic_rsi)
-
-    realized_quantity = round(float(basic_rsi.position.orders[0].quantity / 2), 3)
 
     price = basic_rsi.position.orders[0].price
     quantity = basic_rsi.position.orders[0].quantity
     status = basic_rsi.client.ORDER_STATUS_PARTIALLY_FILLED
+
+    realized_quantity = round(float(quantity / 2), 3)
 
     basic_rsi.order_update = OrderUpdate(
         price=price,
@@ -111,13 +111,7 @@ async def test_long_first_order_filled_partially_twice(
         realized_quantity=realized_quantity,
     )
 
-    assert basic_rsi.position.orders is not None
-    price = basic_rsi.position.orders[0].price
-    quantity = basic_rsi.position.orders[0].quantity
-
     await basic_rsi.process_order()
-
-    assert basic_rsi.position.orders is not None
 
     assert (
         basic_rsi.position.orders[0].status
@@ -127,23 +121,14 @@ async def test_long_first_order_filled_partially_twice(
     assert basic_rsi.position.orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert basic_rsi.position.orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
     assert basic_rsi.position.entry_price == price
-    assert basic_rsi.position.quantity == quantity
+    assert basic_rsi.position.quantity == realized_quantity
     assert basic_rsi.position.take_profit_order is not None
-    assert (
-        basic_rsi.position.take_profit_order.quantity
-        == basic_rsi.position.orders[0].quantity
-    )
+    assert basic_rsi.position.take_profit_order.quantity == realized_quantity
     assert basic_rsi.position.orders[0].realized_quantity == realized_quantity
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
-    another_realized_quantity = round(
-        float(basic_rsi.position.orders[0].quantity / 4), 3
-    )
-
-    price = basic_rsi.position.orders[0].price
-    quantity = basic_rsi.position.orders[0].quantity
-    status = basic_rsi.client.ORDER_STATUS_PARTIALLY_FILLED
+    another_realized_quantity = round(float(quantity / 4), 3)
 
     basic_rsi.order_update = OrderUpdate(
         price=price,
@@ -155,8 +140,6 @@ async def test_long_first_order_filled_partially_twice(
     )
 
     await basic_rsi.process_order()
-
-    assert basic_rsi.position.orders is not None
 
     assert (
         basic_rsi.position.orders[0].status
@@ -172,73 +155,56 @@ async def test_long_first_order_filled_partially_twice(
         basic_rsi.position.take_profit_order.quantity
         == realized_quantity + another_realized_quantity
     )
-    assert basic_rsi.position.orders[0].realized_quantity == realized_quantity
+    assert (
+        basic_rsi.position.orders[0].realized_quantity
+        == realized_quantity + another_realized_quantity
+    )
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
-@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_two_orders_filled(
-    mock_create_order,
+    mock_create_orders_long_then_short,
     mock_cancel_order,
     mock_position_information,
-    mock_get_order,
-    base,
+    basic_rsi,
 ):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-
-    base.df, current_position, entry_price = await start_long(base=base)
-
-    current_position = await first_order_filled(
-        current_position=current_position,
-        entry_price=entry_price,
-        balance=base.position.balance,
-        client=base.client,
-        df=base.df,
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
     )
-    assert current_position.take_profit_order.price == 20800.0
-    assert current_position.liquidation_price == 19200
+    mock_position_information.side_effect = get_position_information()
+    mock_cancel_order.return_value = get_cancel_order()
 
-    current_position = await second_order_filled(
-        base=base, current_position=current_position
-    )
-    assert current_position.take_profit_order.price == 20748.0
-    assert current_position.liquidation_price == 19152
-    assert base.df.iloc[-1]["position"] == Signals.LONG
+    await start_long(base=basic_rsi)
+    await first_order_filled(base=basic_rsi)
+
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+    assert basic_rsi.position.take_profit_order.price == 20800.0
+    assert basic_rsi.position.liquidation_price == 19200
+
+    await second_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20748.0
+    assert basic_rsi.position.liquidation_price == 19152
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
-@patch("binance.AsyncClient.futures_get_order")
-@patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_new(
-    mock_create_order, mock_position_information, mock_get_order, base
-):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-    base.df, current_position, entry_price = await start_long(base=base)
+async def test_long_first_order_new(mock_create_orders_long_then_short, basic_rsi):
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
+    )
 
-    price = entry_price
-    quantity = current_position.orders[0].quantity
-    status = base.client.ORDER_STATUS_NEW
+    await start_long(base=basic_rsi)
 
-    order_update = OrderUpdate(
+    price = basic_rsi.position.orders[0].price
+    quantity = basic_rsi.position.orders[0].quantity
+    status = basic_rsi.client.ORDER_STATUS_NEW
+
+    basic_rsi.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -247,42 +213,28 @@ async def test_long_first_order_new(
         order_id=1,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
+    await basic_rsi.process_order()
+
+    assert basic_rsi.position.orders[0].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[1].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[2].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[3].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+
+@patch("binance.AsyncClient.futures_create_order")
+async def test_long_first_order_expired(mock_create_orders_long_then_short, basic_rsi):
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
     )
 
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert base.df.iloc[-1]["position"] == Signals.LONG
+    await start_long(base=basic_rsi)
 
+    price = basic_rsi.position.orders[0].price
+    quantity = basic_rsi.position.orders[0].quantity
+    status = basic_rsi.client.ORDER_STATUS_EXPIRED
 
-@patch("binance.AsyncClient.futures_get_order")
-@patch("binance.AsyncClient.futures_position_information")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_expired(
-    mock_create_order, mock_position_information, mock_get_order, base
-):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-    base.df, current_position, entry_price = await start_long(base=base)
-
-    price = entry_price
-    quantity = current_position.orders[0].quantity
-    status = base.client.ORDER_STATUS_EXPIRED
-
-    order_update = OrderUpdate(
+    basic_rsi.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -291,42 +243,28 @@ async def test_long_first_order_expired(
         order_id=1,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
+    await basic_rsi.process_order()
+
+    assert basic_rsi.position.orders[0].status == basic_rsi.client.ORDER_STATUS_EXPIRED
+    assert basic_rsi.position.orders[1].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[2].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[3].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+
+@patch("binance.AsyncClient.futures_create_order")
+async def test_long_first_order_canceled(mock_create_orders_long_then_short, basic_rsi):
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
     )
 
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_EXPIRED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert base.df.iloc[-1]["position"] == Signals.LONG
+    await start_long(base=basic_rsi)
 
+    price = basic_rsi.position.orders[0].price
+    quantity = basic_rsi.position.orders[0].quantity
+    status = basic_rsi.client.ORDER_STATUS_CANCELED
 
-@patch("binance.AsyncClient.futures_get_order")
-@patch("binance.AsyncClient.futures_position_information")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_canceled(
-    mock_create_order, mock_position_information, mock_get_order, base
-):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-    base.df, current_position, entry_price = await start_long(base=base)
-
-    price = entry_price
-    quantity = current_position.orders[0].quantity
-    status = base.client.ORDER_STATUS_CANCELED
-
-    order_update = OrderUpdate(
+    basic_rsi.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -335,121 +273,87 @@ async def test_long_first_order_canceled(
         order_id=1,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
-    )
+    await basic_rsi.process_order()
 
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_CANCELED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert base.df.iloc[-1]["position"] == Signals.LONG
+    assert basic_rsi.position.orders[0].status == basic_rsi.client.ORDER_STATUS_CANCELED
+    assert basic_rsi.position.orders[1].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[2].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.position.orders[3].status == basic_rsi.client.ORDER_STATUS_NEW
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
-@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_two_orders_filled_then_target_reached(
-    mock_create_order,
+    mock_create_orders_long_then_short,
     mock_cancel_order,
     mock_position_information,
-    mock_get_order,
-    base,
+    basic_rsi,
 ):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-
-    base.df, current_position, entry_price = await start_long(base=base)
-
-    current_position = await first_order_filled(
-        current_position=current_position,
-        entry_price=entry_price,
-        balance=base.position.balance,
-        client=base.client,
-        df=base.df,
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
     )
-    assert current_position.take_profit_order.price == 20800.0
-    assert current_position.liquidation_price == 19200
+    mock_position_information.side_effect = get_position_information()
+    mock_cancel_order.return_value = get_cancel_order()
 
-    current_position = await second_order_filled(
-        base=base, current_position=current_position
-    )
-    assert current_position.take_profit_order.price == 20748.0
-    assert current_position.liquidation_price == 19152
+    await start_long(base=basic_rsi)
+    await first_order_filled(base=basic_rsi)
 
-    current_position, base.df, balance = await target_reached(
-        base=base, current_position=current_position
-    )
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
-    assert balance == 1099.75
-    assert base.df.iloc[-1]["position"] == Signals.FLAT
+    assert basic_rsi.position.take_profit_order.price == 20800.0
+    assert basic_rsi.position.liquidation_price == 19200
+
+    await second_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20748.0
+    assert basic_rsi.position.liquidation_price == 19152
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+    await target_reached(base=basic_rsi)
+
+    assert basic_rsi.balance == 1099.75
+    assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
 
-@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_position_information")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_all_orders_filled_then_target_reached(
-    mock_create_order,
+    mock_create_orders_long_then_short,
     mock_cancel_order,
     mock_position_information,
-    mock_get_order,
-    base,
+    basic_rsi,
 ):
-    mock_create_order.side_effect = mock_create_order_side_effect_long()
-    mock_cancel_order.return_value = {"status": base.client.ORDER_STATUS_CANCELED}
-    mock_get_order.return_value = mock_get_order_return_value()
-    mock_position_information.side_effect = [
-        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
-        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
-        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
-        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
-    ]
-
-    base.df, current_position, entry_price = await start_long(base=base)
-
-    current_position = await first_order_filled(
-        current_position=current_position,
-        entry_price=entry_price,
-        balance=base.position.balance,
-        client=base.client,
-        df=base.df,
+    mock_create_orders_long_then_short.side_effect = get_orders_long_then_short(
+        base=basic_rsi
     )
-    assert current_position.take_profit_order.price == 20800.0
-    assert current_position.liquidation_price == 19200
+    mock_position_information.side_effect = get_position_information()
+    mock_cancel_order.return_value = get_cancel_order()
 
-    current_position = await second_order_filled(
-        base=base, current_position=current_position
-    )
-    assert current_position.take_profit_order.price == 20748.0
-    assert current_position.liquidation_price == 19152
+    await start_long(base=basic_rsi)
+    await first_order_filled(base=basic_rsi)
 
-    current_position = await third_and_fourth_order_filled(
-        base=base, current_position=current_position
-    )
-    assert current_position.take_profit_order.price == 20644.0
-    assert current_position.liquidation_price == 19056
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
-    current_position, base.df, balance = await target_reached(
-        base=base, current_position=current_position
-    )
+    assert basic_rsi.position.take_profit_order.price == 20800.0
+    assert basic_rsi.position.liquidation_price == 19200
 
-    assert current_position.orders == []
-    assert current_position.take_profit_order is None
-    assert balance == 1199.29
-    assert base.df.iloc[-1]["position"] == Signals.FLAT
+    await second_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20748.0
+    assert basic_rsi.position.liquidation_price == 19152
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+    await third_and_fourth_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20644.0
+    assert basic_rsi.position.liquidation_price == 19056
+
+    await target_reached(base=basic_rsi)
+
+    assert basic_rsi.position.orders == []
+    assert basic_rsi.position.take_profit_order == Order(price=0, quantity=0)
+    assert basic_rsi.balance == 1199.29
+    assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
 
 @patch("binance.AsyncClient.futures_get_order")

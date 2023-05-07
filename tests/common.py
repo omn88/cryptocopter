@@ -83,63 +83,57 @@ async def first_order_filled(base):
     assert base.position.orders[0].realized_quantity == quantity
 
 
-async def second_order_filled(
-    base: pandas.DataFrame, current_position: Position
-) -> Position:
-    assert current_position.orders is not None
-    price = current_position.orders[1].price
-    quantity = current_position.orders[1].quantity
-    status = base.client.ORDER_STATUS_FILLED
+async def second_order_filled(base):
 
-    order_update = OrderUpdate(
+    orders = base.position.orders
+    assert orders is not None
+
+    price = orders[1].price
+    quantity = orders[1].quantity
+    status = binance.AsyncClient.ORDER_STATUS_FILLED
+
+    base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
-        realized_quantity=quantity,
-        last_filled_quantity=quantity,
         order_id=2,
+        last_filled_quantity=quantity,
+        realized_quantity=quantity,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
-    )
+    await base.process_order()
 
-    assert current_position.orders is not None
-
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_NEW
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert current_position.entry_price == round(
-        (current_position.orders[0].price + current_position.orders[1].price) / 2,
+    average_price = round(
+        (orders[0].price + orders[1].price) / 2,
         1,
     )
-    assert current_position.quantity == round(
-        (
-            current_position.orders[0].realized_quantity
-            + current_position.orders[1].realized_quantity
-        ),
+
+    total_quantity = round(
+        (orders[0].realized_quantity + orders[1].realized_quantity),
         3,
     )
-    assert current_position.take_profit_order is not None
-    assert current_position.take_profit_order.quantity == (
-        current_position.orders[0].quantity + current_position.orders[1].quantity
-    )
 
-    return current_position
+    assert orders[0].status == binance.AsyncClient.ORDER_STATUS_FILLED
+    assert orders[1].status == binance.AsyncClient.ORDER_STATUS_FILLED
+    assert orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert base.position.entry_price == average_price
+    assert base.position.quantity == total_quantity
+    assert base.position.take_profit_order is not None
+    assert base.position.take_profit_order.quantity == total_quantity
+    assert orders[1].realized_quantity == quantity
 
 
-async def third_and_fourth_order_filled(base, current_position: Position) -> Position:
-    assert current_position.orders is not None
-    price = current_position.orders[2].price
-    quantity = current_position.orders[2].quantity
+async def third_and_fourth_order_filled(base):
+
+    orders = base.position.orders
+    assert orders is not None
+
+    price = orders[2].price
+    quantity = orders[2].quantity
     status = base.client.ORDER_STATUS_FILLED
 
-    order_update = OrderUpdate(
+    base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -148,33 +142,23 @@ async def third_and_fourth_order_filled(base, current_position: Position) -> Pos
         order_id=3,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
+    await base.process_order()
+
+    assert orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert orders[3].status == base.client.ORDER_STATUS_NEW
+    assert base.position.take_profit_order is not None
+
+    assert base.position.take_profit_order.quantity == (
+        orders[0].quantity + orders[1].quantity + orders[2].quantity
     )
 
-    assert current_position.orders is not None
-
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_NEW
-    assert current_position.take_profit_order is not None
-
-    assert current_position.take_profit_order.quantity == (
-        current_position.orders[0].quantity
-        + current_position.orders[1].quantity
-        + current_position.orders[2].quantity
-    )
-
-    price = current_position.orders[3].price
-    quantity = current_position.orders[3].quantity
+    price = orders[3].price
+    quantity = orders[3].quantity
     status = base.client.ORDER_STATUS_FILLED
 
-    order_update = OrderUpdate(
+    base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -183,52 +167,33 @@ async def third_and_fourth_order_filled(base, current_position: Position) -> Pos
         order_id=4,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
-    )
+    await base.process_order()
 
-    assert current_position.orders is not None
-
-    assert current_position.orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.orders[3].status == base.client.ORDER_STATUS_FILLED
-    assert current_position.entry_price == round(
-        (
-            current_position.orders[0].price
-            + current_position.orders[1].price
-            + current_position.orders[2].price
-            + current_position.orders[3].price
-        )
-        / 4,
+    assert orders[0].status == base.client.ORDER_STATUS_FILLED
+    assert orders[1].status == base.client.ORDER_STATUS_FILLED
+    assert orders[2].status == base.client.ORDER_STATUS_FILLED
+    assert orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert base.position.entry_price == round(
+        (orders[0].price + orders[1].price + orders[2].price + orders[3].price) / 4,
         1,
     )
-    assert current_position.take_profit_order is not None
-    assert current_position.take_profit_order.quantity == (
-        current_position.orders[0].quantity
-        + current_position.orders[1].quantity
-        + current_position.orders[2].quantity
-        + current_position.orders[3].quantity
+    assert base.position.take_profit_order is not None
+    assert base.position.take_profit_order.quantity == (
+        orders[0].quantity
+        + orders[1].quantity
+        + orders[2].quantity
+        + orders[3].quantity
     )
 
-    return current_position
 
+async def target_reached(base):
+    assert isinstance(base.position.take_profit_order, Order)
 
-async def target_reached(
-    base, current_position: Position
-) -> Tuple[Position, pandas.DataFrame, float]:
-
-    assert isinstance(current_position.take_profit_order, Order)
-
-    price = current_position.take_profit_order.price
-    quantity = current_position.take_profit_order.quantity
+    price = base.position.take_profit_order.price
+    quantity = base.position.take_profit_order.quantity
     status = base.client.ORDER_STATUS_FILLED
 
-    order_update = OrderUpdate(
+    base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
         status=status,
@@ -237,18 +202,10 @@ async def target_reached(
         order_id=5,
     )
 
-    current_position, base.df, balance = await order_handle(
-        client=base.client,
-        current_position=current_position,
-        order_update=order_update,
-        df=base.df,
-        balance=base.position.balance,
-    )
+    await base.process_order()
 
-    assert current_position.orders == []
-    assert current_position.take_profit_order is None
-
-    return current_position, base.df, balance
+    assert base.position.orders == []
+    assert base.position.take_profit_order == Order(price=0, quantity=0)
 
 
 async def start_long(base) -> None:
@@ -465,4 +422,17 @@ def get_position_information():
     return [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
     ]
+
+
+def get_position_information_for_order_partially_filled():
+    return [
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.046"}],
+    ]
+
+
+def get_cancel_order():
+    return {"status": "CANCELED"}

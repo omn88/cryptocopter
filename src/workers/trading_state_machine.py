@@ -30,6 +30,7 @@ from src.workers.handle_order import (
     market_order_partially_filled,
     handle_order_filled,
     handle_order_partially_filled,
+    signal_to_state,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -392,7 +393,9 @@ class TradingStateMachine:
         return condition
 
     def update_position_in_df(self, update: Union[Signal, State]):
-        self.df.at[self.df.index[-1], "Position"] = update
+        self.df.at[self.df.index[-1], "Position"] = (
+            signal_to_state(update) if isinstance(update, Signal) else update
+        )
 
     def skip_signal(self, *args, **kwargs) -> None:
         logger.info("Skipping signal: %s", self.signal_update.signal)
@@ -465,6 +468,8 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
+        self.update_position_in_df(update=self.position.status)
+
     async def handle_partial_liquidation(self, *args, **kwargs):
         await partial_position_liquidation(
             order_update=self.order_update,
@@ -480,6 +485,8 @@ class TradingStateMachine:
             order_update=self.order_update,
             balance=self.balance,
         )
+        self.position.status = State.FLAT
+        self.update_position_in_df(update=self.position.status)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")
@@ -495,6 +502,8 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
+        self.update_position_in_df(update=self.position.status)
+
     async def handle_market_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")
         self.position, self.balance = await market_order_partially_filled(
@@ -509,6 +518,8 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
         )
+
+        self.update_position_in_df(update=self.position.status)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle order partially filled")
