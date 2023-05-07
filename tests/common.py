@@ -109,10 +109,10 @@ async def second_order_filled(base):
     )
 
     total_quantity = round(
-        (orders[0].realized_quantity + orders[1].realized_quantity),
+        (orders[0].quantity + orders[1].quantity),
         3,
     )
-
+    logger.info("q: %s, tq: %s", base.position.quantity, total_quantity)
     assert orders[0].status == binance.AsyncClient.ORDER_STATUS_FILLED
     assert orders[1].status == binance.AsyncClient.ORDER_STATUS_FILLED
     assert orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
@@ -178,6 +178,16 @@ async def third_and_fourth_order_filled(base):
         1,
     )
     assert base.position.take_profit_order is not None
+    logger.info(
+        "1: %s, 2: %s",
+        base.position.take_profit_order.quantity,
+        (
+            orders[0].quantity
+            + orders[1].quantity
+            + orders[2].quantity
+            + orders[3].quantity
+        ),
+    )
     assert base.position.take_profit_order.quantity == (
         orders[0].quantity
         + orders[1].quantity
@@ -418,7 +428,7 @@ def get_orders_short_then_long(base):
     ]
 
 
-def get_position_information():
+def get_position_information_when_long():
     return [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
@@ -427,10 +437,26 @@ def get_position_information():
     ]
 
 
-def get_position_information_for_order_partially_filled():
+def get_position_information_when_long_for_order_partially_filled():
     return [
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.031"}],
         [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.046"}],
+    ]
+
+
+def get_position_information_when_short():
+    return [
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20848", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20896", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20944", "entryPrice": "20150", "positionAmt": "0.248"}],
+    ]
+
+
+def get_position_information_when_short_for_order_partially_filled():
+    return [
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.031"}],
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.046"}],
     ]
 
 
