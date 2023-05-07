@@ -281,6 +281,8 @@ async def position_liquidation(
         position=position, order_update=order_update, balance=balance
     )
 
+    position.status = State.FLAT
+
     return position, balance
 
 
@@ -293,21 +295,43 @@ async def partial_position_liquidation(
     )
 
 
-async def target_partially_reached(order_update: OrderUpdate) -> Order:
+async def target_partially_reached(
+    client: binance.AsyncClient,
+    position: Position,
+    order_update: OrderUpdate,
+    balance: float,
+) -> Tuple[Position, float]:
 
-    market_order = Order(
-        price=order_update.price,
-        quantity=order_update.quantity,
-        order_id=order_update.order_id,
-        realized_quantity=order_update.realized_quantity,
-        status=order_update.status,
-    )
+    logger.info("Take profit order filled partially")
+
+    assert isinstance(position.take_profit_order, Order)
+
+    position.take_profit_order.status = order_update.status
+    position.take_profit_order.quantity -= order_update.last_filled_quantity
+    position.take_profit_order.realized_quantity += order_update.last_filled_quantity
+    position.quantity -= order_update.last_filled_quantity
+
     logger.info(
-        "Market order realization in progress: %s!",
-        market_order,
+        "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
+        order_update.quantity,
+        order_update.last_filled_quantity,
+        order_update.realized_quantity,
+        position.take_profit_order.quantity,
     )
 
-    return market_order
+    realized_position = round(
+        abs(
+            order_update.last_filled_quantity
+            * (position.take_profit_order.price - position.entry_price)
+        ),
+        2,
+    )
+
+    balance += realized_position
+
+    logger.info("Earned: %s", round(realized_position, 2))
+
+    return position, balance
 
 
 async def target_reached(
@@ -316,7 +340,7 @@ async def target_reached(
     order_update: OrderUpdate,
     balance: float,
 ) -> Tuple[Position, float]:
-    logger.info("Target price reached.")
+    logger.info("Take profit order filled")
 
     assert isinstance(position.take_profit_order, Order)
 
@@ -344,22 +368,12 @@ async def target_reached(
 
     logger.info("Earned: %s", round(realized_position, 2))
 
-    if (
-        position.take_profit_order.quantity == 0
-        or order_update.status == client.ORDER_STATUS_FILLED
-    ):
-        logger.info("Take profit order filled!")
-        position, _ = await cancel_remaining_limit_orders(
-            client=client, position=position
-        )
-        update_artifacts_and_save(
-            position=position,
-            order_update=order_update,
-            balance=balance,
-        )
-
-    else:
-        logger.info("Take profit order filled partially!")
+    position, _ = await cancel_remaining_limit_orders(client=client, position=position)
+    update_artifacts_and_save(
+        position=position,
+        order_update=order_update,
+        balance=balance,
+    )
 
     return position, balance
 

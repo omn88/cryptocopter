@@ -425,6 +425,7 @@ class TradingStateMachine:
                 logger.info("Expired order: %s", self.order_update.order_id)
 
     async def handle_kline(self, *args, **kwargs):
+        logger.info("Entering handle kline")
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -461,6 +462,7 @@ class TradingStateMachine:
         logger.info("Exiting account handle")
 
     async def handle_liquidation(self, *args, **kwargs):
+        logger.info("Entering handle liquidation")
         self.position, self.balance = await position_liquidation(
             client=self.client,
             position=self.position,
@@ -471,14 +473,17 @@ class TradingStateMachine:
         self.update_position_in_df(update=self.position.status)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
+        logger.info("Entering handle partial liquidation")
         await partial_position_liquidation(
             order_update=self.order_update,
         )
 
     async def enter_flat(self, *args, **kwargs):
+        logger.info("Entering Flat")
         self.position = Position()
 
     async def handle_target_reached(self, *args, **kwargs):
+        logger.info("Entering handle target order filled")
         self.position, self.balance = await target_reached(
             client=self.client,
             position=self.position,
@@ -489,9 +494,12 @@ class TradingStateMachine:
         self.update_position_in_df(update=self.position.status)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
-        logger.info("Entering handle market order partially filled")
-        self.position.market_order = await target_partially_reached(
+        logger.info("Entering handle target order partially filled")
+        self.position, self.balance = await target_partially_reached(
+            client=self.client,
+            position=self.position,
             order_update=self.order_update,
+            balance=self.balance,
         )
 
     async def handle_market_order_filled(self, *args, **kwargs):
