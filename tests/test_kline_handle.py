@@ -1,23 +1,16 @@
 from unittest.mock import patch
 
-from src.features.features import Signal, State
 from src.producers.producers import Event, EventName, KlineUpdate
-from src.workers.state_actions import signal_handle
 from src.workers.worker import worker
 from tests.data.sample_dataframes import data_no_signal
 import logging
 
-from tests.test_order_handle import mock_get_order_return_value
-
 logger = logging.getLogger("test")
 
 
-@patch("binance.AsyncClient.futures_get_order")
 @patch("binance.AsyncClient.futures_cancel_order")
 @patch("binance.AsyncClient.futures_create_order")
-async def test_kline_handling(
-    mock_create_order, mock_cancel_order, mock_get_order, base
-):
+async def test_kline_handling(mock_create_order, mock_cancel_order, base):
     mock_create_order.side_effect = [
         {"orderId": "1", "price": "18500.7", "status": base.client.ORDER_STATUS_NEW},
         {"orderId": "2", "price": "18408.2", "status": base.client.ORDER_STATUS_NEW},

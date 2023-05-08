@@ -5,12 +5,7 @@ import binance
 import pandas
 import pytest
 
-from src.backtest.lib import get_futures_historical_data
-from src.common.common import insert_to_pandas
-from src.producers.producers import determine_start_position, SignalUpdate
-from src.features.features import Signal, State
-
-from tests.data.sample_dataframes import dataframe_gen
+from src.common.common import insert_to_pandas, get_futures_historical_data
 
 
 @patch("binance.AsyncClient.futures_historical_klines")

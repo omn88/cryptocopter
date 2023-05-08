@@ -20,7 +20,9 @@ from src.common.identifiers import (
     KlineUpdate,
     AccountUpdate,
     PositionMode,
+    PositionSide,
 )
+from src.workers import handle_order
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -31,6 +33,7 @@ from src.workers.handle_order import (
     handle_order_filled,
     handle_order_partially_filled,
     signal_to_state,
+    prepare_and_send_orders,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -222,7 +225,6 @@ class TradingStateMachine:
                 self.df.to_string(),
             )
 
-        signal = Signal.NULL if signal == 0 else signal
         signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
         if signal_update.signal == Signal.NULL:
             logger.info("No signal created, starting flat and awaiting new signal.")
@@ -403,6 +405,54 @@ class TradingStateMachine:
             self.df.index[-2], "Position"
         ]
 
+    async def open_dca_long(self, *args, **kwargs):
+        logger.debug("Opening %s", self.signal_update.signal)
+
+        self.position.side = PositionSide.LONG
+
+        self.position = await prepare_and_send_orders(
+            client=self.client,
+            entry_price=self.signal_update.price,
+            signal=self.signal_update.signal,
+            side=self.position.side,
+            balance=self.balance,
+            order_quantity_list=self.order_quantity_list,
+            mode=self.mode,
+        )
+
+        self.update_position_in_df(update=State(self.signal_update.signal.value))
+
+    async def open_dca_short(self, *args, **kwargs):
+        logger.info("Opening %s", self.signal_update.signal)
+
+        self.position.side = PositionSide.SHORT
+
+        self.position = await prepare_and_send_orders(
+            client=self.client,
+            entry_price=self.signal_update.price,
+            signal=self.signal_update.signal,
+            side=self.position.side,
+            balance=self.balance,
+            order_quantity_list=self.order_quantity_list,
+            mode=self.mode,
+        )
+
+        self.update_position_in_df(
+            update=signal_to_state(signal=self.signal_update.signal)
+        )
+
+    async def close_long(self, *args, **kwargs):
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_long(
+            client=self.client, balance=self.balance, position=self.position
+        )
+
+    async def close_short(self, *args, **kwargs):
+        logger.info("Closing %s", self.position.status)
+        self.position_old = await handle_order.close_short(
+            client=self.client, balance=self.balance, position=self.position
+        )
+
     def log_new_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
@@ -435,12 +485,12 @@ class TradingStateMachine:
         temp_df = self.signals_from_features_generate(df=temp_df)
         self.df = self.df.append(temp_df.iloc[-1])
 
-        signal_update = SignalUpdate(
+        self.signal_update = SignalUpdate(
             signal=self.df.iloc[-1]["signal"],
             price=round(float(self.df.iloc[-1]["Close"]), 2),
         )
 
-        if signal_update.signal == 0:
+        if self.signal_update.signal == 0:
             logger.info("Kline did not produce new signal")
             self.df.at[self.df.index[-1], "Position"] = self.df.at[
                 self.df.index[-2], "Position"
@@ -448,11 +498,11 @@ class TradingStateMachine:
         else:
             logger.info(
                 "New signal produced by Kline, processing signal: %s, price: %s",
-                signal_update.signal,
-                signal_update.price,
+                self.signal_update.signal,
+                self.signal_update.price,
             )
             await self.process_signal(
-                signal_update=signal_update, position=self.position
+                signal_update=self.signal_update, position=self.position
             )
 
     async def handle_account(self, *args, **kwargs):
