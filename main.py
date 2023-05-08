@@ -65,6 +65,7 @@ async def main():
     # Strategy returns trading state machine
     tsm = BasicStrategy(
         client=client,
+        queue=queue,
         balance=balance,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,

@@ -10,10 +10,13 @@ logger = logging.getLogger("ExtendedStrategy")
 
 
 class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
-    def __init__(self, client, balance, order_quantity_list, df, position, raw_data):
+    def __init__(
+        self, client, queue, balance, order_quantity_list, df, position, raw_data
+    ):
 
         super().__init__(
             client=client,
+            queue=queue,
             position=position,
             df=df,
             balance=balance,

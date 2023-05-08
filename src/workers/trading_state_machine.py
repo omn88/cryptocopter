@@ -1,13 +1,9 @@
+import asyncio
 from typing import List, Union, Optional
 import binance
 import numpy
 import pandas
-from transitions.extensions.asyncio import (
-    AsyncMachine,
-    AsyncState,
-    AsyncEvent,
-    AsyncEventData,
-)
+from transitions.extensions.asyncio import AsyncMachine
 import logging
 
 from src.common.common import insert_to_pandas
@@ -22,7 +18,6 @@ from src.common.identifiers import (
     PositionMode,
     PositionSide,
 )
-from src.workers import handle_order
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -34,6 +29,8 @@ from src.workers.handle_order import (
     handle_order_partially_filled,
     signal_to_state,
     prepare_and_send_orders,
+    close_long,
+    close_short,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -43,6 +40,7 @@ class TradingStateMachine:
     def __init__(
         self,
         client: binance.AsyncClient,
+        queue: asyncio.Queue,
         position: Position,
         df: pandas.DataFrame,
         balance: float,
@@ -51,6 +49,7 @@ class TradingStateMachine:
     ):
         self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
+        self.queue: asyncio.Queue = queue
         self.position: Position = position
         self.position_old: Optional[Position] = None
         self.raw_data: List = raw_data
@@ -226,12 +225,7 @@ class TradingStateMachine:
             )
 
         signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-        if signal_update.signal == Signal.NULL:
-            logger.info("No signal created, starting flat and awaiting new signal.")
-        else:
-            logger.info("Processing signal: %s, price: %s", signal, price)
-            self.signal_update = signal_update
-            await self.process_signal()
+        await self.queue.put(signal_update)
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
 
@@ -443,13 +437,13 @@ class TradingStateMachine:
 
     async def close_long(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
-        self.position_old = await handle_order.close_long(
+        self.position_old = await close_long(
             client=self.client, balance=self.balance, position=self.position
         )
 
     async def close_short(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
-        self.position_old = await handle_order.close_short(
+        self.position_old = await close_short(
             client=self.client, balance=self.balance, position=self.position
         )
 
@@ -485,25 +479,12 @@ class TradingStateMachine:
         temp_df = self.signals_from_features_generate(df=temp_df)
         self.df = self.df.append(temp_df.iloc[-1])
 
-        self.signal_update = SignalUpdate(
+        signal_update = SignalUpdate(
             signal=self.df.iloc[-1]["signal"],
             price=round(float(self.df.iloc[-1]["Close"]), 2),
         )
 
-        if self.signal_update.signal == 0:
-            logger.info("Kline did not produce new signal")
-            self.df.at[self.df.index[-1], "Position"] = self.df.at[
-                self.df.index[-2], "Position"
-            ]
-        else:
-            logger.info(
-                "New signal produced by Kline, processing signal: %s, price: %s",
-                self.signal_update.signal,
-                self.signal_update.price,
-            )
-            await self.process_signal(
-                signal_update=self.signal_update, position=self.position
-            )
+        await self.queue.put(signal_update)
 
     async def handle_account(self, *args, **kwargs):
 
