@@ -6,7 +6,7 @@ import pandas
 from transitions.extensions.asyncio import AsyncMachine
 import logging
 
-from src.common.common import insert_to_pandas
+
 from src.common.identifiers import (
     Position,
     State,
@@ -17,6 +17,8 @@ from src.common.identifiers import (
     AccountUpdate,
     PositionMode,
     PositionSide,
+    Event,
+    EventName,
 )
 from src.workers.handle_order import (
     position_liquidation,
@@ -72,12 +74,25 @@ class TradingStateMachine:
                 "trigger": "process_signal",
                 "source": "*",
                 "dest": "=",
+                "conditions": "conditions_for_no_signal",
+                "after": "skip_signal",
+            },
+            {
+                "trigger": "process_signal",
+                "source": "*",
+                "dest": "=",
                 "conditions": "conditions_for_skipping_same_signal",
                 "after": "skip_signal",
             },
             {
                 "trigger": "process_kline",
-                "source": "*",
+                "source": [
+                    State.LONG,
+                    State.LONG_20,
+                    State.SHORT,
+                    State.SHORT_80,
+                    State.FLAT,
+                ],
                 "dest": "=",
                 "after": "handle_kline",
             },
@@ -178,15 +193,17 @@ class TradingStateMachine:
             queued=True,
         )
 
-    def signals_from_features_generate(self, df) -> pandas.DataFrame:
-        df["Signal"] = numpy.select(self.conditions, self.signals)
+    @staticmethod
+    def signals_from_features_generate(
+        df: pandas.DataFrame, conditions, signals
+    ) -> pandas.DataFrame:
+        df["Signal"] = numpy.select(conditions, signals)
         df["Position"] = State.FLAT
         return df
 
     def import_feature_configuration(self, feature):
         self.machine.add_states(feature.states)
         self.signals.extend(feature.signals)
-        self.conditions.extend(feature.conditions)
 
         updated_transitions = []
         for transition in feature.transitions:
@@ -203,7 +220,7 @@ class TradingStateMachine:
 
         for index, row in self.df[::-1].iterrows():
             if row["Signal"] != 0:
-                signal = row["signal"]
+                signal = row["Signal"]
                 price = row["Close"]
                 # Adding extra lines to see what happened before signal
                 signal_index += 4
@@ -225,11 +242,24 @@ class TradingStateMachine:
             )
 
         signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-        await self.queue.put(signal_update)
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+
+    def conditions_for_no_signal(self, *args, **kwargs) -> bool:
+
+        condition = self.signal_update.signal == Signal.NULL
+
+        logger.info(
+            "Skip no signal: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
+
+        return condition
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
 
-        condition = self.state.value == self.signal_update.signal.value
+        condition = self.state == signal_to_state(self.signal_update.signal)
 
         logger.info(
             "Skip same signal: %s, state: %s signal: %s",
@@ -467,24 +497,6 @@ class TradingStateMachine:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
-
-    async def handle_kline(self, *args, **kwargs):
-        logger.info("Entering handle kline")
-
-        expected_index = int(self.raw_data[-1][0]) + 900000
-        # I need historical data here, then add the kline, generate temp dataframe, then copy last
-        assert expected_index == int(self.kline_update.kline[0])
-        self.raw_data.append(self.kline_update.kline)
-        temp_df = insert_to_pandas(data=self.raw_data)
-        temp_df = self.signals_from_features_generate(df=temp_df)
-        self.df = self.df.append(temp_df.iloc[-1])
-
-        signal_update = SignalUpdate(
-            signal=self.df.iloc[-1]["signal"],
-            price=round(float(self.df.iloc[-1]["Close"]), 2),
-        )
-
-        await self.queue.put(signal_update)
 
     async def handle_account(self, *args, **kwargs):
 

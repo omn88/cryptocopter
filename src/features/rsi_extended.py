@@ -7,13 +7,8 @@ logger = logging.getLogger("feature_rsi_extended")
 
 
 class FeatureRsiExtended:
-    def __init__(self, df):
-        self.df = self.add_columns_for_rsi_extended(df=df)
-        self.signals = [State.LONG_20, State.SHORT_80]
-        self.conditions = [
-            (df.RsiBelowTwenty.diff() == -1),
-            (df.RsiAboveEighty.diff() == -1),
-        ]
+    def __init__(self):
+        self.signals = [Signal.LONG_20, Signal.SHORT_80]
         self.states = [State.LONG_20, State.SHORT_80]
         self.transitions = [
             {
@@ -51,6 +46,22 @@ class FeatureRsiExtended:
                 "source": State.LONG_20,
                 "dest": State.SHORT,
                 "conditions": "conditions_for_switch_from_extended_long_to_basic_short",
+                "before": "close_long",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT,
+                "dest": State.LONG_20,
+                "conditions": "conditions_for_switch_from_basic_short_to_extended_long",
+                "before": "close_short",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG,
+                "dest": State.SHORT_80,
+                "conditions": "conditions_for_switch_from_basic_long_to_extended_short",
                 "before": "close_long",
                 "after": "open_dca_short",
             },
@@ -98,6 +109,14 @@ class FeatureRsiExtended:
         df["RsiAboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
         return df
 
+    @staticmethod
+    def get_conditions_for_rsi_extended(df):
+        conditions = [
+            (df.RsiBelowTwenty.diff() == -1),
+            (df.RsiAboveEighty.diff() == -1),
+        ]
+        return conditions
+
     def conditions_for_opening_extended_long(self, *args, **kwargs) -> bool:
         return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_20
 
@@ -122,6 +141,16 @@ class FeatureRsiExtended:
         self, *args, **kwargs
     ) -> bool:
         return self.state == State.LONG_20 and self.signal_update.signal == Signal.SHORT
+
+    def conditions_for_switch_from_basic_long_to_extended_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG and self.signal_update.signal == Signal.SHORT_80
+
+    def conditions_for_switch_from_basic_short_to_extended_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.SHORT and self.signal_update.signal == Signal.LONG_20
 
     def conditions_for_switch_from_extended_short_to_basic_long(
         self, *args, **kwargs

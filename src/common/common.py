@@ -69,9 +69,9 @@ async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
 async def log_signal_change(df, signal):
     logger.info(
         "Position was %s, signal: %s, position now: %s",
-        df.at[df.index[-2], "position"],
+        df.at[df.index[-2], "Position"],
         signal,
-        df.at[df.index[-1], "position"],
+        df.at[df.index[-1], "Position"],
     )
 
 

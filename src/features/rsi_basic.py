@@ -1,25 +1,15 @@
 import logging
 import numpy
 
-from src.common.identifiers import State, Signal, PositionSide
-from src.workers import handle_order
-from src.workers.handle_order import prepare_and_send_orders, signal_to_state
+from src.common.identifiers import State, Signal
 
 logger = logging.getLogger("feature_rsi_basic")
 
 
 class FeatureRsiBasic:
-    def __init__(self, df):
+    def __init__(self):
 
-        self.df = self.add_columns_for_rsi_basic(df=df)
         self.signals = [Signal.LONG, Signal.SHORT]
-        self.conditions = [
-            (self.df.RsiBelowThirty.diff() == 0)
-            & (self.df.RsiBelowThirty.diff(periods=2) == -1),
-            (self.df.RsiAboveSeventy.diff() == 0)
-            & (self.df.RsiAboveSeventy.diff(periods=2) == -1),
-        ]
-
         self.states = [State.LONG, State.SHORT]
         self.transitions = [
             {
@@ -52,13 +42,6 @@ class FeatureRsiBasic:
                 "before": "close_short",
                 "after": "open_dca_long",
             },
-            {
-                "trigger": "process_signal",
-                "source": "*",
-                "dest": "=",
-                "conditions": "conditions_for_no_signal",
-                "after": "skip_signal",
-            },
         ]
 
     @staticmethod
@@ -66,6 +49,15 @@ class FeatureRsiBasic:
         df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
         df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
         return df
+
+    @staticmethod
+    def get_conditions_for_rsi_basic(df):
+        conditions = [
+            (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
+            (df.RsiAboveSeventy.diff() == 0)
+            & (df.RsiAboveSeventy.diff(periods=2) == -1),
+        ]
+        return conditions
 
     def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
         condition = (
@@ -91,19 +83,6 @@ class FeatureRsiBasic:
             self.signal_update.signal,
         )
 
-        return condition
-
-    def conditions_for_no_signal(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state in [State.LONG, State.SHORT, State.FLAT]
-            and self.signal_update.signal == Signal.NULL
-        )
-        logger.info(
-            "Skip no signal (NULL): %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
         return condition
 
     def conditions_for_switch_to_short(self, *args, **kwargs) -> bool:

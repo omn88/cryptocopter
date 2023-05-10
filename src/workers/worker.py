@@ -51,12 +51,7 @@ async def worker(
         logger.info("New event from queue: %s", event)
 
         if EventName.KLINE == event.name:
-            logger.info(
-                "Do debugu dla MYPY, <nothing> has no attribute kline, event content: %s",
-                event.content,
-            )
             assert isinstance(event.content, KlineUpdate)
-            # TODO: THIS MAY NOT WORK, BUT IDE DOES NOT CRY ABOUT UNRESOLVED ATTRIBUTE!!
             await process_kline(tsm=tsm, kline_update=event.content)
 
         elif EventName.ORDER == event.name:
@@ -75,7 +70,7 @@ async def worker(
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return tsm.raw_data, tsm.df
+            return tsm.df
 
         logger.info("Task Done: %s", event.content)
         queue.task_done()

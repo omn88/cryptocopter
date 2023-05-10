@@ -70,10 +70,7 @@ async def main():
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
         position=position,
-        raw_data=raw_data,
     )
-    tsm.df = tsm.signals_from_features_generate(tsm.df)
-    tsm.df["Position"] = State.FLAT
     await tsm.determine_start_position()
 
     await asyncio.gather(

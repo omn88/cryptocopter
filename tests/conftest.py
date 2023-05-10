@@ -30,8 +30,8 @@ async def basic_rsi():
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
         position=position,
-        raw_data=raw_data,
         queue=queue,
+        raw_data=raw_data,
     )
 
     await tsm.determine_start_position()
@@ -59,6 +59,8 @@ async def extended_rsi():
         raw_data=raw_data,
         queue=queue,
     )
+
+    await tsm.determine_start_position()
 
     yield tsm
 
