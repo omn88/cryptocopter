@@ -98,7 +98,13 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_account",
-                "source": "*",
+                "source": [
+                    State.LONG,
+                    State.LONG_20,
+                    State.SHORT,
+                    State.SHORT_80,
+                    State.FLAT,
+                ],
                 "dest": "=",
                 "after": "handle_account",
             },

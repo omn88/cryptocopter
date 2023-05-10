@@ -19,6 +19,7 @@ from src.common.initialize_trading_environment import (
 )
 from src.common.orders import order_quantity_list_prepare, Position
 from src.strategies.rsi_basic import BasicStrategy
+from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy
 import warnings
 import os
@@ -63,13 +64,14 @@ async def main():
     df = rsi_indicator_apply(df=df)
 
     # Strategy returns trading state machine
-    tsm = BasicStrategy(
+    tsm = ExtendedStrategy(
         client=client,
         queue=queue,
         balance=balance,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
         position=position,
+        raw_data=raw_data,
     )
     await tsm.determine_start_position()
 
