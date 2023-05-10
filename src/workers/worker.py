@@ -39,6 +39,8 @@ async def worker(
     queue: asyncio.Queue,
     tsm: TradingStateMachine,
 ):
+    logger.info("Wait few seconds for socket manager to be ready.")
+    await asyncio.sleep(5)
     while True:
         logger.info("Current position: %s", pformat(tsm.position))
         logger.info("Orders: \n%s", pformat(tsm.position.orders))

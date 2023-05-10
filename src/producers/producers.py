@@ -21,6 +21,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
 
     fus = bm.futures_user_socket()
     async with fus:
+        logger.info("Ready to receive first user socket message.")
         while True:
             msg = await fus.recv()
             if msg["e"] == "ACCOUNT_UPDATE":
@@ -71,6 +72,7 @@ async def kline_futures_socket(
     last_msg_before_new_kline: Dict = {}
     kfs = bsm.kline_futures_socket(symbol=SYMBOL, interval=interval)
     async with kfs:
+        logger.info("Ready to receive first kline socket message.")
         while True:
             msg = await kfs.recv()
             kline_start_time = int(msg["k"]["t"]) - 900000
