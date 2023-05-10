@@ -1,52 +1,31 @@
-from src.features import signals_from_features_generate, Signals
+from typing import List
+
 import pandas
 import logging
 import numpy
 
+from src.common.identifiers import Signal
+
 logger = logging.getLogger("sample_dataframes")
 
 
-def dataframe_gen(desired_signal: Signals) -> pandas.DataFrame:
-    data = []
+def raw_data_generate(desired_signal: Signal) -> List:
 
-    if desired_signal == Signals.LONG:
-        data = data_long()
-    elif desired_signal == Signals.SHORT:
-        data = data_short()
-    elif desired_signal == Signals.SHORT_80:
-        data = data_short_eighty()
-    elif desired_signal == Signals.LONG_20:
-        data = data_long_twenty()
-    elif desired_signal == Signals.NULL:
-        data = data_no_signal()
+    if desired_signal == Signal.LONG:
+        raw_data = data_long()
+    elif desired_signal == Signal.SHORT:
+        raw_data = data_short()
+    elif desired_signal == Signal.SHORT_80:
+        raw_data = data_short_eighty()
+    elif desired_signal == Signal.LONG_20:
+        raw_data = data_long_twenty()
+    elif desired_signal == Signal.NULL:
+        raw_data = data_no_signal()
     else:
-        logger.info(
-            "Dataframe could not be generated, because wrong desired signal was provided"
-        )
+        logger.info("Wrong signal provided")
+        raise KeyError
 
-    df = pandas.DataFrame(data=data)
-    df = df.iloc[:, :7]
-    df.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    df = df.set_index("Date")
-    df.index = pandas.to_datetime(df.index, unit="ms") + numpy.timedelta64(1, "h")
-    df = df.astype(float)
-
-    df = signals_from_features_generate(df=df)
-
-    return df
-
-
-def dataframe_gen_based_on_data(data) -> pandas.DataFrame:
-
-    df = pandas.DataFrame(data=data)
-    df = df.iloc[:, :7]
-    df.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    df = df.set_index("Date")
-    df = df.astype(float)
-
-    df = signals_from_features_generate(df=df)
-
-    return df
+    return raw_data
 
 
 def data_short():

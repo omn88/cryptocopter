@@ -1,87 +1,76 @@
 import asyncio
 import logging
-from typing import List
 from pprint import pformat
-import binance
-import pandas
-from src import orders
-from src.common import print_last_n_rows
-from src.producers import producers
-from src.producers.producers import (
+from src.common.common import print_last_n_rows
+from src.common.identifiers import (
+    KlineUpdate,
     OrderUpdate,
     SignalUpdate,
-    KlineUpdate,
+    AccountUpdate,
+    EventName,
+    Event,
 )
-from src.workers.handle_account import account_handle
-from src.workers.handle_order import order_handle
-from src.workers.handle_signal import signal_handle
-from src.workers.kline_handle import kline_handle
+from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("worker_main")
 
 
-async def worker(
-    df: pandas.DataFrame,
-    queue: asyncio.Queue,
-    client: binance.AsyncClient,
-    historical_data: List,
-    position: orders.Position,
-):
+async def process_kline(tsm: TradingStateMachine, kline_update: KlineUpdate):
+    tsm.kline_update = kline_update
+    await tsm.machine.model.process_kline()
 
+
+async def process_signal(tsm: TradingStateMachine, signal_update: SignalUpdate):
+    tsm.signal_update = signal_update
+    await tsm.machine.model.process_signal()
+
+
+async def process_account(tsm: TradingStateMachine, account_update: AccountUpdate):
+    tsm.account_update = account_update
+    await tsm.machine.model.process_account()
+
+
+async def process_order(tsm: TradingStateMachine, order_update: OrderUpdate):
+    tsm.order_update = order_update
+    await tsm.machine.model.process_order()
+
+
+async def worker(
+    queue: asyncio.Queue,
+    tsm: TradingStateMachine,
+):
     while True:
-        logger.info("Current position: %s", pformat(position.current_position))
-        logger.info("Orders: \n%s", pformat(position.current_position.orders))
+        logger.info("Current position: %s", pformat(tsm.position))
+        logger.info("Orders: \n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new event...")
 
         event = await queue.get()
-        assert isinstance(event, producers.Event)
+        assert isinstance(event, Event)
         logger.info("New event from queue: %s", event)
 
-        if producers.EventName.KLINE == event.name:
+        if EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)
-            historical_data, df, position.current_position = await kline_handle(
-                client=client,
-                historical_data=historical_data,
-                df=df,
-                current_position=position.current_position,
-                kline=event.content.kline,
-                balance=position.balance,
-                order_quantity_list=position.order_quantity_list,
-                queue=queue,
-            )
+            await process_kline(tsm=tsm, kline_update=event.content)
 
-        elif producers.EventName.ORDER == event.name:
+        elif EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
-            position.current_position, df, position.balance = await order_handle(
-                client=client,
-                current_position=position.current_position,
-                order_update=event.content,
-                df=df,
-                balance=position.balance,
-            )
+            await process_order(tsm=tsm, order_update=event.content)
 
-        elif producers.EventName.ACCOUNT == event.name:
-            df, position = await account_handle(df=df, position=position)
+        elif EventName.ACCOUNT == event.name:
+            assert isinstance(event.content, AccountUpdate)
+            await process_account(tsm=tsm, account_update=event.content)
 
-        elif producers.EventName.SIGNAL == event.name:
+        elif EventName.SIGNAL == event.name:
             assert isinstance(event.content, SignalUpdate)
-            position.current_position, df = await signal_handle(
-                client=client,
-                df=df,
-                signal_update=event.content,
-                current_position=position.current_position,
-                balance=position.balance,
-                order_quantity_list=position.order_quantity_list,
-                queue=queue,
-            )
+            await process_signal(tsm=tsm, signal_update=event.content)
 
-            await print_last_n_rows(df=df)
+            await print_last_n_rows(df=tsm.df)
 
-        elif producers.EventName.SENTINEL == event.name:
+        elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            return historical_data, df, position
+            return tsm.df
 
         logger.info("Task Done: %s", event.content)
         queue.task_done()

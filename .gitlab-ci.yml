@@ -1,0 +1,37 @@
+image: python:3.9
+
+stages:
+  - formatting
+  - linting
+  - testing
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - python -V
+  - pip install -U pip
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip install -r requirements/develop.txt
+
+formatting:
+  stage: formatting
+  script:
+    - pip install black
+    - black --check .
+
+linting:
+  stage: linting
+  script:
+    - pip install mypy
+    - mypy --ignore-missing-imports --exclude tests/ --exclude src/backtest/ --exclude venv/ .
+
+testing:
+  stage: testing
+  script:
+    - pip install pytest
+    - pytest

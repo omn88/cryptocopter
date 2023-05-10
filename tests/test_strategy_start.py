@@ -1,16 +1,22 @@
-import asyncio
 from unittest.mock import patch
 import json
 import binance
 import pandas
 import pytest
 
-from src.backtest.lib import get_futures_historical_data
-from src.common import insert_to_pandas
-from src.producers.producers import determine_start_position, SignalUpdate
-from src.features import Signals
-
-from tests.data.sample_dataframes import dataframe_gen
+from src.common.common import (
+    insert_to_pandas,
+    get_futures_historical_data,
+    rsi_indicator_apply,
+)
+from src.common.identifiers import Signal, State, SignalUpdate, Position
+from src.common.initialize_trading_environment import (
+    create_async_queue,
+    create_async_client,
+)
+from src.common.orders import order_quantity_list_prepare
+from src.strategies.rsi_extended import ExtendedStrategy
+from tests.data.sample_dataframes import raw_data_generate
 
 
 @patch("binance.AsyncClient.futures_historical_klines")
@@ -35,23 +41,35 @@ async def test_get_historical_data(mock_get_historical_klines):
 
 @pytest.mark.parametrize(
     "signal",
-    [Signals.LONG, Signals.LONG_20, Signals.SHORT, Signals.SHORT_80],
+    [Signal.LONG, Signal.LONG_20, Signal.SHORT, Signal.SHORT_80],
 )
 async def test_determine_start_position(signal):
-    client = binance.AsyncClient()
-    queue = asyncio.Queue()
-    assert queue.qsize() == 0
 
-    try:
-        df = dataframe_gen(desired_signal=signal)
-        df["position"] = Signals.FLAT
+    raw_data = raw_data_generate(desired_signal=signal)
+    df = insert_to_pandas(data=raw_data)
+    df = rsi_indicator_apply(df=df)
+    client = await create_async_client()
+    position = Position()
+    queue = await create_async_queue()
 
-        await determine_start_position(df=df, queue=queue)
+    tsm = ExtendedStrategy(
+        client=client,
+        balance=1000,
+        order_quantity_list=order_quantity_list_prepare(),
+        df=df,
+        position=position,
+        raw_data=raw_data,
+        queue=queue,
+    )
+    tsm.signals_from_features_generate(df)
+    tsm.signal_update = SignalUpdate(signal=signal, price=0)
 
-        assert queue.qsize() == 1
-        event = await queue.get()
-        assert isinstance(event.content, SignalUpdate)
-        assert event.content.signal == signal
-        assert queue.qsize() == 0
-    finally:
-        await client.close_connection()
+    await tsm.determine_start_position()
+
+    assert tsm.queue.qsize() == 1
+    event = await tsm.queue.get()
+    assert isinstance(event, SignalUpdate)
+    assert event.signal == signal
+    assert tsm.queue.qsize() == 0
+
+    await tsm.client.close_connection()

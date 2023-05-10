@@ -3,7 +3,7 @@ import binance
 import lib
 from decouple import config
 
-from src import orders
+from src.common import orders
 
 client = binance.Client(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
 

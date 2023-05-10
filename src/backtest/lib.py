@@ -7,7 +7,7 @@ from matplotlib import pyplot
 import binance
 
 from constants import SYMBOL
-from src.orders import Order, PositionSide
+from src.common.orders import Order, PositionSide
 
 logger = logging.getLogger("lib")
 
@@ -24,16 +24,6 @@ def target_depo_price_calculate(
         target_price = round((1 - (100 / leverage / 100)) * price, 2)
         depo_price = round((1 + (100 / leverage / 100)) * price, 2)
         return target_price, depo_price
-
-
-async def get_futures_historical_data(
-    client: binance.AsyncClient, interval: str, lookback: str
-) -> List:
-
-    historical_data = await client.futures_historical_klines(
-        SYMBOL, interval, lookback + "min ago UTC"
-    )
-    return historical_data[:-1]
 
 
 def get_futures_historical_data_sync(

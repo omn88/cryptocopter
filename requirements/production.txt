@@ -2,3 +2,4 @@ python-binance==1.0.16
 bta-lib==1.0.0
 pandas==1.5.2
 numpy==1.24.1
+transitions==0.9.0

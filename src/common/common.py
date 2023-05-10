@@ -1,14 +1,15 @@
 import errno
 import logging
 import os
-from typing import List, Tuple
+from typing import List
 import datetime
 import binance
+import btalib
 import numpy
 import pandas
-from binance.exceptions import BinanceAPIException
 
 from constants import SYMBOL
+from src.common.identifiers import Signal
 
 logger = logging.getLogger("common")
 
@@ -39,32 +40,14 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
     return df
 
 
-async def futures_get_position_info(
-    client: binance.AsyncClient,
-) -> Tuple[float, float, float]:
-    """
-    Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
+async def get_futures_historical_data(
+    client: binance.AsyncClient, interval: str, lookback: str
+) -> List:
 
-    :param client: An instance of the Binance async client
-    :type client: binance.AsyncClient
-    :return: A dictionary containing the symbol, liquidation price, entry price and position amount for the given symbol
-    :rtype: dict
-    """
-    logger.info("Enter position information")
-    try:
-        resp = await client.futures_position_information(symbol=SYMBOL)
-        logger.info("RESP: %s", resp)
-        liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)
-        entry_price = round(float(resp[0]["entryPrice"]), 1)
-        position_amt = float(resp[0]["positionAmt"])
-    except BinanceAPIException as e:
-        raise ValueError(
-            f"Failed to retrieve position information for symbol {SYMBOL} due to {e}"
-        )
-
-    logger.info("Exit position information")
-
-    return liquidation_price, entry_price, position_amt
+    historical_data = await client.futures_historical_klines(
+        SYMBOL, interval, lookback + "min ago UTC"
+    )
+    return historical_data[:-1]
 
 
 async def print_last_n_rows(df: pandas.DataFrame, rows: int = 8):
@@ -81,3 +64,20 @@ async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
     logger.info("Balance for %s: %s", account_balance[6]["asset"], balance)
 
     return balance
+
+
+async def log_signal_change(df, signal):
+    logger.info(
+        "Position was %s, signal: %s, position now: %s",
+        df.at[df.index[-2], "Position"],
+        signal,
+        df.at[df.index[-1], "Position"],
+    )
+
+
+def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
+    rsi = btalib.rsi(df, period=14)
+    df["RSI"] = rsi.df
+    df.dropna(inplace=True)
+
+    return df
