@@ -29,7 +29,7 @@ async def create_async_client() -> binance.AsyncClient:
 
 async def create_socket_manager(client: binance.AsyncClient) -> BinanceSocketManager:
     bsm = BinanceSocketManager(client)
-    logger.info("Binance socket manager ready")
+    logger.info("Binance socket manager created.")
 
     return bsm
 

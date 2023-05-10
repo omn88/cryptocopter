@@ -34,44 +34,6 @@ from src.producers.producers import OrderUpdate
 logger = logging.getLogger("handle_order")
 
 
-# async def futures_validate_orders(
-#     position: Position,
-#     client: binance.AsyncClient,
-#     df: pandas.DataFrame,
-#     balance: float,
-# ) -> Tuple[Position, pandas.DataFrame, float]:
-#     assert position.orders is not None
-#     for order in position.orders:
-#         order = await futures_get_order(client=client, order=order)
-#
-#         if order.status != "NEW":
-#             order_update = OrderUpdate(
-#                 price=order.price,
-#                 quantity=order.quantity,
-#                 status=order.status,
-#                 order_id=order.order_id,
-#                 order_type="LIMIT",
-#                 last_filled_quantity=order.realized_quantity,
-#                 realized_quantity=order.realized_quantity,
-#             )
-#
-#             position, df, balance = await order_handle(
-#                 df=df,
-#                 balance=balance,
-#                 position=position,
-#                 order_update=order_update,
-#                 client=client,
-#             )
-#             logger.info(
-#                 "Order %s status changed to %s. Sending order update: %s",
-#                 order.order_id,
-#                 order.status,
-#                 order_update,
-#             )
-#
-#     return position, df, balance
-
-
 def signal_to_state(signal: Signal) -> State:
     return State(signal.value)
 
