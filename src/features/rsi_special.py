@@ -50,14 +50,14 @@ class FeatureRsiSpecial:
         {
             "trigger": "process_signal",
             "source": State.LONG_SPECIAL,
-            "dest": [State.SHORT, State.SHORT_80],
+            "dest": [State.SHORT, State.SHORT_EXT],
             "conditions": "conditions_for_skipping_when_long_special",
             "before": "skip_signal",
         },
         {
             "trigger": "process_signal",
             "source": State.SHORT_SPECIAL,
-            "dest": [State.LONG, State.LONG_20],
+            "dest": [State.LONG, State.LONG_EXT],
             "conditions": "conditions_for_skipping_when_short_special",
             "before": "skip_signal",
         },

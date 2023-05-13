@@ -494,9 +494,9 @@ async def futures_position_close(
     client: binance.AsyncClient, position: Position, balance: float
 ):
 
-    if position.status in [State.LONG, State.LONG_20, State.LONG_SPECIAL]:
+    if position.status in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
         _ = await close_long(client=client, position=position, balance=balance)
-    elif position.status in [State.SHORT, State.SHORT_80, State.SHORT_SPECIAL]:
+    elif position.status in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
         _ = await close_short(client=client, position=position, balance=balance)
 
 
