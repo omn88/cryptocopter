@@ -42,6 +42,9 @@ async def worker(
     logger.info("Wait few seconds for socket manager to be ready.")
     await asyncio.sleep(5)
     while True:
+        logger.info(
+            "--------------------------------------------------------------------------------------------"
+        )
         logger.info("Position: %s", pformat(tsm.position))
         logger.info("Orders: \n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
@@ -55,6 +58,8 @@ async def worker(
         if EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)
             await process_kline(tsm=tsm, kline_update=event.content)
+
+            await print_last_n_rows(df=tsm.df)
 
         elif EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
@@ -74,5 +79,4 @@ async def worker(
             logger.info("SENTINEL -> Exiting worker")
             return tsm.df
 
-        logger.info("Task Done: %s", event.content)
         queue.task_done()
