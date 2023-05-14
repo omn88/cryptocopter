@@ -41,7 +41,7 @@ async def test_get_historical_data(mock_get_historical_klines):
 
 @pytest.mark.parametrize(
     "signal",
-    [Signal.LONG, Signal.LONG_20, Signal.SHORT, Signal.SHORT_80],
+    [Signal.LONG, Signal.LONG_EXT, Signal.SHORT, Signal.SHORT_EXT],
 )
 async def test_determine_start_position(signal):
 

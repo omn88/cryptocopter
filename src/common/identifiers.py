@@ -11,18 +11,18 @@ import binance
 class State(Enum):
     FLAT = "FLAT"
     LONG = "LONG"
-    LONG_20 = "LONG_20"
+    LONG_EXT = "LONG_EXT"
     SHORT = "SHORT"
-    SHORT_80 = "SHORT_80"
+    SHORT_EXT = "SHORT_EXT"
     LONG_SPECIAL = "LONG_SPECIAL"
     SHORT_SPECIAL = "SHORT_SPECIAL"
 
 
 class Signal(Enum):
     LONG = "LONG"
-    LONG_20 = "LONG_20"
+    LONG_EXT = "LONG_EXT"
     SHORT = "SHORT"
-    SHORT_80 = "SHORT_80"
+    SHORT_EXT = "SHORT_EXT"
     LONG_SPECIAL = "LONG_SPECIAL"
     SHORT_SPECIAL = "SHORT_SPECIAL"
     CLOSE_SPECIAL = "CLOSE_SPECIAL"

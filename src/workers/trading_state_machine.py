@@ -88,9 +88,9 @@ class TradingStateMachine:
                 "trigger": "process_kline",
                 "source": [
                     State.LONG,
-                    State.LONG_20,
+                    State.LONG_EXT,
                     State.SHORT,
-                    State.SHORT_80,
+                    State.SHORT_EXT,
                     State.FLAT,
                 ],
                 "dest": "=",
@@ -100,9 +100,9 @@ class TradingStateMachine:
                 "trigger": "process_account",
                 "source": [
                     State.LONG,
-                    State.LONG_20,
+                    State.LONG_EXT,
                     State.SHORT,
-                    State.SHORT_80,
+                    State.SHORT_EXT,
                     State.FLAT,
                 ],
                 "dest": "=",
@@ -110,35 +110,35 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
                 "after": "log_new_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
                 "after": "log_cancelled_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_expiration",
                 "after": "log_expired_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_partial_position_liquidation",
                 "before": "handle_partial_liquidation",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_position_liquidation",
                 "before": "handle_liquidation",
@@ -146,14 +146,14 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_target_partially_reached",
                 "before": "handle_target_partially_reached",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_target_reached",
                 "before": "handle_target_reached",
@@ -161,7 +161,7 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": State.FLAT,
                 "conditions": "conditions_for_market_order_filled",
                 "before": "handle_market_order_filled",
@@ -169,21 +169,21 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_market_order_filled_partially",
                 "before": "handle_market_order_filled_partially",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_20, State.SHORT, State.SHORT_80],
+                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled",
                 "before": "handle_order_partially_filled",
@@ -307,13 +307,17 @@ class TradingStateMachine:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            self.order_update.order_type
+            in [
+                self.client.FUTURE_ORDER_TYPE_LIMIT,
+                self.client.FUTURE_ORDER_TYPE_MARKET,
+            ]
             and self.order_update.status == self.client.ORDER_STATUS_NEW
         )
         logger.info(
-            "New order confirmation: %s, state: %s order update status: %s",
+            "New order confirmation: %s, order type: %s order status: %s",
             condition,
-            self.state,
+            self.order_update.order_type,
             self.order_update.status,
         )
         return condition

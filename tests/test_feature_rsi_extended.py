@@ -21,7 +21,7 @@ async def test_signal_handle_long_twenty_when_flat(
     mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -42,7 +42,7 @@ async def test_signal_handle_short_eighty_when_flat(
     mock_create_orders_short.side_effect = get_orders_short(base=extended_rsi)
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -63,7 +63,7 @@ async def test_signal_handle_long_twenty_when_long_twenty(
     mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -98,7 +98,7 @@ async def test_signal_handle_short_eighty_when_long_twenty(
     mock_cancel_order.return_value = get_cancel_order()
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -112,7 +112,7 @@ async def test_signal_handle_short_eighty_when_long_twenty(
     )
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -133,7 +133,7 @@ async def test_signal_handle_null_when_long_twenty(
     mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
     await extended_rsi.process_signal()
 
@@ -170,7 +170,7 @@ async def test_signal_handle_long_twenty_when_short_eighty(
     mock_cancel_order.return_value = get_cancel_order()
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -184,7 +184,7 @@ async def test_signal_handle_long_twenty_when_short_eighty(
     )
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -204,7 +204,7 @@ async def test_signal_handle_short_eighty_when_short_eighty(
 ):
     mock_create_orders_short.side_effect = get_orders_short(base=extended_rsi)
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -234,7 +234,7 @@ async def test_signal_handle_null_when_short_eighty(
 ):
     mock_create_orders_short.side_effect = get_orders_short(base=extended_rsi)
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -266,7 +266,7 @@ async def test_signal_handle_long_when_long_twenty(
 ):
     mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
 
     await extended_rsi.process_signal()
@@ -301,7 +301,7 @@ async def test_signal_handle_short_when_long_twenty(
     mock_cancel_order.return_value = get_cancel_order()
 
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.LONG_20, df=extended_rsi.df
+        signal=Signal.LONG_EXT, df=extended_rsi.df
     )
     await extended_rsi.process_signal()
 
@@ -337,7 +337,7 @@ async def test_signal_handle_long_when_short_eighty(
     )
     mock_cancel_order.return_value = get_cancel_order()
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
     await extended_rsi.process_signal()
 
@@ -367,7 +367,7 @@ async def test_signal_handle_short_when_short_eighty(
 ):
     mock_create_orders_short.side_effect = get_orders_short(base=extended_rsi)
     extended_rsi.signal_update = generate_signal(
-        signal=Signal.SHORT_80, df=extended_rsi.df
+        signal=Signal.SHORT_EXT, df=extended_rsi.df
     )
     await extended_rsi.process_signal()
 

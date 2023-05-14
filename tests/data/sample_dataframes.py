@@ -15,9 +15,9 @@ def raw_data_generate(desired_signal: Signal) -> List:
         raw_data = data_long()
     elif desired_signal == Signal.SHORT:
         raw_data = data_short()
-    elif desired_signal == Signal.SHORT_80:
+    elif desired_signal == Signal.SHORT_EXT:
         raw_data = data_short_eighty()
-    elif desired_signal == Signal.LONG_20:
+    elif desired_signal == Signal.LONG_EXT:
         raw_data = data_long_twenty()
     elif desired_signal == Signal.NULL:
         raw_data = data_no_signal()

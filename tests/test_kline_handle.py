@@ -80,7 +80,7 @@ async def test_rsi_basic_handle_kline_long_twenty(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_20
+    assert extended_rsi.position.status == State.LONG_EXT
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
@@ -129,7 +129,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_20
+    assert extended_rsi.position.status == State.LONG_EXT
 
     # LONG
     kline_update = KlineUpdate(
@@ -203,7 +203,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_20
+    assert extended_rsi.position.status == State.LONG_EXT
 
     # LONG
     kline_update = KlineUpdate(
@@ -302,7 +302,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_20
+    assert extended_rsi.position.status == State.LONG_EXT
 
     # LONG
     kline_update = KlineUpdate(
@@ -377,7 +377,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.SHORT_80
+    assert extended_rsi.position.status == State.SHORT_EXT
 
 
 @patch("binance.AsyncClient.futures_cancel_order")
@@ -426,7 +426,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_20
+    assert extended_rsi.position.status == State.LONG_EXT
 
     # LONG
     kline_update = KlineUpdate(
@@ -501,7 +501,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.SHORT_80
+    assert extended_rsi.position.status == State.SHORT_EXT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     kline_update = KlineUpdate(
@@ -593,7 +593,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.LONG_SPECIAL
 #
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80
+#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672313400000, 19573.19, 19605.9, 18360.1, 36400.72, 0, 0]
@@ -616,7 +616,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.LONG_SPECIAL
 #
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT
+#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672314300000, 19573.19, 19605.9, 18360.1, 32400.72, 0, 0]
@@ -639,7 +639,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.LONG_SPECIAL
 #
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL
+#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT NULL
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672315200000, 19573.19, 19605.9, 18360.1, 32400.72, 0, 0]
@@ -662,7 +662,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.LONG_SPECIAL
 #
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_80 SHORT NULL NULL
+#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT NULL NULL
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672316100000, 19573.19, 19605.9, 18360.1, 20400.72, 0, 0]
@@ -806,7 +806,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.SHORT_SPECIAL
 #
-#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20
+#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 17700.72, 0, 0]
@@ -828,7 +828,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.SHORT_SPECIAL
 #
-#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG
+#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 17700.72, 0, 0]
@@ -850,7 +850,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.SHORT_SPECIAL
 #
-#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL
+#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG NULL
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 17800.72, 0, 0]
@@ -872,7 +872,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 #     assert 1000 == position.balance
 #     assert position.current_position.status == Signals.SHORT_SPECIAL
 #
-#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_20 LONG NULL CLOSE
+#     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG NULL CLOSE
 #     kline_update = KlineUpdate(
 #         kline=[
 #             str(x) for x in [1672312500000, 19573.19, 19605.9, 18360.1, 19700.72, 0, 0]
