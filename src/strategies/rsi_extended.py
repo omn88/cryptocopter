@@ -69,15 +69,17 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
 
         self.df = self.df.append(temp_df.tail(1))
 
-        self.signal_update = SignalUpdate(
-            signal=self.df.iloc[-1]["Signal"],
-            price=round(float(self.df.iloc[-1]["Close"]), 2),
-        )
-
         if self.signal_update.signal == 0:
-            self.signal_update.signal = Signal.NULL
+            self.signal_update = SignalUpdate(
+                signal=Signal.NULL,
+                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            )
             self.skip_signal()
         else:
+            self.signal_update = SignalUpdate(
+                signal=self.df.iloc[-1]["Signal"],
+                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            )
             await self.queue.put(
                 Event(name=EventName.SIGNAL, content=self.signal_update)
             )
