@@ -42,15 +42,15 @@ async def worker(
     logger.info("Wait few seconds for socket manager to be ready.")
     await asyncio.sleep(5)
     while True:
-        logger.info("Current position: %s", pformat(tsm.position))
+        logger.info("Position: %s", pformat(tsm.position))
         logger.info("Orders: \n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
-            logger.info("Awaiting new event...")
+            logger.info("Awaiting new Event...")
 
         event = await queue.get()
         assert isinstance(event, Event)
-        logger.info("New event from queue: %s", event)
+        logger.info("New Event: %s", event)
 
         if EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)

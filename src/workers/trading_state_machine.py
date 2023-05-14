@@ -510,9 +510,7 @@ class TradingStateMachine:
 
     async def handle_account(self, *args, **kwargs):
 
-        logger.info("Entering account handle")
         logger.info("Account update: %s", self.account_update.account_update)
-        logger.info("Exiting account handle")
 
     async def handle_liquidation(self, *args, **kwargs):
         logger.info("Entering handle liquidation")
