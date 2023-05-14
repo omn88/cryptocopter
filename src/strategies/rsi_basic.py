@@ -70,18 +70,20 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         )
         self.df = self.df.append(temp_df.tail(1))
 
-        signal = self.df.iloc[-1]["Signal"]
+        self.signal_update = SignalUpdate(
+            signal=self.df.iloc[-1]["Signal"],
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
+        )
 
-        if signal == 0:
+        if self.signal_update.signal == 0:
+            self.signal_update.signal = Signal.NULL
             self.skip_signal()
         else:
-            signal_update = SignalUpdate(
-                signal=signal,
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            await self.queue.put(
+                Event(name=EventName.SIGNAL, content=self.signal_update)
             )
-            await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
             logger.info(
                 "Added to queue, signal: %s, price: %s",
-                signal_update.signal,
-                signal_update.price,
+                self.signal_update.signal,
+                self.signal_update.price,
             )

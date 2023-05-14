@@ -61,7 +61,7 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
         temp_df = self.add_columns_for_rsi_extended(df=temp_df)
 
-        self.conditions = self.get_conditions_for_rsi_extended(df=temp_df)
+        self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
 
         temp_df = self.signals_from_features_generate(
             df=temp_df, signals=self.signals, conditions=self.conditions
@@ -69,18 +69,20 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
 
         self.df = self.df.append(temp_df.tail(1))
 
-        signal = self.df.iloc[-1]["Signal"]
+        self.signal_update = SignalUpdate(
+            signal=self.df.iloc[-1]["Signal"],
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
+        )
 
-        if signal == 0:
+        if self.signal_update.signal == 0:
+            self.signal_update.signal = Signal.NULL
             self.skip_signal()
         else:
-            signal_update = SignalUpdate(
-                signal=signal,
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            await self.queue.put(
+                Event(name=EventName.SIGNAL, content=self.signal_update)
             )
-            await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
             logger.info(
                 "Added to queue, signal: %s, price: %s",
-                signal_update.signal,
-                signal_update.price,
+                self.signal_update.signal,
+                self.signal_update.price,
             )

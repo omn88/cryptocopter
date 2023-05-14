@@ -46,7 +46,7 @@ def register_signal_handlers(loop, client, position, balance):
     for s in signals:
         loop.add_signal_handler(
             s,
-            lambda s=s: asyncio.create_task(
+            lambda s=s: asyncio.create_task(  # ToDo: THERE IS A METHOD FOR CLOSING ALL OPEN ORDERS
                 shutdown(
                     client=client,
                     posix_signal=s,

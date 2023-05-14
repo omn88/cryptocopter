@@ -31,7 +31,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                         content=AccountUpdate(account_update=msg),
                     )
                 )
-                logger.info("Account update msg: %s", msg)
+                logger.debug("Account update msg: %s", msg)
             elif msg["e"] == "ORDER_TRADE_UPDATE":
                 order_info = msg["o"]
                 price = round(float(order_info["p"]), 1)
@@ -53,7 +53,7 @@ async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
                     realized_quantity=realized_quantity,
                 )
                 await queue.put(Event(name=EventName.ORDER, content=order_update))
-                logger.info("Order trade update msg: %s", msg)
+                logger.debug("Order trade update msg: %s", msg)
             elif msg["e"] == "MARGIN_CALL":
                 logger.info("Margin call")
             else:

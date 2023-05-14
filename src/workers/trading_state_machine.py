@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from typing import List, Union, Optional
 import binance
 import numpy
@@ -33,6 +34,7 @@ from src.workers.handle_order import (
     prepare_and_send_orders,
     close_long,
     close_short,
+    futures_position_close,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -510,9 +512,7 @@ class TradingStateMachine:
 
     async def handle_account(self, *args, **kwargs):
 
-        logger.info("Entering account handle")
         logger.info("Account update: %s", self.account_update.account_update)
-        logger.info("Exiting account handle")
 
     async def handle_liquidation(self, *args, **kwargs):
         logger.info("Entering handle liquidation")
