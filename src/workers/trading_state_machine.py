@@ -307,13 +307,17 @@ class TradingStateMachine:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            self.order_update.order_type
+            in [
+                self.client.FUTURE_ORDER_TYPE_LIMIT,
+                self.client.FUTURE_ORDER_TYPE_MARKET,
+            ]
             and self.order_update.status == self.client.ORDER_STATUS_NEW
         )
         logger.info(
-            "New order confirmation: %s, state: %s order update status: %s",
+            "New order confirmation: %s, order type: %s order status: %s",
             condition,
-            self.state,
+            self.order_update.order_type,
             self.order_update.status,
         )
         return condition
