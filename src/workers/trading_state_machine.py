@@ -523,8 +523,6 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-        self.update_position_in_df(update=self.position_old.status)
-
     async def handle_partial_liquidation(self, *args, **kwargs):
         logger.info("Entering handle partial liquidation")
         await partial_position_liquidation(

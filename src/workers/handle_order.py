@@ -435,7 +435,9 @@ def update_artifacts_and_save(
             if order_update.order_type in ["MARKET", "LIQUIDATION"]
             else order_update.price
         )
-        artifacts.per_cent_earned = order_update.price / position.entry_price
+        artifacts.per_cent_earned = round(
+            float(order_update.price / position.entry_price), 3
+        )
         artifacts.stable_earned = artifacts.quantity * (
             order_update.price - artifacts.price
         )
@@ -450,6 +452,7 @@ def update_artifacts_and_save(
     artifacts.price = position.entry_price
     artifacts.quantity = position.quantity
     artifacts.end_balance = balance
+    artifacts.market_order = position.market_order
 
     logger.info("Position artifacts: %s", pformat(artifacts))
 
