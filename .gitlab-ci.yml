@@ -28,7 +28,7 @@ linting:
   stage: linting
   script:
     - pip install mypy
-    - mypy .
+    - mypy --config-file mypy.ini .
 
 testing:
   stage: testing
