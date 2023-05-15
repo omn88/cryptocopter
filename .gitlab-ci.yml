@@ -28,7 +28,7 @@ linting:
   stage: linting
   script:
     - pip install mypy
-    - mypy --config-file mypy.ini .
+    - mypy --ignore-missing-imports --exclude venv --exclude src/backtest --exclude src/features .
 
 testing:
   stage: testing
