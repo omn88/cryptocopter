@@ -468,6 +468,6 @@ def get_cancel_order():
 async def create_async_client_for_test():
     # This API key is added by purpose of CI tests. It allows to only read data.
     return await AsyncClient.create(
-        api_key="G3GZnJ4487BwmYeEQFppanSB7xzafp3lq7DoZehdaII0ephSeuJ0Y27SYtQZiL8K",
-        api_secret="1aWcMJH4wZav9R12mVHNKpoHm8BZrUuMj5bWjGwGARQkXJUaM3Viqww9kyOpsKbl",
+        api_key="dupa",
+        api_secret="dupa",
     )
