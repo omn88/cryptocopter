@@ -473,8 +473,6 @@ async def market_order_filled(
         balance=balance,
     )
 
-    position.orders = []
-
 
 async def market_order_partially_filled(order_update: OrderUpdate, position: Position):
     position.market_order = Order(

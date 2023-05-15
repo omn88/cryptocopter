@@ -316,17 +316,25 @@ async def send_market_order(
     position: Position,
     side: str,
 ):
+
     try:
+        type = client.FUTURE_ORDER_TYPE_MARKET
         resp = await client.futures_create_order(
             symbol=SYMBOL,
             side=side,
             quantity=abs(position.quantity),
-            type=client.FUTURE_ORDER_TYPE_MARKET,
+            type=type,
+        )
+        position.market_order = Order(
+            order_type=type,
+            order_id=int(resp["orderId"]),
+            price=0,
+            quantity=float(resp["origQty"]),
         )
         logger.info(
             "%s order, type: %s send: %s",
             side,
-            client.FUTURE_ORDER_TYPE_MARKET,
+            type,
             resp,
         )
     except BinanceAPIException as exception:

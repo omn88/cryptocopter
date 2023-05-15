@@ -55,7 +55,7 @@ class TradingStateMachine:
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
         self.position: Position = position
-        self.position_old: Optional[Position] = None
+        self.position_old: Position = position
         self.raw_data: List = raw_data
         self.df: pandas.DataFrame = df
         self.balance: float = balance
@@ -386,7 +386,7 @@ class TradingStateMachine:
         logger.info(
             "Market order filled: %s, state: %s order update status: %s",
             condition,
-            self.state,
+            self.position_old.status,
             self.order_update.status,
         )
         return condition
@@ -399,7 +399,7 @@ class TradingStateMachine:
         logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
             condition,
-            self.state,
+            self.position_old.status,
             self.order_update.status,
         )
         return condition
@@ -516,14 +516,14 @@ class TradingStateMachine:
 
     async def handle_liquidation(self, *args, **kwargs):
         logger.info("Entering handle liquidation")
-        self.position, self.balance = await position_liquidation(
+        self.position_old, self.balance = await position_liquidation(
             client=self.client,
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
         )
 
-        self.update_position_in_df(update=self.position.status)
+        self.update_position_in_df(update=self.position_old.status)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
         logger.info("Entering handle partial liquidation")
@@ -534,17 +534,16 @@ class TradingStateMachine:
     async def enter_flat(self, *args, **kwargs):
         logger.info("Entering Flat")
         self.position = Position()
+        self.update_position_in_df(update=self.position.status)
 
     async def handle_target_reached(self, *args, **kwargs):
         logger.info("Entering handle target order filled")
-        self.position, self.balance = await target_reached(
+        self.position_old, self.balance = await target_reached(
             client=self.client,
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
         )
-        self.position.status = State.FLAT
-        self.update_position_in_df(update=self.position.status)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle target order partially filled")
@@ -557,13 +556,11 @@ class TradingStateMachine:
 
     async def handle_market_order_filled(self, *args, **kwargs):
         logger.info("Entering handle market order filled")
-        self.position, self.balance = await market_order_filled(
-            position=self.position,
+        self.position_old, self.balance = await market_order_filled(
+            position=self.position_old,
             order_update=self.order_update,
             balance=self.balance,
         )
-
-        self.update_position_in_df(update=self.position.status)
 
     async def handle_market_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")
