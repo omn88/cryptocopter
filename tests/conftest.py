@@ -12,7 +12,6 @@ from src.common.initialize_trading_environment import (
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
-from tests.common import create_async_client_for_test
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -23,7 +22,7 @@ async def basic_rsi():
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    client = await create_async_client_for_test()
+    client = await create_async_client()
 
     position = Position()
     queue = await create_async_queue()
@@ -50,7 +49,7 @@ async def extended_rsi():
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    client = await create_async_client_for_test()
+    client = await create_async_client()
     position = Position()
     queue = await create_async_queue()
 

@@ -463,11 +463,3 @@ def get_position_information_when_short_for_order_partially_filled():
 
 def get_cancel_order():
     return {"status": "CANCELED"}
-
-
-async def create_async_client_for_test():
-    # This API key is added by purpose of CI tests. It allows to only read data.
-    return await AsyncClient.create(
-        api_key="dupa",
-        api_secret="dupa",
-    )
