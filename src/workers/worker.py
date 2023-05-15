@@ -17,22 +17,23 @@ logger = logging.getLogger("worker_main")
 
 async def process_kline(tsm: TradingStateMachine, kline_update: KlineUpdate):
     tsm.kline_update = kline_update
-    await tsm.machine.model.process_kline()
+    # All process_* methods are created dynamically, MyPy does not know it exists.
+    await tsm.process_kline()  # type: ignore
 
 
 async def process_signal(tsm: TradingStateMachine, signal_update: SignalUpdate):
     tsm.signal_update = signal_update
-    await tsm.machine.model.process_signal()
+    await tsm.process_signal()  # type: ignore
 
 
 async def process_account(tsm: TradingStateMachine, account_update: AccountUpdate):
     tsm.account_update = account_update
-    await tsm.machine.model.process_account()
+    await tsm.process_account()  # type: ignore
 
 
 async def process_order(tsm: TradingStateMachine, order_update: OrderUpdate):
     tsm.order_update = order_update
-    await tsm.machine.model.process_order()
+    await tsm.process_order()  # type: ignore
 
 
 async def worker(
@@ -43,17 +44,17 @@ async def worker(
     await asyncio.sleep(5)
     while True:
         logger.info(
-            "--------------------------------------------------------------------------------------------"
+            "-------------------------------------POSITION-------------------------------------------------------"
         )
-        logger.info("Position: %s", pformat(tsm.position))
-        logger.info("Orders: \n%s", pformat(tsm.position.orders))
+        logger.info(pformat(tsm.position))
+        logger.info("\n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new Event...")
 
         event = await queue.get()
         assert isinstance(event, Event)
-        logger.info("New Event: %s", event)
+        logger.info("NEW: %s", event)
 
         if EventName.KLINE == event.name:
             assert isinstance(event.content, KlineUpdate)

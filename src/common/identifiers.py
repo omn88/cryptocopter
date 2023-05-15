@@ -153,16 +153,12 @@ class Position:
     quantity: float = 0
     status: State = State.FLAT
     side: str = PositionSide.FLAT  # ToDo: create a function
-    orders: List[Order] = field(default_factory=lambda: [Order(price=0, quantity=0)])
+    orders: List[Order] = field(default_factory=lambda: [])
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Order = Order(price=0, quantity=0)
     market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     artifacts: Artifacts = Artifacts()
-
-    def __post_init__(self):
-        if self.orders is None:
-            self.orders = []
 
     def __repr__(self) -> str:
         return (
