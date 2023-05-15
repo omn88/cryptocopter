@@ -23,7 +23,7 @@ async def basic_rsi():
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    client = create_async_client_for_test()
+    client = await create_async_client_for_test()
 
     position = Position()
     queue = await create_async_queue()
