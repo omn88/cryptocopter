@@ -10,7 +10,6 @@ logger = logging.getLogger("sample_dataframes")
 
 
 def raw_data_generate(desired_signal: Signal) -> List:
-
     if desired_signal == Signal.LONG:
         raw_data = data_long()
     elif desired_signal == Signal.SHORT:

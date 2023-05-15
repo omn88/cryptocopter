@@ -55,7 +55,6 @@ def assert_dca_short_opened(
 
 
 async def first_order_filled(base):
-
     assert base.position.orders is not None
     price = base.position.orders[0].price
     quantity = base.position.orders[0].quantity
@@ -85,7 +84,6 @@ async def first_order_filled(base):
 
 
 async def second_order_filled(base):
-
     orders = base.position.orders
     assert orders is not None
 
@@ -126,7 +124,6 @@ async def second_order_filled(base):
 
 
 async def third_and_fourth_order_filled(base):
-
     orders = base.position.orders
     assert orders is not None
 
@@ -220,7 +217,6 @@ async def target_reached(base):
 
 
 async def start_long(base) -> None:
-
     base.signal_update = generate_signal(signal=Signal.LONG, df=base.df)
 
     await base.process_signal()
@@ -235,7 +231,6 @@ async def start_long(base) -> None:
 
 
 async def start_short(base) -> None:
-
     base.signal_update = generate_signal(signal=Signal.SHORT, df=base.df)
 
     await base.process_signal()

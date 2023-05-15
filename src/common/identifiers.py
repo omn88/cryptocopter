@@ -66,7 +66,6 @@ class SignalUpdate(NamedTuple):
 
 
 class EventName(Enum):
-
     KLINE = "Kline"
     ACCOUNT = "Account"
     ORDER = "Order"

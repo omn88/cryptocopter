@@ -33,7 +33,6 @@ def get_futures_historical_data_sync(
     lookback: str,
     look_end: Optional[str] = None,
 ) -> pandas.DataFrame:
-
     # ToDo: Below Timedelta must react to time change (winter/summer)
     pandas.Timedelta(hours=1)
     historical_data = client.futures_historical_klines(

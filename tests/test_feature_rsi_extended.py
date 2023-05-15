@@ -17,7 +17,6 @@ from tests.common import (
 async def test_signal_handle_long_twenty_when_flat(
     mock_create_orders_long, extended_rsi
 ):
-
     mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
 
     extended_rsi.signal_update = generate_signal(
@@ -163,7 +162,6 @@ async def test_signal_handle_null_when_long_twenty(
 async def test_signal_handle_long_twenty_when_short_eighty(
     mock_create_orders_short_then_long, mock_cancel_order, extended_rsi
 ):
-
     mock_create_orders_short_then_long.side_effect = get_orders_short_then_long(
         base=extended_rsi
     )

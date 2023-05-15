@@ -1,14 +1,11 @@
+from unittest.mock import AsyncMock
+
 import pytest
 import logging
 
-from binance import AsyncClient
-
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
-from src.common.initialize_trading_environment import (
-    create_async_client,
-    create_async_queue,
-)
+from src.common.initialize_trading_environment import create_async_queue
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
@@ -18,17 +15,16 @@ logger = logging.getLogger("conftest")
 
 
 @pytest.fixture()
-async def basic_rsi():
+async def basic_rsi(mock_async_client):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    client = await create_async_client()
 
     position = Position()
     queue = await create_async_queue()
 
     tsm = BasicStrategy(
-        client=client,
+        client=mock_async_client,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
@@ -45,16 +41,25 @@ async def basic_rsi():
 
 
 @pytest.fixture
-async def extended_rsi():
+def mock_async_client(mocker):
+    mock_create = mocker.patch("binance.AsyncClient.create", new_callable=AsyncMock)
+
+    # Arrange
+    mock_create.return_value = AsyncMock()
+
+    return mock_create
+
+
+@pytest.fixture
+async def extended_rsi(mock_async_client):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    client = await create_async_client()
     position = Position()
     queue = await create_async_queue()
 
     tsm = ExtendedStrategy(
-        client=client,
+        client=mock_async_client,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,

@@ -63,7 +63,7 @@ class TradingStateMachine:
 
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.order_update: OrderUpdate = OrderUpdate(
-            status=self.client.ORDER_STATUS_NEW
+            status=binance.AsyncClient.ORDER_STATUS_NEW
         )
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: Optional[AccountUpdate] = None
@@ -221,7 +221,6 @@ class TradingStateMachine:
             self.machine.add_transition(**updated_transition)
 
     async def determine_start_position(self):
-
         signal = Signal.NULL
         price = 0
         signal_index = 0
@@ -253,7 +252,6 @@ class TradingStateMachine:
         await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
 
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
-
         condition = self.signal_update.signal == Signal.NULL
 
         logger.info(
@@ -266,7 +264,6 @@ class TradingStateMachine:
         return condition
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
-
         condition = self.state == signal_to_state(self.signal_update.signal)
 
         logger.info(
@@ -281,7 +278,7 @@ class TradingStateMachine:
     def conditions_for_position_liquidation(self, *args, **kwargs) -> bool:
         condition = (
             self.order_update.order_type == "LIQUIDATION"
-            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED
         )
         logger.info(
             "Position liquidation: %s, state: %s order update type: %s",
@@ -294,7 +291,8 @@ class TradingStateMachine:
     def conditions_for_partial_position_liquidation(self, *args, **kwargs) -> bool:
         condition = (
             self.order_update.order_type == "LIQUIDATION"
-            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+            and self.order_update.status
+            == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED
         )
 
         logger.info(
@@ -311,10 +309,10 @@ class TradingStateMachine:
         condition = (
             self.order_update.order_type
             in [
-                self.client.FUTURE_ORDER_TYPE_LIMIT,
-                self.client.FUTURE_ORDER_TYPE_MARKET,
+                binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT,
+                binance.AsyncClient.FUTURE_ORDER_TYPE_MARKET,
             ]
-            and self.order_update.status == self.client.ORDER_STATUS_NEW
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_NEW
         )
         logger.info(
             "New order confirmation: %s, order type: %s order status: %s",
@@ -326,8 +324,8 @@ class TradingStateMachine:
 
     def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
-            and self.order_update.status == self.client.ORDER_STATUS_CANCELED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_CANCELED
         )
         logger.info(
             "Order cancelled: %s, state: %s order update status: %s",
@@ -339,8 +337,8 @@ class TradingStateMachine:
 
     def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
-            and self.order_update.status == self.client.ORDER_STATUS_EXPIRED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_EXPIRED
         )
         logger.info(
             "Order expired: %s, state: %s order update status: %s",
@@ -353,8 +351,9 @@ class TradingStateMachine:
     def conditions_for_target_reached(self, *args, **kwargs) -> bool:
         condition = (
             self.position.take_profit_order.price == self.order_update.price
-            and self.order_update.status == self.client.ORDER_STATUS_FILLED
-            and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED
+            and self.order_update.order_type
+            == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
         )
         logger.info(
             "Target reached: %s, state: %s order update status: %s",
@@ -367,8 +366,10 @@ class TradingStateMachine:
     def conditions_for_target_partially_reached(self, *args, **kwargs) -> bool:
         condition = (
             self.position.take_profit_order.price == self.order_update.price
-            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
-            and self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status
+            == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED
+            and self.order_update.order_type
+            == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
         )
         logger.info(
             "Target partially reached: %s, state: %s order update status: %s",
@@ -380,8 +381,8 @@ class TradingStateMachine:
 
     def conditions_for_market_order_filled(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
-            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_MARKET
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED
         )
         logger.info(
             "Market order filled: %s, state: %s order update status: %s",
@@ -393,8 +394,9 @@ class TradingStateMachine:
 
     def conditions_for_market_order_filled_partially(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_MARKET
-            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_MARKET
+            and self.order_update.status
+            == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED
         )
         logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
@@ -406,11 +408,12 @@ class TradingStateMachine:
 
     def conditions_for_order_filled(self, *args, **kwargs):
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
-            and self.order_update.status == self.client.ORDER_STATUS_FILLED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status == binance.AsyncClient.ORDER_STATUS_FILLED
         )
+
         logger.info(
-            "Order filled: %s, state: %s order update status: %s",
+            "Order filled: %s, state: %s order status: %s",
             condition,
             self.state,
             self.order_update.status,
@@ -419,8 +422,9 @@ class TradingStateMachine:
 
     def conditions_for_order_partially_filled(self, *args, **kwargs):
         condition = (
-            self.order_update.order_type == self.client.FUTURE_ORDER_TYPE_LIMIT
-            and self.order_update.status == self.client.ORDER_STATUS_PARTIALLY_FILLED
+            self.order_update.order_type == binance.AsyncClient.FUTURE_ORDER_TYPE_LIMIT
+            and self.order_update.status
+            == binance.AsyncClient.ORDER_STATUS_PARTIALLY_FILLED
         )
         logger.info(
             "Order partially filled: %s, state: %s order update status: %s",
@@ -511,7 +515,6 @@ class TradingStateMachine:
                 logger.info("Expired order: %s", self.order_update.order_id)
 
     async def handle_account(self, *args, **kwargs):
-
         logger.info("Account update: %s", self.account_update.account_update)
 
     async def handle_liquidation(self, *args, **kwargs):

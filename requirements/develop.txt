@@ -8,3 +8,4 @@ matplotlib-inline==0.1.6
 pytest==7.3.1
 python-decouple==3.8.0
 pytest-asyncio==0.21.0
+pytest-mock==3.10.0
