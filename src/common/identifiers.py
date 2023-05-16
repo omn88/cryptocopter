@@ -6,6 +6,12 @@ from enum import Enum
 from typing import NamedTuple, Dict, List, Optional
 
 import binance
+from binance.enums import (
+    ORDER_TYPE_LIMIT,
+    TIME_IN_FORCE_GTC,
+    ORDER_STATUS_NEW,
+    FUTURE_ORDER_TYPE_MARKET,
+)
 
 
 class State(Enum):
@@ -37,7 +43,7 @@ class OrderUpdate(NamedTuple):
     last_filled_quantity: float = 0
     order_id: int = 0
     average_price: float = 0
-    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
+    order_type: str = ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
         return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type})"
@@ -100,9 +106,9 @@ class Order:
     quantity_stable: float = 0
     order_id: int = 0
     realized_quantity: float = 0
-    time_in_force: str = binance.AsyncClient.TIME_IN_FORCE_GTC
-    status: str = binance.AsyncClient.ORDER_STATUS_NEW
-    order_type: str = binance.AsyncClient.ORDER_TYPE_LIMIT
+    time_in_force: str = TIME_IN_FORCE_GTC
+    status: str = ORDER_STATUS_NEW
+    order_type: str = ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
         return (
@@ -128,7 +134,7 @@ class Artifacts:
     close_price: float = 0
     orders: Optional[List[Order]] = None
     market_order = Order = Order(
-        price=0, quantity=0, order_type=binance.AsyncClient.FUTURE_ORDER_TYPE_MARKET
+        price=0, quantity=0, order_type=FUTURE_ORDER_TYPE_MARKET
     )
     per_cent_earned: float = 0
     stable_earned: float = 0

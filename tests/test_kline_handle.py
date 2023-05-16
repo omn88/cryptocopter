@@ -9,13 +9,9 @@ import logging
 logger = logging.getLogger("test")
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_rsi_basic_handle_kline_null(
-    mock_create_orders_long, mock_cancel_order, basic_rsi
-):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+async def test_rsi_basic_handle_kline_null(basic_rsi):
+    basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -34,13 +30,9 @@ async def test_rsi_basic_handle_kline_null(
     assert basic_rsi.position.status == State.FLAT
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_rsi_basic_handle_kline_long_twenty(
-    mock_create_orders_long, mock_cancel_order, extended_rsi
-):
-    mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+async def test_rsi_basic_handle_kline_long_twenty(extended_rsi):
+    extended_rsi.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -83,13 +75,9 @@ async def test_rsi_basic_handle_kline_long_twenty(
     assert extended_rsi.position.status == State.LONG_EXT
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_rsi_basic_handle_kline_long_twenty_long(
-    mock_create_orders_long, mock_cancel_order, extended_rsi
-):
-    mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+async def test_rsi_basic_handle_kline_long_twenty_long(extended_rsi):
+    extended_rsi.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -157,13 +145,9 @@ async def test_rsi_basic_handle_kline_long_twenty_long(
     assert extended_rsi.position.status == State.LONG
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_rsi_basic_handle_kline_long_twenty_long_null(
-    mock_create_orders_long, mock_cancel_order, extended_rsi
-):
-    mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+async def test_rsi_basic_handle_kline_long_twenty_long_null(extended_rsi):
+    extended_rsi.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -256,13 +240,13 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null(
     assert extended_rsi.position.status == State.LONG
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
+@patch("src.workers.handle_order.save_to_file")
 async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
-    mock_create_orders_long, mock_cancel_order, extended_rsi
+    mock_save_to_file, extended_rsi
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -380,13 +364,14 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
     assert extended_rsi.position.status == State.SHORT_EXT
 
 
-@patch("binance.AsyncClient.futures_cancel_order")
-@patch("binance.AsyncClient.futures_create_order")
+@patch("src.workers.handle_order.save_to_file")
 async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
-    mock_create_orders_long, mock_cancel_order, extended_rsi
+    mock_save_to_file,
+    extended_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=extended_rsi)
-    mock_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(

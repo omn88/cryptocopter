@@ -68,10 +68,6 @@ async def prepare_and_send_orders(
         side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
     )
 
-    # position, df, balance = await futures_validate_orders(
-    #     position=position, client=client, df=df, balance=balance
-    # )
-
     logger.info(
         "Exiting %s position open, opened orders: %s",
         side,

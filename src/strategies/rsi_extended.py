@@ -68,7 +68,9 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
 
         self.df = self.df.append(temp_df.tail(1))
 
-        if self.signal_update.signal == 0:
+        signal = self.df.iloc[-1]["Signal"]
+
+        if signal == 0:
             self.signal_update = SignalUpdate(
                 signal=Signal.NULL,
                 price=round(float(self.df.iloc[-1]["Close"]), 2),

@@ -2,6 +2,13 @@ import asyncio
 from typing import List, Optional, Tuple
 import logging
 import binance
+from binance.enums import (
+    FUTURE_ORDER_TYPE_LIMIT,
+    TIME_IN_FORCE_GTC,
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_PARTIALLY_FILLED,
+    ORDER_STATUS_NEW,
+)
 from binance.exceptions import BinanceAPIException
 from constants import SYMBOL, LEVERAGE, DCA_SPAN, NUMBER_OF_DCA_ORDERS, LOSSES_PER_LEVEL
 import pandas
@@ -96,8 +103,8 @@ async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Or
         price=round(order.price, 1),
         quantity=round(abs(order.quantity), 3),
         side=side,
-        type=client.FUTURE_ORDER_TYPE_LIMIT,
-        timeInForce=client.TIME_IN_FORCE_GTC,
+        type=FUTURE_ORDER_TYPE_LIMIT,
+        timeInForce=TIME_IN_FORCE_GTC,
     )
     logger.debug("RESP: %s", resp)
     order.order_id = int(resp["orderId"])
@@ -125,7 +132,7 @@ async def cancel_order(client: binance.AsyncClient, order: Order):
         logger.info(e)
         return None
 
-    if resp["status"] != client.ORDER_STATUS_CANCELED:
+    if resp["status"] != ORDER_STATUS_CANCELED:
         logger.info(
             "Order status for order: %s was not set to cancelled. Got: %s",
             order.order_id,
@@ -324,7 +331,7 @@ async def send_market_order(
             order_type=order_type,
             order_id=int(resp["orderId"]),
             price=0,
-            quantity=float(resp["origQty"]),
+            quantity=0,
         )
         logger.info(
             "%s order, type: %s send: %s",
@@ -344,11 +351,11 @@ async def cancel_remaining_limit_orders(
     new_orders_count = 0
     cancelled_orders_count = 0
     for order in position.orders:
-        if order.status == client.ORDER_STATUS_PARTIALLY_FILLED:
+        if order.status == ORDER_STATUS_PARTIALLY_FILLED:
             order.status = await cancel_order(client=client, order=order)
             logger.info("Cancelled partially filled order_id: %s", order.order_id)
             cancelled_orders_count += 1
-        elif order.status == client.ORDER_STATUS_NEW:
+        elif order.status == ORDER_STATUS_NEW:
             new_orders_count += 1
             order.status = await cancel_order(client=client, order=order)
             logger.info("Cancelled new order_id: %s", order.order_id)
