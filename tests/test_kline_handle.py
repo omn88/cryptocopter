@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from src.common.identifiers import State
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.worker import worker
@@ -238,9 +240,13 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null(extended_rsi):
     assert extended_rsi.position.status == State.LONG
 
 
-async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(extended_rsi):
+@patch("src.workers.handle_order.save_to_file")
+async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
+    mock_save_to_file, extended_rsi
+):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
@@ -358,11 +364,14 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(extende
     assert extended_rsi.position.status == State.SHORT_EXT
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
+    mock_save_to_file,
     extended_rsi,
 ):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL
     kline_update = KlineUpdate(
