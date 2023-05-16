@@ -81,9 +81,11 @@ async def test_signal_handle_long_when_long(basic_rsi):
     )
 
 
-async def test_signal_handle_short_when_long(basic_rsi):
+@patch("src.workers.handle_order.save_to_file")
+async def test_signal_handle_short_when_long(mock_save_to_file, basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_long_then_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     basic_rsi.signal_update = generate_signal(signal=Signal.LONG, df=basic_rsi.df)
 
