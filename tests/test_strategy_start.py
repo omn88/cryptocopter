@@ -44,7 +44,6 @@ async def test_get_historical_data(mock_get_historical_klines):
     [Signal.LONG, Signal.LONG_EXT, Signal.SHORT, Signal.SHORT_EXT],
 )
 async def test_determine_start_position(signal):
-
     raw_data = raw_data_generate(desired_signal=signal)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)

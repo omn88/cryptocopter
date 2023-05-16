@@ -63,7 +63,6 @@ class Backtest:
         ovc = orders.order_quantity_list_prepare()
 
         for index, row in self.df.iterrows():
-
             self.df.at[index, "Saldo"] = self.saldo
             index = str(index)
             if special_short:
@@ -155,7 +154,10 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         side="SHORT", price=sell_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.short_position_open(
+                    (
+                        dca_orders,
+                        position,
+                    ) = lib.short_position_open(
                         sell_price=sell_price,
                         depo_price=self.depo_price,
                         number_of_dca_orders=number_of_dca_orders,
@@ -190,7 +192,10 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         side="SHORT", price=sell_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.short_position_open(
+                    (
+                        dca_orders,
+                        position,
+                    ) = lib.short_position_open(
                         sell_price=sell_price,
                         depo_price=self.depo_price,
                         number_of_dca_orders=number_of_dca_orders,
@@ -340,7 +345,10 @@ class Backtest:
                     ) = lib.target_depo_price_calculate(
                         side="SHORT", price=sell_price, leverage=self.leverage
                     )
-                    (dca_orders, position,) = lib.short_position_open(
+                    (
+                        dca_orders,
+                        position,
+                    ) = lib.short_position_open(
                         sell_price=sell_price,
                         depo_price=self.depo_price,
                         number_of_dca_orders=number_of_dca_orders,

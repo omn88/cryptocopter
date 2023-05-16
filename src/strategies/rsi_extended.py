@@ -13,7 +13,6 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
     def __init__(
         self, client, queue, balance, order_quantity_list, df, position, raw_data
     ):
-
         super().__init__(
             client=client,
             queue=queue,

@@ -35,13 +35,13 @@ class SpecialStrategy(ExtendedStrategy):
     def conditions_for_skipping_when_long_special(self) -> bool:
         return self.state == State.LONG_SPECIAL and self.signal_update.signal in [
             Signal.SHORT,
-            Signal.SHORT_80,
+            Signal.SHORT_EXT,
         ]
 
     def conditions_for_skipping_when_short_special(self) -> bool:
         return self.state == State.SHORT_SPECIAL and self.signal_update.signal in [
             Signal.LONG,
-            Signal.LONG_20,
+            Signal.LONG_EXT,
         ]
 
     def conditions_for_closing_special_position(self) -> bool:

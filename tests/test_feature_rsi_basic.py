@@ -15,7 +15,6 @@ from tests.common import (
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_flat(mock_create_orders_long, basic_rsi):
-
     mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
 
     basic_rsi.signal_update = generate_signal(signal=Signal.LONG, df=basic_rsi.df)
@@ -33,7 +32,6 @@ async def test_signal_handle_long_when_flat(mock_create_orders_long, basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_flat(mock_create_orders_short, basic_rsi):
-
     mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
 
     basic_rsi.signal_update = generate_signal(signal=Signal.SHORT, df=basic_rsi.df)
@@ -50,7 +48,6 @@ async def test_signal_handle_short_when_flat(mock_create_orders_short, basic_rsi
 
 
 async def test_signal_handle_null_when_flat(basic_rsi):
-
     basic_rsi.signal_update = generate_signal(signal=Signal.NULL, df=basic_rsi.df)
 
     await basic_rsi.process_signal()
@@ -62,7 +59,6 @@ async def test_signal_handle_null_when_flat(basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_long_when_long(mock_create_orders_long, basic_rsi):
-
     mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
 
     basic_rsi.signal_update = generate_signal(signal=Signal.LONG, df=basic_rsi.df)
@@ -125,7 +121,6 @@ async def test_signal_handle_short_when_long(
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_long(mock_create_orders_long, basic_rsi):
-
     mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
 
     basic_rsi.signal_update = generate_signal(signal=Signal.LONG, df=basic_rsi.df)
@@ -189,7 +184,6 @@ async def test_signal_handle_long_when_short(
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_short_when_short(mock_create_orders_short, basic_rsi):
-
     mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
 
     basic_rsi.signal_update = generate_signal(signal=Signal.SHORT, df=basic_rsi.df)
@@ -217,7 +211,6 @@ async def test_signal_handle_short_when_short(mock_create_orders_short, basic_rs
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_signal_handle_null_when_short(mock_create_orders_short, basic_rsi):
-
     mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
     basic_rsi.signal_update = generate_signal(signal=Signal.SHORT, df=basic_rsi.df)
 

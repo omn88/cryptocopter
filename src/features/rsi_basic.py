@@ -8,7 +8,6 @@ logger = logging.getLogger("feature_rsi_basic")
 
 class FeatureRsiBasic:
     def __init__(self):
-
         self.signals = [Signal.LONG, Signal.SHORT]
         self.states = [State.LONG, State.SHORT]
         self.transitions = [

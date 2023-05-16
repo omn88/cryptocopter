@@ -83,7 +83,6 @@ async def prepare_and_send_orders(
 async def close_special_position(
     client: binance.AsyncClient, position: Position
 ) -> Position:
-
     if position.status in [State.SHORT_SPECIAL, State.LONG_SPECIAL]:
         close_side = (
             client.SIDE_BUY
@@ -111,7 +110,6 @@ async def close_special_position(
 async def close_long(
     client: binance.AsyncClient, position: Position, balance: float
 ) -> Position:
-
     close_side = client.SIDE_SELL
     position, position_was_opened = await cancel_remaining_limit_orders(
         client, position=position
@@ -141,7 +139,6 @@ async def close_long(
 async def close_short(
     client: binance.AsyncClient, position: Position, balance: float
 ) -> Position:
-
     close_side = client.SIDE_BUY
     position, position_was_opened = await cancel_remaining_limit_orders(
         client, position=position
@@ -172,7 +169,6 @@ async def update_take_profit_order(
     client: binance.AsyncClient,
     position: Position,
 ) -> Position:
-
     if position.take_profit_order.order_id != 0:
         logger.info(
             "Enter update take profit order: %s",
@@ -263,7 +259,6 @@ async def target_partially_reached(
     order_update: OrderUpdate,
     balance: float,
 ) -> Tuple[Position, float]:
-
     logger.info("Take profit order filled partially")
 
     assert isinstance(position.take_profit_order, Order)
@@ -349,7 +344,6 @@ async def handle_order_partially_filled(
 
     for order in position.orders:
         if order_update.order_id == order.order_id:
-
             order.status = order_update.status
             order.price = order_update.price
             order.quantity = order_update.quantity
@@ -426,7 +420,6 @@ def update_artifacts_and_save(
     order_update: Optional[OrderUpdate],
     balance: float,
 ) -> None:
-
     artifacts = position.artifacts
 
     if order_update is not None:
@@ -435,7 +428,9 @@ def update_artifacts_and_save(
             if order_update.order_type in ["MARKET", "LIQUIDATION"]
             else order_update.price
         )
-        artifacts.per_cent_earned = order_update.price / position.entry_price
+        artifacts.per_cent_earned = round(
+            float(order_update.price / position.entry_price), 3
+        )
         artifacts.stable_earned = artifacts.quantity * (
             order_update.price - artifacts.price
         )
@@ -450,6 +445,7 @@ def update_artifacts_and_save(
     artifacts.price = position.entry_price
     artifacts.quantity = position.quantity
     artifacts.end_balance = balance
+    artifacts.market_order = position.market_order
 
     logger.info("Position artifacts: %s", pformat(artifacts))
 
@@ -473,8 +469,6 @@ async def market_order_filled(
         balance=balance,
     )
 
-    position.orders = []
-
 
 async def market_order_partially_filled(order_update: OrderUpdate, position: Position):
     position.market_order = Order(
@@ -493,7 +487,6 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
 async def futures_position_close(
     client: binance.AsyncClient, position: Position, balance: float
 ):
-
     if position.status in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
         _ = await close_long(client=client, position=position, balance=balance)
     elif position.status in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:

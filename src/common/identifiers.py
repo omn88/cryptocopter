@@ -1,7 +1,7 @@
 """
 Module containing product identifiers.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import NamedTuple, Dict, List, Optional
 
@@ -66,7 +66,6 @@ class SignalUpdate(NamedTuple):
 
 
 class EventName(Enum):
-
     KLINE = "Kline"
     ACCOUNT = "Account"
     ORDER = "Order"
@@ -128,6 +127,9 @@ class Artifacts:
     mode: PositionMode = PositionMode.NEW
     close_price: float = 0
     orders: Optional[List[Order]] = None
+    market_order = Order = Order(
+        price=0, quantity=0, order_type=binance.AsyncClient.FUTURE_ORDER_TYPE_MARKET
+    )
     per_cent_earned: float = 0
     stable_earned: float = 0
     end_balance: float = 0
@@ -150,20 +152,16 @@ class Position:
     quantity: float = 0
     status: State = State.FLAT
     side: str = PositionSide.FLAT  # ToDo: create a function
-    orders: Optional[List[Order]] = None
+    orders: List[Order] = field(default_factory=lambda: [])
     liquidation_price: float = 0
     target_price: float = 0
     take_profit_order: Order = Order(price=0, quantity=0)
-    market_order: Optional[Order] = None
+    market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     artifacts: Artifacts = Artifacts()
-
-    def __post_init__(self):
-        if self.orders is None:
-            self.orders = []
 
     def __repr__(self) -> str:
         return (
-            f"\nCurrentPosition(price={self.entry_price}, quantity={self.quantity}, side={self.side}, "
+            f"\nPosition(price={self.entry_price}, quantity={self.quantity}, side={self.side}, "
             f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
             f"take_profit_order={self.take_profit_order})"
         )

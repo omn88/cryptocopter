@@ -21,14 +21,14 @@ before_script:
 formatting:
   stage: formatting
   script:
-    - pip install black
+    - pip install black==23.3.0
     - black --check .
 
 linting:
   stage: linting
   script:
-    - pip install mypy
-    - mypy --ignore-missing-imports --exclude tests/ --exclude src/backtest/ --exclude venv/ .
+    - pip install mypy==1.3.0
+    - mypy --ignore-missing-imports --exclude venv .
 
 testing:
   stage: testing

@@ -91,7 +91,6 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
 
 
 async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Order:
-
     resp = await client.futures_create_order(
         symbol=SYMBOL,
         price=round(order.price, 1),
@@ -173,7 +172,6 @@ def target_price_calculate(side: str, price: float) -> float:
 
 
 def get_order_price(side: str, entry_price: float, order: int):
-
     if side == PositionSide.LONG:
         return round((entry_price - (DCA_SPAN * order * entry_price)), 1)
 
@@ -188,7 +186,6 @@ def get_order_quantity(
     entry_price: float,
     order: int,
 ):
-
     if side == PositionSide.LONG and mode == PositionMode.DCA:
         return round(
             LEVERAGE
@@ -297,7 +294,6 @@ async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
 async def cancel_take_profit_order(
     client: binance.AsyncClient, take_profit_order: Order
 ) -> str:
-
     take_profit_order.status = await cancel_order(
         client=client,
         order=take_profit_order,
@@ -317,16 +313,23 @@ async def send_market_order(
     side: str,
 ):
     try:
+        order_type = client.FUTURE_ORDER_TYPE_MARKET
         resp = await client.futures_create_order(
             symbol=SYMBOL,
             side=side,
             quantity=abs(position.quantity),
-            type=client.FUTURE_ORDER_TYPE_MARKET,
+            type=order_type,
+        )
+        position.market_order = Order(
+            order_type=order_type,
+            order_id=int(resp["orderId"]),
+            price=0,
+            quantity=float(resp["origQty"]),
         )
         logger.info(
             "%s order, type: %s send: %s",
             side,
-            client.FUTURE_ORDER_TYPE_MARKET,
+            order_type,
             resp,
         )
     except BinanceAPIException as exception:

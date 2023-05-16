@@ -33,7 +33,6 @@ logger = logging.getLogger("main")
 
 
 async def main():
-
     logger.info(
         "RSI Based Futures: Start. Initial parameters: symbol %s, asset %s, interval %s",
         SYMBOL,
@@ -92,7 +91,6 @@ async def main():
 
 
 if __name__ == "__main__":
-
     # artifacts_dir = create_directory_with_timestamp()
 
     try:

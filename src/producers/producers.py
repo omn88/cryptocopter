@@ -18,7 +18,6 @@ logger = logging.getLogger("producer")
 
 
 async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
-
     fus = bm.futures_user_socket()
     async with fus:
         logger.info("Ready to receive first user socket message.")

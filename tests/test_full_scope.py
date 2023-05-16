@@ -1,11 +1,8 @@
 from unittest.mock import patch
 from src.common.orders import PositionSide
-from src.features.features import Signal
 from src.workers.worker import worker
-from src.producers.producers import Event, EventName, SignalUpdate, OrderUpdate
+from src.producers.producers import Event, EventName
 import logging
-
-from tests.test_order_handle import mock_get_order_return_value
 
 logger = logging.getLogger("TEST")
 
