@@ -1,6 +1,5 @@
 import logging
 
-import binance
 import pandas
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
@@ -68,8 +67,6 @@ async def first_order_filled(base):
     )
 
     await base.process_order()
-
-    logger.info("ORDERS LATER: %s", base.position.orders)
 
     assert base.position.orders is not None
 
