@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 import binance
 
@@ -23,18 +23,31 @@ from tests.common import (
 logger = logging.getLogger("TEST")
 
 
-@patch("binance.AsyncClient.futures_position_information")
-@patch("binance.AsyncClient.futures_create_order")
-async def test_long_first_order_filled(
-    mock_create_orders_long, mock_position_information, basic_rsi
-):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
-    mock_position_information.side_effect = get_position_information_when_long()
+async def test_long_first_order_filled(basic_rsi):
+    basic_rsi.client.futures_position_information.side_effect = (
+        get_position_information_when_long()
+    )
+    basic_rsi.client.futures_create_order.side_effect = get_orders_long()
 
     await start_long(base=basic_rsi)
+
+    logger.info("ORDERS: %s", basic_rsi.position.orders)
+
     await first_order_filled(base=basic_rsi)
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+
+# @patch("binance.AsyncClient.futures_position_information")
+# @patch("binance.AsyncClient.futures_create_order")
+# async def test_long_first_order_filled(
+#     mock_create_orders_long, mock_position_information, basic_rsi
+# ):
+#
+#     await start_long(base=basic_rsi)
+#     await first_order_filled(base=basic_rsi)
+#
+#     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
 @patch("binance.AsyncClient.futures_position_information")
@@ -42,7 +55,7 @@ async def test_long_first_order_filled(
 async def test_long_first_order_filled_partially(
     mock_create_orders_long, mock_position_information, basic_rsi
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = (
         get_position_information_when_long_for_order_partially_filled()
     )
@@ -87,7 +100,7 @@ async def test_long_first_order_filled_partially(
 async def test_long_first_order_filled_partially_twice(
     mock_create_orders_long, mock_position_information, basic_rsi
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = (
         get_position_information_when_long_for_order_partially_filled()
     )
@@ -170,7 +183,7 @@ async def test_long_two_orders_filled(
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -190,7 +203,7 @@ async def test_long_two_orders_filled(
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_new(mock_create_orders_long, basic_rsi):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
 
     await start_long(base=basic_rsi)
 
@@ -218,7 +231,7 @@ async def test_long_first_order_new(mock_create_orders_long, basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_expired(mock_create_orders_long, basic_rsi):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
 
     await start_long(base=basic_rsi)
 
@@ -246,7 +259,7 @@ async def test_long_first_order_expired(mock_create_orders_long, basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_long_first_order_canceled(mock_create_orders_long, basic_rsi):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
 
     await start_long(base=basic_rsi)
 
@@ -281,7 +294,7 @@ async def test_long_two_orders_filled_then_target_reached(
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -313,7 +326,7 @@ async def test_long_all_orders_filled_then_target_reached(
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -351,7 +364,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -417,7 +430,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -501,7 +514,7 @@ async def test_long_all_orders_filled_then_liquidation(
     mock_position_information,
     basic_rsi,
 ):
-    mock_create_orders_long.side_effect = get_orders_long(base=basic_rsi)
+    mock_create_orders_long.side_effect = get_orders_long()
     mock_position_information.side_effect = get_position_information_when_long()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -552,7 +565,7 @@ async def test_long_all_orders_filled_then_liquidation(
 async def test_short_first_order_filled(
     mock_create_orders_short, mock_position_information, basic_rsi
 ):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
     mock_position_information.side_effect = get_position_information_when_short()
 
     await start_short(base=basic_rsi)
@@ -566,7 +579,7 @@ async def test_short_first_order_filled(
 async def test_short_first_order_filled_partially(
     mock_create_orders_short, mock_position_information, basic_rsi
 ):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
     mock_position_information.side_effect = (
         get_position_information_when_short_for_order_partially_filled()
     )
@@ -611,7 +624,7 @@ async def test_short_first_order_filled_partially(
 async def test_short_first_order_filled_partially_twice(
     mock_create_orders_short, mock_position_information, basic_rsi
 ):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
     mock_position_information.side_effect = (
         get_position_information_when_short_for_order_partially_filled()
     )
@@ -691,7 +704,7 @@ async def test_short_first_order_filled_partially_twice(
 async def test_short_two_orders_filled(
     mock_create_orders_short, mock_position_information, mock_cancel_order, basic_rsi
 ):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
     mock_position_information.side_effect = get_position_information_when_short()
     mock_cancel_order.return_value = get_cancel_order()
 
@@ -711,7 +724,7 @@ async def test_short_two_orders_filled(
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_new(mock_create_orders_short, basic_rsi):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
 
     await start_short(base=basic_rsi)
 
@@ -739,7 +752,7 @@ async def test_short_first_order_new(mock_create_orders_short, basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_expired(mock_create_orders_short, basic_rsi):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
 
     await start_short(base=basic_rsi)
 
@@ -767,7 +780,7 @@ async def test_short_first_order_expired(mock_create_orders_short, basic_rsi):
 
 @patch("binance.AsyncClient.futures_create_order")
 async def test_short_first_order_canceled(mock_create_orders_short, basic_rsi):
-    mock_create_orders_short.side_effect = get_orders_short(base=basic_rsi)
+    mock_create_orders_short.side_effect = get_orders_short()
 
     await start_short(base=basic_rsi)
 

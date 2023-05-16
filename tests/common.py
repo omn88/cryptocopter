@@ -1,9 +1,8 @@
 import logging
-from typing import Tuple
 
 import binance
 import pandas
-from binance import AsyncClient
+from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
 
 from src.common.identifiers import (
     Signal,
@@ -62,7 +61,7 @@ async def first_order_filled(base):
     base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
-        status=binance.AsyncClient.ORDER_STATUS_FILLED,
+        status=ORDER_STATUS_FILLED,
         order_id=1,
         last_filled_quantity=quantity,
         realized_quantity=quantity,
@@ -70,12 +69,14 @@ async def first_order_filled(base):
 
     await base.process_order()
 
+    logger.info("ORDERS LATER: %s", base.position.orders)
+
     assert base.position.orders is not None
 
-    assert base.position.orders[0].status == binance.AsyncClient.ORDER_STATUS_FILLED
-    assert base.position.orders[1].status == binance.AsyncClient.ORDER_STATUS_NEW
-    assert base.position.orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
-    assert base.position.orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert base.position.orders[0].status == ORDER_STATUS_FILLED
+    assert base.position.orders[1].status == ORDER_STATUS_NEW
+    assert base.position.orders[2].status == ORDER_STATUS_NEW
+    assert base.position.orders[3].status == ORDER_STATUS_NEW
     assert base.position.entry_price == price
     assert base.position.quantity == quantity
     assert base.position.take_profit_order is not None
@@ -89,7 +90,7 @@ async def second_order_filled(base):
 
     price = orders[1].price
     quantity = orders[1].quantity
-    status = binance.AsyncClient.ORDER_STATUS_FILLED
+    status = ORDER_STATUS_FILLED
 
     base.order_update = OrderUpdate(
         price=price,
@@ -112,10 +113,10 @@ async def second_order_filled(base):
         3,
     )
     logger.info("q: %s, tq: %s", base.position.quantity, total_quantity)
-    assert orders[0].status == binance.AsyncClient.ORDER_STATUS_FILLED
-    assert orders[1].status == binance.AsyncClient.ORDER_STATUS_FILLED
-    assert orders[2].status == binance.AsyncClient.ORDER_STATUS_NEW
-    assert orders[3].status == binance.AsyncClient.ORDER_STATUS_NEW
+    assert orders[0].status == ORDER_STATUS_FILLED
+    assert orders[1].status == ORDER_STATUS_FILLED
+    assert orders[2].status == ORDER_STATUS_NEW
+    assert orders[3].status == ORDER_STATUS_NEW
     assert base.position.entry_price == average_price
     assert base.position.quantity == total_quantity
     assert base.position.take_profit_order is not None
@@ -129,7 +130,7 @@ async def third_and_fourth_order_filled(base):
 
     price = orders[2].price
     quantity = orders[2].quantity
-    status = base.client.ORDER_STATUS_FILLED
+    status = ORDER_STATUS_FILLED
 
     base.order_update = OrderUpdate(
         price=price,
@@ -142,10 +143,10 @@ async def third_and_fourth_order_filled(base):
 
     await base.process_order()
 
-    assert orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert orders[3].status == base.client.ORDER_STATUS_NEW
+    assert orders[0].status == ORDER_STATUS_FILLED
+    assert orders[1].status == ORDER_STATUS_FILLED
+    assert orders[2].status == ORDER_STATUS_FILLED
+    assert orders[3].status == ORDER_STATUS_NEW
     assert base.position.take_profit_order is not None
 
     assert base.position.take_profit_order.quantity == (
@@ -154,7 +155,7 @@ async def third_and_fourth_order_filled(base):
 
     price = orders[3].price
     quantity = orders[3].quantity
-    status = base.client.ORDER_STATUS_FILLED
+    status = ORDER_STATUS_FILLED
 
     base.order_update = OrderUpdate(
         price=price,
@@ -167,10 +168,10 @@ async def third_and_fourth_order_filled(base):
 
     await base.process_order()
 
-    assert orders[0].status == base.client.ORDER_STATUS_FILLED
-    assert orders[1].status == base.client.ORDER_STATUS_FILLED
-    assert orders[2].status == base.client.ORDER_STATUS_FILLED
-    assert orders[3].status == base.client.ORDER_STATUS_FILLED
+    assert orders[0].status == ORDER_STATUS_FILLED
+    assert orders[1].status == ORDER_STATUS_FILLED
+    assert orders[2].status == ORDER_STATUS_FILLED
+    assert orders[3].status == ORDER_STATUS_FILLED
     assert base.position.entry_price == round(
         (orders[0].price + orders[1].price + orders[2].price + orders[3].price) / 4,
         1,
@@ -199,7 +200,7 @@ async def target_reached(base):
 
     price = base.position.take_profit_order.price
     quantity = base.position.take_profit_order.quantity
-    status = base.client.ORDER_STATUS_FILLED
+    status = ORDER_STATUS_FILLED
 
     base.order_update = OrderUpdate(
         price=price,
@@ -244,182 +245,182 @@ async def start_short(base) -> None:
     )
 
 
-def get_orders_long(base):
+def get_orders_long():
     return [
         {
             "orderId": 1,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 2,
             "price": 19900.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 3,
             "price": 19800.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 4,
             "price": 19700.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 5,
             "price": 20800.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 6,
             "price": 20700.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 7,
             "price": 20600.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 8,
             "price": 20500.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
     ]
 
 
-def get_orders_short(base):
+def get_orders_short():
     return [
         {
             "orderId": 1,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 2,
             "price": 20100.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 3,
             "price": 20200.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 4,
             "price": 20300.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 5,
             "price": 19200.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 6,
             "price": 19300.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 7,
             "price": 19400.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 8,
             "price": 19500.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
     ]
 
 
-def get_orders_long_then_short(base):
+def get_orders_long_then_short():
     return [
         {
             "orderId": 1,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 2,
             "price": 19900.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 3,
             "price": 19800.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 4,
             "price": 19700.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 5,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 6,
             "price": 20100.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 7,
             "price": 20200.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 8,
             "price": 20300.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
     ]
 
 
-def get_orders_short_then_long(base):
+def get_orders_short_then_long():
     return [
         {
             "orderId": 1,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 2,
             "price": 20100.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 3,
             "price": 20200.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 4,
             "price": 20300.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 5,
             "price": 20000.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 6,
             "price": 19900.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 7,
             "price": 19800.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
         {
             "orderId": 8,
             "price": 19700.00,
-            "status": base.client.ORDER_STATUS_NEW,
+            "status": ORDER_STATUS_NEW,
         },
     ]
 
