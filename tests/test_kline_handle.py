@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from src.common.identifiers import State
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.worker import worker

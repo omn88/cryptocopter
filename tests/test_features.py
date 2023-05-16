@@ -112,7 +112,9 @@ def test_rsi_signal_extended_generate(extended_rsi):
     test_df = rsi_indicator_apply(df=test_df)
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
-
+    test_df = extended_rsi.add_columns_for_rsi_basic(df=test_df)
+    test_df = extended_rsi.add_columns_for_rsi_extended(df=test_df)
+    extended_rsi.conditions = extended_rsi.get_conditions_for_rsi_features(df=test_df)
     test_df = extended_rsi.signals_from_features_generate(
         test_df, conditions=extended_rsi.conditions, signals=extended_rsi.signals
     )
