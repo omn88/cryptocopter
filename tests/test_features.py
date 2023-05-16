@@ -50,7 +50,9 @@ def test_basic_rsi_signal_generate(basic_rsi):
 
     logger.info("Test DF with RSI: %s", test_df)
 
-    test_df = basic_rsi.signals_from_features_generate(test_df)
+    test_df = basic_rsi.signals_from_features_generate(
+        test_df, conditions=basic_rsi.conditions, signals=basic_rsi.signals
+    )
 
     logger.info("Test DF with signals: %s", test_df)
 

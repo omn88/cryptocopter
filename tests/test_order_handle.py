@@ -1,4 +1,6 @@
 import logging
+from unittest.mock import patch
+
 from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
@@ -251,7 +253,9 @@ async def test_long_first_order_canceled(basic_rsi):
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_long_two_orders_filled_then_target_reached(
+    mock_save_to_file,
     basic_rsi,
 ):
     basic_rsi.client.futures_position_information.side_effect = (
@@ -259,6 +263,7 @@ async def test_long_two_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -279,7 +284,9 @@ async def test_long_two_orders_filled_then_target_reached(
     assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_long_all_orders_filled_then_target_reached(
+    mock_save_to_file,
     basic_rsi,
 ):
     basic_rsi.client.futures_position_information.side_effect = (
@@ -287,6 +294,7 @@ async def test_long_all_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -372,7 +380,9 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_long_all_orders_filled_then_target_reached_partially_then_filled_completely(
+    mock_save_to_file,
     basic_rsi,
 ):
     basic_rsi.client.futures_position_information.side_effect = (
@@ -380,6 +390,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -449,7 +460,9 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_long_all_orders_filled_then_liquidation(
+    mock_save_to_file,
     basic_rsi,
 ):
     basic_rsi.client.futures_position_information.side_effect = (
@@ -457,6 +470,7 @@ async def test_long_all_orders_filled_then_liquidation(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -831,7 +845,9 @@ async def test_short_all_orders_filled_then_target_reached_partially(basic_rsi):
     assert basic_rsi.df.iloc[-1]["Position"] == State.SHORT
 
 
+@patch("src.workers.handle_order.save_to_file")
 async def test_short_all_orders_filled_then_target_reached_partially_then_filled_completely(
+    mock_save_to_file,
     basic_rsi,
 ):
     basic_rsi.client.futures_position_information.side_effect = (
@@ -839,6 +855,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -908,12 +925,14 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
 
-async def test_short_all_orders_filled_then_liquidation(basic_rsi):
+@patch("src.workers.handle_order.save_to_file")
+async def test_short_all_orders_filled_then_liquidation(mock_save_to_file, basic_rsi):
     basic_rsi.client.futures_position_information.side_effect = (
         get_position_information_when_short()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
