@@ -418,12 +418,18 @@ def update_artifacts_and_save(
 ) -> None:
     artifacts = position.artifacts
 
+    order_update.price = (
+        order_update.average_price
+        if order_update.order_type
+        in [
+            "MARKET",
+            "LIQUIDATION",
+        ]
+        else order_update.price
+    )
+
     if order_update is not None:
-        artifacts.close_price = (
-            order_update.average_price
-            if order_update.order_type in ["MARKET", "LIQUIDATION"]
-            else order_update.price
-        )
+        artifacts.close_price = order_update.price
         artifacts.per_cent_earned = round(
             float(order_update.price / position.entry_price), 3
         )
