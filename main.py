@@ -26,6 +26,10 @@ import os
 import shutil
 import logging_config  # noinspection PyUnresolvedReferences
 
+import os
+import shutil
+import logging_config  # noinspection PyUnresolvedReferences
+
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
