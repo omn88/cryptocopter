@@ -418,24 +418,27 @@ def update_artifacts_and_save(
 ) -> None:
     artifacts = position.artifacts
 
-    order_update.price = (
-        order_update.average_price
-        if order_update.order_type
-        in [
+    if order_update is not None:
+        if order_update.order_type in [
             "MARKET",
             "LIQUIDATION",
-        ]
-        else order_update.price
-    )
-
-    if order_update is not None:
-        artifacts.close_price = order_update.price
-        artifacts.per_cent_earned = round(
-            float(order_update.price / position.entry_price), 3
-        )
-        artifacts.stable_earned = artifacts.quantity * (
-            order_update.price - artifacts.price
-        )
+        ]:
+            close_price = order_update.average_price
+            artifacts.close_price = close_price
+            artifacts.per_cent_earned = round(
+                float(close_price / position.entry_price), 3
+            )
+            artifacts.stable_earned = position.quantity * (
+                close_price - position.entry_price
+            )
+        else:
+            artifacts.close_price = order_update.price
+            artifacts.per_cent_earned = round(
+                float(order_update.price / position.entry_price), 3
+            )
+            artifacts.stable_earned = artifacts.quantity * (
+                order_update.price - artifacts.price
+            )
 
         balance += artifacts.stable_earned
         artifacts.status = "PROFIT" if artifacts.per_cent_earned > 0 else "LOSS"
