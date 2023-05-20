@@ -8,8 +8,7 @@ import btalib
 import numpy
 import pandas
 
-from constants import SYMBOL
-from src.common.identifiers import Signal
+from src.common.constants import SYMBOL
 
 logger = logging.getLogger("common")
 
