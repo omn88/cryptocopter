@@ -11,7 +11,6 @@ from src.common.identifiers import Position
 from src.common.initialize_trading_environment import (
     create_async_client,
     create_async_queue,
-    register_signal_handlers,
     change_margin_type,
     prepare_producers,
     prepare_workers,
@@ -68,8 +67,6 @@ class TradingSystem:
         self.df = insert_to_pandas(data=raw_data)
         self.df = rsi_indicator_apply(df=self.df)
 
-        logger.info("Tej poszedl tendy kuwa")
-
         StrategyClass = STRATEGY_MAP[self.strategy_name]
         self.strategy = StrategyClass(
             client=self.client,
@@ -80,7 +77,6 @@ class TradingSystem:
             position=self.position,
             raw_data=raw_data,
         )
-        # await self.strategy.determine_start_position()
 
     async def start_trading(self):
         # Prepare producers and workers, then start them
@@ -90,6 +86,7 @@ class TradingSystem:
                 df=self.df,
                 interval=INTERVAL,
                 queue=self.queue,
+                tsm=self.strategy,
             ),
             *prepare_workers(tsm=self.strategy, queue=self.queue),
             return_exceptions=True,

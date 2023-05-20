@@ -10,7 +10,6 @@ from decouple import config
 import logging
 
 from src.common.constants import SYMBOL, MARGIN_TYPE
-from src.common.shutdown_strategy_gracefully import shutdown
 from src.producers.producers import kline_futures_socket, futures_user_socket
 from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
@@ -41,20 +40,20 @@ async def create_async_queue() -> asyncio.Queue:
     return queue
 
 
-def register_signal_handlers(loop, client, position, balance):
-    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-    for s in signals:
-        loop.add_signal_handler(
-            s,
-            lambda s=s: asyncio.create_task(  # ToDo: THERE IS A METHOD FOR CLOSING ALL OPEN ORDERS
-                shutdown(
-                    client=client,
-                    posix_signal=s,
-                    position=position,
-                    balance=balance,
-                )
-            ),
-        )
+# def register_signal_handlers(loop, client, position, balance):
+#     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+#     for s in signals:
+#         loop.add_signal_handler(
+#             s,
+#             lambda s=s: asyncio.create_task(  # ToDo: THERE IS A METHOD FOR CLOSING ALL OPEN ORDERS
+#                 shutdown(
+#                     client=client,
+#                     posix_signal=s,
+#                     position=position,
+#                     balance=balance,
+#                 )
+#             ),
+#         )
 
 
 async def change_margin_type(client: binance.AsyncClient) -> None:
@@ -65,7 +64,11 @@ async def change_margin_type(client: binance.AsyncClient) -> None:
 
 
 def prepare_producers(
-    bsm: BinanceSocketManager, queue: asyncio.Queue, interval: str, df: pandas.DataFrame
+    bsm: BinanceSocketManager,
+    queue: asyncio.Queue,
+    interval: str,
+    df: pandas.DataFrame,
+    tsm: TradingStateMachine,
 ):
     return [
         asyncio.create_task(
@@ -76,7 +79,7 @@ def prepare_producers(
                 last_index=df.index[-1],
             )
         ),
-        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue)),
+        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
     ]
 
 

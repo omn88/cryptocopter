@@ -13,14 +13,18 @@ from src.common.identifiers import (
     OrderUpdate,
     KlineUpdate,
 )
+from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("producer")
 
 
-async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
+async def futures_user_socket(
+    bm: BinanceSocketManager, queue: asyncio.Queue, tsm: TradingStateMachine
+):
     fus = bm.futures_user_socket()
     async with fus:
         logger.info("Ready to receive first user socket message.")
+        await tsm.determine_start_position()
         while True:
             msg = await fus.recv()
             if msg["e"] == "ACCOUNT_UPDATE":
