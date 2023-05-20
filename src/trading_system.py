@@ -18,11 +18,19 @@ from src.common.initialize_trading_environment import (
     create_socket_manager,
 )
 from src.common.orders import order_quantity_list_prepare
+from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
+from src.strategies.rsi_special import SpecialStrategy
+
+STRATEGY_MAP = {
+    "RSI_Basic": BasicStrategy,
+    "RSI_Extended": ExtendedStrategy,
+    "RSI_Special": SpecialStrategy,
+}
 
 
 class TradingSystem:
-    def __init__(self):
+    def __init__(self, strategy_name):
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
@@ -30,6 +38,7 @@ class TradingSystem:
         self.df = None
         self.position = None
         self.strategy = None
+        self.strategy_name = strategy_name
 
     async def initialize(self):
         # Initialize client, queue, balance, position
@@ -56,8 +65,8 @@ class TradingSystem:
         self.df = insert_to_pandas(data=raw_data)
         self.df = rsi_indicator_apply(df=self.df)
 
-        # Initialize the strategy
-        self.strategy = ExtendedStrategy(
+        StrategyClass = STRATEGY_MAP[self.strategy_name]
+        self.strategy = StrategyClass(
             client=self.client,
             queue=self.queue,
             balance=self.balance,
@@ -66,7 +75,7 @@ class TradingSystem:
             position=self.position,
             raw_data=raw_data,
         )
-        await self.strategy.determine_start_position()
+        # await self.strategy.determine_start_position()
 
     async def start_trading(self):
         # Prepare producers and workers, then start them
