@@ -10,7 +10,13 @@ from binance.enums import (
     ORDER_STATUS_NEW,
 )
 from binance.exceptions import BinanceAPIException
-from constants import SYMBOL, LEVERAGE, DCA_SPAN, NUMBER_OF_DCA_ORDERS, LOSSES_PER_LEVEL
+from src.common.constants import (
+    SYMBOL,
+    LEVERAGE,
+    DCA_SPAN,
+    NUMBER_OF_DCA_ORDERS,
+    LOSSES_PER_LEVEL,
+)
 import pandas
 
 from src.common.identifiers import Order, PositionSide, PositionMode, Position

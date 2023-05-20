@@ -6,7 +6,6 @@ import pandas
 from matplotlib import pyplot
 import binance
 
-from constants import SYMBOL
 from src.common.orders import Order, PositionSide
 
 logger = logging.getLogger("lib")

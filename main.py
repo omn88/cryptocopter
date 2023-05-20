@@ -1,13 +1,12 @@
 import asyncio
 import logging
-from constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
+from src.common.constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
 from src.common.common import (
     futures_get_balance,
     get_futures_historical_data,
     insert_to_pandas,
     rsi_indicator_apply,
 )
-from src.common.identifiers import State
 from src.common.initialize_trading_environment import (
     create_async_client,
     create_socket_manager,
@@ -18,17 +17,8 @@ from src.common.initialize_trading_environment import (
     register_signal_handlers,
 )
 from src.common.orders import order_quantity_list_prepare, Position
-from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
-from src.strategies.rsi_special import SpecialStrategy
 import warnings
-import os
-import shutil
-import logging_config  # noinspection PyUnresolvedReferences
-
-import os
-import shutil
-import logging_config  # noinspection PyUnresolvedReferences
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 

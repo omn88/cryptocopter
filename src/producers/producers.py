@@ -5,7 +5,7 @@ from binance import BinanceSocketManager
 import pandas
 import numpy
 
-from constants import SYMBOL
+from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Event,
     EventName,

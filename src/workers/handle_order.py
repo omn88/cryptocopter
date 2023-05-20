@@ -5,9 +5,8 @@ import json
 from datetime import datetime
 import binance
 import pandas
-from binance.exceptions import BinanceAPIException
 
-from constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
+from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
 from src.common.identifiers import (
     Signal,
     PositionMode,
@@ -23,7 +22,6 @@ from src.common.orders import (
     send_orders,
     PositionSide,
     cancel_take_profit_order,
-    futures_get_order,
     send_market_order,
     send_order,
     target_price_calculate,

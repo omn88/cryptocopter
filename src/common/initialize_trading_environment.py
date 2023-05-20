@@ -9,7 +9,7 @@ from decouple import config
 
 import logging
 
-from constants import SYMBOL, MARGIN_TYPE
+from src.common.constants import SYMBOL, MARGIN_TYPE
 from src.common.shutdown_strategy_gracefully import shutdown
 from src.producers.producers import kline_futures_socket, futures_user_socket
 from src.workers.trading_state_machine import TradingStateMachine
