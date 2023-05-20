@@ -21,6 +21,9 @@ from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy
+import logging
+
+logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
     "RSI_Basic": BasicStrategy,
@@ -49,10 +52,10 @@ class TradingSystem:
         self.position = Position()
 
         # Register signal handlers
-        loop = asyncio.get_event_loop()
-        register_signal_handlers(
-            loop=loop, client=self.client, position=self.position, balance=self.balance
-        )
+        # loop = asyncio.get_event_loop()
+        # register_signal_handlers(
+        #     loop=loop, client=self.client, position=self.position, balance=self.balance
+        # )
 
         # Change margin type and leverage
         await change_margin_type(client=self.client)
@@ -64,6 +67,8 @@ class TradingSystem:
         )
         self.df = insert_to_pandas(data=raw_data)
         self.df = rsi_indicator_apply(df=self.df)
+
+        logger.info("Tej poszedl tendy kuwa")
 
         StrategyClass = STRATEGY_MAP[self.strategy_name]
         self.strategy = StrategyClass(

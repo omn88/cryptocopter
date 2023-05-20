@@ -11,7 +11,7 @@ logger = logging.getLogger("main")
 
 async def main():
     # Instantiate and initialize the trading system
-    trading_system = TradingSystem()
+    trading_system = TradingSystem(strategy_name="RSI_Extended")
     await trading_system.initialize()
 
     try:
