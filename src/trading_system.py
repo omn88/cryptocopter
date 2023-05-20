@@ -1,0 +1,82 @@
+import asyncio
+
+from src.common.common import (
+    futures_get_balance,
+    get_futures_historical_data,
+    insert_to_pandas,
+    rsi_indicator_apply,
+)
+from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
+from src.common.identifiers import Position
+from src.common.initialize_trading_environment import (
+    create_async_client,
+    create_async_queue,
+    register_signal_handlers,
+    change_margin_type,
+    prepare_producers,
+    prepare_workers,
+    create_socket_manager,
+)
+from src.common.orders import order_quantity_list_prepare
+from src.strategies.rsi_extended import ExtendedStrategy
+
+
+class TradingSystem:
+    def __init__(self):
+        self.client = None
+        self.binance_socket_manager = None
+        self.queue = None
+        self.balance = None
+        self.df = None
+        self.position = None
+        self.strategy = None
+
+    async def initialize(self):
+        # Initialize client, queue, balance, position
+        self.client = await create_async_client()
+        self.binance_socket_manager = await create_socket_manager(client=self.client)
+        self.queue = await create_async_queue()
+        self.balance = await futures_get_balance(client=self.client, asset=ASSET)
+        self.position = Position()
+
+        # Register signal handlers
+        loop = asyncio.get_event_loop()
+        register_signal_handlers(
+            loop=loop, client=self.client, position=self.position, balance=self.balance
+        )
+
+        # Change margin type and leverage
+        await change_margin_type(client=self.client)
+        await self.client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
+
+        # Fetch and process historical data
+        raw_data = await get_futures_historical_data(
+            client=self.client, interval=INTERVAL, lookback="4320"
+        )
+        self.df = insert_to_pandas(data=raw_data)
+        self.df = rsi_indicator_apply(df=self.df)
+
+        # Initialize the strategy
+        self.strategy = ExtendedStrategy(
+            client=self.client,
+            queue=self.queue,
+            balance=self.balance,
+            order_quantity_list=order_quantity_list_prepare(),
+            df=self.df,
+            position=self.position,
+            raw_data=raw_data,
+        )
+        await self.strategy.determine_start_position()
+
+    async def start_trading(self):
+        # Prepare producers and workers, then start them
+        await asyncio.gather(
+            *prepare_producers(
+                bsm=self.binance_socket_manager,
+                df=self.df,
+                interval=INTERVAL,
+                queue=self.queue,
+            ),
+            *prepare_workers(tsm=self.strategy, queue=self.queue),
+            return_exceptions=True,
+        )
