@@ -572,35 +572,9 @@ async def test_long_all_orders_filled_then_short_first_order_filled(
 
     await basic_rsi.process_order()
 
-    logger.info(
-        "Position: %s, \nposition old: %s", basic_rsi.position, basic_rsi.position_old
-    )
-
     await first_order_filled(base=basic_rsi, order_id=10)
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.SHORT
-
-    # price = basic_rsi.position.liquidation_price
-    # quantity = basic_rsi.position.take_profit_order.quantity
-    # status = ORDER_STATUS_FILLED
-    #
-    # basic_rsi.order_update = OrderUpdate(
-    #     price=price,
-    #     quantity=quantity,
-    #     status=status,
-    #     order_id=6,
-    #     order_type="LIQUIDATION",
-    #     realized_quantity=quantity,
-    #     last_filled_quantity=quantity,
-    # )
-    #
-    # await basic_rsi.process_order()
-    #
-    # assert basic_rsi.position.orders == []
-    # assert basic_rsi.position.take_profit_order == Order(price=0, quantity=0)
-    # assert basic_rsi.balance == 800.00
-    # assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
-
 
 # ------------------------------ SHORT -------------------------------------#
 

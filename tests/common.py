@@ -75,8 +75,6 @@ async def first_order_filled(base, order_id=1):
 
     assert base.position.orders is not None
 
-    logger.info("orders cimone: %s", base.position.orders)
-
     assert base.position.orders[0].status == ORDER_STATUS_FILLED
     assert base.position.orders[1].status == ORDER_STATUS_NEW
     assert base.position.orders[2].status == ORDER_STATUS_NEW
@@ -415,7 +413,6 @@ def get_orders_long_then_market_then_short():
             "price": 20800.00,
             "status": ORDER_STATUS_NEW,
             "type": ORDER_TYPE_LIMIT
-            # "type":
         },
         {
             "orderId": 6,
@@ -440,7 +437,6 @@ def get_orders_long_then_market_then_short():
             "price": 0,
             "status": ORDER_STATUS_NEW,
             "type": ORDER_TYPE_MARKET
-            # "type":
         },
         {
             "orderId": 10,
@@ -473,18 +469,6 @@ def get_orders_long_then_market_then_short():
             "status": ORDER_STATUS_NEW,
             "type": ORDER_TYPE_LIMIT,
         },
-        # {
-        #     "orderId": 15,
-        #     "price": 20200.00,
-        #     "status": ORDER_STATUS_NEW,
-        #     "type": ORDER_TYPE_LIMIT
-        # },
-        # {
-        #     "orderId": 16,
-        #     "price": 20300.00,
-        #     "status": ORDER_STATUS_NEW,
-        #     "type": ORDER_TYPE_LIMIT
-        # },
     ]
 
 
