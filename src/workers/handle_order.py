@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 import binance
 import pandas
+from binance.enums import SIDE_SELL, SIDE_BUY
 
 from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
 from src.common.identifiers import (
@@ -63,7 +64,7 @@ async def prepare_and_send_orders(
     position.orders = await send_orders(
         client=client,
         orders=position.orders,
-        side=client.SIDE_BUY if side == PositionSide.LONG else client.SIDE_SELL,
+        side=SIDE_BUY if side == PositionSide.LONG else SIDE_SELL,
     )
 
     logger.info(
@@ -104,14 +105,14 @@ async def close_special_position(
 async def close_long(
     client: binance.AsyncClient, position: Position, balance: float
 ) -> Position:
-    close_side = client.SIDE_SELL
+    close_side = SIDE_SELL
     position, position_was_opened = await cancel_remaining_limit_orders(
         client, position=position
     )
 
     if position_was_opened:
         logger.info("Entering position close, trying to Market %s", close_side)
-        await send_market_order(
+        position = await send_market_order(
             client=client,
             position=position,
             side=close_side,
@@ -457,7 +458,7 @@ def update_artifacts_and_save(
 
 async def market_order_filled(
     order_update: OrderUpdate, position: Position, balance: float
-):
+) -> Tuple[Position, float]:
     logger.info("MARKET order filled!")
     assert position.market_order is not None
 
@@ -471,6 +472,8 @@ async def market_order_filled(
         order_update=order_update,
         balance=balance,
     )
+
+    return position, balance
 
 
 async def market_order_partially_filled(order_update: OrderUpdate, position: Position):
