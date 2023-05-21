@@ -171,10 +171,9 @@ class TradingStateMachine:
             {
                 "trigger": "process_order",
                 "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
-                "dest": State.FLAT,
+                "dest": "=",
                 "conditions": "conditions_for_market_order_filled",
                 "before": "handle_market_order_filled",
-                "after": "enter_flat",
             },
             {
                 "trigger": "process_order",

@@ -1,7 +1,12 @@
 import logging
 
 import pandas
-from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_NEW
+from binance.enums import (
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_NEW,
+    ORDER_TYPE_LIMIT,
+    ORDER_TYPE_MARKET,
+)
 
 from src.common.identifiers import (
     Signal,
@@ -52,7 +57,7 @@ def assert_dca_short_opened(
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
 
 
-async def first_order_filled(base):
+async def first_order_filled(base, order_id=1):
     assert base.position.orders is not None
     price = base.position.orders[0].price
     quantity = base.position.orders[0].quantity
@@ -61,7 +66,7 @@ async def first_order_filled(base):
         price=price,
         quantity=quantity,
         status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=order_id,
         last_filled_quantity=quantity,
         realized_quantity=quantity,
     )
@@ -377,6 +382,96 @@ def get_orders_long_then_short():
     ]
 
 
+def get_orders_long_then_market_then_short():
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 5,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT
+        },
+        {
+            "orderId": 6,
+            "price": 20748.0,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 7,
+            "price": 20696.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 8,
+            "price": 20644.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 9,
+            "price": 0,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_MARKET
+        },
+        {
+            "orderId": 10,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 11,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 12,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 13,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT
+            # "type":
+        },
+        {
+            "orderId": 14,
+            "price": 19200.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+    ]
+
+
 def get_orders_short_then_long():
     return [
         {
@@ -440,6 +535,19 @@ def get_position_information_when_long_for_order_partially_filled():
 
 def get_position_information_when_short():
     return [
+        [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "20848", "entryPrice": "20050", "positionAmt": "0.124"}],
+        [{"liquidationPrice": "20896", "entryPrice": "20100", "positionAmt": "0.186"}],
+        [{"liquidationPrice": "20944", "entryPrice": "20150", "positionAmt": "0.248"}],
+    ]
+
+
+def get_position_information_when_long_then_short():
+    return [
+        [{"liquidationPrice": "19200", "entryPrice": "20000", "positionAmt": "0.062"}],
+        [{"liquidationPrice": "19152", "entryPrice": "19950", "positionAmt": "0.125"}],
+        [{"liquidationPrice": "19104", "entryPrice": "19900", "positionAmt": "0.188"}],
+        [{"liquidationPrice": "19056", "entryPrice": "19850", "positionAmt": "0.251"}],
         [{"liquidationPrice": "20800", "entryPrice": "20000", "positionAmt": "0.062"}],
         [{"liquidationPrice": "20848", "entryPrice": "20050", "positionAmt": "0.124"}],
         [{"liquidationPrice": "20896", "entryPrice": "20100", "positionAmt": "0.186"}],

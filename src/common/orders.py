@@ -8,6 +8,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
+    FUTURE_ORDER_TYPE_MARKET,
 )
 from binance.exceptions import BinanceAPIException
 from src.common.constants import (
@@ -324,29 +325,29 @@ async def send_market_order(
     client: binance.AsyncClient,
     position: Position,
     side: str,
-):
-    try:
-        order_type = client.FUTURE_ORDER_TYPE_MARKET
-        resp = await client.futures_create_order(
-            symbol=SYMBOL,
-            side=side,
-            quantity=abs(position.quantity),
-            type=order_type,
-        )
-        position.market_order = Order(
-            order_type=order_type,
-            order_id=int(resp["orderId"]),
-            price=0,
-            quantity=0,
-        )
-        logger.info(
-            "%s order, type: %s send: %s",
-            side,
-            order_type,
-            resp,
-        )
-    except BinanceAPIException as exception:
-        logger.info("exception: %s", exception)
+) -> Position:
+    order_type = FUTURE_ORDER_TYPE_MARKET
+    quantity = abs(position.quantity)
+    resp = await client.futures_create_order(
+        symbol=SYMBOL,
+        side=side,
+        quantity=quantity,
+        type=order_type,
+    )
+    position.market_order = Order(
+        order_type=order_type,
+        order_id=int(resp["orderId"]),
+        price=0,
+        quantity=quantity,
+    )
+    logger.info(
+        "%s order, type: %s send: %s",
+        side,
+        order_type,
+        resp,
+    )
+
+    return position
 
 
 async def cancel_remaining_limit_orders(
