@@ -1,93 +1,25 @@
 import asyncio
 import logging
-from src.common.constants import LEVERAGE, SYMBOL, ASSET, INTERVAL
-from src.common.common import (
-    futures_get_balance,
-    get_futures_historical_data,
-    insert_to_pandas,
-    rsi_indicator_apply,
-)
-from src.common.initialize_trading_environment import (
-    create_async_client,
-    create_socket_manager,
-    create_async_queue,
-    change_margin_type,
-    prepare_producers,
-    prepare_workers,
-    register_signal_handlers,
-)
-from src.common.orders import order_quantity_list_prepare, Position
-from src.strategies.rsi_extended import ExtendedStrategy
+import logging_config  # noinspection PyUnresolvedReferences
 import warnings
+from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
-
 
 logger = logging.getLogger("main")
 
 
 async def main():
-    logger.info(
-        "RSI Based Futures: Start. Initial parameters: symbol %s, asset %s, interval %s",
-        SYMBOL,
-        ASSET,
-        INTERVAL,
-    )
-    loop = asyncio.get_event_loop()
+    # Instantiate and initialize the trading system
+    trading_system = TradingSystem(strategy_name="RSI_Extended")
+    await trading_system.initialize()
 
-    client = await create_async_client()
-    bsm = await create_socket_manager(client=client)
-    queue = await create_async_queue()
-    balance = await futures_get_balance(client=client, asset=ASSET)
-    position = Position()
-
-    register_signal_handlers(
-        loop=loop, client=client, position=position, balance=balance
-    )
-
-    await change_margin_type(client=client)
-    await client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
-
-    raw_data = await get_futures_historical_data(
-        client=client,
-        interval=INTERVAL,
-        lookback="4320",  # 44000 is approximately one month
-    )
-    df = insert_to_pandas(data=raw_data)
-    df = rsi_indicator_apply(df=df)
-
-    # Strategy returns trading state machine
-    tsm = ExtendedStrategy(
-        client=client,
-        queue=queue,
-        balance=balance,
-        order_quantity_list=order_quantity_list_prepare(),
-        df=df,
-        position=position,
-        raw_data=raw_data,
-    )
-    await tsm.determine_start_position()
-
-    await asyncio.gather(
-        *prepare_producers(bsm=bsm, df=df, interval=INTERVAL, queue=queue),
-        *prepare_workers(
-            tsm=tsm,
-            queue=queue,
-        ),
-        return_exceptions=True,
-    )
-
-    # shutil.copyfile(f"{os.getcwd()}/artifacts/info.log", f"{artifacts_dir}/info.log")
-    # shutil.copyfile(
-    #     f"{os.getcwd()}/artifacts/list_of_orders.txt",
-    #     f"{artifacts_dir}/list_of_orders.txt",
-    # )
+    try:
+        # Start trading
+        await trading_system.start_trading()
+    except asyncio.exceptions.CancelledError:
+        logging.info("Strategy cancelled")
 
 
 if __name__ == "__main__":
-    # artifacts_dir = create_directory_with_timestamp()
-
-    try:
-        asyncio.run(main())
-    except asyncio.exceptions.CancelledError:
-        logging.info("Strategy cancelled")
+    asyncio.run(main())

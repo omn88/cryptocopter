@@ -576,6 +576,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(
 
     assert basic_rsi.df.iloc[-1]["Position"] == State.SHORT
 
+
 # ------------------------------ SHORT -------------------------------------#
 
 
