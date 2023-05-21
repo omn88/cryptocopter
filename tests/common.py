@@ -412,7 +412,7 @@ def get_orders_long_then_market_then_short():
             "orderId": 5,
             "price": 20800.00,
             "status": ORDER_STATUS_NEW,
-            "type": ORDER_TYPE_LIMIT
+            "type": ORDER_TYPE_LIMIT,
         },
         {
             "orderId": 6,
@@ -436,7 +436,7 @@ def get_orders_long_then_market_then_short():
             "orderId": 9,
             "price": 0,
             "status": ORDER_STATUS_NEW,
-            "type": ORDER_TYPE_MARKET
+            "type": ORDER_TYPE_MARKET,
         },
         {
             "orderId": 10,
