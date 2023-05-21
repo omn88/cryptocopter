@@ -167,7 +167,8 @@ class Position:
 
     def __repr__(self) -> str:
         return (
-            f"\nPosition(price={self.entry_price}, quantity={self.quantity}, side={self.side}, "
-            f"liquidation_price={self.liquidation_price}, target_price={self.target_price}, "
-            f"take_profit_order={self.take_profit_order})"
+            f"Position(entry_price={self.entry_price}, quantity={self.quantity}, status={self.status}, "
+            f"side={self.side}, orders={self.orders}, liquidation_price={self.liquidation_price}, "
+            f"target_price={self.target_price}, take_profit_order={self.take_profit_order}, "
+            f"market_order={self.market_order}, artifacts={self.artifacts})"
         )

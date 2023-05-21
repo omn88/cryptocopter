@@ -7,9 +7,10 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_EXPIRED,
     ORDER_STATUS_CANCELED,
+    ORDER_TYPE_MARKET,
 )
 
-from src.common.identifiers import State, OrderUpdate, Order
+from src.common.identifiers import State, OrderUpdate, Order, Signal
 from tests.common import (
     start_long,
     first_order_filled,
@@ -24,6 +25,11 @@ from tests.common import (
     get_position_information_when_long_for_order_partially_filled,
     get_position_information_when_short,
     get_position_information_when_short_for_order_partially_filled,
+    get_position_information_when_long_then_short,
+    get_orders_long_then_short,
+    generate_signal,
+    assert_dca_short_opened,
+    get_orders_long_then_market_then_short,
 )
 
 logger = logging.getLogger("TEST")
@@ -510,6 +516,65 @@ async def test_long_all_orders_filled_then_liquidation(
     assert basic_rsi.balance == 800.00
     assert basic_rsi.df.iloc[-1]["Position"] == State.FLAT
 
+
+@patch("src.workers.handle_order.save_to_file")
+async def test_long_all_orders_filled_then_short_first_order_filled(
+    mock_save_to_file,
+    basic_rsi,
+):
+    basic_rsi.client.futures_position_information.side_effect = (
+        get_position_information_when_long_then_short()
+    )
+    basic_rsi.client.futures_create_order.side_effect = (
+        get_orders_long_then_market_then_short()
+    )
+    basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    mock_save_to_file.return_value = True
+
+    await start_long(base=basic_rsi)
+    await first_order_filled(base=basic_rsi)
+
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+    assert basic_rsi.position.take_profit_order.price == 20800.0
+    assert basic_rsi.position.liquidation_price == 19200
+
+    await second_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20748.0
+    assert basic_rsi.position.liquidation_price == 19152
+    assert basic_rsi.df.iloc[-1]["Position"] == State.LONG
+
+    await third_and_fourth_order_filled(base=basic_rsi)
+    assert basic_rsi.position.take_profit_order.price == 20644.0
+    assert basic_rsi.position.liquidation_price == 19056
+
+    basic_rsi.signal_update = generate_signal(signal=Signal.SHORT, df=basic_rsi.df)
+
+    await basic_rsi.process_signal()
+
+    assert_dca_short_opened(
+        position=basic_rsi.position,
+        balance=basic_rsi.balance,
+        state=basic_rsi.state,
+        signal_update=basic_rsi.signal_update,
+        df=basic_rsi.df,
+    )
+
+    basic_rsi.order_update = OrderUpdate(
+        price=20414,
+        quantity=basic_rsi.position_old.quantity,
+        status=ORDER_STATUS_FILLED,
+        realized_quantity=basic_rsi.position_old.quantity,
+        last_filled_quantity=basic_rsi.position_old.quantity,
+        order_id=9,
+        order_type=ORDER_TYPE_MARKET,
+    )
+
+    await basic_rsi.process_order()
+
+    await first_order_filled(base=basic_rsi, order_id=10)
+
+    assert basic_rsi.df.iloc[-1]["Position"] == State.SHORT
 
 # ------------------------------ SHORT -------------------------------------#
 
