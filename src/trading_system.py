@@ -46,9 +46,8 @@ class TradingSystem:
         # Initialize client, queue, balance, position
         self.client = await create_async_client()
         self.binance_socket_manager = await create_socket_manager(client=self.client)
-        self.queue = await create_async_queue()
+        self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
-        self.position = Position()
 
         # Register signal handlers
         # loop = asyncio.get_event_loop()
@@ -61,11 +60,15 @@ class TradingSystem:
         await self.client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
 
         # Fetch and process historical data
-        raw_data = await get_futures_historical_data(
+        self.raw_data = await get_futures_historical_data(
             client=self.client, interval=INTERVAL, lookback="4320"
         )
-        self.df = insert_to_pandas(data=raw_data)
+        self.df = insert_to_pandas(data=self.raw_data)
         self.df = rsi_indicator_apply(df=self.df)
+
+    async def start_trading(self):
+        # Prepare producers and workers, then start them
+        self.position = Position()
 
         StrategyClass = STRATEGY_MAP[self.strategy_name]
         self.strategy = StrategyClass(
@@ -75,11 +78,9 @@ class TradingSystem:
             order_quantity_list=order_quantity_list_prepare(),
             df=self.df,
             position=self.position,
-            raw_data=raw_data,
+            raw_data=self.raw_data,
         )
 
-    async def start_trading(self):
-        # Prepare producers and workers, then start them
         await asyncio.gather(
             *prepare_producers(
                 bsm=self.binance_socket_manager,
@@ -91,3 +92,8 @@ class TradingSystem:
             *prepare_workers(tsm=self.strategy, queue=self.queue),
             return_exceptions=True,
         )
+
+    async def stop(self):
+        # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
+        # It might involve cancelling the tasks that were started in `start`.
+        pass  # TODO: implement this

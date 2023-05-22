@@ -22,7 +22,7 @@ async def test_determine_start_position(signal, basic_rsi):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
     position = Position()
-    queue = await create_async_queue()
+    queue = create_async_queue()
 
     tsm = ExtendedStrategy(
         client=basic_rsi.client,
