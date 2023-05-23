@@ -32,10 +32,11 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, strategy_name):
+    def __init__(self, strategy_name, ui_queue):
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
+        self.ui_queue: asyncio.Queue = ui_queue
         self.balance = None
         self.raw_data = None
         self.df = None
@@ -49,6 +50,7 @@ class TradingSystem:
         self.binance_socket_manager = await create_socket_manager(client=self.client)
         self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
+        await self.ui_queue.put("UpdateBalance")
 
         # Register signal handlers
         # loop = asyncio.get_event_loop()
