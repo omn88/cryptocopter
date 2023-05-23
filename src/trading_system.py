@@ -32,7 +32,7 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, strategy_name, ui_queue):
+    def __init__(self, ui_queue):
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
@@ -42,7 +42,7 @@ class TradingSystem:
         self.df = None
         self.position = None
         self.strategy = None
-        self.strategy_name = strategy_name
+        self.strategy_name = None
 
     async def initialize(self):
         # Initialize client, queue, balance, position
@@ -67,6 +67,7 @@ class TradingSystem:
             client=self.client, interval=INTERVAL, lookback="4320"
         )
         self.df = insert_to_pandas(data=self.raw_data)
+        logger.info("DF: %s", self.df)
         self.df = rsi_indicator_apply(df=self.df)
 
     async def start_trading(self):
