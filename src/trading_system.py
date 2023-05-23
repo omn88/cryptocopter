@@ -37,6 +37,7 @@ class TradingSystem:
         self.binance_socket_manager = None
         self.queue = None
         self.balance = None
+        self.raw_data = None
         self.df = None
         self.position = None
         self.strategy = None
