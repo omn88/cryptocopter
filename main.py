@@ -10,21 +10,6 @@ from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-# from kivy.logger import Logger
-#
-# # Get Python's logger
-# python_logger = logging.getLogger()
-#
-#
-# # This handler will forward messages to Kivy's logger
-# class KivyHandler(logging.Handler):
-#     def emit(self, record):
-#         Logger.log(record.levelno, record.msg, record.args)
-#
-#
-# # Add the handler to Python's logger
-# python_logger.addHandler(KivyHandler())
-
 
 kv = """
 BoxLayout:
