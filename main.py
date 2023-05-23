@@ -1,15 +1,11 @@
 import asyncio
-import logging
 
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.logger import Logger
 
 # import logging_config  # noinspection PyUnresolvedReferences
 import warnings
-
-from kivymd.app import MDApp
-
-from src.common.constants import SYMBOL, ASSET, INTERVAL
 from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -57,6 +53,7 @@ BoxLayout:
             text: 'RSI_basic'
             values: ['RSI_Basic', 'RSI_Extended']
             size_hint_x: 0.75
+            on_text: app.on_strategy_change(self, self.text)
 
     # Balance Label
     BoxLayout:
@@ -104,13 +101,13 @@ BoxLayout:
     Button:
         text: 'Start'
         size_hint_x: 0.125
-        on_press: root.on_start()
+        on_press: app.on_start()
 
     # Cancel button
     Button:
         text: 'Cancel'
         size_hint_x: 0.125
-        on_press: root.on_cancel()
+        on_press: app.on_cancel()
 
 <BottomSection@BoxLayout>:
     orientation: 'horizontal'
@@ -142,6 +139,20 @@ class AsyncApp(App):
 
     def build(self):
         return Builder.load_string(kv)
+
+    def on_strategy_change(self, instance, value):
+        self.trading_system.strategy_name = value
+        Logger.info("Strategy: Chosen strategy is %s" % value)
+
+    def on_start(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.trading_system.start_trading())
+        Logger.info("App: Start button pressed.")
+
+    def on_cancel(self):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.trading_system.stop())
+        Logger.info("App: Cancel button pressed.")
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they
