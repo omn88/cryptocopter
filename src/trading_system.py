@@ -50,7 +50,6 @@ class TradingSystem:
         self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
         await self.ui_queue.put(AccountData(balance=self.balance))
-        await self.ui_queue.put(PositionData("BTC", 1, 50000, 50000, 40000, 0))
         logger.info("Send account data: %s", self.balance)
 
         # Register signal handlers
@@ -84,6 +83,7 @@ class TradingSystem:
             df=self.df,
             position=self.position,
             raw_data=self.raw_data,
+            ui_queue=self.ui_queue,
         )
 
         await asyncio.gather(

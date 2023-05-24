@@ -197,7 +197,7 @@ class AsyncApp(App):
                 Logger.info("PANU  DYS IS update account")
                 self.balance_label.text = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.position_data_list.append(
+                self.position_data_list = [
                     {
                         "symbol": data.symbol,
                         "quantity": str(data.quantity),
@@ -206,7 +206,7 @@ class AsyncApp(App):
                         "liquidation_price": str(data.liquidation_price),
                         "pnl": str(data.pnl),
                     }
-                )
+                ]
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they

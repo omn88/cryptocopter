@@ -22,7 +22,15 @@ logger = logging.getLogger("BasicStrategy")
 
 class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
     def __init__(
-        self, client, queue, balance, order_quantity_list, df, position, raw_data
+        self,
+        client,
+        queue,
+        balance,
+        order_quantity_list,
+        df,
+        position,
+        raw_data,
+        ui_queue,
     ):
         super().__init__(
             client=client,
@@ -32,6 +40,7 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
             balance=balance,
             order_quantity_list=order_quantity_list,
             raw_data=raw_data,
+            ui_queue=ui_queue,
         )
 
         self.import_feature_configuration(feature=FeatureRsiBasic())

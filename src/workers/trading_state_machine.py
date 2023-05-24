@@ -16,7 +16,7 @@ from binance.enums import (
 from transitions.extensions.asyncio import AsyncMachine
 import logging
 
-
+from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Position,
     State,
@@ -29,6 +29,7 @@ from src.common.identifiers import (
     PositionSide,
     Event,
     EventName,
+    PositionData,
 )
 from src.workers.handle_order import (
     position_liquidation,
@@ -54,6 +55,7 @@ class TradingStateMachine:
         self,
         client: binance.AsyncClient,
         queue: asyncio.Queue,
+        ui_queue: asyncio.Queue,
         position: Position,
         df: pandas.DataFrame,
         balance: float,
@@ -63,6 +65,7 @@ class TradingStateMachine:
         self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
+        self.ui_queue: asyncio.Queue = ui_queue
         self.position: Position = position
         self.position_old: Position = position
         self.raw_data: List = raw_data
@@ -577,7 +580,16 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
         )
-
+        await self.ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=self.position.quantity,
+                entry_price=self.position.entry_price,
+                mark_price=0,
+                liquidation_price=self.position.liquidation_price,
+                pnl=0,
+            )
+        )
         self.update_position_in_df(update=self.position.status)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
@@ -586,4 +598,14 @@ class TradingStateMachine:
             client=self.client,
             order_update=self.order_update,
             position=self.position,
+        )
+        await self.ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=self.position.quantity,
+                entry_price=self.position.entry_price,
+                mark_price=0,
+                liquidation_price=self.position.liquidation_price,
+                pnl=0,
+            )
         )
