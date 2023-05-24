@@ -3,9 +3,12 @@ import asyncio
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
-
+from kivy.properties import ObjectProperty, ListProperty
+from kivy.uix.recycleview import RecycleView
 import logging_config  # noinspection PyUnresolvedReferences
 import warnings
+
+from src.common.identifiers import AccountData, PositionData
 from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -35,7 +38,7 @@ BoxLayout:
             size_hint_x: 0.25
         Spinner:
             id: strategy
-            text: 'RSI_basic'
+            text: 'Choose Strategy...'
             values: ['RSI_Basic', 'RSI_Extended']
             size_hint_x: 0.75
             on_text: app.on_strategy_change(self, self.text)
@@ -47,7 +50,7 @@ BoxLayout:
             text: 'Balance:'
         Label:
             id: balance
-            text: ''
+            on_parent: app.balance_label = self
 
     # Mode Label
     BoxLayout:
@@ -94,7 +97,35 @@ BoxLayout:
         size_hint_x: 0.125
         on_press: app.on_cancel()
 
+
+<PositionListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+    
+    symbol: ''
+    quantity: ''
+    entry_price: ''
+    mark_price: ''
+    liquidation_price: ''
+    pnl: ''
+
+    Label:
+        text: root.symbol
+    Label:
+        text: root.quantity
+    Label:
+        text: root.entry_price
+    Label:
+        text: root.mark_price
+    Label:
+        text: root.liquidation_price
+    Label:
+        text: root.pnl
+
+
 <BottomSection@BoxLayout>:
+    id: bottom_section
     orientation: 'horizontal'
 
     TabbedPanel:
@@ -102,8 +133,18 @@ BoxLayout:
 
         TabbedPanelItem:
             text: 'Position'
-            Label:
-                text: 'Position data'
+            BoxLayout:
+                orientation: "vertical"
+                RecycleView:
+                    id: positions_list
+                    data: app.position_data_list
+                    viewclass: 'PositionListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        orientation: 'vertical'
         TabbedPanelItem:
             text: 'Orders'
             Label:
@@ -124,9 +165,14 @@ class AsyncApp(App):
     # change the logger to INFO
 
     other_task = None
+    balance_label = ObjectProperty(None)
+    position_data_list = ListProperty([])
 
     def build(self):
         return Builder.load_string(kv)
+
+    def on_start(self):
+        print("Root IDS: W on start %s", self.root.ids)
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
@@ -142,6 +188,26 @@ class AsyncApp(App):
         loop.create_task(self.trading_system.stop())
         Logger.info("App: Cancel button pressed.")
 
+    async def update_ui(self):
+        while True:
+            data = await self.ui_queue.get()
+            Logger.info("Awaiting UI update...")
+            # Update the UI based on data
+            if isinstance(data, AccountData):
+                Logger.info("PANU  DYS IS update account")
+                self.balance_label.text = f"{str(data.balance)} USDT"
+            if isinstance(data, PositionData):
+                self.position_data_list.append(
+                    {
+                        "symbol": data.symbol,
+                        "quantity": str(data.quantity),
+                        "entry_price": str(data.entry_price),
+                        "mark_price": str(data.mark_price),
+                        "liquidation_price": str(data.liquidation_price),
+                        "pnl": str(data.pnl),
+                    }
+                )
+
     def app_func(self):
         """This will run both methods asynchronously and then block until they
         are finished
@@ -149,16 +215,20 @@ class AsyncApp(App):
         self.ui_queue = asyncio.Queue()
 
         self.trading_system: TradingSystem = TradingSystem(ui_queue=self.ui_queue)
-        self.other_task = asyncio.ensure_future(self.trading_system.initialize())
+        other_task = asyncio.ensure_future(self.trading_system.initialize())
+
+        # Start the task for updating the UI
+        ui_update_task = asyncio.ensure_future(self.update_ui())
 
         async def run_wrapper():
             # we don't actually need to set asyncio as the lib because it is
             # the default, but it doesn't hurt to be explicit
             await self.async_run(async_lib="asyncio")
             print("App done")
-            self.other_task.cancel()
+            other_task.cancel()
+            ui_update_task.cancel()
 
-        return asyncio.gather(run_wrapper(), self.other_task)
+        return asyncio.gather(run_wrapper(), other_task, ui_update_task)
 
 
 if __name__ == "__main__":

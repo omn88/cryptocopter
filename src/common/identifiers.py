@@ -14,6 +14,26 @@ from binance.enums import (
 )
 
 
+class PositionData:
+    def __init__(
+        self, symbol, quantity, entry_price, mark_price, liquidation_price, pnl
+    ):
+        self.symbol = symbol
+        self.quantity = quantity
+        self.entry_price = entry_price
+        self.mark_price = mark_price
+        self.liquidation_price = liquidation_price
+        self.pnl = pnl
+
+    def __repr__(self):
+        return f"PositionData(symbol={self.symbol}, quantity={self.quantity}, entry_price={self.entry_price}, mark_price={self.mark_price}, liquidation_price={self.liquidation_price}, pnl={self.pnl})"
+
+
+class AccountData:
+    def __init__(self, balance):
+        self.balance = balance
+
+
 class State(Enum):
     FLAT = "FLAT"
     LONG = "LONG"

@@ -7,7 +7,7 @@ from src.common.common import (
     rsi_indicator_apply,
 )
 from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
-from src.common.identifiers import Position
+from src.common.identifiers import Position, AccountData, PositionData
 from src.common.initialize_trading_environment import (
     create_async_client,
     create_async_queue,
@@ -49,7 +49,9 @@ class TradingSystem:
         self.binance_socket_manager = await create_socket_manager(client=self.client)
         self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
-        await self.ui_queue.put("UpdateBalance")
+        await self.ui_queue.put(AccountData(balance=self.balance))
+        await self.ui_queue.put(PositionData("BTC", 1, 50000, 50000, 40000, 0))
+        logger.info("Send account data: %s", self.balance)
 
         # Register signal handlers
         # loop = asyncio.get_event_loop()
