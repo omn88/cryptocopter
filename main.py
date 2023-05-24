@@ -4,7 +4,7 @@ from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
 
-# import logging_config  # noinspection PyUnresolvedReferences
+import logging_config  # noinspection PyUnresolvedReferences
 import warnings
 from src.trading_system import TradingSystem
 
@@ -86,7 +86,7 @@ BoxLayout:
     Button:
         text: 'Start'
         size_hint_x: 0.125
-        on_press: app.on_start()
+        on_press: app.on_start_trading()
 
     # Cancel button
     Button:
@@ -120,6 +120,9 @@ BoxLayout:
 
 
 class AsyncApp(App):
+    # Change the button start method, on_start is automaticall callback
+    # change the logger to INFO
+
     other_task = None
 
     def build(self):
@@ -129,7 +132,7 @@ class AsyncApp(App):
         self.trading_system.strategy_name = value
         Logger.info("Strategy: Chosen strategy is %s" % value)
 
-    def on_start(self):
+    def on_start_trading(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.start_trading())
         Logger.info("App: Start button pressed.")

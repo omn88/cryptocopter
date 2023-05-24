@@ -17,6 +17,8 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("producer")
 
+logger.setLevel(logging.INFO)
+
 
 async def futures_user_socket(
     bm: BinanceSocketManager, queue: asyncio.Queue, tsm: TradingStateMachine
