@@ -281,7 +281,6 @@ class AsyncApp(App):
     # Change the button start method, on_start is automaticall callback
     # change the logger to INFO
 
-    other_task = None
     balance_label = ObjectProperty(None)
     position_data_list = ListProperty([])
     order_data_list = ListProperty([])
@@ -289,9 +288,6 @@ class AsyncApp(App):
 
     def build(self):
         return Builder.load_string(kv)
-
-    def on_start(self):
-        print("Root IDS: W on start %s", self.root.ids)
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
@@ -402,7 +398,9 @@ class AsyncApp(App):
         self.ui_queue = asyncio.Queue()
 
         self.trading_system: TradingSystem = TradingSystem(ui_queue=self.ui_queue)
-        other_task = asyncio.ensure_future(self.trading_system.initialize())
+        initialize_trading_system_task = asyncio.ensure_future(
+            self.trading_system.initialize()
+        )
 
         # Start the task for updating the UI
         ui_update_task = asyncio.ensure_future(self.update_ui())
@@ -411,11 +409,13 @@ class AsyncApp(App):
             # we don't actually need to set asyncio as the lib because it is
             # the default, but it doesn't hurt to be explicit
             await self.async_run(async_lib="asyncio")
-            print("App done")
-            other_task.cancel()
+            Logger.info("App done")
+            initialize_trading_system_task.cancel()
             ui_update_task.cancel()
 
-        return asyncio.gather(run_wrapper(), other_task, ui_update_task)
+        return asyncio.gather(
+            run_wrapper(), initialize_trading_system_task, ui_update_task
+        )
 
 
 if __name__ == "__main__":

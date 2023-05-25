@@ -16,8 +16,6 @@ from src.workers.worker import worker
 
 logger = logging.getLogger("initialize_trading_environment")
 
-# logger.setLevel(logging.INFO)
-
 
 async def create_async_client() -> binance.AsyncClient:
     client = await AsyncClient.create(

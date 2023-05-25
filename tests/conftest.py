@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
@@ -49,6 +50,7 @@ async def basic_rsi(mock_AsyncClient):
         position=position,
         queue=queue,
         raw_data=raw_data,
+        ui_queue=asyncio.Queue(),
     )
 
     await tsm.determine_start_position()
@@ -74,6 +76,7 @@ async def extended_rsi(mock_AsyncClient):
         position=position,
         raw_data=raw_data,
         queue=queue,
+        ui_queue=asyncio.Queue(),
     )
 
     await tsm.determine_start_position()
