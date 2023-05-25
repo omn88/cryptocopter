@@ -175,6 +175,21 @@ BoxLayout:
             text: 'Position'
             BoxLayout:
                 orientation: "vertical"
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Quantity'
+                    Label:
+                        text: 'Entry Price'
+                    Label:
+                        text: 'Mark Price'
+                    Label:
+                        text: 'Liquidation Price'
+                    Label:
+                        text: 'PnL'
                 RecycleView:
                     id: positions_list
                     data: app.position_data_list
@@ -189,6 +204,27 @@ BoxLayout:
             text: 'Orders'
             BoxLayout:
                 orientation: "vertical"
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Order ID'
+                    Label:
+                        text: 'Open Time'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Order Type'
+                    Label:
+                        text: 'Side'
+                    Label:
+                        text: 'Price'
+                    Label:
+                        text: 'Quantity'
+                    Label:
+                        text: 'Realized Quantity'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: orders_list
                     data: app.order_data_list
@@ -203,6 +239,27 @@ BoxLayout:
             text: 'History'
             BoxLayout:
                 orientation: "vertical"
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Order ID'
+                    Label:
+                        text: 'Open Time'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Order Type'
+                    Label:
+                        text: 'Side'
+                    Label:
+                        text: 'Price'
+                    Label:
+                        text: 'Quantity'
+                    Label:
+                        text: 'Realized Quantity'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: history_list
                     data: app.history_data_list
