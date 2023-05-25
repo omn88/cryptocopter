@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import NamedTuple, Dict, List, Optional
 
-import binance
 from binance.enums import (
     ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -32,6 +31,35 @@ class PositionData:
 class AccountData:
     def __init__(self, balance):
         self.balance = balance
+
+
+class OrderData:
+    def __init__(
+        self,
+        order_id,
+        open_time,
+        symbol,
+        order_type,
+        side,
+        price,
+        quantity,
+        realized_quantity,
+    ):
+        self.order_id = order_id
+        self.open_time = open_time
+        self.symbol = symbol
+        self.order_type = order_type
+        self.side = side
+        self.price = price
+        self.quantity = quantity
+        self.realized_quantity = realized_quantity
+
+    def __repr__(self):
+        return (
+            f"OrderData(order_id={self.order_id}, open_time={self.open_time}, symbol={self.symbol}, "
+            f"order_type={self.order_type}, side={self.side}, price={self.price}, quantity={self.quantity}, "
+            f"realized_quantity={self.realized_quantity})"
+        )
 
 
 class State(Enum):

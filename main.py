@@ -8,7 +8,7 @@ from kivy.uix.recycleview import RecycleView
 import logging_config  # noinspection PyUnresolvedReferences
 import warnings
 
-from src.common.identifiers import AccountData, PositionData
+from src.common.identifiers import AccountData, PositionData, OrderData
 from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -124,6 +124,38 @@ BoxLayout:
         text: root.pnl
 
 
+<OrderListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+    
+    order_id: ''
+    open_time: ''
+    symbol: ''
+    order_type: ''
+    side: ''
+    price: ''
+    quantity: ''
+    realized_quantity: ''
+
+    Label:
+        text: root.order_id
+    Label:
+        text: root.open_time
+    Label:
+        text: root.symbol
+    Label:
+        text: root.order_type
+    Label:
+        text: root.side
+    Label:
+        text: root.price
+    Label:
+        text: root.quantity
+    Label:
+        text: root.realized_quantity
+
+
 <BottomSection@BoxLayout>:
     id: bottom_section
     orientation: 'horizontal'
@@ -147,8 +179,18 @@ BoxLayout:
                         orientation: 'vertical'
         TabbedPanelItem:
             text: 'Orders'
-            Label:
-                text: 'Orders data'
+            BoxLayout:
+                orientation: "vertical"
+                RecycleView:
+                    id: orders_list
+                    data: app.order_data_list
+                    viewclass: 'OrderListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        orientation: 'vertical'
         TabbedPanelItem:
             text: 'History'
             Label:
@@ -167,6 +209,7 @@ class AsyncApp(App):
     other_task = None
     balance_label = ObjectProperty(None)
     position_data_list = ListProperty([])
+    order_data_list = ListProperty([])
 
     def build(self):
         return Builder.load_string(kv)
@@ -190,8 +233,10 @@ class AsyncApp(App):
 
     async def update_ui(self):
         while True:
+            Logger.info("Events in UI queue: %s", self.ui_queue.qsize())
+            if self.ui_queue.qsize() == 0:
+                Logger.info("Awaiting new Event...")
             data = await self.ui_queue.get()
-            Logger.info("Awaiting UI update...")
             # Update the UI based on data
             if isinstance(data, AccountData):
                 Logger.info("PANU  DYS IS update account")
@@ -207,6 +252,20 @@ class AsyncApp(App):
                         "pnl": str(data.pnl),
                     }
                 ]
+
+            if isinstance(data, OrderData):  # Add this check for OrderData
+                Logger.info("Received order data: %s", data)
+                order_data = {
+                    "order_id": str(data.order_id),
+                    "open_time": data.open_time,
+                    "symbol": data.symbol,
+                    "order_type": data.order_type,
+                    "side": data.side,
+                    "price": str(data.price),
+                    "quantity": str(data.quantity),
+                    "realized_quantity": str(data.realized_quantity),
+                }
+                self.order_data_list = self.order_data_list + [order_data]
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they
