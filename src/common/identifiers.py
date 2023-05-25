@@ -5,13 +5,63 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import NamedTuple, Dict, List, Optional
 
-import binance
 from binance.enums import (
     ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_NEW,
     FUTURE_ORDER_TYPE_MARKET,
 )
+
+
+class PositionData:
+    def __init__(
+        self, symbol, quantity, entry_price, mark_price, liquidation_price, pnl
+    ):
+        self.symbol = symbol
+        self.quantity = quantity
+        self.entry_price = entry_price
+        self.mark_price = mark_price
+        self.liquidation_price = liquidation_price
+        self.pnl = pnl
+
+    def __repr__(self):
+        return f"PositionData(symbol={self.symbol}, quantity={self.quantity}, entry_price={self.entry_price}, mark_price={self.mark_price}, liquidation_price={self.liquidation_price}, pnl={self.pnl})"
+
+
+class AccountData:
+    def __init__(self, balance):
+        self.balance = balance
+
+
+class OrderData:
+    def __init__(
+        self,
+        order_id,
+        open_time,
+        symbol,
+        order_type,
+        side,
+        price,
+        quantity,
+        realized_quantity,
+        status,
+    ):
+        self.order_id = order_id
+        self.open_time = open_time
+        self.symbol = symbol
+        self.order_type = order_type
+        self.side = side
+        self.price = price
+        self.quantity = quantity
+        self.realized_quantity = realized_quantity
+        self.status = status
+
+    def __repr__(self):
+        return (
+            f"OrderData(order_id={self.order_id}, open_time={self.open_time}, symbol={self.symbol}, "
+            f"order_type={self.order_type}, side={self.side}, price={self.price}, quantity={self.quantity}, "
+            f"realized_quantity={self.realized_quantity})"
+        )
 
 
 class State(Enum):

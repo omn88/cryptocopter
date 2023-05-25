@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from src.common.common import (
@@ -22,7 +24,7 @@ async def test_determine_start_position(signal, basic_rsi):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
     position = Position()
-    queue = await create_async_queue()
+    queue = create_async_queue()
 
     tsm = ExtendedStrategy(
         client=basic_rsi.client,
@@ -32,6 +34,7 @@ async def test_determine_start_position(signal, basic_rsi):
         position=position,
         raw_data=raw_data,
         queue=queue,
+        ui_queue=asyncio.Queue(),
     )
     tsm.signals_from_features_generate(
         df=df, conditions=tsm.conditions, signals=tsm.signals

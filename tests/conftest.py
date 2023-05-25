@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
@@ -39,7 +40,7 @@ async def basic_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
     position = Position()
-    queue = await create_async_queue()
+    queue = create_async_queue()
 
     tsm = BasicStrategy(
         client=mock_AsyncClient,
@@ -49,6 +50,7 @@ async def basic_rsi(mock_AsyncClient):
         position=position,
         queue=queue,
         raw_data=raw_data,
+        ui_queue=asyncio.Queue(),
     )
 
     await tsm.determine_start_position()
@@ -64,7 +66,7 @@ async def extended_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
     position = Position()
-    queue = await create_async_queue()
+    queue = create_async_queue()
 
     tsm = ExtendedStrategy(
         client=mock_AsyncClient,
@@ -74,6 +76,7 @@ async def extended_rsi(mock_AsyncClient):
         position=position,
         raw_data=raw_data,
         queue=queue,
+        ui_queue=asyncio.Queue(),
     )
 
     await tsm.determine_start_position()

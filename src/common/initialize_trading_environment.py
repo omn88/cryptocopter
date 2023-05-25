@@ -33,7 +33,7 @@ async def create_socket_manager(client: binance.AsyncClient) -> BinanceSocketMan
     return bsm
 
 
-async def create_async_queue() -> asyncio.Queue:
+def create_async_queue() -> asyncio.Queue:
     queue: asyncio.Queue = asyncio.Queue()
     logger.info("Async FIFO Queue started")
 

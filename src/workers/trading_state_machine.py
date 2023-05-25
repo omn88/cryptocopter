@@ -16,7 +16,7 @@ from binance.enums import (
 from transitions.extensions.asyncio import AsyncMachine
 import logging
 
-
+from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Position,
     State,
@@ -29,6 +29,9 @@ from src.common.identifiers import (
     PositionSide,
     Event,
     EventName,
+    PositionData,
+    OrderData,
+    Order,
 )
 from src.workers.handle_order import (
     position_liquidation,
@@ -54,6 +57,7 @@ class TradingStateMachine:
         self,
         client: binance.AsyncClient,
         queue: asyncio.Queue,
+        ui_queue: asyncio.Queue,
         position: Position,
         df: pandas.DataFrame,
         balance: float,
@@ -63,6 +67,7 @@ class TradingStateMachine:
         self.state: State = State.FLAT
         self.client: binance.AsyncClient = client
         self.queue: asyncio.Queue = queue
+        self.ui_queue: asyncio.Queue = ui_queue
         self.position: Position = position
         self.position_old: Position = position
         self.raw_data: List = raw_data
@@ -493,26 +498,45 @@ class TradingStateMachine:
             client=self.client, balance=self.balance, position=self.position
         )
 
-    def log_new_order(self, *args, **kwargs) -> None:
+    async def send_order_update_to_ui(self, order: OrderUpdate):
+        order_data = OrderData(
+            symbol=SYMBOL,
+            order_id=order.order_id,
+            order_type=order.order_type,
+            side=self.position.side,
+            price=order.price,
+            quantity=order.quantity,
+            open_time="0",
+            realized_quantity=order.realized_quantity,
+            status=order.status,
+        )
+
+        await self.ui_queue.put(order_data)
+
+    async def log_new_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("New order: %s", self.order_update.order_id)
 
-    def log_cancelled_order(self, *args, **kwargs) -> None:
+                await self.send_order_update_to_ui(order=self.order_update)
+
+    async def log_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
+                await self.send_order_update_to_ui(order=self.order_update)
 
-    def log_expired_order(self, *args, **kwargs) -> None:
+    async def log_expired_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
+                await self.send_order_update_to_ui(order=self.order_update)
 
     async def handle_account(self, *args, **kwargs):
         logger.info("Account update: %s", self.account_update.account_update)
@@ -577,8 +601,18 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
         )
-
+        await self.ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=self.position.quantity,
+                entry_price=self.position.entry_price,
+                mark_price=0,
+                liquidation_price=self.position.liquidation_price,
+                pnl=0,
+            )
+        )
         self.update_position_in_df(update=self.position.status)
+        await self.send_order_update_to_ui(order=self.order_update)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle order partially filled")
@@ -587,3 +621,15 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
         )
+        await self.ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=self.position.quantity,
+                entry_price=self.position.entry_price,
+                mark_price=0,
+                liquidation_price=self.position.liquidation_price,
+                pnl=0,
+            )
+        )
+
+        await self.send_order_update_to_ui(order=self.order_update)
