@@ -231,6 +231,18 @@ class AsyncApp(App):
         loop.create_task(self.trading_system.stop())
         Logger.info("App: Cancel button pressed.")
 
+    def update_order(self, order_id, **kwargs):
+        # Find the order in the list
+        for i, order in enumerate(self.order_data_list):
+            if order["order_id"] == order_id:
+                # If the order is found, update the fields
+                for key, value in kwargs.items():
+                    if key in order:
+                        order[key] = value
+                # Reassign the list to trigger the UI update
+                self.order_data_list = self.order_data_list
+                break
+
     async def update_ui(self):
         while True:
             Logger.info("Events in UI queue: %s", self.ui_queue.qsize())
@@ -253,19 +265,38 @@ class AsyncApp(App):
                     }
                 ]
 
-            if isinstance(data, OrderData):  # Add this check for OrderData
-                Logger.info("Received order data: %s", data)
-                order_data = {
-                    "order_id": str(data.order_id),
-                    "open_time": data.open_time,
-                    "symbol": data.symbol,
-                    "order_type": data.order_type,
-                    "side": data.side,
-                    "price": str(data.price),
-                    "quantity": str(data.quantity),
-                    "realized_quantity": str(data.realized_quantity),
-                }
-                self.order_data_list = self.order_data_list + [order_data]
+            if isinstance(data, OrderData):
+                # Check if the order already exists
+                existing_orders = [
+                    order
+                    for order in self.order_data_list
+                    if order["order_id"] == data.order_id
+                ]
+                if existing_orders:
+                    # If it does, update it
+                    self.update_order(
+                        data.order_id,
+                        open_time=data.open_time,
+                        symbol=data.symbol,
+                        order_type=data.order_type,
+                        side=data.side,
+                        price=str(data.price),
+                        quantity=str(data.quantity),
+                        realized_quantity=str(data.realized_quantity),
+                    )
+                else:
+                    # If not, add it to the list
+                    order_data = {
+                        "order_id": str(data.order_id),
+                        "open_time": str(data.open_time),
+                        "symbol": data.symbol,
+                        "order_type": data.order_type,
+                        "side": data.side,
+                        "price": str(data.price),
+                        "quantity": str(data.quantity),
+                        "realized_quantity": str(data.realized_quantity),
+                    }
+                    self.order_data_list = self.order_data_list + [order_data]
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they

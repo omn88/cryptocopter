@@ -31,6 +31,7 @@ from src.common.identifiers import (
     EventName,
     PositionData,
     OrderData,
+    Order,
 )
 from src.workers.handle_order import (
     position_liquidation,
@@ -497,6 +498,20 @@ class TradingStateMachine:
             client=self.client, balance=self.balance, position=self.position
         )
 
+    async def send_order_update_to_ui(self, order: OrderUpdate):
+        order_data = OrderData(
+            symbol=SYMBOL,
+            order_id=order.order_id,
+            order_type=order.order_type,
+            side=self.position.side,
+            price=order.price,
+            quantity=order.quantity,
+            open_time="0",
+            realized_quantity=order.realized_quantity,
+        )
+
+        await self.ui_queue.put(order_data)
+
     async def log_new_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
@@ -504,34 +519,23 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("New order: %s", self.order_update.order_id)
 
-                order_data = OrderData(
-                    symbol=SYMBOL,
-                    order_id=order.order_id,
-                    order_type=order.order_type,
-                    side=self.position.side,
-                    price=order.price,
-                    quantity=order.quantity,
-                    open_time="0",
-                    realized_quantity=order.realized_quantity,
-                )
+                await self.send_order_update_to_ui(order=self.order_update)
 
-                await self.ui_queue.put(order_data)
-
-                logger.info("Send Order Data: %s", order_data)
-
-    def log_cancelled_order(self, *args, **kwargs) -> None:
+    async def log_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
+                await self.send_order_update_to_ui(order=self.order_update)
 
-    def log_expired_order(self, *args, **kwargs) -> None:
+    async def log_expired_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
+                await self.send_order_update_to_ui(order=self.order_update)
 
     async def handle_account(self, *args, **kwargs):
         logger.info("Account update: %s", self.account_update.account_update)
@@ -607,6 +611,7 @@ class TradingStateMachine:
             )
         )
         self.update_position_in_df(update=self.position.status)
+        await self.send_order_update_to_ui(order=self.order_update)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle order partially filled")
@@ -625,3 +630,5 @@ class TradingStateMachine:
                 pnl=0,
             )
         )
+
+        await self.send_order_update_to_ui(order=self.order_update)
