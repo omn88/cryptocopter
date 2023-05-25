@@ -1,5 +1,10 @@
 import asyncio
 
+from binance.enums import (
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_EXPIRED,
+    ORDER_STATUS_CANCELED,
+)
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -137,6 +142,7 @@ BoxLayout:
     price: ''
     quantity: ''
     realized_quantity: ''
+    status: ''
 
     Label:
         text: root.order_id
@@ -154,6 +160,8 @@ BoxLayout:
         text: root.quantity
     Label:
         text: root.realized_quantity
+    Label:
+        text: root.status
 
 
 <BottomSection@BoxLayout>:
@@ -193,8 +201,18 @@ BoxLayout:
                         orientation: 'vertical'
         TabbedPanelItem:
             text: 'History'
-            Label:
-                text: 'History data'
+            BoxLayout:
+                orientation: "vertical"
+                RecycleView:
+                    id: history_list
+                    data: app.history_data_list
+                    viewclass: 'OrderListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        orientation: 'vertical'
         TabbedPanelItem:
             text: 'Logs'
             Label:
@@ -210,6 +228,7 @@ class AsyncApp(App):
     balance_label = ObjectProperty(None)
     position_data_list = ListProperty([])
     order_data_list = ListProperty([])
+    history_data_list = ListProperty([])
 
     def build(self):
         return Builder.load_string(kv)
@@ -220,6 +239,19 @@ class AsyncApp(App):
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
         Logger.info("Strategy: Chosen strategy is %s" % value)
+
+    async def move_to_history(self, order_id):
+        # pause the execution for 3 seconds
+        await asyncio.sleep(3)
+        # Find the order in the list
+        for i, order in enumerate(self.order_data_list):
+            if order["order_id"] == order_id:
+                # If the order is found, remove it from order_data_list and add it to history_data_list
+                self.history_data_list = self.history_data_list + [order]
+                self.order_data_list = (
+                    self.order_data_list[:i] + self.order_data_list[i + 1 :]
+                )
+                break
 
     def on_start_trading(self):
         loop = asyncio.get_event_loop()
@@ -275,7 +307,7 @@ class AsyncApp(App):
                 if existing_orders:
                     # If it does, update it
                     self.update_order(
-                        data.order_id,
+                        order_id=data.order_id,
                         open_time=data.open_time,
                         symbol=data.symbol,
                         order_type=data.order_type,
@@ -283,7 +315,14 @@ class AsyncApp(App):
                         price=str(data.price),
                         quantity=str(data.quantity),
                         realized_quantity=str(data.realized_quantity),
+                        status=data.status,
                     )
+                    if data.status in [
+                        ORDER_STATUS_FILLED,
+                        ORDER_STATUS_CANCELED,
+                        ORDER_STATUS_EXPIRED,
+                    ]:
+                        await self.move_to_history(order_id=data.order_id)
                 else:
                     # If not, add it to the list
                     order_data = {
@@ -295,6 +334,7 @@ class AsyncApp(App):
                         "price": str(data.price),
                         "quantity": str(data.quantity),
                         "realized_quantity": str(data.realized_quantity),
+                        "status": data.status,
                     }
                     self.order_data_list = self.order_data_list + [order_data]
 

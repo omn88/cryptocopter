@@ -44,6 +44,7 @@ class OrderData:
         price,
         quantity,
         realized_quantity,
+        status,
     ):
         self.order_id = order_id
         self.open_time = open_time
@@ -53,6 +54,7 @@ class OrderData:
         self.price = price
         self.quantity = quantity
         self.realized_quantity = realized_quantity
+        self.status = status
 
     def __repr__(self):
         return (

@@ -508,6 +508,7 @@ class TradingStateMachine:
             quantity=order.quantity,
             open_time="0",
             realized_quantity=order.realized_quantity,
+            status=order.status,
         )
 
         await self.ui_queue.put(order_data)
