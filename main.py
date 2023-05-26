@@ -259,7 +259,7 @@ BoxLayout:
                         height: self.minimum_height
                         orientation: 'vertical'
         TabbedPanelItem:
-            text: 'Order History'
+            text: 'History O'
             BoxLayout:
                 orientation: "vertical"
                 BoxLayout:
@@ -303,7 +303,7 @@ BoxLayout:
                         height: self.minimum_height
                         orientation: 'vertical'
         TabbedPanelItem:
-            text: 'Position History'
+            text: 'History P'
             BoxLayout:
                 orientation: "vertical"
                 BoxLayout:
@@ -365,6 +365,7 @@ class AsyncApp(App):
             return count
 
     def count_open_positions(self):
+        Logger.info("CALLING COUNT OPEN POSITIONS")
         if not self.position_data_list:  # check if position_data_list is empty
             self.position_count = 0
             return 0
@@ -376,6 +377,7 @@ class AsyncApp(App):
             )
             # Update position_count
             self.position_count = count
+            Logger.info("SELF POSITION COUNT: %s", self.position_count)
             return count
 
     def on_strategy_change(self, instance, value):

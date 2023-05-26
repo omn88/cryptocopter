@@ -626,6 +626,7 @@ class TradingStateMachine:
             ),
             None,
         )
+        logging.info("DUPA ORDER WHICH IS NOT NONE: %s", order)
 
         if order is not None:
             await self.send_order_update_to_ui(
@@ -662,6 +663,8 @@ class TradingStateMachine:
             ),
             None,
         )
+
+        logging.info("DUPA ORDER WHICH IS NOT NONE: %s", order)
 
         if order is not None:
             await self.send_order_update_to_ui(
