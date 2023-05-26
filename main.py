@@ -6,6 +6,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
 )
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ObjectProperty, ListProperty
@@ -17,6 +18,10 @@ from src.common.identifiers import AccountData, PositionData, OrderData
 from src.trading_system import TradingSystem
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
+
+
+# Set initial window size
+Window.size = (960, 600)
 
 
 kv = """
@@ -134,7 +139,6 @@ BoxLayout:
     size_hint_y: None
     height: '30dp'
     
-    order_id: ''
     open_time: ''
     symbol: ''
     order_type: ''
@@ -143,25 +147,35 @@ BoxLayout:
     quantity: ''
     realized_quantity: ''
     status: ''
+    order_id: ''
 
     Label:
-        text: root.order_id
-    Label:
         text: root.open_time
+        size_hint_x: 0.15
     Label:
         text: root.symbol
+        size_hint_x: 0.11
     Label:
         text: root.order_type
+        size_hint_x: 0.10
     Label:
         text: root.side
+        size_hint_x: 0.08
     Label:
         text: root.price
+        size_hint_x: 0.08
     Label:
         text: root.quantity
+        size_hint_x: 0.09
     Label:
         text: root.realized_quantity
+        size_hint_x: 0.09
     Label:
         text: root.status
+        size_hint_x: 0.15
+    Label:
+        text: root.order_id
+        size_hint_x: 0.15
 
 
 <BottomSection@BoxLayout>:
@@ -208,23 +222,32 @@ BoxLayout:
                     size_hint_y: None
                     height: '30dp'
                     Label:
-                        text: 'Order ID'
-                    Label:
                         text: 'Open Time'
+                        size_hint_x: 0.15
                     Label:
                         text: 'Symbol'
+                        size_hint_x: 0.11
                     Label:
-                        text: 'Order Type'
+                        text: 'Type'
+                        size_hint_x: 0.10
                     Label:
                         text: 'Side'
+                        size_hint_x: 0.08
                     Label:
                         text: 'Price'
+                        size_hint_x: 0.08
                     Label:
                         text: 'Quantity'
+                        size_hint_x: 0.09
                     Label:
-                        text: 'Realized Quantity'
+                        text: 'Realized'
+                        size_hint_x: 0.09
                     Label:
                         text: 'Status'
+                        size_hint_x: 0.15
+                    Label:
+                        text: 'Order ID'
+                        size_hint_x: 0.15
                 RecycleView:
                     id: orders_list
                     data: app.order_data_list
@@ -243,23 +266,32 @@ BoxLayout:
                     size_hint_y: None
                     height: '30dp'
                     Label:
-                        text: 'Order ID'
-                    Label:
                         text: 'Open Time'
+                        size_hint_x: 0.15
                     Label:
                         text: 'Symbol'
+                        size_hint_x: 0.11
                     Label:
-                        text: 'Order Type'
+                        text: 'Type'
+                        size_hint_x: 0.10
                     Label:
                         text: 'Side'
+                        size_hint_x: 0.08
                     Label:
                         text: 'Price'
+                        size_hint_x: 0.08
                     Label:
                         text: 'Quantity'
+                        size_hint_x: 0.09
                     Label:
-                        text: 'Realized Quantity'
+                        text: 'Realized'
+                        size_hint_x: 0.09
                     Label:
                         text: 'Status'
+                        size_hint_x: 0.15
+                    Label:
+                        text: 'Order ID'
+                        size_hint_x: 0.15
                 RecycleView:
                     id: history_list
                     data: app.history_data_list
