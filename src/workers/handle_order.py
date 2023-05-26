@@ -26,6 +26,7 @@ from src.common.orders import (
     send_market_order,
     send_order,
     target_price_calculate,
+    get_orders,
 )
 import logging
 from src.producers.producers import OrderUpdate
@@ -66,6 +67,8 @@ async def prepare_and_send_orders(
         orders=position.orders,
         side=SIDE_BUY if side == PositionSide.LONG else SIDE_SELL,
     )
+
+    position.orders = await get_orders(client=client, orders=position.orders)
 
     logger.info(
         "Exiting %s position open, opened orders: %s",

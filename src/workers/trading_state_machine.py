@@ -498,7 +498,7 @@ class TradingStateMachine:
             client=self.client, balance=self.balance, position=self.position
         )
 
-    async def send_order_update_to_ui(self, order: OrderUpdate):
+    async def send_order_update_to_ui(self, order: OrderUpdate, open_time):
         order_data = OrderData(
             symbol=SYMBOL,
             order_id=order.order_id,
@@ -506,9 +506,9 @@ class TradingStateMachine:
             side=self.position.side,
             price=order.price,
             quantity=order.quantity,
-            open_time="0",
             realized_quantity=order.realized_quantity,
             status=order.status,
+            open_time=open_time,
         )
 
         await self.ui_queue.put(order_data)
@@ -520,7 +520,9 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("New order: %s", self.order_update.order_id)
 
-                await self.send_order_update_to_ui(order=self.order_update)
+                await self.send_order_update_to_ui(
+                    order=self.order_update, open_time=order.open_time
+                )
 
     async def log_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
@@ -528,7 +530,9 @@ class TradingStateMachine:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
-                await self.send_order_update_to_ui(order=self.order_update)
+                await self.send_order_update_to_ui(
+                    order=self.order_update, open_time=order.open_time
+                )
 
     async def log_expired_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
@@ -536,7 +540,9 @@ class TradingStateMachine:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
-                await self.send_order_update_to_ui(order=self.order_update)
+                await self.send_order_update_to_ui(
+                    order=self.order_update, open_time=order.open_time
+                )
 
     async def handle_account(self, *args, **kwargs):
         logger.info("Account update: %s", self.account_update.account_update)
@@ -612,7 +618,23 @@ class TradingStateMachine:
             )
         )
         self.update_position_in_df(update=self.position.status)
-        await self.send_order_update_to_ui(order=self.order_update)
+        order = next(
+            (
+                order
+                for order in self.position.orders
+                if order.order_id == self.order_update.order_id
+            ),
+            None,
+        )
+
+        if order is not None:
+            await self.send_order_update_to_ui(
+                order=self.order_update, open_time=order.open_time
+            )
+        else:
+            logger.info(
+                "No UI update, unknown order ID: %s", self.order_update.order_id
+            )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle order partially filled")
@@ -632,4 +654,20 @@ class TradingStateMachine:
             )
         )
 
-        await self.send_order_update_to_ui(order=self.order_update)
+        order = next(
+            (
+                order
+                for order in self.position.orders
+                if order.order_id == self.order_update.order_id
+            ),
+            None,
+        )
+
+        if order is not None:
+            await self.send_order_update_to_ui(
+                order=self.order_update, open_time=order.open_time
+            )
+        else:
+            logger.info(
+                "No UI update, unknown order ID: %s", self.order_update.order_id
+            )

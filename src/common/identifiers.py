@@ -156,6 +156,7 @@ class Order:
     quantity_stable: float = 0
     order_id: int = 0
     realized_quantity: float = 0
+    open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
     status: str = ORDER_STATUS_NEW
     order_type: str = ORDER_TYPE_LIMIT
