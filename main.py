@@ -9,7 +9,7 @@ from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import ObjectProperty, ListProperty
+from kivy.properties import ObjectProperty, ListProperty, NumericProperty
 from kivy.uix.recycleview import RecycleView
 import logging_config  # noinspection PyUnresolvedReferences
 import warnings
@@ -186,7 +186,7 @@ BoxLayout:
         do_default_tab: False
 
         TabbedPanelItem:
-            text: 'Position'
+            text: 'Positions (' + str(app.position_count) + ')'
             BoxLayout:
                 orientation: "vertical"
                 BoxLayout:
@@ -215,7 +215,7 @@ BoxLayout:
                         height: self.minimum_height
                         orientation: 'vertical'
         TabbedPanelItem:
-            text: 'Orders'
+            text: 'Orders (' + str(app.order_count) + ')'
             BoxLayout:
                 orientation: "vertical"
                 BoxLayout:
@@ -259,7 +259,7 @@ BoxLayout:
                         height: self.minimum_height
                         orientation: 'vertical'
         TabbedPanelItem:
-            text: 'History'
+            text: 'Order History'
             BoxLayout:
                 orientation: "vertical"
                 BoxLayout:
@@ -303,6 +303,36 @@ BoxLayout:
                         height: self.minimum_height
                         orientation: 'vertical'
         TabbedPanelItem:
+            text: 'Position History'
+            BoxLayout:
+                orientation: "vertical"
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Quantity'
+                    Label:
+                        text: 'Entry Price'
+                    Label:
+                        text: 'Mark Price'
+                    Label:
+                        text: 'Liquidation Price'
+                    Label:
+                        text: 'PnL'
+                RecycleView:
+                    id: positions_list
+                    data: app.position_data_list
+                    viewclass: 'PositionListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        orientation: 'vertical'
+        
+        TabbedPanelItem:
             text: 'Logs'
             Label:
                 text: 'Log data'
@@ -310,16 +340,43 @@ BoxLayout:
 
 
 class AsyncApp(App):
-    # Change the button start method, on_start is automaticall callback
-    # change the logger to INFO
-
     balance_label = ObjectProperty(None)
     position_data_list = ListProperty([])
     order_data_list = ListProperty([])
     history_data_list = ListProperty([])
+    order_count = NumericProperty(0)
+    position_count = NumericProperty(0)
 
     def build(self):
         return Builder.load_string(kv)
+
+    def count_open_orders(self):
+        if not self.order_data_list:  # check if order_data_list is empty
+            self.order_count = 0
+            return 0
+        else:
+            count = sum(
+                1
+                for order in self.order_data_list
+                if order["status"] in ["NEW", "PARTIALLY_FILLED"]
+            )
+            # Update order_count
+            self.order_count = count
+            return count
+
+    def count_open_positions(self):
+        if not self.position_data_list:  # check if position_data_list is empty
+            self.position_count = 0
+            return 0
+        else:
+            count = sum(
+                1
+                for position in self.position_data_list
+                if float(position["quantity"]) > 0
+            )
+            # Update position_count
+            self.position_count = count
+            return count
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
@@ -381,6 +438,7 @@ class AsyncApp(App):
                         "pnl": str(data.pnl),
                     }
                 ]
+                self.count_open_positions()
 
             if isinstance(data, OrderData):
                 # Check if the order already exists
@@ -422,6 +480,7 @@ class AsyncApp(App):
                         "status": data.status,
                     }
                     self.order_data_list = self.order_data_list + [order_data]
+                self.count_open_orders()
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they
