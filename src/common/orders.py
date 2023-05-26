@@ -314,7 +314,10 @@ def convert_time(timestamp):
     # Convert to Polish timezone
     poland_time = utc_time.astimezone(pytz.timezone("Europe/Warsaw"))
 
-    return poland_time
+    # Format the datetime object to a string with desired format
+    formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    return formatted_poland_time
 
 
 async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
