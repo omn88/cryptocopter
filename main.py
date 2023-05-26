@@ -119,6 +119,12 @@ BoxLayout:
     mark_price: ''
     liquidation_price: ''
     pnl: ''
+    
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
 
     Label:
         text: root.symbol
@@ -148,6 +154,12 @@ BoxLayout:
     realized_quantity: ''
     status: ''
     order_id: ''
+    
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
 
     Label:
         text: root.open_time
@@ -189,9 +201,16 @@ BoxLayout:
             text: 'Positions (' + str(app.position_count) + ')'
             BoxLayout:
                 orientation: "vertical"
+                
                 BoxLayout:
                     size_hint_y: None
                     height: '30dp'
+                    canvas.before:
+                        Color:
+                            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+                        Line:
+                            points: [self.x, self.y, self.x + self.width, self.y]
+                    
                     Label:
                         text: 'Symbol'
                     Label:
@@ -221,6 +240,13 @@ BoxLayout:
                 BoxLayout:
                     size_hint_y: None
                     height: '30dp'
+                    
+                    canvas.before:
+                        Color:
+                            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+                        Line:
+                            points: [self.x, self.y, self.x + self.width, self.y]
+                    
                     Label:
                         text: 'Open Time'
                         size_hint_x: 0.15
