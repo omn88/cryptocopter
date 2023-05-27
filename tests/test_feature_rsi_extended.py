@@ -10,6 +10,7 @@ from tests.common import (
     get_orders_long_then_short,
     get_cancel_order,
     get_orders_short_then_long,
+    validation_orders,
 )
 
 
@@ -88,6 +89,7 @@ async def test_signal_handle_short_eighty_when_long_twenty(
 ):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
     extended_rsi.signal_update = generate_signal(
         signal=Signal.LONG_EXT, df=extended_rsi.df
@@ -152,6 +154,7 @@ async def test_signal_handle_long_twenty_when_short_eighty(
     mock_save_to_file, extended_rsi
 ):
     extended_rsi.client.futures_create_order.side_effect = get_orders_short_then_long()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     extended_rsi.signal_update = generate_signal(
@@ -272,6 +275,7 @@ async def test_signal_handle_long_when_long_twenty(extended_rsi):
 async def test_signal_handle_short_when_long_twenty(mock_save_to_file, extended_rsi):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
     extended_rsi.signal_update = generate_signal(
         signal=Signal.LONG_EXT, df=extended_rsi.df
@@ -304,6 +308,7 @@ async def test_signal_handle_short_when_long_twenty(mock_save_to_file, extended_
 async def test_signal_handle_long_when_short_eighty(mock_save_to_file, extended_rsi):
     extended_rsi.client.futures_create_order.side_effect = get_orders_short_then_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
     extended_rsi.signal_update = generate_signal(
         signal=Signal.SHORT_EXT, df=extended_rsi.df

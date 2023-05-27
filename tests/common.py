@@ -292,6 +292,67 @@ def get_orders_long():
     ]
 
 
+def validation_orders():
+    return [
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 5,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+    ]
+
+
 def get_orders_short():
     return [
         {
