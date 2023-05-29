@@ -8,8 +8,11 @@ from binance.enums import (
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import ObjectProperty, ListProperty, NumericProperty, DictProperty, StringProperty
-from kivy.uix.label import Label
+from kivy.properties import (
+    ListProperty,
+    NumericProperty,
+    StringProperty,
+)
 
 from src.common.identifiers import AccountData, PositionData, OrderData, EventName
 from src.trading_system import TradingSystem
@@ -104,7 +107,7 @@ class AsyncApp(App):
         while True:
             Logger.info("Events in UI queue: %s", self.ui_queue.qsize())
             if self.ui_queue.qsize() == 0:
-                Logger.info("Awaiting new Event...")
+                Logger.info("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
             if data == EventName.SENTINEL:

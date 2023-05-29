@@ -57,7 +57,12 @@ async def test_update_ui(basic_rsi, mock_AsyncClient):
     async_app.trading_system = basic_rsi
     account_data = AccountData(balance=1000)
     position_data = PositionData(
-        symbol="BTC", quantity="1", entry_price="1", mark_price="1", liquidation_price="1", pnl="1"
+        symbol="BTC",
+        quantity="1",
+        entry_price="1",
+        mark_price="1",
+        liquidation_price="1",
+        pnl="1",
     )
     order_data = OrderData(
         order_id="1",
