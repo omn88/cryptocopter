@@ -15,7 +15,13 @@ from kivy.properties import (
     DictProperty,
 )
 
-from src.common.identifiers import AccountData, PositionData, OrderData, EventName
+from src.common.identifiers import (
+    AccountData,
+    PositionData,
+    OrderData,
+    EventName,
+    PositionStatus,
+)
 from src.trading_system import TradingSystem
 
 
@@ -71,7 +77,6 @@ class AsyncApp(App):
         if any(position.symbol == symbol for position in self.open_positions):
             for position in self.open_positions:
                 if position.symbol == data.symbol:
-                    Logger.info(f"PositionData object: {data.__dict__}")
                     # If it exists, update the values
                     position["quantity"] = str(data.quantity)
                     position["entry_price"] = str(data.entry_price)
@@ -79,12 +84,32 @@ class AsyncApp(App):
                     position["liquidation_price"] = str(data.liquidation_price)
                     position["pnl"] = str(data.pnl)
 
+                    # If the quantity is 0, remove the position
+                    if data.status == PositionStatus.CLOSED:
+                        Logger.info("Position status: %s", data.status)
+                        Logger.info(
+                            "Length of open positions: %s", len(self.open_positions)
+                        )
+                        Logger.info(
+                            "Length of closed positions: %s", len(self.closed_positions)
+                        )
+                        self.closed_positions.append(position)
+                        self.open_positions.remove(position)
+                        Logger.info(
+                            "Length of open positions after removal: %s",
+                            len(self.open_positions),
+                        )
+                        Logger.info(
+                            "Length of closed positions after appending: %s",
+                            len(self.closed_positions),
+                        )
+                        self.position_count -= 1
+
                     Logger.info("Updated positions: %s", self.open_positions)
 
         else:
             Logger.info("Creating a new position: %s", symbol)
             # If the position does not exist, create it
-            Logger.info(f"PositionData object: {data.__dict__}")
             self.position_count += 1
             self.open_positions.append(
                 {
@@ -98,12 +123,6 @@ class AsyncApp(App):
             )
 
             Logger.info("Open Positions after adding position: %s", self.open_positions)
-
-            # # If the quantity is 0, remove the position
-            # if data.quantity == 0:
-            #     del self.open_positions[symbol]
-            #     self.closed_positions[symbol] = position
-            #     self.position_count -= 1
 
     def update_order(self, data: OrderData):
         order_id = str(data.order_id)
@@ -146,7 +165,6 @@ class AsyncApp(App):
                         self.order_count -= 1
 
                     Logger.info("Updated Orders: %s", self.open_orders)
-
         else:
             # If the order does not exist, create it
             self.order_count += 1

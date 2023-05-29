@@ -93,6 +93,7 @@ BoxLayout:
     mark_price: ''
     liquidation_price: ''
     pnl: ''
+    status: ''
 
     canvas.before:
         Color:
@@ -112,7 +113,8 @@ BoxLayout:
         text: root.liquidation_price
     Label:
         text: root.pnl
-
+    Label:
+        text: root.status
 
 <OrderListItem@BoxLayout>:
     orientation: "horizontal"
@@ -197,6 +199,8 @@ BoxLayout:
                         text: 'Liquidation Price'
                     Label:
                         text: 'PnL'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: positions_list
                     data: app.open_positions
@@ -321,6 +325,8 @@ BoxLayout:
                         text: 'Liquidation Price'
                     Label:
                         text: 'PnL'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: positions_list
                     data: app.closed_positions

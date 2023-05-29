@@ -2,7 +2,7 @@
 Module containing product identifiers.
 """
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
 from typing import NamedTuple, Dict, List, Optional
 
 from binance.enums import (
@@ -13,9 +13,15 @@ from binance.enums import (
 )
 
 
+class PositionStatus(Enum):
+    NEW = auto()
+    ACTIVE = auto()
+    CLOSED = auto()
+
+
 class PositionData:
     def __init__(
-        self, symbol, quantity, entry_price, mark_price, liquidation_price, pnl
+        self, symbol, quantity, entry_price, mark_price, liquidation_price, pnl, status
     ):
         self.symbol = symbol
         self.quantity = quantity
@@ -23,6 +29,7 @@ class PositionData:
         self.mark_price = mark_price
         self.liquidation_price = liquidation_price
         self.pnl = pnl
+        self.status = status
 
     def __repr__(self):
         return f"PositionData(symbol={self.symbol}, quantity={self.quantity}, entry_price={self.entry_price}, mark_price={self.mark_price}, liquidation_price={self.liquidation_price}, pnl={self.pnl})"
