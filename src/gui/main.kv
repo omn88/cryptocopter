@@ -93,6 +93,7 @@ BoxLayout:
     mark_price: ''
     liquidation_price: ''
     pnl: ''
+    status: ''
 
     canvas.before:
         Color:
@@ -112,7 +113,8 @@ BoxLayout:
         text: root.liquidation_price
     Label:
         text: root.pnl
-
+    Label:
+        text: root.status
 
 <OrderListItem@BoxLayout>:
     orientation: "horizontal"
@@ -197,9 +199,11 @@ BoxLayout:
                         text: 'Liquidation Price'
                     Label:
                         text: 'PnL'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: positions_list
-                    data: app.position_data_list
+                    data: app.open_positions
                     viewclass: 'PositionListItem'
                     RecycleBoxLayout:
                         default_size: None, dp(56)
@@ -250,7 +254,7 @@ BoxLayout:
                         size_hint_x: 0.15
                 RecycleView:
                     id: orders_list
-                    data: app.order_data_list
+                    data: app.open_orders
                     viewclass: 'OrderListItem'
                     RecycleBoxLayout:
                         default_size: None, dp(56)
@@ -294,7 +298,7 @@ BoxLayout:
                         size_hint_x: 0.15
                 RecycleView:
                     id: history_list
-                    data: app.history_data_list
+                    data: app.closed_orders
                     viewclass: 'OrderListItem'
                     RecycleBoxLayout:
                         default_size: None, dp(56)
@@ -321,9 +325,11 @@ BoxLayout:
                         text: 'Liquidation Price'
                     Label:
                         text: 'PnL'
+                    Label:
+                        text: 'Status'
                 RecycleView:
                     id: positions_list
-                    data: app.position_data_list
+                    data: app.closed_positions
                     viewclass: 'PositionListItem'
                     RecycleBoxLayout:
                         default_size: None, dp(56)
