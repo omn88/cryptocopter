@@ -8,14 +8,15 @@ from binance.enums import (
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import ObjectProperty, ListProperty, NumericProperty
+from kivy.properties import ObjectProperty, ListProperty, NumericProperty, DictProperty, StringProperty
+from kivy.uix.label import Label
 
-from src.common.identifiers import AccountData, PositionData, OrderData
+from src.common.identifiers import AccountData, PositionData, OrderData, EventName
 from src.trading_system import TradingSystem
 
 
 class AsyncApp(App):
-    balance_label = ObjectProperty(None)
+    balance_label = StringProperty("0")
     position_data_list = ListProperty([])
     order_data_list = ListProperty([])
     history_data_list = ListProperty([])
@@ -106,9 +107,12 @@ class AsyncApp(App):
                 Logger.info("Awaiting new Event...")
             data = await self.ui_queue.get()
             # Update the UI based on data
+            if data == EventName.SENTINEL:
+                Logger.info("SENTINEL -> Exiting worker")
+                return
             if isinstance(data, AccountData):
                 Logger.info("PANU  DYS IS update account")
-                self.balance_label.text = f"{str(data.balance)} USDT"
+                self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
                 self.position_data_list = [
                     {

@@ -26,6 +26,7 @@ BoxLayout:
             size_hint_x: 0.75
             on_text: app.on_strategy_change(self, self.text)
 
+
     # Balance Label
     BoxLayout:
         size_hint_x: 0.25
@@ -33,7 +34,7 @@ BoxLayout:
             text: 'Balance:'
         Label:
             id: balance
-            on_parent: app.balance_label = self
+            text: app.balance_label
 
     # Mode Label
     BoxLayout:
