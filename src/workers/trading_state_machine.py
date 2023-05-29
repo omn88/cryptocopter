@@ -641,6 +641,18 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
+        await self.ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=self.position_old.quantity,
+                entry_price=self.position_old.entry_price,
+                mark_price=0,
+                liquidation_price=self.position_old.liquidation_price,
+                pnl=0,
+                status=PositionStatus.CLOSED,
+            )
+        )
+
     async def handle_market_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")
         self.position, self.balance = await market_order_partially_filled(
@@ -654,6 +666,7 @@ class TradingStateMachine:
             client=self.client,
             order_update=self.order_update,
             position=self.position,
+            ui_queue=self.ui_queue,
         )
         await self.ui_queue.put(
             PositionData(
@@ -692,6 +705,7 @@ class TradingStateMachine:
             client=self.client,
             order_update=self.order_update,
             position=self.position,
+            ui_queue=self.ui_queue,
         )
         await self.ui_queue.put(
             PositionData(
@@ -713,8 +727,6 @@ class TradingStateMachine:
             ),
             None,
         )
-
-        logging.info("DUPA ORDER WHICH IS NOT NONE: %s", order)
 
         if order is not None:
             await self.send_order_update_to_ui(

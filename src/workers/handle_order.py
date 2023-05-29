@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 from pprint import pformat
 from typing import Tuple, Optional
@@ -15,6 +16,7 @@ from src.common.identifiers import (
     State,
     Order,
     Artifacts,
+    OrderData,
 )
 from src.common.orders import (
     cancel_remaining_limit_orders,
@@ -164,17 +166,33 @@ async def close_short(
 
 
 async def update_take_profit_order(
-    client: binance.AsyncClient,
-    position: Position,
+    client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
-    if position.take_profit_order.order_id != 0:
+    tp = position.take_profit_order
+    tp_side = (
+        PositionSide.LONG if position.side == PositionSide.SHORT else PositionSide.SHORT
+    )
+    if tp.order_id != 0:
         logger.info(
-            "Enter update take profit order: %s",
-            position.take_profit_order.order_id,
+            "Enter update take profit order: %s, side: %s", tp.order_id, tp_side
         )
-        position.take_profit_order.status = await cancel_order(
+        tp.status = await cancel_order(
             client=client,
-            order=position.take_profit_order,
+            order=tp,
+        )
+
+        await ui_queue.put(
+            OrderData(
+                order_id=tp.order_id,
+                open_time=tp.open_time,
+                symbol=SYMBOL,
+                order_type=tp.order_type,
+                side=tp_side,
+                price=tp.price,
+                quantity=tp.quantity,
+                realized_quantity=tp.realized_quantity,
+                status=tp.status,
+            )
         )
 
     position.target_price = target_price_calculate(
@@ -193,10 +211,24 @@ async def update_take_profit_order(
 
     position.take_profit_order = await send_order(
         client=client,
-        side=PositionSide.LONG
-        if position.side == PositionSide.SHORT
-        else PositionSide.SHORT,
+        side=tp_side,
         order=take_profit_order,
+    )
+
+    tp = position.take_profit_order
+
+    await ui_queue.put(
+        OrderData(
+            order_id=tp.order_id,
+            open_time=tp.open_time,
+            symbol=SYMBOL,
+            order_type=tp.order_type,
+            side=tp_side,
+            price=tp.price,
+            quantity=tp.quantity,
+            realized_quantity=tp.realized_quantity,
+            status=tp.status,
+        )
     )
 
     assert isinstance(position.take_profit_order, Order)
@@ -337,6 +369,7 @@ async def handle_order_partially_filled(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
+    ui_queue: asyncio.Queue,
 ) -> Position:
     logger.info("Enter order update handle")
 
@@ -355,8 +388,7 @@ async def handle_order_partially_filled(
             ) = await futures_get_position_info(client=client)
 
             position = await update_take_profit_order(
-                client=client,
-                position=position,
+                client=client, position=position, ui_queue=ui_queue
             )
 
             logger.info("Exiting update position")
@@ -369,6 +401,7 @@ async def handle_order_filled(
     client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
+    ui_queue: asyncio.Queue,
 ) -> Position:
     logger.info("Enter order update handle")
     for order in position.orders:
@@ -389,8 +422,7 @@ async def handle_order_filled(
             ) = await futures_get_position_info(client=client)
 
             position = await update_take_profit_order(
-                client=client,
-                position=position,
+                client=client, position=position, ui_queue=ui_queue
             )
 
             logger.info("Exiting update position: %s", position.quantity)
