@@ -41,6 +41,7 @@ async def basic_rsi(mock_AsyncClient):
     df = rsi_indicator_apply(df=df)
     position = Position()
     queue = create_async_queue()
+    ui_queue = create_async_queue()
 
     tsm = BasicStrategy(
         client=mock_AsyncClient,
@@ -50,7 +51,7 @@ async def basic_rsi(mock_AsyncClient):
         position=position,
         queue=queue,
         raw_data=raw_data,
-        ui_queue=asyncio.Queue(),
+        ui_queue=ui_queue,
     )
 
     await tsm.determine_start_position()

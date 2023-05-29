@@ -3,7 +3,7 @@ from unittest.mock import patch
 from src.common.identifiers import State
 from src.producers.producers import Event, EventName, KlineUpdate
 from src.workers.worker import worker
-from tests.common import get_orders_long, get_cancel_order
+from tests.common import get_orders_long, get_cancel_order, validation_orders
 import logging
 
 logger = logging.getLogger("test")
@@ -246,6 +246,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty(
 ):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL
@@ -371,6 +372,7 @@ async def test_rsi_basic_handle_kline_long_twenty_long_null_short_eighty_short(
 ):
     extended_rsi.client.futures_create_order.side_effect = get_orders_long()
     extended_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     # NO SIGNAL THEN NULL

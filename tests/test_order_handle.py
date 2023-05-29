@@ -30,6 +30,7 @@ from tests.common import (
     generate_signal,
     assert_dca_short_opened,
     get_orders_long_then_market_then_short,
+    validation_orders,
 )
 
 logger = logging.getLogger("TEST")
@@ -40,6 +41,8 @@ async def test_long_first_order_filled(basic_rsi):
         get_position_information_when_long()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -53,6 +56,8 @@ async def test_long_first_order_filled_partially(basic_rsi):
         get_position_information_when_long_for_order_partially_filled()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -91,6 +96,8 @@ async def test_long_first_order_filled_partially_twice(basic_rsi):
         get_position_information_when_long_for_order_partially_filled()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -163,6 +170,7 @@ async def test_long_two_orders_filled(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -180,6 +188,7 @@ async def test_long_two_orders_filled(
 
 async def test_long_first_order_new(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -207,6 +216,7 @@ async def test_long_first_order_new(basic_rsi):
 
 async def test_long_first_order_expired(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -234,6 +244,7 @@ async def test_long_first_order_expired(basic_rsi):
 
 async def test_long_first_order_canceled(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
 
@@ -269,6 +280,7 @@ async def test_long_two_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
@@ -300,6 +312,7 @@ async def test_long_all_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
@@ -335,6 +348,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -396,6 +410,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
@@ -476,6 +491,7 @@ async def test_long_all_orders_filled_then_liquidation(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
@@ -529,6 +545,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(
         get_orders_long_then_market_then_short()
     )
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_long(base=basic_rsi)
@@ -585,6 +602,7 @@ async def test_short_first_order_filled(basic_rsi):
         get_position_information_when_short()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -597,6 +615,7 @@ async def test_short_first_order_filled_partially(basic_rsi):
         get_position_information_when_short_for_order_partially_filled()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
 
@@ -635,6 +654,7 @@ async def test_short_first_order_filled_partially_twice(basic_rsi):
         get_position_information_when_short_for_order_partially_filled()
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
 
@@ -705,6 +725,7 @@ async def test_short_two_orders_filled(basic_rsi):
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -722,6 +743,7 @@ async def test_short_two_orders_filled(basic_rsi):
 
 async def test_short_first_order_new(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     await start_short(base=basic_rsi)
 
     price = basic_rsi.position.orders[0].price
@@ -748,6 +770,7 @@ async def test_short_first_order_new(basic_rsi):
 
 async def test_short_first_order_expired(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     await start_short(base=basic_rsi)
 
     price = basic_rsi.position.orders[0].price
@@ -774,6 +797,7 @@ async def test_short_first_order_expired(basic_rsi):
 
 async def test_short_first_order_canceled(basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
 
@@ -808,6 +832,7 @@ async def test_short_two_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)
@@ -838,6 +863,7 @@ async def test_short_all_orders_filled_then_target_reached(
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)
@@ -869,6 +895,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(basic_rsi):
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
 
     await start_short(base=basic_rsi)
     await first_order_filled(base=basic_rsi)
@@ -929,6 +956,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)
@@ -1006,6 +1034,7 @@ async def test_short_all_orders_filled_then_liquidation(mock_save_to_file, basic
     )
     basic_rsi.client.futures_create_order.side_effect = get_orders_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     await start_short(base=basic_rsi)

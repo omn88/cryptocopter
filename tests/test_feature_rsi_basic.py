@@ -10,6 +10,7 @@ from tests.common import (
     get_orders_long_then_short,
     get_cancel_order,
     get_orders_short_then_long,
+    validation_orders,
 )
 
 
@@ -85,6 +86,7 @@ async def test_signal_handle_long_when_long(basic_rsi):
 async def test_signal_handle_short_when_long(mock_save_to_file, basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_long_then_short()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     basic_rsi.signal_update = generate_signal(signal=Signal.LONG, df=basic_rsi.df)
@@ -143,6 +145,7 @@ async def test_signal_handle_null_when_long(basic_rsi):
 async def test_signal_handle_long_when_short(mock_save_to_file, basic_rsi):
     basic_rsi.client.futures_create_order.side_effect = get_orders_short_then_long()
     basic_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.client.futures_get_order.side_effect = validation_orders()
     mock_save_to_file.return_value = True
 
     basic_rsi.signal_update = generate_signal(signal=Signal.SHORT, df=basic_rsi.df)

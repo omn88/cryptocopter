@@ -1,7 +1,9 @@
 import asyncio
+from datetime import datetime
 from typing import List, Optional, Tuple
 import logging
 import binance
+import pytz
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -172,6 +174,16 @@ async def send_orders(
     return list(results)
 
 
+async def get_orders(client: binance.AsyncClient, orders: List[Order]) -> List[Order]:
+    tasks = []
+    for order in orders:
+        task = asyncio.create_task(futures_get_order(client=client, order=order))
+        tasks.append(task)
+    results = await asyncio.gather(*tasks)
+
+    return list(results)
+
+
 def target_price_calculate(side: str, price: float) -> float:
     logger.info("Entering target price calculate")
     if side == PositionSide.LONG:
@@ -289,17 +301,40 @@ def prepare_orders(
     return position
 
 
+def convert_time(timestamp):
+    # Binance timestamp is in milliseconds, convert it to seconds
+    timestamp_s = timestamp / 1000
+
+    # Create datetime object in UTC
+    utc_time = datetime.utcfromtimestamp(timestamp_s)
+
+    # Add timezone information
+    utc_time = utc_time.replace(tzinfo=pytz.utc)
+
+    # Convert to Polish timezone
+    poland_time = utc_time.astimezone(pytz.timezone("Europe/Warsaw"))
+
+    # Format the datetime object to a string with desired format
+    formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    return formatted_poland_time
+
+
 async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
     resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
-    updated_status = resp["status"]
+    order.status = resp["status"]
     realized_quantity = round(float(resp["executedQty"]), 3)
     order.realized_quantity = realized_quantity
-    order.status = updated_status
+
+    # Convert 'time' to Polish local time and set it as 'open_time'
+    order.open_time = convert_time(resp["time"])
+
     logger.info(
-        "Validation, order: %s, realized qty: %s, status: %s",
-        resp["orderId"],
-        realized_quantity,
-        updated_status,
+        "Validation, order: %s opened at: %s, realized qty: %s, status: %s",
+        order.order_id,
+        order.open_time,
+        order.realized_quantity,
+        order.status,
     )
 
     return order
