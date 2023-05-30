@@ -29,6 +29,7 @@ from src.common.orders import (
     send_order,
     target_price_calculate,
     get_orders,
+    futures_get_order,
 )
 import logging
 from src.producers.producers import OrderUpdate
@@ -213,6 +214,10 @@ async def update_take_profit_order(
         client=client,
         side=tp_side,
         order=take_profit_order,
+    )
+
+    position.take_profit_order = await futures_get_order(
+        client=client, order=take_profit_order
     )
 
     tp = position.take_profit_order

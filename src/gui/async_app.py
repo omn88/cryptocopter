@@ -74,40 +74,7 @@ class AsyncApp(App):
     def update_position(self, data):
         symbol = data.symbol
 
-        if any(position.symbol == symbol for position in self.open_positions):
-            for position in self.open_positions:
-                if position.symbol == data.symbol:
-                    # If it exists, update the values
-                    position["quantity"] = str(data.quantity)
-                    position["entry_price"] = str(data.entry_price)
-                    position["mark_price"] = str(data.mark_price)
-                    position["liquidation_price"] = str(data.liquidation_price)
-                    position["pnl"] = str(data.pnl)
-
-                    # If the quantity is 0, remove the position
-                    if data.status == PositionStatus.CLOSED:
-                        Logger.info("Position status: %s", data.status)
-                        Logger.info(
-                            "Length of open positions: %s", len(self.open_positions)
-                        )
-                        Logger.info(
-                            "Length of closed positions: %s", len(self.closed_positions)
-                        )
-                        self.closed_positions.append(position)
-                        self.open_positions.remove(position)
-                        Logger.info(
-                            "Length of open positions after removal: %s",
-                            len(self.open_positions),
-                        )
-                        Logger.info(
-                            "Length of closed positions after appending: %s",
-                            len(self.closed_positions),
-                        )
-                        self.position_count -= 1
-
-                    Logger.info("Updated positions: %s", self.open_positions)
-
-        else:
+        if len(self.open_positions) == 0:
             Logger.info("Creating a new position: %s", symbol)
             # If the position does not exist, create it
             self.position_count += 1
@@ -119,10 +86,65 @@ class AsyncApp(App):
                     "mark_price": str(data.mark_price),
                     "liquidation_price": str(data.liquidation_price),
                     "pnl": str(data.pnl),
+                    "status": str(data.status),
                 }
             )
 
             Logger.info("Open Positions after adding position: %s", self.open_positions)
+
+        if len(self.open_positions) > 0:
+            if any(position.symbol == symbol for position in self.open_positions):
+                for position in self.open_positions:
+                    if position.symbol == data.symbol:
+                        # If it exists, update the values
+                        position["quantity"] = str(data.quantity)
+                        position["entry_price"] = str(data.entry_price)
+                        position["mark_price"] = str(data.mark_price)
+                        position["liquidation_price"] = str(data.liquidation_price)
+                        position["pnl"] = str(data.pnl)
+
+                        # If the quantity is 0, remove the position
+                        if data.status == PositionStatus.CLOSED:
+                            Logger.info("Position status: %s", data.status)
+                            Logger.info(
+                                "Length of open positions: %s", len(self.open_positions)
+                            )
+                            Logger.info(
+                                "Length of closed positions: %s",
+                                len(self.closed_positions),
+                            )
+                            self.closed_positions.append(position)
+                            self.open_positions.remove(position)
+                            Logger.info(
+                                "Length of open positions after removal: %s",
+                                len(self.open_positions),
+                            )
+                            Logger.info(
+                                "Length of closed positions after appending: %s",
+                                len(self.closed_positions),
+                            )
+                            self.position_count -= 1
+
+                        Logger.info("Updated positions: %s", self.open_positions)
+            else:
+                Logger.info("Creating a new position: %s", symbol)
+                # If the position does not exist, create it
+                self.position_count += 1
+                self.open_positions.append(
+                    {
+                        "symbol": symbol,
+                        "quantity": str(data.quantity),
+                        "entry_price": str(data.entry_price),
+                        "mark_price": str(data.mark_price),
+                        "liquidation_price": str(data.liquidation_price),
+                        "pnl": str(data.pnl),
+                        "status": str(data.status),
+                    }
+                )
+
+                Logger.info(
+                    "Open Positions after adding position: %s", self.open_positions
+                )
 
     def update_order(self, data: OrderData):
         order_id = str(data.order_id)
