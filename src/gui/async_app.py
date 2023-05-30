@@ -27,6 +27,7 @@ from src.trading_system import TradingSystem
 
 class AsyncApp(App):
     balance_label = StringProperty("0")
+    price_label = StringProperty("0")
     open_positions = ListProperty([])
     open_orders = ListProperty([])
     closed_orders = ListProperty([])
@@ -76,6 +77,8 @@ class AsyncApp(App):
                 self.update_price_data(data=data)
 
     def update_price_data(self, data):
+        self.price_label = str(data.index_price)
+
         if len(self.open_positions) != 0:
             for position in self.open_positions:
                 if position["symbol"] == data.symbol:

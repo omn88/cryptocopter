@@ -26,10 +26,24 @@ BoxLayout:
             size_hint_x: 0.75
             on_text: app.on_strategy_change(self, self.text)
 
+    # Spacer
+    Widget:
+        size_hint_x: 0.02
+
+
+
+    # Price Label
+    BoxLayout:
+        size_hint_x: 0.14
+        Label:
+            text: 'Symbol price:'
+        Label:
+            id: index_price
+            text: app.price_label
 
     # Balance Label
     BoxLayout:
-        size_hint_x: 0.25
+        size_hint_x: 0.14
         Label:
             text: 'Balance:'
         Label:
@@ -38,7 +52,7 @@ BoxLayout:
 
     # Mode Label
     BoxLayout:
-        size_hint_x: 0.25
+        size_hint_x: 0.2
         Label:
             text: 'Auto-Pilot:'
         Switch:
