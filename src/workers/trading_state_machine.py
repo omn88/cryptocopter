@@ -1,5 +1,4 @@
 import asyncio
-import signal
 from typing import List, Union, Optional
 import binance
 import numpy
@@ -34,6 +33,7 @@ from src.common.identifiers import (
     Order,
     PositionStatus,
 )
+from src.common.orders import cancel_order
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -47,7 +47,6 @@ from src.workers.handle_order import (
     prepare_and_send_orders,
     close_long,
     close_short,
-    futures_position_close,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -523,7 +522,7 @@ class TradingStateMachine:
             )
         )
 
-    async def send_order_update_to_ui(self, order: OrderUpdate, open_time):
+    async def send_order_update_to_ui(self, order: Order, open_time):
         order_data = OrderData(
             symbol=SYMBOL,
             order_id=order.order_id,
@@ -546,7 +545,7 @@ class TradingStateMachine:
                 logger.info("New order: %s", self.order_update.order_id)
 
                 await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
+                    order=order, open_time=order.open_time
                 )
 
     async def log_cancelled_order(self, *args, **kwargs) -> None:
@@ -556,7 +555,7 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
+                    order=order, open_time=order.open_time
                 )
 
     async def log_expired_order(self, *args, **kwargs) -> None:
@@ -566,7 +565,7 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
+                    order=order, open_time=order.open_time
                 )
 
     async def handle_account(self, *args, **kwargs):
@@ -691,9 +690,7 @@ class TradingStateMachine:
         logging.info("DUPA ORDER WHICH IS NOT NONE: %s", order)
 
         if order is not None:
-            await self.send_order_update_to_ui(
-                order=self.order_update, open_time=order.open_time
-            )
+            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
@@ -729,10 +726,11 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(
-                order=self.order_update, open_time=order.open_time
-            )
+            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
+
+    async def cancel_order(self, order):
+        await cancel_order(client=self.client, order=order)

@@ -12,7 +12,6 @@ from kivy.properties import (
     ListProperty,
     NumericProperty,
     StringProperty,
-    DictProperty,
 )
 
 from src.common.identifiers import (
@@ -21,6 +20,7 @@ from src.common.identifiers import (
     OrderData,
     EventName,
     PositionStatus,
+    PriceData,
 )
 from src.trading_system import TradingSystem
 
@@ -71,6 +71,23 @@ class AsyncApp(App):
             if isinstance(data, OrderData):
                 self.update_order(data)
 
+            if isinstance(data, PriceData):
+                Logger.info("PANU  DYS IS price data update")
+                self.update_price_data(data=data)
+
+    def update_price_data(self, data):
+        if len(self.open_positions) != 0:
+            for position in self.open_positions:
+                if position["symbol"] == data.symbol:
+                    # position["quantity"] = str(position["quantity"])
+                    # position["entry_price"] = str(position["entry_price"])
+                    position["mark_price"] = str(data.mark_price)
+                    # position["liquidation_price"] = str(position["liquidation_price"])
+                    position["pnl"] = str(
+                        (data.index_price / float(position["entry_price"])) * 100
+                    )
+                    # position["status"] = str(position["status"])
+
     def update_position(self, data):
         symbol = data.symbol
 
@@ -102,6 +119,7 @@ class AsyncApp(App):
                         position["mark_price"] = str(data.mark_price)
                         position["liquidation_price"] = str(data.liquidation_price)
                         position["pnl"] = str(data.pnl)
+                        position["status"] = str(data.status)
 
                         # If the quantity is 0, remove the position
                         if data.status == PositionStatus.CLOSED:

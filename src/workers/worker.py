@@ -76,6 +76,8 @@ async def worker(
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
+            for order in tsm.position.orders:
+                await tsm.cancel_order(order=order)
             return tsm.df
 
         queue.task_done()

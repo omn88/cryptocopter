@@ -13,6 +13,12 @@ from binance.enums import (
 )
 
 
+class PriceData(NamedTuple):
+    index_price: float
+    mark_price: float
+    symbol: str
+
+
 class PositionStatus(Enum):
     NEW = auto()
     ACTIVE = auto()
