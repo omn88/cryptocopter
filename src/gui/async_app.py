@@ -55,9 +55,6 @@ class AsyncApp(App):
 
     async def update_ui(self):
         while True:
-            Logger.info("Events in UI queue: %s", self.ui_queue.qsize())
-            if self.ui_queue.qsize() == 0:
-                Logger.info("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
             if data == EventName.SENTINEL:
@@ -73,7 +70,6 @@ class AsyncApp(App):
                 self.update_order(data)
 
             if isinstance(data, PriceData):
-                Logger.info("PANU  DYS IS price data update")
                 self.update_price_data(data=data)
 
     def update_price_data(self, data):
