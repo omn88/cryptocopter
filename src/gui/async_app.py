@@ -115,19 +115,17 @@ class AsyncApp(App):
         if len(self.open_positions) != 0:
             for position in self.open_positions:
                 if position["symbol"] == data.symbol:
-                    Logger.info(
-                        "Received data for %s, updating mark price: %s",
-                        data.symbol,
-                        data.mark_price,
-                    )
-                    # position["quantity"] = str(position["quantity"])
-                    # position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
-                    # position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = str(
-                        (data.index_price / float(position["entry_price"]) - 1) * 100
+                        round(
+                            (
+                                float(data.index_price) / float(position["entry_price"])
+                                - 1
+                            )
+                            * 100,
+                            2,
+                        )
                     )
-                    # position["status"] = str(position["status"])
 
     def update_position(self, data):
         symbol = data.symbol
