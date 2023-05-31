@@ -13,6 +13,7 @@ from kivy.properties import (
     NumericProperty,
     StringProperty,
 )
+from kivy.uix.label import Label
 
 from src.common.identifiers import (
     AccountData,
@@ -23,6 +24,20 @@ from src.common.identifiers import (
     PriceData,
 )
 from src.trading_system import TradingSystem
+
+
+class ColorChangingLabel(Label):
+    quantity = NumericProperty(0)
+    color = ListProperty([1, 1, 1, 1])  # Default color is white
+
+    def on_quantity(self, instance, value):
+        value = float(value)
+        if value > 0:
+            self.color = [0, 1, 0, 1]  # Green color
+        elif value < 0:
+            self.color = [1, 0, 0, 1]  # Red color
+        else:
+            self.color = [1, 1, 1, 1]  # White color
 
 
 class AsyncApp(App):
@@ -55,6 +70,9 @@ class AsyncApp(App):
 
     async def update_ui(self):
         while True:
+            Logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
+            if self.ui_queue.qsize() == 0:
+                Logger.debug("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
             if data == EventName.SENTINEL:
@@ -78,12 +96,17 @@ class AsyncApp(App):
         if len(self.open_positions) != 0:
             for position in self.open_positions:
                 if position["symbol"] == data.symbol:
+                    Logger.info(
+                        "Received data for %s, updating mark price: %s",
+                        data.symbol,
+                        data.mark_price,
+                    )
                     # position["quantity"] = str(position["quantity"])
                     # position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
                     # position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = str(
-                        (data.index_price / float(position["entry_price"])) * 100
+                        (data.index_price / float(position["entry_price"]) - 1) * 100
                     )
                     # position["status"] = str(position["status"])
 

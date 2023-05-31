@@ -115,6 +115,11 @@ BoxLayout:
         Line:
             points: [self.x, self.y, self.x + self.width, self.y]
 
+    ColorChangingLabel:
+        quantity: root.quantity
+        text: str(root.quantity)
+        color: self.color
+
     Label:
         text: root.symbol
     Label:
