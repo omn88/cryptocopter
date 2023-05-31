@@ -22,22 +22,41 @@ from src.common.identifiers import (
     EventName,
     PositionStatus,
     PriceData,
+    PositionSide,
 )
 from src.trading_system import TradingSystem
 
 
-class ColorChangingLabel(Label):
+GREEN_COLOR = [0, 0.5, 0, 1]
+RED_COLOR = [0.5, 0, 0, 1]
+WHITE_COLOR = [1, 1, 1, 1]
+
+
+class ColorChangingQuantity(Label):
     quantity = NumericProperty(0)
-    color = ListProperty([1, 1, 1, 1])  # Default color is white
+    color = ListProperty(WHITE_COLOR)  # Default color is white
 
     def on_quantity(self, instance, value):
         value = float(value)
         if value > 0:
-            self.color = [0, 1, 0, 1]  # Green color
+            self.color = GREEN_COLOR
         elif value < 0:
-            self.color = [1, 0, 0, 1]  # Red color
+            self.color = RED_COLOR
         else:
-            self.color = [1, 1, 1, 1]  # White color
+            self.color = WHITE_COLOR
+
+
+class ColorChangingSide(Label):
+    side = StringProperty("")
+    color = ListProperty([1, 1, 1, 1])  # Default color is white
+
+    def on_side(self, instance, value):
+        if value.lower() == "buy":
+            self.color = GREEN_COLOR
+        elif value.lower() == "sell":
+            self.color = RED_COLOR
+        else:
+            self.color = WHITE_COLOR
 
 
 class AsyncApp(App):

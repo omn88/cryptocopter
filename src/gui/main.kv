@@ -1,3 +1,7 @@
+#:import ColorChangingQuantity src.gui.async_app.ColorChangingQuantity
+#:import ColorChangingSide src.gui.async_app.ColorChangingSide
+
+
 BoxLayout:
     orientation: "vertical"
     spacing: 8
@@ -115,15 +119,13 @@ BoxLayout:
         Line:
             points: [self.x, self.y, self.x + self.width, self.y]
 
-    ColorChangingLabel:
-        quantity: root.quantity
-        text: str(root.quantity)
-        color: self.color
 
     Label:
         text: root.symbol
-    Label:
-        text: root.quantity
+    ColorChangingQuantity:
+        quantity: 0 if root.quantity == '' else root.quantity
+        text: str(root.quantity)
+        color: self.color
     Label:
         text: root.entry_price
     Label:
@@ -165,8 +167,10 @@ BoxLayout:
     Label:
         text: root.order_type
         size_hint_x: 0.10
-    Label:
-        text: root.side
+    ColorChangingSide:
+        side: root.side
+        text: str(root.side)
+        color: self.color
         size_hint_x: 0.08
     Label:
         text: root.price
