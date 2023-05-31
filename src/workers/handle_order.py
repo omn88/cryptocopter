@@ -201,7 +201,7 @@ async def update_take_profit_order(
         price=position.entry_price,
     )
 
-    take_profit_order = Order(
+    tp = Order(
         price=position.target_price,
         quantity=position.quantity,
         quantity_stable=round(
@@ -210,17 +210,13 @@ async def update_take_profit_order(
         ),
     )
 
-    position.take_profit_order = await send_order(
+    tp = await send_order(
         client=client,
         side=tp_side,
-        order=take_profit_order,
+        order=tp,
     )
 
-    position.take_profit_order = await futures_get_order(
-        client=client, order=take_profit_order
-    )
-
-    tp = position.take_profit_order
+    tp = await futures_get_order(client=client, order=tp)
 
     await ui_queue.put(
         OrderData(

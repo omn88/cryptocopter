@@ -109,9 +109,9 @@ class AsyncApp(App):
             Logger.info("Open Positions after adding position: %s", self.open_positions)
 
         if len(self.open_positions) > 0:
-            if any(position.symbol == symbol for position in self.open_positions):
+            if any(position["symbol"] == symbol for position in self.open_positions):
                 for position in self.open_positions:
-                    if position.symbol == data.symbol:
+                    if position["symbol"] == data.symbol:
                         # If it exists, update the values
                         position["quantity"] = str(data.quantity)
                         position["entry_price"] = str(data.entry_price)
