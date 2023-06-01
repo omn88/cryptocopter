@@ -75,6 +75,13 @@ async def first_order_filled(base, order_id=1):
 
     assert base.position.orders is not None
 
+    logger.info(
+        "tpq: %s, bpoq: %s, tp: %s",
+        base.position.take_profit_order.quantity,
+        base.position.orders[0].quantity,
+        base.position.take_profit_order,
+    )
+
     assert base.position.orders[0].status == ORDER_STATUS_FILLED
     assert base.position.orders[1].status == ORDER_STATUS_NEW
     assert base.position.orders[2].status == ORDER_STATUS_NEW
@@ -350,6 +357,118 @@ def validation_orders():
             "time": 0,
             "executedQty": 0,
         },
+        {
+            "orderId": 14,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 1,
+            "price": 20000.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 2,
+            "price": 19900.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 3,
+            "price": 19800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 4,
+            "price": 19700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 5,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 14,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 6,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 7,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
+        {
+            "orderId": 8,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "time": 0,
+            "executedQty": 0,
+        },
     ]
 
 
@@ -526,6 +645,31 @@ def get_orders_long_then_market_then_short():
         },
         {
             "orderId": 14,
+            "price": 19200.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 15,
+            "price": 20600.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 16,
+            "price": 20700.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT,
+        },
+        {
+            "orderId": 17,
+            "price": 20800.00,
+            "status": ORDER_STATUS_NEW,
+            "type": ORDER_TYPE_LIMIT
+            # "type":
+        },
+        {
+            "orderId": 18,
             "price": 19200.00,
             "status": ORDER_STATUS_NEW,
             "type": ORDER_TYPE_LIMIT,

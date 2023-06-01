@@ -22,7 +22,13 @@ from src.common.constants import (
 )
 import pandas
 
-from src.common.identifiers import Order, PositionSide, PositionMode, Position
+from src.common.identifiers import (
+    Order,
+    PositionSide,
+    PositionMode,
+    Position,
+    OrderData,
+)
 
 logger = logging.getLogger("orders")
 
@@ -131,11 +137,26 @@ async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Or
     return order
 
 
-async def cancel_order(client: binance.AsyncClient, order: Order):
+async def cancel_order(
+    client: binance.AsyncClient, order: Order, ui_queue: asyncio.Queue, side: str
+):
     logger.info("Enter cancel order: %s, symbol: %s", order.order_id, SYMBOL)
 
     try:
         resp = await client.futures_cancel_order(symbol=SYMBOL, orderId=order.order_id)
+        await ui_queue.put(
+            OrderData(
+                order_id=order.order_id,
+                open_time=order.open_time,
+                symbol=SYMBOL,
+                order_type=order.order_type,
+                side=side,
+                price=order.price,
+                quantity=order.quantity,
+                realized_quantity=order.realized_quantity,
+                status=order.status,
+            )
+        )
     except BinanceAPIException as e:
         # Log the exception
         logger.info(e)
@@ -341,11 +362,13 @@ async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
 
 
 async def cancel_take_profit_order(
-    client: binance.AsyncClient, take_profit_order: Order
+    client: binance.AsyncClient,
+    take_profit_order: Order,
+    side: str,
+    ui_queue: asyncio.Queue,
 ) -> str:
     take_profit_order.status = await cancel_order(
-        client=client,
-        order=take_profit_order,
+        client=client, order=take_profit_order, side=side, ui_queue=ui_queue
     )
     logger.info(
         "Take profit order: %s, status: %s",
@@ -386,7 +409,7 @@ async def send_market_order(
 
 
 async def cancel_remaining_limit_orders(
-    client: binance.AsyncClient, position: Position
+    client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Tuple[Position, bool]:
     logger.info("Cancelling remaining limit orders")
     assert position.orders is not None
@@ -394,12 +417,16 @@ async def cancel_remaining_limit_orders(
     cancelled_orders_count = 0
     for order in position.orders:
         if order.status == ORDER_STATUS_PARTIALLY_FILLED:
-            order.status = await cancel_order(client=client, order=order)
+            order.status = await cancel_order(
+                client=client, order=order, ui_queue=ui_queue, side=position.side
+            )
             logger.info("Cancelled partially filled order_id: %s", order.order_id)
             cancelled_orders_count += 1
         elif order.status == ORDER_STATUS_NEW:
             new_orders_count += 1
-            order.status = await cancel_order(client=client, order=order)
+            order.status = await cancel_order(
+                client=client, order=order, ui_queue=ui_queue, side=position.side
+            )
             logger.info("Cancelled new order_id: %s", order.order_id)
             cancelled_orders_count += 1
 
