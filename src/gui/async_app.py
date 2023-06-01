@@ -268,7 +268,7 @@ class AsyncApp(App):
         """
         self.ui_queue = asyncio.Queue()
 
-        self.trading_system: TradingSystem = TradingSystem(ui_queue=self.ui_queue)
+        self.trading_system = TradingSystem(ui_queue=self.ui_queue)
         initialize_trading_system_task = asyncio.ensure_future(
             self.trading_system.initialize()
         )

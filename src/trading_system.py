@@ -35,7 +35,7 @@ class TradingSystem:
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
-        self.ui_queue: asyncio.Queue = ui_queue
+        self.ui_queue = ui_queue
         self.balance = None
         self.raw_data = None
         self.df = None
