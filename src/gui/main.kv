@@ -130,12 +130,12 @@ BoxLayout:
         text: root.entry_price
     SymbolMarkPrice:
         mark_price: 0 if root.mark_price == '' else root.mark_price
-        text: str(root.mark_price)
+        text: root.mark_price
     Label:
         text: root.liquidation_price
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
-        text: str(root.pnl)
+        text: root.pnl
     Label:
         text: root.status
 

@@ -13,6 +13,7 @@ from kivy.properties import (
     NumericProperty,
     StringProperty,
 )
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 
 from src.common.identifiers import (
@@ -34,6 +35,10 @@ WHITE_COLOR = [1, 1, 1, 1]
 
 class SymbolMarkPrice(Label):
     mark_price = NumericProperty(0)
+
+    @staticmethod
+    def on_mark_price(instance, value):
+        Logger.info("SymbolMarkPrice updated:  %s", value)
 
 
 class PnL(Label):
@@ -131,28 +136,46 @@ class AsyncApp(App):
         pnl = 0
 
         if quantity > 0:
-            pnl = index_price / entry_price
+            pnl = (index_price / entry_price - 1) * 100
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = entry_price / index_price
+            pnl = (entry_price / index_price - 1) * 100
 
         return pnl
 
     def update_price_data(self, data):
         self.price_label = str(data.index_price)
 
-        if len(self.open_positions) != 0:
-            for position in self.open_positions:
+        new_positions = [pos.copy() for pos in self.open_positions]
+
+        if len(new_positions) != 0:
+            for position in new_positions:
                 if position["symbol"] == data.symbol:
-                    position["mark_price"] = str(data.mark_price)
-                    position["pnl"] = str(
-                        self.calculate_pnl(
-                            quantity=round(float(position["quantity"]), 3),
-                            index_price=float(data.index_price),
-                            entry_price=float(position["entry_price"]),
+                    pnl = str(
+                        round(
+                            self.calculate_pnl(
+                                quantity=round(float(position["quantity"]), 3),
+                                index_price=float(data.index_price),
+                                entry_price=float(position["entry_price"]),
+                            ),
+                            3,
                         )
                     )
+                    Logger.info("Mark price: %s, PNL: %s", data.mark_price, pnl)
+                    position["quantity"] = str(position["quantity"])
+                    position["entry_price"] = str(position["entry_price"])
+                    position["mark_price"] = str(data.mark_price)
+                    position["liquidation_price"] = str(position["liquidation_price"])
+                    position["pnl"] = pnl
+                    position["status"] = str(position["status"])
+
+                    Logger.info(
+                        "Position Mark price: %s, Position PNL: %s",
+                        position["mark_price"],
+                        position["pnl"],
+                    )
+            self.open_positions = new_positions
 
     def update_position(self, data):
         symbol = data.symbol
