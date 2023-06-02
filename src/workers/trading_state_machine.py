@@ -505,7 +505,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -526,7 +526,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -589,7 +589,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -622,7 +622,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -650,7 +650,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -677,7 +677,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE,
+                status=PositionStatus.ACTIVE.value,
             )
         )
         self.update_position_in_df(update=self.position.status)
@@ -713,7 +713,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE,
+                status=PositionStatus.ACTIVE.value,
             )
         )
 

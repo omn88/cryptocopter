@@ -32,6 +32,10 @@ RED_COLOR = [0.5, 0, 0, 1]
 WHITE_COLOR = [1, 1, 1, 1]
 
 
+class SymbolMarkPrice(Label):
+    mark_price = NumericProperty(0)
+
+
 class ColorChangingQuantity(Label):
     quantity = NumericProperty(0)
     color = ListProperty(WHITE_COLOR)  # Default color is white

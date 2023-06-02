@@ -20,9 +20,9 @@ class PriceData(NamedTuple):
 
 
 class PositionStatus(Enum):
-    NEW = auto()
-    ACTIVE = auto()
-    CLOSED = auto()
+    NEW = "NEW"
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
 
 
 class PositionData:
