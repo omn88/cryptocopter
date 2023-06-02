@@ -197,16 +197,20 @@ async def close_short(
 async def update_take_profit_order(
     client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
-    tp = position.take_profit_order
     tp_side = (
         PositionSide.LONG if position.side == PositionSide.SHORT else PositionSide.SHORT
     )
-    if tp.order_id != 0:
+    if position.take_profit_order.order_id != 0:
         logger.info(
-            "Enter update take profit order: %s, side: %s", tp.order_id, tp_side
+            "Enter update take profit order: %s, side: %s",
+            position.take_profit_order.order_id,
+            tp_side,
         )
-        tp.status = await cancel_order(
-            client=client, order=tp, ui_queue=ui_queue, side=tp_side
+        position.take_profit_order.status = await cancel_order(
+            client=client,
+            order=position.take_profit_order,
+            ui_queue=ui_queue,
+            side=tp_side,
         )
 
     position.target_price = target_price_calculate(
@@ -214,7 +218,7 @@ async def update_take_profit_order(
         price=position.entry_price,
     )
 
-    tp = Order(
+    position.take_profit_order = Order(
         price=position.target_price,
         quantity=position.quantity,
         quantity_stable=round(
@@ -223,29 +227,29 @@ async def update_take_profit_order(
         ),
     )
 
-    tp = await send_order(
+    position.take_profit_order = await send_order(
         client=client,
         side=tp_side,
-        order=tp,
+        order=position.take_profit_order,
     )
 
-    tp = await futures_get_order(client=client, order=tp)
+    position.take_profit_order = await futures_get_order(
+        client=client, order=position.take_profit_order
+    )
 
     await ui_queue.put(
         OrderData(
-            order_id=tp.order_id,
-            open_time=tp.open_time,
+            order_id=position.take_profit_order.order_id,
+            open_time=position.take_profit_order.open_time,
             symbol=SYMBOL,
-            order_type=tp.order_type,
+            order_type=position.take_profit_order.order_type,
             side=tp_side,
-            price=tp.price,
-            quantity=tp.quantity,
-            realized_quantity=tp.realized_quantity,
-            status=tp.status,
+            price=position.take_profit_order.price,
+            quantity=position.take_profit_order.quantity,
+            realized_quantity=position.take_profit_order.realized_quantity,
+            status=position.take_profit_order.status,
         )
     )
-
-    position.take_profit_order = tp
 
     assert isinstance(position.take_profit_order, Order)
     logger.info(

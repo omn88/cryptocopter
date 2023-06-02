@@ -36,15 +36,28 @@ class SymbolMarkPrice(Label):
     mark_price = NumericProperty(0)
 
 
+class PnL(Label):
+    pnl = NumericProperty(0)
+
+    def on_pnl(self, instance, value):
+        pnl = float(value)
+        if pnl > 0:
+            self.color = GREEN_COLOR
+        elif pnl < 0:
+            self.color = RED_COLOR
+        else:
+            self.color = WHITE_COLOR
+
+
 class ColorChangingQuantity(Label):
     quantity = NumericProperty(0)
     color = ListProperty(WHITE_COLOR)  # Default color is white
 
     def on_quantity(self, instance, value):
-        value = float(value)
-        if value > 0:
+        quantity = float(value)
+        if quantity > 0:
             self.color = GREEN_COLOR
-        elif value < 0:
+        elif quantity < 0:
             self.color = RED_COLOR
         else:
             self.color = WHITE_COLOR
@@ -113,6 +126,19 @@ class AsyncApp(App):
             if isinstance(data, PriceData):
                 self.update_price_data(data=data)
 
+    @staticmethod
+    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+        pnl = 0
+
+        if quantity > 0:
+            pnl = index_price / entry_price
+        if quantity == 0:
+            pnl = 0
+        if quantity < 0:
+            pnl = entry_price / index_price
+
+        return pnl
+
     def update_price_data(self, data):
         self.price_label = str(data.index_price)
 
@@ -121,13 +147,10 @@ class AsyncApp(App):
                 if position["symbol"] == data.symbol:
                     position["mark_price"] = str(data.mark_price)
                     position["pnl"] = str(
-                        round(
-                            (
-                                float(data.index_price) / float(position["entry_price"])
-                                - 1
-                            )
-                            * 100,
-                            2,
+                        self.calculate_pnl(
+                            quantity=round(float(position["quantity"]), 3),
+                            index_price=float(data.index_price),
+                            entry_price=float(position["entry_price"]),
                         )
                     )
 
