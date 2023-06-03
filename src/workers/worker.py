@@ -44,8 +44,6 @@ async def worker(
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"
         )
-        logger.info(pformat(tsm.position))
-        logger.info("\n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new Event...")

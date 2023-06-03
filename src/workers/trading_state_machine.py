@@ -134,7 +134,7 @@ class TradingStateMachine:
                 "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
-                "after": "log_cancelled_order",
+                "after": "handle_cancelled_order",
             },
             {
                 "trigger": "process_order",
@@ -552,7 +552,7 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("New order: %s", self.order_update.order_id)
 
-    async def log_cancelled_order(self, *args, **kwargs) -> None:
+    async def handle_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status

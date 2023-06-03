@@ -1,5 +1,8 @@
-#:import ColorChangingQuantity src.gui.async_app.ColorChangingQuantity
-#:import ColorChangingSide src.gui.async_app.ColorChangingSide
+#:import SymbolMarkPrice src.gui.identifiers.SymbolMarkPrice
+#:import PnL src.gui.identifiers.PnL
+#:import ColorChangingQuantity src.gui.identifiers.ColorChangingQuantity
+#:import ColorChangingSide src.gui.identifiers.ColorChangingSide
+
 
 
 BoxLayout:
@@ -40,7 +43,7 @@ BoxLayout:
     BoxLayout:
         size_hint_x: 0.14
         Label:
-            text: 'Symbol price:'
+            text: 'Index price:'
         Label:
             id: index_price
             text: app.price_label
@@ -135,7 +138,7 @@ BoxLayout:
         text: root.liquidation_price
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
-        text: root.pnl
+        text: '%s %%' % root.pnl
     Label:
         text: root.status
 

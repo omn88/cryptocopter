@@ -1,4 +1,5 @@
 import asyncio
+from typing import List, Tuple
 
 from binance.enums import (
     ORDER_STATUS_FILLED,
@@ -13,9 +14,8 @@ from kivy.properties import (
     NumericProperty,
     StringProperty,
 )
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
 
+from src.common.constants import LEVERAGE
 from src.common.identifiers import (
     AccountData,
     PositionData,
@@ -23,62 +23,8 @@ from src.common.identifiers import (
     EventName,
     PositionStatus,
     PriceData,
-    PositionSide,
 )
 from src.trading_system import TradingSystem
-
-
-GREEN_COLOR = [0, 0.5, 0, 1]
-RED_COLOR = [0.5, 0, 0, 1]
-WHITE_COLOR = [1, 1, 1, 1]
-
-
-class SymbolMarkPrice(Label):
-    mark_price = NumericProperty(0)
-
-    @staticmethod
-    def on_mark_price(instance, value):
-        Logger.info("SymbolMarkPrice updated:  %s", value)
-
-
-class PnL(Label):
-    pnl = NumericProperty(0)
-
-    def on_pnl(self, instance, value):
-        pnl = float(value)
-        if pnl > 0:
-            self.color = GREEN_COLOR
-        elif pnl < 0:
-            self.color = RED_COLOR
-        else:
-            self.color = WHITE_COLOR
-
-
-class ColorChangingQuantity(Label):
-    quantity = NumericProperty(0)
-    color = ListProperty(WHITE_COLOR)  # Default color is white
-
-    def on_quantity(self, instance, value):
-        quantity = float(value)
-        if quantity > 0:
-            self.color = GREEN_COLOR
-        elif quantity < 0:
-            self.color = RED_COLOR
-        else:
-            self.color = WHITE_COLOR
-
-
-class ColorChangingSide(Label):
-    side = StringProperty("")
-    color = ListProperty([1, 1, 1, 1])  # Default color is white
-
-    def on_side(self, instance, value):
-        if value.lower() == "buy":
-            self.color = GREEN_COLOR
-        elif value.lower() == "sell":
-            self.color = RED_COLOR
-        else:
-            self.color = WHITE_COLOR
 
 
 class AsyncApp(App):
@@ -123,46 +69,53 @@ class AsyncApp(App):
                 Logger.info("PANU  DYS IS update account")
                 self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.update_position(data)
+                self.open_positions, self.closed_positions = self.update_position(
+                    open_positions=self.open_positions,
+                    closed_positions=self.closed_positions,
+                    data=data,
+                )
 
             if isinstance(data, OrderData):
-                self.update_order(data)
+                self.open_orders, self.closed_orders = self.update_order(
+                    data=data,
+                    open_orders=self.open_orders,
+                    closed_orders=self.closed_orders,
+                )
 
             if isinstance(data, PriceData):
-                self.update_price_data(data=data)
+                self.update_price_data(data=data, open_positions=self.open_positions)
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
-        pnl = 0
+        pnl = 0.0
 
         if quantity > 0:
-            pnl = (index_price / entry_price - 1) * 100
+            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = (entry_price / index_price - 1) * 100
+            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
 
         return pnl
 
-    def update_price_data(self, data):
+    def update_price_data(self, open_positions, data):
         self.price_label = str(data.index_price)
 
         new_positions = [pos.copy() for pos in self.open_positions]
 
         if len(new_positions) != 0:
-            for position in new_positions:
+            for position in open_positions:
                 if position["symbol"] == data.symbol:
                     pnl = str(
                         round(
                             self.calculate_pnl(
                                 quantity=round(float(position["quantity"]), 3),
-                                index_price=float(data.index_price),
+                                index_price=float(data.mark_price),
                                 entry_price=float(position["entry_price"]),
                             ),
                             3,
                         )
                     )
-                    Logger.info("Mark price: %s, PNL: %s", data.mark_price, pnl)
                     position["quantity"] = str(position["quantity"])
                     position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
@@ -170,21 +123,18 @@ class AsyncApp(App):
                     position["pnl"] = pnl
                     position["status"] = str(position["status"])
 
-                    Logger.info(
-                        "Position Mark price: %s, Position PNL: %s",
-                        position["mark_price"],
-                        position["pnl"],
-                    )
-            self.open_positions = new_positions
+            return open_positions
 
-    def update_position(self, data):
+    def update_position(
+        self, open_positions: List, closed_positions: List, data: PositionData
+    ) -> Tuple[List, List]:
         symbol = data.symbol
 
-        if len(self.open_positions) == 0:
+        if len(open_positions) == 0:
             Logger.info("Creating a new position: %s", symbol)
             # If the position does not exist, create it
             self.position_count += 1
-            self.open_positions.append(
+            open_positions.append(
                 {
                     "symbol": symbol,
                     "quantity": str(data.quantity),
@@ -196,11 +146,11 @@ class AsyncApp(App):
                 }
             )
 
-            Logger.info("Open Positions after adding position: %s", self.open_positions)
+            Logger.info("Open Positions after adding position: %s", open_positions)
 
-        if len(self.open_positions) > 0:
-            if any(position["symbol"] == symbol for position in self.open_positions):
-                for position in self.open_positions:
+        if len(open_positions) > 0:
+            if any(position["symbol"] == symbol for position in open_positions):
+                for position in open_positions:
                     if position["symbol"] == data.symbol:
                         # If it exists, update the values
                         position["quantity"] = str(data.quantity)
@@ -214,27 +164,27 @@ class AsyncApp(App):
                         if data.status == PositionStatus.CLOSED:
                             Logger.info("Position status: %s", data.status)
                             Logger.info(
-                                "Length of open positions: %s", len(self.open_positions)
+                                "Length of open positions: %s", len(open_positions)
                             )
                             Logger.info(
                                 "Length of closed positions: %s",
-                                len(self.closed_positions),
+                                len(closed_positions),
                             )
-                            self.closed_positions.append(position)
-                            self.open_positions.remove(position)
+                            closed_positions.append(position)
+                            open_positions.remove(position)
                             Logger.info(
                                 "Length of open positions after removal: %s",
-                                len(self.open_positions),
+                                len(open_positions),
                             )
                             Logger.info(
                                 "Length of closed positions after appending: %s",
-                                len(self.closed_positions),
+                                len(closed_positions),
                             )
                             self.position_count -= 1
 
-                        Logger.info("Updated positions: %s", self.open_positions)
+                        Logger.info("Updated positions: %s", open_positions)
             else:
-                Logger.info("Creating a new position: %s", symbol)
+                Logger.info("Creating another position: %s", symbol)
                 # If the position does not exist, create it
                 self.position_count += 1
                 self.open_positions.append(
@@ -249,15 +199,17 @@ class AsyncApp(App):
                     }
                 )
 
-                Logger.info(
-                    "Open Positions after adding position: %s", self.open_positions
-                )
+                Logger.info("Open Positions after adding position: %s", open_positions)
 
-    def update_order(self, data: OrderData):
+        return open_positions, closed_positions
+
+    def update_order(
+        self, open_orders: List, closed_orders: List, data: OrderData
+    ) -> Tuple[List, List]:
         order_id = str(data.order_id)
 
-        if any(order["order_id"] == order_id for order in self.open_orders):
-            for order in self.open_orders:
+        if any(order["order_id"] == order_id for order in open_orders):
+            for order in open_orders:
                 if order["order_id"] == order_id:
                     # If it exists, update the values
                     order["open_time"] = str(data.open_time)
@@ -277,27 +229,27 @@ class AsyncApp(App):
                         ORDER_STATUS_EXPIRED,
                     ]:
                         Logger.info("Order fil, can or exp: %s", data.status)
-                        Logger.info("Length of open orders: %s", len(self.open_orders))
+                        Logger.info("Length of open orders: %s", len(open_orders))
                         Logger.info(
                             "Length of closed orders: %s", len(self.closed_orders)
                         )
-                        self.closed_orders.append(order)
-                        self.open_orders.remove(order)
+                        closed_orders.append(order)
+                        open_orders.remove(order)
                         Logger.info(
                             "Length of open orders after removal: %s",
-                            len(self.open_orders),
+                            len(open_orders),
                         )
                         Logger.info(
                             "Length of closed orders after appending: %s",
-                            len(self.closed_orders),
+                            len(closed_orders),
                         )
                         self.order_count -= 1
 
-                    Logger.info("Updated Orders: %s", self.open_orders)
+                    Logger.info("Updated Orders: %s", open_orders)
         else:
             # If the order does not exist, create it
             self.order_count += 1
-            self.open_orders.append(
+            open_orders.append(
                 {
                     "order_id": order_id,
                     "open_time": str(data.open_time),
@@ -310,7 +262,9 @@ class AsyncApp(App):
                     "status": data.status,
                 }
             )
-            Logger.info("Open Orders after adding order: %s", self.open_orders)
+            Logger.info("Open Orders after adding order: %s", open_orders)
+
+        return open_orders, closed_orders
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they
@@ -319,12 +273,12 @@ class AsyncApp(App):
         self.ui_queue = asyncio.Queue()
 
         self.trading_system = TradingSystem(ui_queue=self.ui_queue)
-        initialize_trading_system_task = asyncio.ensure_future(
+        initialize_trading_system_task = asyncio.create_task(
             self.trading_system.initialize()
         )
 
         # Start the task for updating the UI
-        ui_update_task = asyncio.ensure_future(self.update_ui())
+        ui_update_task = asyncio.create_task(self.update_ui())
 
         async def run_wrapper():
             # we don't actually need to set asyncio as the lib because it is

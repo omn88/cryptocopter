@@ -151,6 +151,7 @@ async def cancel_order(
 
     try:
         resp = await client.futures_cancel_order(symbol=SYMBOL, orderId=order.order_id)
+        order.status = resp["status"]
         await ui_queue.put(
             OrderData(
                 order_id=order.order_id,
