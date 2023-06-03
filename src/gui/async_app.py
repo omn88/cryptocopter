@@ -83,7 +83,9 @@ class AsyncApp(App):
                 )
 
             if isinstance(data, PriceData):
-                self.update_price_data(data=data, open_positions=self.open_positions)
+                self.open_positions = self.update_price_data(
+                    data=data, open_positions=self.open_positions
+                )
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -98,12 +100,10 @@ class AsyncApp(App):
 
         return pnl
 
-    def update_price_data(self, open_positions, data):
+    def update_price_data(self, open_positions: List, data: PriceData) -> List:
         self.price_label = str(data.index_price)
 
-        new_positions = [pos.copy() for pos in self.open_positions]
-
-        if len(new_positions) != 0:
+        if len(open_positions) != 0:
             for position in open_positions:
                 if position["symbol"] == data.symbol:
                     pnl = str(
@@ -123,7 +123,7 @@ class AsyncApp(App):
                     position["pnl"] = pnl
                     position["status"] = str(position["status"])
 
-            return open_positions
+        return open_positions
 
     def update_position(
         self, open_positions: List, closed_positions: List, data: PositionData
@@ -273,12 +273,12 @@ class AsyncApp(App):
         self.ui_queue = asyncio.Queue()
 
         self.trading_system = TradingSystem(ui_queue=self.ui_queue)
-        initialize_trading_system_task = asyncio.create_task(
+        initialize_trading_system_task = asyncio.ensure_future(
             self.trading_system.initialize()
         )
 
         # Start the task for updating the UI
-        ui_update_task = asyncio.create_task(self.update_ui())
+        ui_update_task = asyncio.ensure_future(self.update_ui())
 
         async def run_wrapper():
             # we don't actually need to set asyncio as the lib because it is
