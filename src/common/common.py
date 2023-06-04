@@ -2,13 +2,15 @@ import errno
 import logging
 import os
 from typing import List
-import datetime
+from datetime import datetime
 import binance
 import btalib
 import numpy
 import pandas
+import pytz
 
 from src.common.constants import SYMBOL
+from src.common.identifiers import Signal, State
 
 logger = logging.getLogger("common")
 
@@ -16,7 +18,7 @@ logger = logging.getLogger("common")
 def create_directory_with_timestamp():
     mydir = os.path.join(
         os.getcwd() + "/artifacts",
-        datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     )
     try:
         os.makedirs(mydir)
@@ -77,3 +79,26 @@ def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
     df.dropna(inplace=True)
 
     return df
+
+
+def signal_to_state(signal: Signal) -> State:
+    return State(signal.value)
+
+
+def convert_time(timestamp):
+    # Binance timestamp is in milliseconds, convert it to seconds
+    timestamp_s = timestamp / 1000
+
+    # Create datetime object in UTC
+    utc_time = datetime.utcfromtimestamp(timestamp_s)
+
+    # Add timezone information
+    utc_time = utc_time.replace(tzinfo=pytz.utc)
+
+    # Convert to Polish timezone
+    poland_time = utc_time.astimezone(pytz.timezone("Europe/Warsaw"))
+
+    # Format the datetime object to a string with desired format
+    formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    return formatted_poland_time

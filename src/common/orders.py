@@ -7,7 +7,6 @@ import pytz
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
-    ORDER_STATUS_CANCELED,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
     FUTURE_ORDER_TYPE_MARKET,
@@ -17,6 +16,8 @@ from binance.exceptions import (
     BinanceOrderException,
     BinanceRequestException,
 )
+
+from src.common.common import convert_time
 from src.common.constants import (
     SYMBOL,
     LEVERAGE,
@@ -326,25 +327,6 @@ def prepare_orders(
 
     logger.info("Exiting prepare orders")
     return position
-
-
-def convert_time(timestamp):
-    # Binance timestamp is in milliseconds, convert it to seconds
-    timestamp_s = timestamp / 1000
-
-    # Create datetime object in UTC
-    utc_time = datetime.utcfromtimestamp(timestamp_s)
-
-    # Add timezone information
-    utc_time = utc_time.replace(tzinfo=pytz.utc)
-
-    # Convert to Polish timezone
-    poland_time = utc_time.astimezone(pytz.timezone("Europe/Warsaw"))
-
-    # Format the datetime object to a string with desired format
-    formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
-
-    return formatted_poland_time
 
 
 async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:

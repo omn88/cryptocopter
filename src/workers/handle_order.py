@@ -8,6 +8,7 @@ import binance
 import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
+from src.common.common import signal_to_state
 from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
 from src.common.identifiers import (
     Signal,
@@ -36,10 +37,6 @@ from src.gui.identifiers import OrderData
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
-
-
-def signal_to_state(signal: Signal) -> State:
-    return State(signal.value)
 
 
 async def prepare_and_send_orders(
