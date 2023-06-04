@@ -495,17 +495,7 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
         )
 
-        await self.ui_queue.put(
-            PositionData(
-                symbol=SYMBOL,
-                quantity=self.position_old.quantity,
-                entry_price=self.position_old.entry_price,
-                mark_price=0,
-                liquidation_price=self.position_old.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED.value,
-            )
-        )
+        await self.send_close_position_to_ui()
 
     async def close_short(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
@@ -516,6 +506,9 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
         )
 
+        await self.send_close_position_to_ui()
+
+    async def send_close_position_to_ui(self):
         await self.ui_queue.put(
             PositionData(
                 symbol=SYMBOL,
@@ -579,17 +572,8 @@ class TradingStateMachine:
             balance=self.balance,
             ui_queue=self.ui_queue,
         )
-        await self.ui_queue.put(
-            PositionData(
-                symbol=SYMBOL,
-                quantity=self.position_old.quantity,
-                entry_price=self.position_old.entry_price,
-                mark_price=0,
-                liquidation_price=self.position_old.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED.value,
-            )
-        )
+
+        await self.send_close_position_to_ui()
 
     async def handle_partial_liquidation(self, *args, **kwargs):
         logger.info("Entering handle partial liquidation")
@@ -612,17 +596,7 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
         )
 
-        await self.ui_queue.put(
-            PositionData(
-                symbol=SYMBOL,
-                quantity=self.position_old.quantity,
-                entry_price=self.position_old.entry_price,
-                mark_price=0,
-                liquidation_price=self.position_old.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED.value,
-            )
-        )
+        await self.send_close_position_to_ui()
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle target order partially filled")
@@ -640,17 +614,7 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-        await self.ui_queue.put(
-            PositionData(
-                symbol=SYMBOL,
-                quantity=self.position_old.quantity,
-                entry_price=self.position_old.entry_price,
-                mark_price=0,
-                liquidation_price=self.position_old.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED.value,
-            )
-        )
+        await self.send_close_position_to_ui()
 
     async def handle_market_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")

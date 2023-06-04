@@ -159,7 +159,7 @@ class AsyncApp(App):
                 position["status"] = str(data.status)
 
                 # If the quantity is 0, remove the position
-                if data.status == PositionStatus.CLOSED:
+                if position["status"] == PositionStatus.CLOSED.value:
                     Logger.info("Position status: %s", data.status)
                     Logger.info("Length of open positions: %s", len(open_positions))
                     Logger.info(
