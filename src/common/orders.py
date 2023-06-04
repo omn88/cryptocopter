@@ -31,8 +31,8 @@ from src.common.identifiers import (
     PositionSide,
     PositionMode,
     Position,
-    OrderData,
 )
+from src.gui.identifiers import OrderData
 
 logger = logging.getLogger("orders")
 

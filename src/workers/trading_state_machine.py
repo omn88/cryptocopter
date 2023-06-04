@@ -28,12 +28,10 @@ from src.common.identifiers import (
     PositionSide,
     Event,
     EventName,
-    PositionData,
-    OrderData,
     Order,
-    PositionStatus,
 )
 from src.common.orders import cancel_order
+from src.gui.identifiers import PositionData, PositionStatus, OrderData
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,

@@ -12,8 +12,8 @@ from src.common.identifiers import (
     AccountUpdate,
     OrderUpdate,
     KlineUpdate,
-    PriceData,
 )
+from src.gui.identifiers import PriceData
 from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("producer")

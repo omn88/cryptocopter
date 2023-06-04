@@ -16,7 +16,6 @@ from src.common.identifiers import (
     State,
     Order,
     Artifacts,
-    OrderData,
 )
 from src.common.orders import (
     cancel_remaining_limit_orders,
@@ -32,6 +31,8 @@ from src.common.orders import (
     futures_get_order,
 )
 import logging
+
+from src.gui.identifiers import OrderData
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
