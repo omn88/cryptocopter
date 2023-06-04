@@ -1,3 +1,10 @@
+#:import SymbolMarkPrice src.gui.identifiers.SymbolMarkPrice
+#:import PnL src.gui.identifiers.PnL
+#:import ColorChangingQuantity src.gui.identifiers.ColorChangingQuantity
+#:import ColorChangingSide src.gui.identifiers.ColorChangingSide
+
+
+
 BoxLayout:
     orientation: "vertical"
     spacing: 8
@@ -26,10 +33,24 @@ BoxLayout:
             size_hint_x: 0.75
             on_text: app.on_strategy_change(self, self.text)
 
+    # Spacer
+    Widget:
+        size_hint_x: 0.02
+
+
+
+    # Price Label
+    BoxLayout:
+        size_hint_x: 0.14
+        Label:
+            text: 'Index price:'
+        Label:
+            id: index_price
+            text: app.price_label
 
     # Balance Label
     BoxLayout:
-        size_hint_x: 0.25
+        size_hint_x: 0.14
         Label:
             text: 'Balance:'
         Label:
@@ -38,7 +59,7 @@ BoxLayout:
 
     # Mode Label
     BoxLayout:
-        size_hint_x: 0.25
+        size_hint_x: 0.2
         Label:
             text: 'Auto-Pilot:'
         Switch:
@@ -101,18 +122,23 @@ BoxLayout:
         Line:
             points: [self.x, self.y, self.x + self.width, self.y]
 
+
     Label:
         text: root.symbol
-    Label:
-        text: root.quantity
+    ColorChangingQuantity:
+        quantity: 0 if root.quantity == '' else root.quantity
+        text: str(root.quantity)
+        color: self.color
     Label:
         text: root.entry_price
-    Label:
+    SymbolMarkPrice:
+        mark_price: 0 if root.mark_price == '' else root.mark_price
         text: root.mark_price
     Label:
         text: root.liquidation_price
-    Label:
-        text: root.pnl
+    PnL:
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
     Label:
         text: root.status
 
@@ -146,8 +172,10 @@ BoxLayout:
     Label:
         text: root.order_type
         size_hint_x: 0.10
-    Label:
-        text: root.side
+    ColorChangingSide:
+        side: root.side
+        text: str(root.side)
+        color: self.color
         size_hint_x: 0.08
     Label:
         text: root.price

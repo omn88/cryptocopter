@@ -1,4 +1,5 @@
 import asyncio
+from typing import List, Tuple
 
 from binance.enums import (
     ORDER_STATUS_FILLED,
@@ -12,14 +13,15 @@ from kivy.properties import (
     ListProperty,
     NumericProperty,
     StringProperty,
-    DictProperty,
 )
 
-from src.common.identifiers import (
+from src.common.constants import LEVERAGE
+from src.common.identifiers import EventName
+from src.gui.identifiers import (
     AccountData,
     PositionData,
     OrderData,
-    EventName,
+    PriceData,
     PositionStatus,
 )
 from src.trading_system import TradingSystem
@@ -27,6 +29,7 @@ from src.trading_system import TradingSystem
 
 class AsyncApp(App):
     balance_label = StringProperty("0")
+    price_label = StringProperty("0")
     open_positions = ListProperty([])
     open_orders = ListProperty([])
     closed_orders = ListProperty([])
@@ -54,9 +57,9 @@ class AsyncApp(App):
 
     async def update_ui(self):
         while True:
-            Logger.info("Events in UI queue: %s", self.ui_queue.qsize())
+            Logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
             if self.ui_queue.qsize() == 0:
-                Logger.info("Awaiting new Event")
+                Logger.debug("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
             if data == EventName.SENTINEL:
@@ -66,122 +69,214 @@ class AsyncApp(App):
                 Logger.info("PANU  DYS IS update account")
                 self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.update_position(data)
+                self.open_positions, self.closed_positions = self.update_position(
+                    open_positions=self.open_positions,
+                    closed_positions=self.closed_positions,
+                    data=data,
+                )
 
             if isinstance(data, OrderData):
-                self.update_order(data)
+                self.open_orders, self.closed_orders = self.update_order(
+                    data=data,
+                    open_orders=self.open_orders,
+                    closed_orders=self.closed_orders,
+                )
 
-    def update_position(self, data):
+            if isinstance(data, PriceData):
+                self.open_positions = self.update_price_data(
+                    data=data, open_positions=self.open_positions
+                )
+
+    @staticmethod
+    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+        pnl = 0.0
+
+        if quantity > 0:
+            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
+        if quantity == 0:
+            pnl = 0
+        if quantity < 0:
+            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
+
+        return pnl
+
+    def update_price_data(self, open_positions: List, data: PriceData) -> List:
+        self.price_label = str(data.index_price)
+
+        new_positions = [pos.copy() for pos in open_positions]
+
+        if len(new_positions) != 0:
+            for position in new_positions:
+                if position["symbol"] == data.symbol:
+                    pnl = str(
+                        round(
+                            self.calculate_pnl(
+                                quantity=round(float(position["quantity"]), 3),
+                                index_price=float(data.mark_price),
+                                entry_price=float(position["entry_price"]),
+                            ),
+                            3,
+                        )
+                    )
+                    position["quantity"] = str(position["quantity"])
+                    position["entry_price"] = str(position["entry_price"])
+                    position["mark_price"] = str(data.mark_price)
+                    position["liquidation_price"] = str(position["liquidation_price"])
+                    position["pnl"] = pnl
+                    position["status"] = str(position["status"])
+
+        return new_positions
+
+    def add_new_position(self, symbol, open_positions, data) -> List:
+        Logger.info("Creating a new position: %s", symbol)
+        # If the position does not exist, create it
+        self.position_count += 1
+        open_positions.append(
+            {
+                "symbol": symbol,
+                "quantity": str(data.quantity),
+                "entry_price": str(data.entry_price),
+                "mark_price": str(data.mark_price),
+                "liquidation_price": str(data.liquidation_price),
+                "pnl": str(data.pnl),
+                "status": str(data.status),
+            }
+        )
+
+        Logger.info("Open Positions after adding position: %s", open_positions)
+
+        return open_positions
+
+    def update_existing_position(self, open_positions, data, closed_positions):
+        for position in open_positions:
+            if position["symbol"] == data.symbol:
+                # If it exists, update the values
+                position["quantity"] = str(data.quantity)
+                position["entry_price"] = str(data.entry_price)
+                position["mark_price"] = str(data.mark_price)
+                position["liquidation_price"] = str(data.liquidation_price)
+                position["pnl"] = str(data.pnl)
+                position["status"] = str(data.status)
+
+                # If the quantity is 0, remove the position
+                if data.status == PositionStatus.CLOSED:
+                    Logger.info("Position status: %s", data.status)
+                    Logger.info("Length of open positions: %s", len(open_positions))
+                    Logger.info(
+                        "Length of closed positions: %s",
+                        len(closed_positions),
+                    )
+                    closed_positions.append(position)
+                    open_positions.remove(position)
+                    Logger.info(
+                        "Length of open positions after removal: %s",
+                        len(open_positions),
+                    )
+                    Logger.info(
+                        "Length of closed positions after appending: %s",
+                        len(closed_positions),
+                    )
+                    self.position_count -= 1
+
+                Logger.info("Updated positions: %s", open_positions)
+
+        return open_positions, closed_positions
+
+    def add_new_order(self, open_orders, data):
+        self.order_count += 1
+        open_orders.append(
+            {
+                "order_id": str(data.order_id),
+                "open_time": str(data.open_time),
+                "symbol": data.symbol,
+                "order_type": data.order_type,
+                "side": data.side,
+                "price": str(data.price),
+                "quantity": str(data.quantity),
+                "realized_quantity": str(data.realized_quantity),
+                "status": data.status,
+            }
+        )
+        Logger.info("Open Orders after adding order: %s", open_orders)
+
+        return open_orders
+
+    def update_existing_order(self, open_orders, data, closed_orders):
+        for order in open_orders:
+            if order["order_id"] == str(data.order_id):
+                # If it exists, update the values
+                order["open_time"] = str(data.open_time)
+                order["symbol"] = data.symbol
+                order["order_type"] = data.order_type
+                order["side"] = data.side
+                order["price"] = str(data.price)
+                order["quantity"] = str(data.quantity)
+                order["realized_quantity"] = str(data.realized_quantity)
+                order["status"] = data.status
+
+                # If the order status is filled, canceled, or expired,
+                # remove it from open orders and add it to closed orders
+                if data.status in [
+                    ORDER_STATUS_FILLED,
+                    ORDER_STATUS_CANCELED,
+                    ORDER_STATUS_EXPIRED,
+                ]:
+                    Logger.info("Order fil, can or exp: %s", data.status)
+                    Logger.info("Length of open orders: %s", len(open_orders))
+                    Logger.info("Length of closed orders: %s", len(self.closed_orders))
+                    closed_orders.append(order)
+                    open_orders.remove(order)
+                    Logger.info(
+                        "Length of open orders after removal: %s",
+                        len(open_orders),
+                    )
+                    Logger.info(
+                        "Length of closed orders after appending: %s",
+                        len(closed_orders),
+                    )
+                    self.order_count -= 1
+
+                Logger.info("Updated Orders: %s", open_orders)
+
+        return open_orders, closed_orders
+
+    def update_position(
+        self, open_positions: List, closed_positions: List, data: PositionData
+    ) -> Tuple[List, List]:
         symbol = data.symbol
 
-        if any(position.symbol == symbol for position in self.open_positions):
-            for position in self.open_positions:
-                if position.symbol == data.symbol:
-                    # If it exists, update the values
-                    position["quantity"] = str(data.quantity)
-                    position["entry_price"] = str(data.entry_price)
-                    position["mark_price"] = str(data.mark_price)
-                    position["liquidation_price"] = str(data.liquidation_price)
-                    position["pnl"] = str(data.pnl)
-
-                    # If the quantity is 0, remove the position
-                    if data.status == PositionStatus.CLOSED:
-                        Logger.info("Position status: %s", data.status)
-                        Logger.info(
-                            "Length of open positions: %s", len(self.open_positions)
-                        )
-                        Logger.info(
-                            "Length of closed positions: %s", len(self.closed_positions)
-                        )
-                        self.closed_positions.append(position)
-                        self.open_positions.remove(position)
-                        Logger.info(
-                            "Length of open positions after removal: %s",
-                            len(self.open_positions),
-                        )
-                        Logger.info(
-                            "Length of closed positions after appending: %s",
-                            len(self.closed_positions),
-                        )
-                        self.position_count -= 1
-
-                    Logger.info("Updated positions: %s", self.open_positions)
-
+        if len(open_positions) != 0:
+            if any(position["symbol"] == symbol for position in open_positions):
+                open_positions, closed_positions = self.update_existing_position(
+                    closed_positions=closed_positions,
+                    data=data,
+                    open_positions=open_positions,
+                )
+            else:
+                open_positions = self.add_new_position(
+                    data=data, open_positions=open_positions, symbol=symbol
+                )
         else:
-            Logger.info("Creating a new position: %s", symbol)
-            # If the position does not exist, create it
-            self.position_count += 1
-            self.open_positions.append(
-                {
-                    "symbol": symbol,
-                    "quantity": str(data.quantity),
-                    "entry_price": str(data.entry_price),
-                    "mark_price": str(data.mark_price),
-                    "liquidation_price": str(data.liquidation_price),
-                    "pnl": str(data.pnl),
-                }
+            open_positions = self.add_new_position(
+                data=data, open_positions=open_positions, symbol=symbol
             )
 
-            Logger.info("Open Positions after adding position: %s", self.open_positions)
+        return open_positions, closed_positions
 
-    def update_order(self, data: OrderData):
+    def update_order(
+        self, open_orders: List, closed_orders: List, data: OrderData
+    ) -> Tuple[List, List]:
         order_id = str(data.order_id)
 
-        if any(order["order_id"] == order_id for order in self.open_orders):
-            for order in self.open_orders:
-                if order["order_id"] == order_id:
-                    # If it exists, update the values
-                    order["open_time"] = str(data.open_time)
-                    order["symbol"] = data.symbol
-                    order["order_type"] = data.order_type
-                    order["side"] = data.side
-                    order["price"] = str(data.price)
-                    order["quantity"] = str(data.quantity)
-                    order["realized_quantity"] = str(data.realized_quantity)
-                    order["status"] = data.status
-
-                    # If the order status is filled, canceled, or expired,
-                    # remove it from open orders and add it to closed orders
-                    if data.status in [
-                        ORDER_STATUS_FILLED,
-                        ORDER_STATUS_CANCELED,
-                        ORDER_STATUS_EXPIRED,
-                    ]:
-                        Logger.info("Order fil, can or exp: %s", data.status)
-                        Logger.info("Length of open orders: %s", len(self.open_orders))
-                        Logger.info(
-                            "Length of closed orders: %s", len(self.closed_orders)
-                        )
-                        self.closed_orders.append(order)
-                        self.open_orders.remove(order)
-                        Logger.info(
-                            "Length of open orders after removal: %s",
-                            len(self.open_orders),
-                        )
-                        Logger.info(
-                            "Length of closed orders after appending: %s",
-                            len(self.closed_orders),
-                        )
-                        self.order_count -= 1
-
-                    Logger.info("Updated Orders: %s", self.open_orders)
+        if any(order["order_id"] == order_id for order in open_orders):
+            open_orders, closed_orders = self.update_existing_order(
+                closed_orders=closed_orders, data=data, open_orders=open_orders
+            )
         else:
             # If the order does not exist, create it
-            self.order_count += 1
-            self.open_orders.append(
-                {
-                    "order_id": order_id,
-                    "open_time": str(data.open_time),
-                    "symbol": data.symbol,
-                    "order_type": data.order_type,
-                    "side": data.side,
-                    "price": str(data.price),
-                    "quantity": str(data.quantity),
-                    "realized_quantity": str(data.realized_quantity),
-                    "status": data.status,
-                }
-            )
-            Logger.info("Open Orders after adding order: %s", self.open_orders)
+            open_orders = self.add_new_order(data=data, open_orders=open_orders)
+
+        return open_orders, closed_orders
 
     def app_func(self):
         """This will run both methods asynchronously and then block until they
@@ -189,7 +284,7 @@ class AsyncApp(App):
         """
         self.ui_queue = asyncio.Queue()
 
-        self.trading_system: TradingSystem = TradingSystem(ui_queue=self.ui_queue)
+        self.trading_system = TradingSystem(ui_queue=self.ui_queue)
         initialize_trading_system_task = asyncio.ensure_future(
             self.trading_system.initialize()
         )

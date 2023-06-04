@@ -1,5 +1,4 @@
 import asyncio
-import signal
 from typing import List, Union, Optional
 import binance
 import numpy
@@ -29,11 +28,10 @@ from src.common.identifiers import (
     PositionSide,
     Event,
     EventName,
-    PositionData,
-    OrderData,
     Order,
-    PositionStatus,
 )
+from src.common.orders import cancel_order
+from src.gui.identifiers import PositionData, PositionStatus, OrderData
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -47,7 +45,6 @@ from src.workers.handle_order import (
     prepare_and_send_orders,
     close_long,
     close_short,
-    futures_position_close,
 )
 
 logger = logging.getLogger("trading_state_machine")
@@ -135,7 +132,7 @@ class TradingStateMachine:
                 "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
-                "after": "log_cancelled_order",
+                "after": "handle_cancelled_order",
             },
             {
                 "trigger": "process_order",
@@ -464,6 +461,7 @@ class TradingStateMachine:
             balance=self.balance,
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
+            ui_queue=self.ui_queue,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -481,6 +479,7 @@ class TradingStateMachine:
             balance=self.balance,
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
+            ui_queue=self.ui_queue,
         )
 
         self.update_position_in_df(
@@ -490,7 +489,10 @@ class TradingStateMachine:
     async def close_long(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
         self.position_old = await close_long(
-            client=self.client, balance=self.balance, position=self.position
+            client=self.client,
+            balance=self.balance,
+            position=self.position,
+            ui_queue=self.ui_queue,
         )
 
         await self.ui_queue.put(
@@ -501,14 +503,17 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
     async def close_short(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
         self.position_old = await close_short(
-            client=self.client, balance=self.balance, position=self.position
+            client=self.client,
+            balance=self.balance,
+            position=self.position,
+            ui_queue=self.ui_queue,
         )
 
         await self.ui_queue.put(
@@ -519,11 +524,11 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
-    async def send_order_update_to_ui(self, order: OrderUpdate, open_time):
+    async def send_order_update_to_ui(self, order: Order, open_time):
         order_data = OrderData(
             symbol=SYMBOL,
             order_id=order.order_id,
@@ -545,19 +550,12 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("New order: %s", self.order_update.order_id)
 
-                await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
-                )
-
-    async def log_cancelled_order(self, *args, **kwargs) -> None:
+    async def handle_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
-                await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
-                )
 
     async def log_expired_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
@@ -566,7 +564,7 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
-                    order=self.order_update, open_time=order.open_time
+                    order=order, open_time=order.open_time
                 )
 
     async def handle_account(self, *args, **kwargs):
@@ -579,6 +577,7 @@ class TradingStateMachine:
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
+            ui_queue=self.ui_queue,
         )
         await self.ui_queue.put(
             PositionData(
@@ -588,7 +587,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -610,6 +609,7 @@ class TradingStateMachine:
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
+            ui_queue=self.ui_queue,
         )
 
         await self.ui_queue.put(
@@ -620,14 +620,13 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle target order partially filled")
         self.position, self.balance = await target_partially_reached(
-            client=self.client,
             position=self.position,
             order_update=self.order_update,
             balance=self.balance,
@@ -649,7 +648,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED,
+                status=PositionStatus.CLOSED.value,
             )
         )
 
@@ -676,7 +675,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE,
+                status=PositionStatus.ACTIVE.value,
             )
         )
         self.update_position_in_df(update=self.position.status)
@@ -688,12 +687,9 @@ class TradingStateMachine:
             ),
             None,
         )
-        logging.info("DUPA ORDER WHICH IS NOT NONE: %s", order)
 
         if order is not None:
-            await self.send_order_update_to_ui(
-                order=self.order_update, open_time=order.open_time
-            )
+            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
@@ -715,7 +711,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE,
+                status=PositionStatus.ACTIVE.value,
             )
         )
 
@@ -729,10 +725,13 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(
-                order=self.order_update, open_time=order.open_time
-            )
+            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
+
+    async def cancel_order(self, order, side: str, ui_queue: asyncio.Queue):
+        await cancel_order(
+            client=self.client, order=order, side=side, ui_queue=ui_queue
+        )

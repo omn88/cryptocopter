@@ -13,6 +13,7 @@ from src.common.identifiers import (
     OrderUpdate,
     KlineUpdate,
 )
+from src.gui.identifiers import PriceData
 from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("producer")
@@ -65,6 +66,27 @@ async def futures_user_socket(
                     "SOME OTHER KIND OF MESSAGE TO BE IMPLEMENTED IN FUTURE: %s", msg
                 )
             await asyncio.sleep(0.1)
+
+
+async def futures_symbol_mark_price_socket(
+    bsm: BinanceSocketManager,
+    ui_queue: asyncio.Queue,
+):
+    smp = bsm.symbol_mark_price_socket(symbol=SYMBOL)
+
+    async with smp:
+        logger.info("Ready to receive first mark price socket message.")
+        while True:
+            msg = await smp.recv()
+
+            symbol = msg["data"]["s"]
+            mark_price = round(float(msg["data"]["p"]), 1)
+            index_price = round(float(msg["data"]["i"]), 1)
+
+            await ui_queue.put(
+                PriceData(index_price=index_price, symbol=symbol, mark_price=mark_price)
+            )
+            await asyncio.sleep(1)
 
 
 async def kline_futures_socket(

@@ -1,17 +1,11 @@
-import pandas
-
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
-    PositionSide,
-    State,
     Signal,
     SignalUpdate,
     Event,
     EventName,
 )
 from src.features.rsi_basic import FeatureRsiBasic
-from src.workers import handle_order
-from src.workers.handle_order import prepare_and_send_orders, signal_to_state
 from src.workers.trading_state_machine import TradingStateMachine
 
 

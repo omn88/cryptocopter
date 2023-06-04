@@ -7,7 +7,7 @@ from src.common.common import (
     rsi_indicator_apply,
 )
 from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
-from src.common.identifiers import Position, AccountData, PositionData
+from src.common.identifiers import Position, EventName
 from src.common.initialize_trading_environment import (
     create_async_client,
     create_async_queue,
@@ -17,6 +17,7 @@ from src.common.initialize_trading_environment import (
     create_socket_manager,
 )
 from src.common.orders import order_quantity_list_prepare
+from src.gui.identifiers import AccountData
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy
@@ -35,7 +36,7 @@ class TradingSystem:
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
-        self.ui_queue: asyncio.Queue = ui_queue
+        self.ui_queue = ui_queue
         self.balance = None
         self.raw_data = None
         self.df = None
@@ -93,6 +94,7 @@ class TradingSystem:
                 interval=INTERVAL,
                 queue=self.queue,
                 tsm=self.strategy,
+                ui_queue=self.ui_queue,
             ),
             *prepare_workers(tsm=self.strategy, queue=self.queue),
             return_exceptions=True,
@@ -101,4 +103,5 @@ class TradingSystem:
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
-        pass  # TODO: implement this
+        await self.queue.put(EventName.SENTINEL)
+        logger.info("Sentinel should be send.")

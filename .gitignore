@@ -3,6 +3,7 @@ __pycache__/
 artifacts
 sample_data.txt
 .pytest_cache/
+.buildozer/
 .venv
 .env
 .coverage

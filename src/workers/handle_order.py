@@ -8,6 +8,7 @@ import binance
 import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
+from src.common.common import signal_to_state
 from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE, SYMBOL
 from src.common.identifiers import (
     Signal,
@@ -16,7 +17,6 @@ from src.common.identifiers import (
     State,
     Order,
     Artifacts,
-    OrderData,
 )
 from src.common.orders import (
     cancel_remaining_limit_orders,
@@ -29,15 +29,14 @@ from src.common.orders import (
     send_order,
     target_price_calculate,
     get_orders,
+    futures_get_order,
 )
 import logging
+
+from src.gui.identifiers import OrderData
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
-
-
-def signal_to_state(signal: Signal) -> State:
-    return State(signal.value)
 
 
 async def prepare_and_send_orders(
@@ -47,6 +46,7 @@ async def prepare_and_send_orders(
     signal: Signal,
     entry_price: float,
     side: str,
+    ui_queue: asyncio.Queue,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
     logger.info("Entering %s position open, mode: %s", side, mode)
@@ -63,14 +63,31 @@ async def prepare_and_send_orders(
         order_quantity_list=order_quantity_list,
     )
 
+    side = SIDE_BUY if side == PositionSide.LONG else SIDE_SELL
+
     assert position.orders is not None
     position.orders = await send_orders(
         client=client,
         orders=position.orders,
-        side=SIDE_BUY if side == PositionSide.LONG else SIDE_SELL,
+        side=side,
     )
 
     position.orders = await get_orders(client=client, orders=position.orders)
+
+    for order in position.orders:
+        await ui_queue.put(
+            OrderData(
+                order_id=order.order_id,
+                open_time=order.open_time,
+                symbol=SYMBOL,
+                order_type=order.order_type,
+                side=side,
+                price=order.price,
+                quantity=order.quantity,
+                realized_quantity=order.realized_quantity,
+                status=order.status,
+            )
+        )
 
     logger.info(
         "Exiting %s position open, opened orders: %s",
@@ -81,7 +98,7 @@ async def prepare_and_send_orders(
 
 
 async def close_special_position(
-    client: binance.AsyncClient, position: Position
+    client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
     if position.status in [State.SHORT_SPECIAL, State.LONG_SPECIAL]:
         close_side = (
@@ -101,18 +118,21 @@ async def close_special_position(
 
     position.status = State.FLAT
 
-    await cancel_remaining_limit_orders(client, position=position)
+    await cancel_remaining_limit_orders(client, position=position, ui_queue=ui_queue)
 
     logger.info("Exiting position close")
     return position
 
 
 async def close_long(
-    client: binance.AsyncClient, position: Position, balance: float
+    client: binance.AsyncClient,
+    position: Position,
+    balance: float,
+    ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = SIDE_SELL
     position, position_was_opened = await cancel_remaining_limit_orders(
-        client, position=position
+        client, position=position, ui_queue=ui_queue
     )
 
     if position_was_opened:
@@ -126,6 +146,8 @@ async def close_long(
         position.take_profit_order.status = await cancel_order(
             client=client,
             order=position.take_profit_order,
+            side=position.side,
+            ui_queue=ui_queue,
         )
         logger.info("Cancelled take profit order")
 
@@ -137,11 +159,14 @@ async def close_long(
 
 
 async def close_short(
-    client: binance.AsyncClient, position: Position, balance: float
+    client: binance.AsyncClient,
+    position: Position,
+    balance: float,
+    ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = client.SIDE_BUY
     position, position_was_opened = await cancel_remaining_limit_orders(
-        client, position=position
+        client, position=position, ui_queue=ui_queue
     )
 
     if position_was_opened:
@@ -155,6 +180,8 @@ async def close_short(
         position.take_profit_order.status = await cancel_order(
             client=client,
             order=position.take_profit_order,
+            side=position.side,
+            ui_queue=ui_queue,
         )
         logger.info("Cancelled take profit order")
 
@@ -168,31 +195,20 @@ async def close_short(
 async def update_take_profit_order(
     client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
-    tp = position.take_profit_order
     tp_side = (
         PositionSide.LONG if position.side == PositionSide.SHORT else PositionSide.SHORT
     )
-    if tp.order_id != 0:
+    if position.take_profit_order.order_id != 0:
         logger.info(
-            "Enter update take profit order: %s, side: %s", tp.order_id, tp_side
+            "Enter update take profit order: %s, side: %s",
+            position.take_profit_order.order_id,
+            tp_side,
         )
-        tp.status = await cancel_order(
+        position.take_profit_order.status = await cancel_order(
             client=client,
-            order=tp,
-        )
-
-        await ui_queue.put(
-            OrderData(
-                order_id=tp.order_id,
-                open_time=tp.open_time,
-                symbol=SYMBOL,
-                order_type=tp.order_type,
-                side=tp_side,
-                price=tp.price,
-                quantity=tp.quantity,
-                realized_quantity=tp.realized_quantity,
-                status=tp.status,
-            )
+            order=position.take_profit_order,
+            ui_queue=ui_queue,
+            side=tp_side,
         )
 
     position.target_price = target_price_calculate(
@@ -200,7 +216,7 @@ async def update_take_profit_order(
         price=position.entry_price,
     )
 
-    take_profit_order = Order(
+    position.take_profit_order = Order(
         price=position.target_price,
         quantity=position.quantity,
         quantity_stable=round(
@@ -212,22 +228,24 @@ async def update_take_profit_order(
     position.take_profit_order = await send_order(
         client=client,
         side=tp_side,
-        order=take_profit_order,
+        order=position.take_profit_order,
     )
 
-    tp = position.take_profit_order
+    position.take_profit_order = await futures_get_order(
+        client=client, order=position.take_profit_order
+    )
 
     await ui_queue.put(
         OrderData(
-            order_id=tp.order_id,
-            open_time=tp.open_time,
+            order_id=position.take_profit_order.order_id,
+            open_time=position.take_profit_order.open_time,
             symbol=SYMBOL,
-            order_type=tp.order_type,
+            order_type=position.take_profit_order.order_type,
             side=tp_side,
-            price=tp.price,
-            quantity=tp.quantity,
-            realized_quantity=tp.realized_quantity,
-            status=tp.status,
+            price=position.take_profit_order.price,
+            quantity=position.take_profit_order.quantity,
+            realized_quantity=position.take_profit_order.realized_quantity,
+            status=position.take_profit_order.status,
         )
     )
 
@@ -247,14 +265,17 @@ async def position_liquidation(
     position: Position,
     order_update: OrderUpdate,
     balance: float,
+    ui_queue: asyncio.Queue,
 ) -> Tuple[Position, float]:
     logger.info("Position liquidation")
 
     # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
     assert isinstance(position.take_profit_order, Order)
-    status = await cancel_take_profit_order(
+    _ = await cancel_take_profit_order(
         client=client,
         take_profit_order=position.take_profit_order,
+        ui_queue=ui_queue,
+        side=position.side,
     )
 
     loss = 0.0
@@ -284,7 +305,6 @@ async def partial_position_liquidation(
 
 
 async def target_partially_reached(
-    client: binance.AsyncClient,
     position: Position,
     order_update: OrderUpdate,
     balance: float,
@@ -326,6 +346,7 @@ async def target_reached(
     position: Position,
     order_update: OrderUpdate,
     balance: float,
+    ui_queue: asyncio.Queue,
 ) -> Tuple[Position, float]:
     logger.info("Take profit order filled")
 
@@ -355,7 +376,9 @@ async def target_reached(
 
     logger.info("Earned: %s", round(realized_position, 2))
 
-    position, _ = await cancel_remaining_limit_orders(client=client, position=position)
+    position, _ = await cancel_remaining_limit_orders(
+        client=client, position=position, ui_queue=ui_queue
+    )
     update_artifacts_and_save(
         position=position,
         order_update=order_update,
@@ -526,12 +549,19 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
 
 
 async def futures_position_close(
-    client: binance.AsyncClient, position: Position, balance: float
+    client: binance.AsyncClient,
+    position: Position,
+    balance: float,
+    ui_queue: asyncio.Queue,
 ):
     if position.status in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
-        _ = await close_long(client=client, position=position, balance=balance)
+        _ = await close_long(
+            client=client, position=position, balance=balance, ui_queue=ui_queue
+        )
     elif position.status in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
-        _ = await close_short(client=client, position=position, balance=balance)
+        _ = await close_short(
+            client=client, position=position, balance=balance, ui_queue=ui_queue
+        )
 
 
 async def futures_get_position_info(

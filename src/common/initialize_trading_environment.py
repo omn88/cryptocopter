@@ -10,7 +10,11 @@ from decouple import config
 import logging
 
 from src.common.constants import SYMBOL, MARGIN_TYPE
-from src.producers.producers import kline_futures_socket, futures_user_socket
+from src.producers.producers import (
+    kline_futures_socket,
+    futures_user_socket,
+    futures_symbol_mark_price_socket,
+)
 from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
 
@@ -66,6 +70,7 @@ async def change_margin_type(client: binance.AsyncClient) -> None:
 def prepare_producers(
     bsm: BinanceSocketManager,
     queue: asyncio.Queue,
+    ui_queue: asyncio.Queue,
     interval: str,
     df: pandas.DataFrame,
     tsm: TradingStateMachine,
@@ -80,6 +85,9 @@ def prepare_producers(
             )
         ),
         asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
+        asyncio.create_task(
+            futures_symbol_mark_price_socket(bsm=bsm, ui_queue=ui_queue)
+        ),
     ]
 
 

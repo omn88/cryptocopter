@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from pprint import pformat
 from src.common.common import print_last_n_rows
 from src.common.identifiers import (
     KlineUpdate,
@@ -44,8 +43,6 @@ async def worker(
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"
         )
-        logger.info(pformat(tsm.position))
-        logger.info("\n%s", pformat(tsm.position.orders))
         logger.info("Events in queue: %s", queue.qsize())
         if queue.qsize() == 0:
             logger.info("Awaiting new Event...")
@@ -76,6 +73,10 @@ async def worker(
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
+            # for order in tsm.position.orders:
+            #     await tsm.cancel_order(
+            #         order=order, side=tsm.position.side, ui_queue=tsm.ui_queue
+            #     )
             return tsm.df
 
         queue.task_done()

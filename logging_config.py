@@ -6,7 +6,7 @@ now = datetime.now()
 
 # setup basic config for all loggers
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     filename="artifacts/rsi_based_futures_{}.log".format(
         now.strftime("%Y-%m-%d_%H-%M-%S")
     ),
