@@ -609,7 +609,7 @@ class TradingStateMachine:
     async def handle_market_order_filled(self, *args, **kwargs):
         logger.info("Entering handle market order filled")
         self.position_old, self.balance = await market_order_filled(
-            position=self.position_old,
+            position=self.position,
             order_update=self.order_update,
             balance=self.balance,
         )

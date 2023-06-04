@@ -16,7 +16,7 @@ from kivy.properties import (
 )
 
 from src.common.constants import LEVERAGE
-from src.common.identifiers import EventName
+from src.common.identifiers import EventName, Event
 from src.gui.identifiers import (
     AccountData,
     PositionData,
@@ -62,9 +62,11 @@ class AsyncApp(App):
                 Logger.debug("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
-            if data == EventName.SENTINEL:
-                Logger.info("SENTINEL -> Exiting UI updates.")
-                return
+            if isinstance(data, Event):
+                if data.name == EventName.SENTINEL:
+                    Logger.info("SENTINEL -> Exiting UI updates.")
+                    await asyncio.sleep(3)
+                    return
             if isinstance(data, AccountData):
                 Logger.info("PANU  DYS IS update account")
                 self.balance_label = f"{str(data.balance)} USDT"

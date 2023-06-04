@@ -7,7 +7,7 @@ from src.common.common import (
     rsi_indicator_apply,
 )
 from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
-from src.common.identifiers import Position, EventName
+from src.common.identifiers import Position, EventName, Event, SentinelUpdate
 from src.common.initialize_trading_environment import (
     create_async_client,
     create_async_queue,
@@ -103,5 +103,8 @@ class TradingSystem:
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
-        await self.queue.put(EventName.SENTINEL)
+        logger.info("Trading system STOP initiated properly")
+        await self.queue.put(
+            Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
+        )
         logger.info("Sentinel should be send.")
