@@ -131,7 +131,8 @@ async def close_long(
         logger.info("Cancelled take profit order")
 
     else:
-        update_artifacts_and_save(position=position, order_update=None, balance=balance)
+        pass
+        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
     logger.info("Exiting close long")
     return position
@@ -165,7 +166,8 @@ async def close_short(
         logger.info("Cancelled take profit order")
 
     else:
-        update_artifacts_and_save(position=position, order_update=None, balance=balance)
+        pass
+        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
     logger.info("Exiting close short")
     return position
@@ -245,9 +247,9 @@ async def position_liquidation(
 
     balance -= round(loss, 2)
 
-    update_artifacts_and_save(
-        position=position, order_update=order_update, balance=balance
-    )
+    # update_artifacts_and_save(
+    #     position=position, order_update=order_update, balance=balance
+    # )
 
     position.status = State.FLAT
 
@@ -338,11 +340,11 @@ async def target_reached(
     position, _ = await cancel_remaining_limit_orders(
         client=client, position=position, ui_queue=ui_queue
     )
-    update_artifacts_and_save(
-        position=position,
-        order_update=order_update,
-        balance=balance,
-    )
+    # update_artifacts_and_save(
+    #     position=position,
+    #     order_update=order_update,
+    #     balance=balance,
+    # )
 
     return position, balance
 
@@ -482,11 +484,11 @@ async def market_order_filled(
     position.market_order.quantity = order_update.quantity
     position.market_order.realized_quantity = order_update.realized_quantity
 
-    update_artifacts_and_save(
-        position=position,
-        order_update=order_update,
-        balance=balance,
-    )
+    # update_artifacts_and_save(
+    #     position=position,
+    #     order_update=order_update,
+    #     balance=balance,
+    # )
 
     return position, balance
 
