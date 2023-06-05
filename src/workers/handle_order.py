@@ -28,12 +28,10 @@ from src.common.orders import (
     send_market_order,
     send_order,
     target_price_calculate,
-    get_orders,
-    futures_get_order,
 )
 import logging
 
-from src.gui.identifiers import OrderData
+from src.gui.identifiers import OrderData, PositionData, PositionStatus
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
@@ -67,27 +65,8 @@ async def prepare_and_send_orders(
 
     assert position.orders is not None
     position.orders = await send_orders(
-        client=client,
-        orders=position.orders,
-        side=side,
+        client=client, orders=position.orders, side=side, ui_queue=ui_queue
     )
-
-    position.orders = await get_orders(client=client, orders=position.orders)
-
-    for order in position.orders:
-        await ui_queue.put(
-            OrderData(
-                order_id=order.order_id,
-                open_time=order.open_time,
-                symbol=SYMBOL,
-                order_type=order.order_type,
-                side=side,
-                price=order.price,
-                quantity=order.quantity,
-                realized_quantity=order.realized_quantity,
-                status=order.status,
-            )
-        )
 
     logger.info(
         "Exiting %s position open, opened orders: %s",
@@ -151,8 +130,22 @@ async def close_long(
         )
         logger.info("Cancelled take profit order")
 
+        logger.info("sending close position to ui")
+        await ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=position.quantity,
+                entry_price=position.entry_price,
+                mark_price=0,
+                liquidation_price=position.liquidation_price,
+                pnl=0,
+                status=PositionStatus.CLOSED.value,
+            )
+        )
+
     else:
-        update_artifacts_and_save(position=position, order_update=None, balance=balance)
+        pass
+        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
     logger.info("Exiting close long")
     return position
@@ -185,8 +178,22 @@ async def close_short(
         )
         logger.info("Cancelled take profit order")
 
+        logger.info("sending close position to ui")
+        await ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=position.quantity,
+                entry_price=position.entry_price,
+                mark_price=0,
+                liquidation_price=position.liquidation_price,
+                pnl=0,
+                status=PositionStatus.CLOSED.value,
+            )
+        )
+
     else:
-        update_artifacts_and_save(position=position, order_update=None, balance=balance)
+        pass
+        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
     logger.info("Exiting close short")
     return position
@@ -226,27 +233,7 @@ async def update_take_profit_order(
     )
 
     position.take_profit_order = await send_order(
-        client=client,
-        side=tp_side,
-        order=position.take_profit_order,
-    )
-
-    position.take_profit_order = await futures_get_order(
-        client=client, order=position.take_profit_order
-    )
-
-    await ui_queue.put(
-        OrderData(
-            order_id=position.take_profit_order.order_id,
-            open_time=position.take_profit_order.open_time,
-            symbol=SYMBOL,
-            order_type=position.take_profit_order.order_type,
-            side=tp_side,
-            price=position.take_profit_order.price,
-            quantity=position.take_profit_order.quantity,
-            realized_quantity=position.take_profit_order.realized_quantity,
-            status=position.take_profit_order.status,
-        )
+        client=client, side=tp_side, order=position.take_profit_order, ui_queue=ui_queue
     )
 
     assert isinstance(position.take_profit_order, Order)
@@ -286,9 +273,9 @@ async def position_liquidation(
 
     balance -= round(loss, 2)
 
-    update_artifacts_and_save(
-        position=position, order_update=order_update, balance=balance
-    )
+    # update_artifacts_and_save(
+    #     position=position, order_update=order_update, balance=balance
+    # )
 
     position.status = State.FLAT
 
@@ -379,11 +366,11 @@ async def target_reached(
     position, _ = await cancel_remaining_limit_orders(
         client=client, position=position, ui_queue=ui_queue
     )
-    update_artifacts_and_save(
-        position=position,
-        order_update=order_update,
-        balance=balance,
-    )
+    # update_artifacts_and_save(
+    #     position=position,
+    #     order_update=order_update,
+    #     balance=balance,
+    # )
 
     return position, balance
 
@@ -413,7 +400,6 @@ async def handle_order_partially_filled(
             position = await update_take_profit_order(
                 client=client, position=position, ui_queue=ui_queue
             )
-
             logger.info("Exiting update position")
 
     logger.info("Exit order update handle")
@@ -447,7 +433,6 @@ async def handle_order_filled(
             position = await update_take_profit_order(
                 client=client, position=position, ui_queue=ui_queue
             )
-
             logger.info("Exiting update position: %s", position.quantity)
 
     logger.info("Exit order update handle")
@@ -525,11 +510,11 @@ async def market_order_filled(
     position.market_order.quantity = order_update.quantity
     position.market_order.realized_quantity = order_update.realized_quantity
 
-    update_artifacts_and_save(
-        position=position,
-        order_update=order_update,
-        balance=balance,
-    )
+    # update_artifacts_and_save(
+    #     position=position,
+    #     order_update=order_update,
+    #     balance=balance,
+    # )
 
     return position, balance
 

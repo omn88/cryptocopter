@@ -9,6 +9,7 @@ from src.common.identifiers import (
     EventName,
     Event,
 )
+from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("worker_main")
@@ -73,10 +74,12 @@ async def worker(
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
-            # for order in tsm.position.orders:
-            #     await tsm.cancel_order(
-            #         order=order, side=tsm.position.side, ui_queue=tsm.ui_queue
-            #     )
-            return tsm.df
+            await futures_position_close(
+                balance=tsm.balance,
+                client=tsm.client,
+                ui_queue=tsm.ui_queue,
+                position=tsm.position,
+            )
+            return
 
         queue.task_done()

@@ -70,6 +70,10 @@ class SignalUpdate(NamedTuple):
         return f"SignalUpdate(signal={self.signal}, price={self.price})"
 
 
+class SentinelUpdate(NamedTuple):
+    sentinel: str
+
+
 class EventName(Enum):
     KLINE = "Kline"
     ACCOUNT = "Account"

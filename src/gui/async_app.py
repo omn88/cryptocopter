@@ -16,7 +16,7 @@ from kivy.properties import (
 )
 
 from src.common.constants import LEVERAGE
-from src.common.identifiers import EventName
+from src.common.identifiers import EventName, Event
 from src.gui.identifiers import (
     AccountData,
     PositionData,
@@ -62,9 +62,11 @@ class AsyncApp(App):
                 Logger.debug("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
-            if data == EventName.SENTINEL:
-                Logger.info("SENTINEL -> Exiting UI updates.")
-                return
+            if isinstance(data, Event):
+                if data.name == EventName.SENTINEL:
+                    Logger.info("SENTINEL -> Exiting UI updates.")
+                    await asyncio.sleep(3)
+                    return
             if isinstance(data, AccountData):
                 Logger.info("PANU  DYS IS update account")
                 self.balance_label = f"{str(data.balance)} USDT"
@@ -83,9 +85,14 @@ class AsyncApp(App):
                 )
 
             if isinstance(data, PriceData):
-                self.open_positions = self.update_price_data(
-                    data=data, open_positions=self.open_positions
-                )
+                for position in self.open_positions:
+                    if (
+                        position["symbol"] == data.symbol
+                        and position["status"] != PositionStatus.CLOSED.value
+                    ):
+                        self.open_positions = self.update_price_data(
+                            data=data, open_positions=self.open_positions
+                        )
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -158,8 +165,7 @@ class AsyncApp(App):
                 position["pnl"] = str(data.pnl)
                 position["status"] = str(data.status)
 
-                # If the quantity is 0, remove the position
-                if data.status == PositionStatus.CLOSED:
+                if position["status"] == PositionStatus.CLOSED.value:
                     Logger.info("Position status: %s", data.status)
                     Logger.info("Length of open positions: %s", len(open_positions))
                     Logger.info(
