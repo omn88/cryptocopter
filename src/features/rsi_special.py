@@ -1,14 +1,9 @@
 import logging
-from typing import Optional, List
-
-import binance
 import numpy
-import pandas
 
-from src.common.identifiers import Position, State, SignalUpdate, PositionMode, Signal
-from src.workers import handle_order
+from src.common.identifiers import State, Signal
 
-logger = logging.getLogger("feature_rsi_extended")
+logger = logging.getLogger("feature_rsi_special")
 
 
 class FeatureRsiSpecial:
@@ -75,17 +70,17 @@ class FeatureRsiSpecial:
         self.df["RsiAboveEightyTwo"] = numpy.where(self.df["RSI"] > 82, 1, 0)
 
         # Updated column names
-        self.df["CloseSpecialLong_RsiCrossesFiftyFromAbove"] = numpy.where(
+        self.df["CloseSpecialLong"] = numpy.where(
             (self.df["RSI"] < 50)
             & (self.df["RSI"].shift(1) >= 50)
-            & (self.df["Position"].shift(1) == Signal.LONG_SPECIAL),
+            & (self.df["Position"].shift(1) == State.LONG_SPECIAL),
             1,
             0,
         )
-        self.df["CloseSpecialShort_RsiCrossesFiftyFromBelow"] = numpy.where(
+        self.df["CloseSpecialShort"] = numpy.where(
             (self.df["RSI"] > 50)
             & (self.df["RSI"].shift(1) <= 50)
-            & (self.df["Position"].shift(1) == Signal.SHORT_SPECIAL),
+            & (self.df["Position"].shift(1) == State.SHORT_SPECIAL),
             1,
             0,
         )
@@ -94,6 +89,6 @@ class FeatureRsiSpecial:
             (self.df.RsiBelowEighteen.diff() == 1),
             (self.df.RsiAboveEightyTwo.diff() == 1),
             # Conditions for closing special LONG_SPECIAL and SHORT_SPECIAL positions
-            (self.df.CloseSpecialLong_RsiCrossesFiftyFromAbove.diff() == 1)
-            or (self.df.CloseSpecialShort_RsiCrossesFiftyFromBelow.diff() == 1),
+            (self.df.CloseSpecialLong.diff() == 1)
+            or (self.df.CloseSpecialShort.diff() == 1),
         ]
