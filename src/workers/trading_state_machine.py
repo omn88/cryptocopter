@@ -562,11 +562,8 @@ class TradingStateMachine:
     async def handle_liquidation(self, *args, **kwargs):
         logger.info("Entering handle liquidation")
         self.position_old, self.balance = await position_liquidation(
-            client=self.client,
             position=self.position,
-            order_update=self.order_update,
             balance=self.balance,
-            ui_queue=self.ui_queue,
         )
 
         await self.send_close_position_to_ui()

@@ -24,14 +24,13 @@ from src.common.orders import (
     prepare_orders,
     send_orders,
     PositionSide,
-    cancel_take_profit_order,
     send_market_order,
     send_order,
     target_price_calculate,
 )
 import logging
 
-from src.gui.identifiers import OrderData, PositionData, PositionStatus
+from src.gui.identifiers import PositionData, PositionStatus
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
@@ -248,22 +247,10 @@ async def update_take_profit_order(
 
 
 async def position_liquidation(
-    client: binance.AsyncClient,
     position: Position,
-    order_update: OrderUpdate,
     balance: float,
-    ui_queue: asyncio.Queue,
 ) -> Tuple[Position, float]:
     logger.info("Position liquidation")
-
-    # IT WILL EXPIRE ITSELF, SO IT MAY BE REMOVED FROM HERE
-    assert isinstance(position.take_profit_order, Order)
-    _ = await cancel_take_profit_order(
-        client=client,
-        take_profit_order=position.take_profit_order,
-        ui_queue=ui_queue,
-        side=position.side,
-    )
 
     loss = 0.0
     assert position.orders is not None
@@ -272,10 +259,6 @@ async def position_liquidation(
         loss += order.quantity_stable
 
     balance -= round(loss, 2)
-
-    # update_artifacts_and_save(
-    #     position=position, order_update=order_update, balance=balance
-    # )
 
     position.status = State.FLAT
 
