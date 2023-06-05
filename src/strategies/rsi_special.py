@@ -1,13 +1,15 @@
 import logging
 
+import numpy
+
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
-    State,
     Signal,
     PositionMode,
     SignalUpdate,
     Event,
     EventName,
+    State,
 )
 from src.features.rsi_basic import FeatureRsiBasic
 from src.features.rsi_extended import FeatureRsiExtended
@@ -21,13 +23,25 @@ logger = logging.getLogger("SpecialStrategy")
 class SpecialStrategy(
     TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended, FeatureRsiSpecial
 ):
-    def __init__(self, client, balance, order_quantity_list, df, position, raw_data):
+    def __init__(
+        self,
+        client,
+        balance,
+        order_quantity_list,
+        df,
+        position,
+        raw_data,
+        ui_queue,
+        queue,
+    ):
         super().__init__(
             client=client,
+            queue=queue,
+            ui_queue=ui_queue,
+            position=position,
+            df=df,
             balance=balance,
             order_quantity_list=order_quantity_list,
-            df=df,
-            position=position,
             raw_data=raw_data,
         )
 
@@ -55,8 +69,6 @@ class SpecialStrategy(
             (df.RsiAboveEighty.diff() == -1),
             (df.RsiBelowEighteen.diff() == 1),
             (df.RsiAboveEightyTwo.diff() == 1),
-            # Conditions for closing special LONG_SPECIAL and SHORT_SPECIAL positions
-            (df.CloseSpecialLong.diff() == 1) or (df.CloseSpecialShort.diff() == 1),
         ]
         return conditions
 
@@ -98,6 +110,24 @@ class SpecialStrategy(
             client=self.client, position=self.position, ui_queue=self.ui_queue
         )
 
+    @staticmethod
+    def add_columns_for_position_close(df):
+        df["CloseSpecialLong"] = numpy.where(
+            (df["RSI"] < 50)
+            & (df["RSI"].shift(1) >= 50)
+            & (df["Position"].shift(1) == State.LONG_SPECIAL),
+            1,
+            0,
+        )
+        df["CloseSpecialShort"] = numpy.where(
+            (df["RSI"] > 50)
+            & (df["RSI"].shift(1) <= 50)
+            & (df["Position"].shift(1) == State.SHORT_SPECIAL),
+            1,
+            0,
+        )
+        return df
+
     async def handle_kline(self, *args, **kwargs):
         logger.info("Entering handle kline")
 
@@ -113,12 +143,23 @@ class SpecialStrategy(
         temp_df = self.add_columns_for_rsi_extended(df=temp_df)
         temp_df = self.add_columns_for_rsi_special(df=temp_df)
 
+        temp_df = self.add_columns_for_position_close(df=temp_df)
+
+        self.signals.append(Signal.CLOSE_SPECIAL)
+
         self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
+        self.conditions.append(
+            (
+                (temp_df.CloseSpecialLong.diff() == 1)
+                or (temp_df.CloseSpecialShort.diff() == 1)
+            )
+        )
 
         temp_df = self.signals_from_features_generate(
             df=temp_df, signals=self.signals, conditions=self.conditions
         )
 
+        self.df = self.add_columns_for_position_close(df=self.df)
         self.df = self.df.append(temp_df.tail(1))
 
         signal = self.df.iloc[-1]["Signal"]

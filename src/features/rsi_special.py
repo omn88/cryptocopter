@@ -8,7 +8,7 @@ logger = logging.getLogger("feature_rsi_special")
 
 class FeatureRsiSpecial:
     def __init__(self):
-        self.signals = [Signal.SHORT_SPECIAL, Signal.LONG_SPECIAL, Signal.CLOSE_SPECIAL]
+        self.signals = [Signal.SHORT_SPECIAL, Signal.LONG_SPECIAL]
         self.states = [State.LONG_SPECIAL, State.SHORT_SPECIAL]
         self.transitions = [
             {
@@ -62,20 +62,6 @@ class FeatureRsiSpecial:
         df["RsiBelowEighteen"] = numpy.where(df["RSI"] < 18, 1, 0)
         df["RsiAboveEightyTwo"] = numpy.where(df["RSI"] > 82, 1, 0)
 
-        df["CloseSpecialLong"] = numpy.where(
-            (df["RSI"] < 50)
-            & (df["RSI"].shift(1) >= 50)
-            & (df["Position"].shift(1) == State.LONG_SPECIAL),
-            1,
-            0,
-        )
-        df["CloseSpecialShort"] = numpy.where(
-            (df["RSI"] > 50)
-            & (df["RSI"].shift(1) <= 50)
-            & (df["Position"].shift(1) == State.SHORT_SPECIAL),
-            1,
-            0,
-        )
         return df
 
     @staticmethod
@@ -83,8 +69,6 @@ class FeatureRsiSpecial:
         conditions = [
             (df.RsiBelowEighteen.diff() == 1),
             (df.RsiAboveEightyTwo.diff() == 1),
-            # Conditions for closing special LONG_SPECIAL and SHORT_SPECIAL positions
-            (df.CloseSpecialLong.diff() == 1) or (df.CloseSpecialShort.diff() == 1),
         ]
         return conditions
 
