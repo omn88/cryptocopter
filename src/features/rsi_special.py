@@ -7,88 +7,113 @@ logger = logging.getLogger("feature_rsi_special")
 
 
 class FeatureRsiSpecial:
-    def __init__(self, df):
-        self.df = df
-
-    states = [State.LONG_SPECIAL, State.SHORT_SPECIAL]
-    transitions = [
-        {
-            "trigger": "process_signal",
-            "source": State.LONG,
-            "dest": State.SHORT_SPECIAL,
-            "conditions": "conditions_for_opening_special_short",
-            "after": "open_special_short",
-        },
-        {
-            "trigger": "process_signal",
-            "source": State.SHORT,
-            "dest": State.LONG_SPECIAL,
-            "conditions": "conditions_for_opening_special_long",
-            "after": "open_special_long",
-        },
-        {
-            "trigger": "process_signal",
-            "source": State.LONG_SPECIAL,
-            "dest": State.FLAT,
-            "conditions": "conditions_for_closing_special_position",
-            "before": "close_special_position",
-            "after": "enter_flat",
-        },
-        {
-            "trigger": "process_signal",
-            "source": State.SHORT_SPECIAL,
-            "dest": State.FLAT,
-            "conditions": "conditions_for_closing_special_position",
-            "before": "close_special_position",
-            "after": "enter_flat",
-        },
-        {
-            "trigger": "process_signal",
-            "source": State.LONG_SPECIAL,
-            "dest": [State.SHORT, State.SHORT_EXT],
-            "conditions": "conditions_for_skipping_when_long_special",
-            "before": "skip_signal",
-        },
-        {
-            "trigger": "process_signal",
-            "source": State.SHORT_SPECIAL,
-            "dest": [State.LONG, State.LONG_EXT],
-            "conditions": "conditions_for_skipping_when_short_special",
-            "before": "skip_signal",
-        },
-    ]
-
-    def rsi_signal_special_generate(self):
-        assert "RSI" in self.df.columns
-        self.special_signals_list = [
-            Signal.SHORT_SPECIAL,
-            Signal.LONG_SPECIAL,
-            Signal.CLOSE_SPECIAL,
+    def __init__(self):
+        self.signals = [Signal.SHORT_SPECIAL, Signal.LONG_SPECIAL, Signal.CLOSE_SPECIAL]
+        self.states = [State.LONG_SPECIAL, State.SHORT_SPECIAL]
+        self.transitions = [
+            {
+                "trigger": "process_signal",
+                "source": State.LONG,
+                "dest": State.SHORT_SPECIAL,
+                "conditions": "conditions_for_opening_special_short",
+                "after": "open_special_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT,
+                "dest": State.LONG_SPECIAL,
+                "conditions": "conditions_for_opening_special_long",
+                "after": "open_special_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG_SPECIAL,
+                "dest": State.FLAT,
+                "conditions": "conditions_for_closing_special_position",
+                "before": "close_special_position",
+                "after": "enter_flat",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT_SPECIAL,
+                "dest": State.FLAT,
+                "conditions": "conditions_for_closing_special_position",
+                "before": "close_special_position",
+                "after": "enter_flat",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG_SPECIAL,
+                "dest": [State.SHORT, State.SHORT_EXT],
+                "conditions": "conditions_for_skipping_when_long_special",
+                "before": "skip_signal",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT_SPECIAL,
+                "dest": [State.LONG, State.LONG_EXT],
+                "conditions": "conditions_for_skipping_when_short_special",
+                "before": "skip_signal",
+            },
         ]
 
-        self.df["RsiBelowEighteen"] = numpy.where(self.df["RSI"] < 18, 1, 0)
-        self.df["RsiAboveEightyTwo"] = numpy.where(self.df["RSI"] > 82, 1, 0)
+    @staticmethod
+    def add_columns_for_rsi_special(df):
+        df["RsiBelowEighteen"] = numpy.where(df["RSI"] < 18, 1, 0)
+        df["RsiAboveEightyTwo"] = numpy.where(df["RSI"] > 82, 1, 0)
 
-        # Updated column names
-        self.df["CloseSpecialLong"] = numpy.where(
-            (self.df["RSI"] < 50)
-            & (self.df["RSI"].shift(1) >= 50)
-            & (self.df["Position"].shift(1) == State.LONG_SPECIAL),
+        df["CloseSpecialLong"] = numpy.where(
+            (df["RSI"] < 50)
+            & (df["RSI"].shift(1) >= 50)
+            & (df["Position"].shift(1) == State.LONG_SPECIAL),
             1,
             0,
         )
-        self.df["CloseSpecialShort"] = numpy.where(
-            (self.df["RSI"] > 50)
-            & (self.df["RSI"].shift(1) <= 50)
-            & (self.df["Position"].shift(1) == State.SHORT_SPECIAL),
+        df["CloseSpecialShort"] = numpy.where(
+            (df["RSI"] > 50)
+            & (df["RSI"].shift(1) <= 50)
+            & (df["Position"].shift(1) == State.SHORT_SPECIAL),
             1,
             0,
         )
+        return df
 
-        self.special_signal_conditions = [
-            (self.df.RsiBelowEighteen.diff() == 1),
-            (self.df.RsiAboveEightyTwo.diff() == 1),
+    @staticmethod
+    def get_conditions_for_rsi_special(df):
+        conditions = [
+            (df.RsiBelowEighteen.diff() == 1),
+            (df.RsiAboveEightyTwo.diff() == 1),
             # Conditions for closing special LONG_SPECIAL and SHORT_SPECIAL positions
-            (self.df.CloseSpecialLong.diff() == 1)
-            or (self.df.CloseSpecialShort.diff() == 1),
+            (df.CloseSpecialLong.diff() == 1) or (df.CloseSpecialShort.diff() == 1),
         ]
+        return conditions
+
+    def conditions_for_opening_special_short(self) -> bool:
+        return (
+            self.state == State.LONG
+            and self.signal_update.signal == Signal.SHORT_SPECIAL
+        )
+
+    def conditions_for_opening_special_long(self) -> bool:
+        return (
+            self.state == State.SHORT
+            and self.signal_update.signal == Signal.LONG_SPECIAL
+        )
+
+    def conditions_for_skipping_when_long_special(self) -> bool:
+        return self.state == State.LONG_SPECIAL and self.signal_update.signal in [
+            Signal.SHORT,
+            Signal.SHORT_EXT,
+        ]
+
+    def conditions_for_skipping_when_short_special(self) -> bool:
+        return self.state == State.SHORT_SPECIAL and self.signal_update.signal in [
+            Signal.LONG,
+            Signal.LONG_EXT,
+        ]
+
+    def conditions_for_closing_special_position(self) -> bool:
+        return (
+            self.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
+            and self.signal_update.signal == Signal.CLOSE_SPECIAL
+        )
