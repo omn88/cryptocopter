@@ -85,9 +85,14 @@ class AsyncApp(App):
                 )
 
             if isinstance(data, PriceData):
-                self.open_positions = self.update_price_data(
-                    data=data, open_positions=self.open_positions
-                )
+                for position in self.open_positions:
+                    if (
+                        position["symbol"] == data.symbol
+                        and position["status"] != PositionStatus.CLOSED.value
+                    ):
+                        self.open_positions = self.update_price_data(
+                            data=data, open_positions=self.open_positions
+                        )
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -160,7 +165,6 @@ class AsyncApp(App):
                 position["pnl"] = str(data.pnl)
                 position["status"] = str(data.status)
 
-                # If the quantity is 0, remove the position
                 if position["status"] == PositionStatus.CLOSED.value:
                     Logger.info("Position status: %s", data.status)
                     Logger.info("Length of open positions: %s", len(open_positions))

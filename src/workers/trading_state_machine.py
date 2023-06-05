@@ -495,8 +495,6 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
         )
 
-        await self.send_close_position_to_ui()
-
     async def close_short(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
         self.position_old = await close_short(
@@ -505,8 +503,6 @@ class TradingStateMachine:
             position=self.position,
             ui_queue=self.ui_queue,
         )
-
-        await self.send_close_position_to_ui()
 
     async def send_close_position_to_ui(self):
         await self.ui_queue.put(
@@ -613,8 +609,6 @@ class TradingStateMachine:
             order_update=self.order_update,
             balance=self.balance,
         )
-
-        await self.send_close_position_to_ui()
 
     async def handle_market_order_partially_filled(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")

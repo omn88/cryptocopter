@@ -31,7 +31,7 @@ from src.common.orders import (
 )
 import logging
 
-from src.gui.identifiers import OrderData
+from src.gui.identifiers import OrderData, PositionData, PositionStatus
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
@@ -130,6 +130,19 @@ async def close_long(
         )
         logger.info("Cancelled take profit order")
 
+        logger.info("sending close position to ui")
+        await ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=position.quantity,
+                entry_price=position.entry_price,
+                mark_price=0,
+                liquidation_price=position.liquidation_price,
+                pnl=0,
+                status=PositionStatus.CLOSED.value,
+            )
+        )
+
     else:
         pass
         # update_artifacts_and_save(position=position, order_update=None, balance=balance)
@@ -164,6 +177,19 @@ async def close_short(
             ui_queue=ui_queue,
         )
         logger.info("Cancelled take profit order")
+
+        logger.info("sending close position to ui")
+        await ui_queue.put(
+            PositionData(
+                symbol=SYMBOL,
+                quantity=position.quantity,
+                entry_price=position.entry_price,
+                mark_price=0,
+                liquidation_price=position.liquidation_price,
+                pnl=0,
+                status=PositionStatus.CLOSED.value,
+            )
+        )
 
     else:
         pass
