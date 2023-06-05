@@ -117,7 +117,9 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
     return order_quantity, len(index_list) + 1
 
 
-async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Order:
+async def send_order(
+    client: binance.AsyncClient, side: str, order: Order, ui_queue: asyncio.Queue
+) -> Order:
     try:
         resp = await client.futures_create_order(
             symbol=SYMBOL,
@@ -141,6 +143,21 @@ async def send_order(client: binance.AsyncClient, side: str, order: Order) -> Or
         order.order_id = int(resp["orderId"])
         order.status = resp["status"]
         logger.info("New: %s", order)
+        order.open_time = convert_time(resp["updateTime"])
+
+        await ui_queue.put(
+            OrderData(
+                order_id=order.order_id,
+                open_time=order.open_time,
+                symbol=SYMBOL,
+                order_type=order.order_type,
+                side=side,
+                price=order.price,
+                quantity=order.quantity,
+                realized_quantity=order.realized_quantity,
+                status=order.status,
+            )
+        )
 
         return order
 
@@ -181,7 +198,7 @@ async def cancel_order(
 
 
 async def send_orders(
-    client: binance.AsyncClient, side: str, orders: List[Order]
+    client: binance.AsyncClient, side: str, orders: List[Order], ui_queue: asyncio.Queue
 ) -> List[Order]:
     """Send a list of orders concurrently.
 
@@ -195,21 +212,23 @@ async def send_orders(
     """
     tasks = []
     for order in orders:
-        task = asyncio.create_task(send_order(client=client, side=side, order=order))
+        task = asyncio.create_task(
+            send_order(client=client, side=side, order=order, ui_queue=ui_queue)
+        )
         tasks.append(task)
     results = await asyncio.gather(*tasks)
 
     return list(results)
 
 
-async def get_orders(client: binance.AsyncClient, orders: List[Order]) -> List[Order]:
-    tasks = []
-    for order in orders:
-        task = asyncio.create_task(futures_get_order(client=client, order=order))
-        tasks.append(task)
-    results = await asyncio.gather(*tasks)
-
-    return list(results)
+# async def get_orders(client: binance.AsyncClient, orders: List[Order]) -> List[Order]:
+#     tasks = []
+#     for order in orders:
+#         task = asyncio.create_task(futures_get_order(client=client, order=order))
+#         tasks.append(task)
+#     results = await asyncio.gather(*tasks)
+#
+#     return list(results)
 
 
 def target_price_calculate(side: str, price: float) -> float:
@@ -329,43 +348,43 @@ def prepare_orders(
     return position
 
 
-async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
-    try:
-        resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
-    except BinanceAPIException as e:
-        logger.error(
-            "Failed to get order due to BinanceAPIException: %s, order: %s", e, order
-        )
-        raise e
-    except BinanceOrderException as e:
-        logger.error(
-            "Failed to get order due to BinanceOrderException: %s, order: %s", e, order
-        )
-        raise e
-    except BinanceRequestException as e:
-        logger.error(
-            "Failed to get order due to BinanceRequestException: %s, order: %s",
-            e,
-            order,
-        )
-        raise e
-    else:
-        order.status = resp["status"]
-        realized_quantity = round(float(resp["executedQty"]), 3)
-        order.realized_quantity = realized_quantity
-
-        # Convert 'time' to Polish local time and set it as 'open_time'
-        order.open_time = convert_time(resp["time"])
-
-        logger.info(
-            "Validation, order: %s opened at: %s, realized qty: %s, status: %s",
-            order.order_id,
-            order.open_time,
-            order.realized_quantity,
-            order.status,
-        )
-
-    return order
+# async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
+#     try:
+#         resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
+#     except BinanceAPIException as e:
+#         logger.error(
+#             "Failed to get order due to BinanceAPIException: %s, order: %s", e, order
+#         )
+#         raise e
+#     except BinanceOrderException as e:
+#         logger.error(
+#             "Failed to get order due to BinanceOrderException: %s, order: %s", e, order
+#         )
+#         raise e
+#     except BinanceRequestException as e:
+#         logger.error(
+#             "Failed to get order due to BinanceRequestException: %s, order: %s",
+#             e,
+#             order,
+#         )
+#         raise e
+#     else:
+#         order.status = resp["status"]
+#         realized_quantity = round(float(resp["executedQty"]), 3)
+#         order.realized_quantity = realized_quantity
+#
+#         # Convert 'time' to Polish local time and set it as 'open_time'
+#         order.open_time = convert_time(resp["time"])
+#
+#         logger.info(
+#             "Validation, order: %s opened at: %s, realized qty: %s, status: %s",
+#             order.order_id,
+#             order.open_time,
+#             order.realized_quantity,
+#             order.status,
+#         )
+#
+#     return order
 
 
 async def cancel_take_profit_order(
