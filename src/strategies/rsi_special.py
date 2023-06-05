@@ -110,24 +110,6 @@ class SpecialStrategy(
             client=self.client, position=self.position, ui_queue=self.ui_queue
         )
 
-    @staticmethod
-    def add_columns_for_position_close(df):
-        df["CloseSpecialLong"] = numpy.where(
-            (df["RSI"] < 50)
-            & (df["RSI"].shift(1) >= 50)
-            & (df["Position"].shift(1) == State.LONG_SPECIAL),
-            1,
-            0,
-        )
-        df["CloseSpecialShort"] = numpy.where(
-            (df["RSI"] > 50)
-            & (df["RSI"].shift(1) <= 50)
-            & (df["Position"].shift(1) == State.SHORT_SPECIAL),
-            1,
-            0,
-        )
-        return df
-
     async def handle_kline(self, *args, **kwargs):
         logger.info("Entering handle kline")
 
@@ -135,34 +117,33 @@ class SpecialStrategy(
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
         assert expected_index == int(self.kline_update.kline[0])
 
-        self.raw_data.append(self.kline_update.kline)
+        if (
+            self.position.status == State.SHORT_SPECIAL
+            and self.df["RSI"] > 50 >= self.df["RSI"].shift(1)
+        ) or (
+            self.position.status == State.LONG_SPECIAL
+            and self.df["RSI"] < 50 <= self.df["RSI"].shift(1)
+        ):
+            signal = Signal.CLOSE_SPECIAL
 
-        temp_df = insert_to_pandas(data=self.raw_data)
-        temp_df = rsi_indicator_apply(df=temp_df)
-        temp_df = self.add_columns_for_rsi_basic(df=temp_df)
-        temp_df = self.add_columns_for_rsi_extended(df=temp_df)
-        temp_df = self.add_columns_for_rsi_special(df=temp_df)
+        else:
+            self.raw_data.append(self.kline_update.kline)
 
-        temp_df = self.add_columns_for_position_close(df=temp_df)
+            temp_df = insert_to_pandas(data=self.raw_data)
+            temp_df = rsi_indicator_apply(df=temp_df)
+            temp_df = self.add_columns_for_rsi_basic(df=temp_df)
+            temp_df = self.add_columns_for_rsi_extended(df=temp_df)
+            temp_df = self.add_columns_for_rsi_special(df=temp_df)
 
-        self.signals.append(Signal.CLOSE_SPECIAL)
+            self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
 
-        self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
-        self.conditions.append(
-            (
-                (temp_df.CloseSpecialLong.diff() == 1)
-                or (temp_df.CloseSpecialShort.diff() == 1)
+            temp_df = self.signals_from_features_generate(
+                df=temp_df, signals=self.signals, conditions=self.conditions
             )
-        )
 
-        temp_df = self.signals_from_features_generate(
-            df=temp_df, signals=self.signals, conditions=self.conditions
-        )
+            self.df = self.df.append(temp_df.tail(1))
 
-        self.df = self.add_columns_for_position_close(df=self.df)
-        self.df = self.df.append(temp_df.tail(1))
-
-        signal = self.df.iloc[-1]["Signal"]
+            signal = self.df.iloc[-1]["Signal"]
 
         if signal == 0:
             self.signal_update = SignalUpdate(
