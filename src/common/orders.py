@@ -333,13 +333,21 @@ async def futures_get_order(client: binance.AsyncClient, order: Order) -> Order:
     try:
         resp = await client.futures_get_order(symbol=SYMBOL, orderId=order.order_id)
     except BinanceAPIException as e:
-        logger.error("Failed to get order due to BinanceAPIException: %s", e)
+        logger.error(
+            "Failed to get order due to BinanceAPIException: %s, order: %s", e, order
+        )
         raise e
     except BinanceOrderException as e:
-        logger.error("Failed to get order due to BinanceOrderException: ", e)
+        logger.error(
+            "Failed to get order due to BinanceOrderException: %s, order: %s", e, order
+        )
         raise e
     except BinanceRequestException as e:
-        logger.error("Failed to get order due to BinanceRequestException: ", e)
+        logger.error(
+            "Failed to get order due to BinanceRequestException: %s, order: %s",
+            e,
+            order,
+        )
         raise e
     else:
         order.status = resp["status"]

@@ -231,24 +231,6 @@ async def update_take_profit_order(
         order=position.take_profit_order,
     )
 
-    position.take_profit_order = await futures_get_order(
-        client=client, order=position.take_profit_order
-    )
-
-    await ui_queue.put(
-        OrderData(
-            order_id=position.take_profit_order.order_id,
-            open_time=position.take_profit_order.open_time,
-            symbol=SYMBOL,
-            order_type=position.take_profit_order.order_type,
-            side=tp_side,
-            price=position.take_profit_order.price,
-            quantity=position.take_profit_order.quantity,
-            realized_quantity=position.take_profit_order.realized_quantity,
-            status=position.take_profit_order.status,
-        )
-    )
-
     assert isinstance(position.take_profit_order, Order)
     logger.info(
         "New take profit buy order send, price: %s, quantity: %s realized QUANT: %s",
@@ -414,6 +396,25 @@ async def handle_order_partially_filled(
                 client=client, position=position, ui_queue=ui_queue
             )
 
+            position.take_profit_order = await futures_get_order(
+                client=client, order=position.take_profit_order
+            )
+            await ui_queue.put(
+                OrderData(
+                    order_id=position.take_profit_order.order_id,
+                    open_time=position.take_profit_order.open_time,
+                    symbol=SYMBOL,
+                    order_type=position.take_profit_order.order_type,
+                    side=PositionSide.LONG
+                    if position.side == PositionSide.SHORT
+                    else PositionSide.SHORT,
+                    price=position.take_profit_order.price,
+                    quantity=position.take_profit_order.quantity,
+                    realized_quantity=position.take_profit_order.realized_quantity,
+                    status=position.take_profit_order.status,
+                )
+            )
+
             logger.info("Exiting update position")
 
     logger.info("Exit order update handle")
@@ -446,6 +447,25 @@ async def handle_order_filled(
 
             position = await update_take_profit_order(
                 client=client, position=position, ui_queue=ui_queue
+            )
+
+            position.take_profit_order = await futures_get_order(
+                client=client, order=position.take_profit_order
+            )
+            await ui_queue.put(
+                OrderData(
+                    order_id=position.take_profit_order.order_id,
+                    open_time=position.take_profit_order.open_time,
+                    symbol=SYMBOL,
+                    order_type=position.take_profit_order.order_type,
+                    side=PositionSide.LONG
+                    if position.side == PositionSide.SHORT
+                    else PositionSide.SHORT,
+                    price=position.take_profit_order.price,
+                    quantity=position.take_profit_order.quantity,
+                    realized_quantity=position.take_profit_order.realized_quantity,
+                    status=position.take_profit_order.status,
+                )
             )
 
             logger.info("Exiting update position: %s", position.quantity)
