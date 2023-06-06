@@ -10,6 +10,7 @@ from src.common.initialize_trading_environment import (
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
+from src.strategies.rsi_special import SpecialStrategy
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -70,6 +71,32 @@ async def extended_rsi(mock_AsyncClient):
     queue = create_async_queue()
 
     tsm = ExtendedStrategy(
+        client=mock_AsyncClient,
+        balance=1000,
+        order_quantity_list=order_quantity_list_prepare(),
+        df=df,
+        position=position,
+        raw_data=raw_data,
+        queue=queue,
+        ui_queue=asyncio.Queue(),
+    )
+
+    await tsm.determine_start_position()
+
+    yield tsm
+
+    await tsm.client.close_connection()
+
+
+@pytest.fixture
+async def special_rsi(mock_AsyncClient):
+    raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df = insert_to_pandas(data=raw_data)
+    df = rsi_indicator_apply(df=df)
+    position = Position()
+    queue = create_async_queue()
+
+    tsm = SpecialStrategy(
         client=mock_AsyncClient,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),

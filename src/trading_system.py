@@ -28,6 +28,7 @@ logger = logging.getLogger("trading_system")
 STRATEGY_MAP = {
     "RSI_Basic": BasicStrategy,
     "RSI_Extended": ExtendedStrategy,
+    "RSI_Special": SpecialStrategy,
 }
 
 
@@ -52,12 +53,6 @@ class TradingSystem:
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
         await self.ui_queue.put(AccountData(balance=self.balance))
         logger.info("Send account data: %s", self.balance)
-
-        # Register signal handlers
-        # loop = asyncio.get_event_loop()
-        # register_signal_handlers(
-        #     loop=loop, client=self.client, position=self.position, balance=self.balance
-        # )
 
         # Change margin type and leverage
         await change_margin_type(client=self.client)
