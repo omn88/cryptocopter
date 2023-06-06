@@ -1,7 +1,4 @@
 import logging
-
-import numpy
-
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     Signal,

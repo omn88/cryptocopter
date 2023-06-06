@@ -129,7 +129,13 @@ class TradingStateMachine:
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.LONG_EXT, State.SHORT, State.SHORT_EXT],
+                "source": [
+                    State.FLAT,
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                ],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
                 "after": "handle_cancelled_order",
@@ -235,7 +241,12 @@ class TradingStateMachine:
         signal_index = 0
 
         for index, row in self.df[::-1].iterrows():
-            if row["Signal"] != 0:
+            if row["Signal"] not in [
+                0,
+                Signal.LONG_SPECIAL,
+                Signal.SHORT_SPECIAL,
+                Signal.CLOSE_SPECIAL,
+            ]:
                 signal = row["Signal"]
                 price = row["Close"]
                 # Adding extra lines to see what happened before signal
