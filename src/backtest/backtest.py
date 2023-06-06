@@ -1,3 +1,47 @@
+# import pandas as pd
+#
+#
+# class Backtest:
+#     def __init__(self, strategy, initial_balance):
+#         self.strategy = strategy
+#         self.initial_balance = initial_balance
+#         self.balance = initial_balance
+#         self.trades = []
+#
+#     def run(self, data):
+#         for index, row in data.iterrows():
+#             signal_update = self.strategy.get_signal_update(row)
+#             if signal_update is not None:
+#                 trade = self.strategy.process_signal(signal_update)
+#                 if trade is not None:
+#                     self.execute_trade(trade)
+#         return self.trades
+#
+#     def execute_trade(self, trade):
+#         # Mock trade execution and balance update
+#         if trade['type'] == 'buy':
+#             self.balance -= trade['quantity'] * trade['price']
+#         elif trade['type'] == 'sell':
+#             self.balance += trade['quantity'] * trade['price']
+#         self.trades.append(trade)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import binance
 
 import lib
