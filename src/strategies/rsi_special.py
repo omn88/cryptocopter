@@ -72,7 +72,7 @@ class SpecialStrategy(
         ]
         return conditions
 
-    async def open_special_long(self):
+    async def open_special_long(self, *args, **kwargs):
         logger.debug("Opening %s", self.signal_update.signal)
 
         self.mode = PositionMode.FULL
@@ -88,7 +88,7 @@ class SpecialStrategy(
             ui_queue=self.ui_queue,
         )
 
-    async def open_special_short(self):
+    async def open_special_short(self, *args, **kwargs):
         logger.info("Opening %s", self.signal_update.signal)
 
         self.mode = PositionMode.FULL
@@ -104,7 +104,7 @@ class SpecialStrategy(
             ui_queue=self.ui_queue,
         )
 
-    async def close_special_position(self):
+    async def close_special_position(self, *args, **kwargs):
         logger.info("Closing %s", self.position.status)
         self.position_old = await handle_order.close_special_position(
             client=self.client, position=self.position, ui_queue=self.ui_queue

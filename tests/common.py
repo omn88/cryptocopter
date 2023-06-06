@@ -304,6 +304,12 @@ def get_orders_long():
             "status": ORDER_STATUS_NEW,
             "updateTime": 1566818724722,
         },
+        {
+            "orderId": 9,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
     ]
 
 

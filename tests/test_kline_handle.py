@@ -320,70 +320,231 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     assert 1000 == extended_rsi.balance
     assert extended_rsi.position.status == State.SHORT
 
-    # ToDO: CONTINUE WHEN THE SPECIAL FEATURE IS IMPLEMENTED
+
+@patch("src.workers.handle_order.save_to_file")
+async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
+    mock_save_to_file,
+    special_rsi,
+):
+    special_rsi.client.futures_create_order.side_effect = get_orders_long()
+    special_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    special_rsi.client.futures_get_order.side_effect = validation_orders()
+    mock_save_to_file.return_value = True
+
+    # NO SIGNAL THEN NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await special_rsi.process_kline()
+
+    assert len(special_rsi.position.orders) == 0
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.FLAT
+
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert len(special_rsi.position.orders) == 4
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG_EXT
+
+    # LONG
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG
+
+    # NO SIGNAL THEN NULL LONGEXT LONG NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG
+
+    # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 26200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT_EXT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 22200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 28200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT
 
 
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
-#     kline_update = KlineUpdate(
-#         kline=[
-#             str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 28200.72, 0, 0]
-#         ]
-#     )
-#     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
-#     await base.queue.put(Event(name=EventName.SENTINEL, content=kline_update))
+@patch("src.workers.handle_order.save_to_file")
+async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_long_special(
+    mock_save_to_file,
+    special_rsi,
+):
+    special_rsi.client.futures_create_order.side_effect = get_orders_long()
+    special_rsi.client.futures_cancel_order.return_value = get_cancel_order()
+    special_rsi.client.futures_get_order.side_effect = validation_orders()
+    mock_save_to_file.return_value = True
+
+    # NO SIGNAL THEN NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await special_rsi.process_kline()
+
+    assert len(special_rsi.position.orders) == 0
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.FLAT
+
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert len(special_rsi.position.orders) == 4
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG_EXT
+
+    # LONG
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG
+
+    # NO SIGNAL THEN NULL LONGEXT LONG NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG
+
+    # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 26200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT_EXT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 22200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 28200.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+
+    assert 4 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.SHORT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
+    special_rsi.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672312500000, 19573.19, 19605.9, 18360.1, 56400.72, 0, 0]
+        ]
+    )
+
+    await special_rsi.process_kline()
+    await special_rsi.process_signal()
+
+    assert 1 == len(special_rsi.position.orders)
+    assert 1000 == special_rsi.balance
+    assert special_rsi.position.status == State.LONG_SPECIAL
+
+
+#     # ToDO: CONTINUE WHEN THE SPECIAL FEATURE IS IMPLEMENTED
 #
-#     historical_data, base.df, position = await worker(
-#         client=base.client,
-#         df=base.df,
-#         position=position,
-#         queue=base.queue,
-#         historical_data=historical_data,
-#     )
-#
-#     logger.info("base: %s", base.df.to_string())
-#
-#     assert 4 == len(position.current_position.orders)
-#     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.SHORT
-#
-#     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
-#     kline_update = KlineUpdate(
-#         kline=[
-#             str(x) for x in [1672312500000, 19573.19, 19605.9, 18360.1, 56400.72, 0, 0]
-#         ]
-#     )
-#     await base.queue.put(Event(name=EventName.KLINE, content=kline_update))
-#     await base.queue.put(Event(name=EventName.SENTINEL, content=kline_update))
-#
-#     historical_data, base.df, position = await worker(
-#         client=base.client,
-#         df=base.df,
-#         position=position,
-#         queue=base.queue,
-#         historical_data=historical_data,
-#     )
-#
-#     logger.info("base: %s", base.df)
-#
-#     event = await base.queue.get()
-#
-#     signal_update = event.content
-#
-#     position.current_position, base.df = await signal_handle(
-#         signal_update=signal_update,
-#         client=base.client,
-#         current_position=position.current_position,
-#         df=base.df,
-#         balance=base.position.balance,
-#         order_quantity_list=base.position.order_quantity_list,
-#         queue=base.queue,
-#     )
-#
-#     logger.info("ORDERS: %s", position.current_position.orders)
-#
-#     assert 1 == len(position.current_position.orders)
-#     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.LONG_SPECIAL
 #
 #     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT
 #     kline_update = KlineUpdate(

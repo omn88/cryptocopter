@@ -72,31 +72,31 @@ class FeatureRsiSpecial:
         ]
         return conditions
 
-    def conditions_for_opening_special_short(self) -> bool:
+    def conditions_for_opening_special_short(self, *args, **kwargs) -> bool:
         return (
             self.state == State.LONG
             and self.signal_update.signal == Signal.SHORT_SPECIAL
         )
 
-    def conditions_for_opening_special_long(self) -> bool:
+    def conditions_for_opening_special_long(self, *args, **kwargs) -> bool:
         return (
             self.state == State.SHORT
             and self.signal_update.signal == Signal.LONG_SPECIAL
         )
 
-    def conditions_for_skipping_when_long_special(self) -> bool:
+    def conditions_for_skipping_when_long_special(self, *args, **kwargs) -> bool:
         return self.state == State.LONG_SPECIAL and self.signal_update.signal in [
             Signal.SHORT,
             Signal.SHORT_EXT,
         ]
 
-    def conditions_for_skipping_when_short_special(self) -> bool:
+    def conditions_for_skipping_when_short_special(self, *args, **kwargs) -> bool:
         return self.state == State.SHORT_SPECIAL and self.signal_update.signal in [
             Signal.LONG,
             Signal.LONG_EXT,
         ]
 
-    def conditions_for_closing_special_position(self) -> bool:
+    def conditions_for_closing_special_position(self, *args, **kwargs) -> bool:
         return (
             self.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]
             and self.signal_update.signal == Signal.CLOSE_SPECIAL
