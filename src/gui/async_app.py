@@ -85,6 +85,7 @@ class AsyncApp(App):
                 )
 
             if isinstance(data, PriceData):
+                self.price_label = str(data.mark_price)
                 for position in self.open_positions:
                     if (
                         position["symbol"] == data.symbol
@@ -108,8 +109,6 @@ class AsyncApp(App):
         return pnl
 
     def update_price_data(self, open_positions: List, data: PriceData) -> List:
-        self.price_label = str(data.index_price)
-
         new_positions = [pos.copy() for pos in open_positions]
 
         if len(new_positions) != 0:

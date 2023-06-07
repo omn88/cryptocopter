@@ -403,7 +403,7 @@ class TradingStateMachine:
         logger.info(
             "Market order filled: %s, state: %s order update status: %s",
             condition,
-            self.position_old.status,
+            self.position_old.state,
             self.order_update.status,
         )
         return condition
@@ -416,7 +416,7 @@ class TradingStateMachine:
         logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
             condition,
-            self.position_old.status,
+            self.position_old.state,
             self.order_update.status,
         )
         return condition
@@ -498,7 +498,7 @@ class TradingStateMachine:
         )
 
     async def close_long(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.status)
+        logger.info("Closing %s", self.position.state)
         self.position_old = await close_long(
             client=self.client,
             balance=self.balance,
@@ -507,7 +507,7 @@ class TradingStateMachine:
         )
 
     async def close_short(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.status)
+        logger.info("Closing %s", self.position.state)
         self.position_old = await close_short(
             client=self.client,
             balance=self.balance,
@@ -525,6 +525,7 @@ class TradingStateMachine:
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
                 status=PositionStatus.CLOSED.value,
+                state=self.position.state,
             )
         )
 
@@ -588,7 +589,7 @@ class TradingStateMachine:
     async def enter_flat(self, *args, **kwargs):
         logger.info("Entering Flat")
         self.position = Position()
-        self.update_position_in_df(update=self.position.status)
+        self.update_position_in_df(update=self.position.state)
 
     async def handle_target_reached(self, *args, **kwargs):
         logger.info("Entering handle target order filled")
@@ -642,9 +643,10 @@ class TradingStateMachine:
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
                 status=PositionStatus.ACTIVE.value,
+                state=self.position.state,
             )
         )
-        self.update_position_in_df(update=self.position.status)
+        self.update_position_in_df(update=self.position.state)
         order = next(
             (
                 order
@@ -678,6 +680,7 @@ class TradingStateMachine:
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
                 status=PositionStatus.ACTIVE.value,
+                state=self.position.state,
             )
         )
 

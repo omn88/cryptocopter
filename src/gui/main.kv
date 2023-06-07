@@ -114,7 +114,7 @@ BoxLayout:
     mark_price: ''
     liquidation_price: ''
     pnl: ''
-    status: ''
+    state: ''
 
     canvas.before:
         Color:
@@ -140,7 +140,7 @@ BoxLayout:
         pnl: 0 if root.pnl == '' else root.pnl
         text: '%s %%' % root.pnl
     Label:
-        text: root.status
+        text: root.state
 
 <OrderListItem@BoxLayout>:
     orientation: "horizontal"
@@ -228,7 +228,7 @@ BoxLayout:
                     Label:
                         text: 'PnL'
                     Label:
-                        text: 'Status'
+                        text: 'State'
                 RecycleView:
                     id: positions_list
                     data: app.open_positions

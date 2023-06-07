@@ -50,7 +50,7 @@ async def prepare_and_send_orders(
     position = Position(side=side)
     position.artifacts.start_balance = balance
     position.artifacts.no_of_dca_orders = NUMBER_OF_DCA_ORDERS
-    position.status = signal_to_state(signal=signal)
+    position.state = signal_to_state(signal=signal)
 
     position = prepare_orders(
         position=position,
@@ -78,10 +78,10 @@ async def prepare_and_send_orders(
 async def close_special_position(
     client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
-    if position.status in [State.SHORT_SPECIAL, State.LONG_SPECIAL]:
+    if position.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]:
         close_side = (
             client.SIDE_BUY
-            if position.status == State.SHORT_SPECIAL
+            if position.state == State.SHORT_SPECIAL
             else client.SIDE_SELL
         )
         logger.info("Closing special position, trying to Market %s", close_side)
@@ -94,7 +94,7 @@ async def close_special_position(
 
         position.orders = []
 
-    position.status = State.FLAT
+    position.state = State.FLAT
 
     await cancel_remaining_limit_orders(client, position=position, ui_queue=ui_queue)
 
@@ -138,6 +138,7 @@ async def close_long(
                 mark_price=0,
                 liquidation_price=position.liquidation_price,
                 pnl=0,
+                state=position.state.value,
                 status=PositionStatus.CLOSED.value,
             )
         )
@@ -187,6 +188,7 @@ async def close_short(
                 liquidation_price=position.liquidation_price,
                 pnl=0,
                 status=PositionStatus.CLOSED.value,
+                state=position.state,
             )
         )
 
@@ -260,7 +262,7 @@ async def position_liquidation(
 
     balance -= round(loss, 2)
 
-    position.status = State.FLAT
+    position.state = State.FLAT
 
     return position, balance
 
@@ -522,11 +524,11 @@ async def futures_position_close(
     balance: float,
     ui_queue: asyncio.Queue,
 ):
-    if position.status in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
+    if position.state in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
         _ = await close_long(
             client=client, position=position, balance=balance, ui_queue=ui_queue
         )
-    elif position.status in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
+    elif position.state in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
         _ = await close_short(
             client=client, position=position, balance=balance, ui_queue=ui_queue
         )

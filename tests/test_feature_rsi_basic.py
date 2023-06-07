@@ -134,7 +134,7 @@ async def test_signal_handle_null_when_long(basic_rsi):
 
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.balance
-    assert basic_rsi.state == basic_rsi.position.status
+    assert basic_rsi.state == basic_rsi.position.state
     assert all(
         order.price <= basic_rsi.signal_update.price
         for order in basic_rsi.position.orders
@@ -219,7 +219,7 @@ async def test_signal_handle_null_when_short(basic_rsi):
 
     assert 4 == len(basic_rsi.position.orders)
     assert 1000 == basic_rsi.balance
-    assert basic_rsi.state == basic_rsi.position.status
+    assert basic_rsi.state == basic_rsi.position.state
     assert all(
         order.price >= basic_rsi.signal_update.price
         for order in basic_rsi.position.orders
