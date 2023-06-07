@@ -130,6 +130,7 @@ class AsyncApp(App):
                     position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = pnl
                     position["state"] = str(position["state"])
+                    position["status"] = str(position["status"])
 
         return new_positions
 
@@ -145,7 +146,8 @@ class AsyncApp(App):
                 "mark_price": str(data.mark_price),
                 "liquidation_price": str(data.liquidation_price),
                 "pnl": str(data.pnl),
-                "state": str(data.state),
+                "state": str(data.state.value),
+                "status": str(data.status),
             }
         )
 
@@ -162,7 +164,8 @@ class AsyncApp(App):
                 position["mark_price"] = str(data.mark_price)
                 position["liquidation_price"] = str(data.liquidation_price)
                 position["pnl"] = str(data.pnl)
-                position["state"] = str(data.state)
+                position["state"] = str(data.state.value)
+                position["status"] = str(data.status)
 
                 if position["status"] == PositionStatus.CLOSED.value:
                     Logger.info("Position status: %s", data.status)
