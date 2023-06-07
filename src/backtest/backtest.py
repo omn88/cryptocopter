@@ -26,22 +26,6 @@
 #         self.trades.append(trade)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import binance
 
 import lib

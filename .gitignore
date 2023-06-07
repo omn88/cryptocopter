@@ -1,9 +1,11 @@
 .idea/
 __pycache__/
 artifacts
+data
 sample_data.txt
 .pytest_cache/
 .buildozer/
 .venv
 .env
 .coverage
+*.txt
