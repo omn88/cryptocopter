@@ -1,7 +1,6 @@
-import asyncio
 import os
 import pandas as pd
-from binance import AsyncClient, Client
+from binance import Client
 from binance.exceptions import BinanceRequestException
 from decouple import config
 import logging
@@ -21,7 +20,7 @@ class DataRetriever:
         historical_data = []
         # Define the start and end date for the data
         start_date = "2019-09-02"
-        end_date = "2023-06-01"
+        end_date = "2023-06-09"
 
         # Convert the date strings to timestamps
         start_ts = int(pd.Timestamp(start_date, tz="utc").timestamp() * 1000)
@@ -53,16 +52,32 @@ class DataRetriever:
             ],
         )
         df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
+
+        # Reorder the DataFrame to fit backtrader's expected column order
+        df = df[
+            [
+                "open_time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "quote_asset_volume",
+            ]
+        ]
+        df.rename(
+            columns={"open_time": "datetime", "quote_asset_volume": "openinterest"},
+            inplace=True,
+        )
+
         return df
 
-    def save_to_json(self):
+    def save_to_csv(self):
         df = self.get_historical_data()
         logger.info("got historical data")
         os.makedirs(f"data/{self.symbol}", exist_ok=True)
-        df.to_json(
-            f"data/{self.symbol}/{self.interval}_historical_klines.json",
-            orient="records",
-            date_format="iso",
+        df.to_csv(
+            f"data/{self.symbol}/{self.interval}_historical_klines.csv", index=False
         )
 
 
@@ -71,8 +86,9 @@ def main():
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
     data_retriever = DataRetriever(client=client, symbol=SYMBOL, interval=INTERVAL)
-    data_retriever.save_to_json()
+    data_retriever.save_to_csv()
     client.close_connection()
 
 
-main()
+if __name__ == "__main__":
+    main()

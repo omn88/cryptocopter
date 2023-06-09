@@ -32,13 +32,14 @@ import lib
 from decouple import config
 
 from src.common import orders
+from src.common.constants import SYMBOL
 
 client = binance.Client(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
 
 
 class Backtest:
-    def __init__(self, symbol):
-        self.symbol = symbol
+    def __init__(self):
+        self.symbol = SYMBOL
         self.saldo = 3200
         self.leverage = 25
         self.order_quantity = 0
@@ -47,19 +48,7 @@ class Backtest:
         self.total_profit = 0
         self.depo_price = 0
         self.target_price = 0
-        self.df = lib.get_futures_historical_data_sync(
-            symbol=self.symbol,
-            interval="15m",
-            lookback="132000",  # 44000 is approximately one month
-            client=client,
-        )
-        if self.df.empty:
-            print("No data pulled")
-        else:
-            lib.calc_indicators(df=self.df)
-            lib.generate_signals(df=self.df)
-            self.loop_it()
-            # print(self.df[14:].to_string())
+        self.df = None
 
     def loop_it(self):
         print(
@@ -395,24 +384,30 @@ class Backtest:
             sell_arr_short=sellprices_short,
         )
 
-    # def plot_chart(self):
-    #     plt.figure(figsize=(10, 5))
-    #     plt.plot(self.saldo_for_plot)
-    #     plt.show()
-    #     plt.scatter(
-    #         self.sell_arr_long.index, self.sell_arr_long.values, marker="v", c="r"
-    #     )
-    #     plt.scatter(
-    #         self.buy_arr_long.index, self.buy_arr_long.values, marker="^", c="g"
-    #     )
-    #
-    #     plt.scatter(
-    #         self.sell_arr_short.index, self.sell_arr_short.values, marker="v", c="r"
-    #     )
-    #     plt.scatter(
-    #         self.buy_arr_short.index, self.buy_arr_short.values, marker="^", c="g"
-    #     )
-    #     plt.show()
-
 
 instance = Backtest(symbol="BTCUSDT")
+
+lib.calc_indicators(df=instance.df)
+lib.generate_signals(df=instance.df)
+instance.loop_it()
+
+# print(self.df[14:].to_string())
+
+# def plot_chart(self):
+#     plt.figure(figsize=(10, 5))
+#     plt.plot(self.saldo_for_plot)
+#     plt.show()
+#     plt.scatter(
+#         self.sell_arr_long.index, self.sell_arr_long.values, marker="v", c="r"
+#     )
+#     plt.scatter(
+#         self.buy_arr_long.index, self.buy_arr_long.values, marker="^", c="g"
+#     )
+#
+#     plt.scatter(
+#         self.sell_arr_short.index, self.sell_arr_short.values, marker="v", c="r"
+#     )
+#     plt.scatter(
+#         self.buy_arr_short.index, self.buy_arr_short.values, marker="^", c="g"
+#     )
+#     plt.show()
