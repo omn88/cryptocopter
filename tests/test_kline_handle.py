@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
 from src.common.identifiers import State
-from src.producers.producers import Event, EventName, KlineUpdate
-from src.workers.worker import worker
+from src.producers.producers import KlineUpdate
 from tests.common import get_orders_long, get_cancel_order, validation_orders
 import logging
 
@@ -22,7 +21,7 @@ async def test_rsi_basic_handle_kline_null(basic_rsi):
 
     assert len(basic_rsi.position.orders) == 0
     assert 1000 == basic_rsi.balance
-    assert basic_rsi.position.status == State.FLAT
+    assert basic_rsi.position.state == State.FLAT
 
 
 async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
@@ -38,7 +37,7 @@ async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 0
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.FLAT
+    assert extended_rsi.position.state == State.FLAT
 
     extended_rsi.kline_update = KlineUpdate(
         kline=[
@@ -51,7 +50,7 @@ async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_EXT
+    assert extended_rsi.position.state == State.LONG_EXT
 
 
 async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
@@ -67,7 +66,7 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 0
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.FLAT
+    assert extended_rsi.position.state == State.FLAT
 
     extended_rsi.kline_update = KlineUpdate(
         kline=[
@@ -80,7 +79,7 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_EXT
+    assert extended_rsi.position.state == State.LONG_EXT
 
     # LONG
     extended_rsi.kline_update = KlineUpdate(
@@ -94,7 +93,7 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
 
 async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
@@ -110,7 +109,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 0
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.FLAT
+    assert extended_rsi.position.state == State.FLAT
 
     extended_rsi.kline_update = KlineUpdate(
         kline=[
@@ -123,7 +122,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_EXT
+    assert extended_rsi.position.state == State.LONG_EXT
 
     # LONG
     extended_rsi.kline_update = KlineUpdate(
@@ -137,7 +136,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     extended_rsi.kline_update = KlineUpdate(
@@ -151,7 +150,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
 
 @patch("src.workers.handle_order.save_to_file")
@@ -172,7 +171,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     assert len(extended_rsi.position.orders) == 0
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.FLAT
+    assert extended_rsi.position.state == State.FLAT
 
     extended_rsi.kline_update = KlineUpdate(
         kline=[
@@ -185,7 +184,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_EXT
+    assert extended_rsi.position.state == State.LONG_EXT
 
     # LONG
     extended_rsi.kline_update = KlineUpdate(
@@ -199,7 +198,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONGEXT LONG NULL
     extended_rsi.kline_update = KlineUpdate(
@@ -213,7 +212,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     extended_rsi.kline_update = KlineUpdate(
@@ -227,7 +226,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.SHORT_EXT
+    assert extended_rsi.position.state == State.SHORT_EXT
 
 
 @patch("src.workers.handle_order.save_to_file")
@@ -249,7 +248,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert len(extended_rsi.position.orders) == 0
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.FLAT
+    assert extended_rsi.position.state == State.FLAT
 
     extended_rsi.kline_update = KlineUpdate(
         kline=[
@@ -262,7 +261,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert len(extended_rsi.position.orders) == 4
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG_EXT
+    assert extended_rsi.position.state == State.LONG_EXT
 
     # LONG
     extended_rsi.kline_update = KlineUpdate(
@@ -276,7 +275,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONGEXT LONG NULL
     extended_rsi.kline_update = KlineUpdate(
@@ -290,7 +289,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.LONG
+    assert extended_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     extended_rsi.kline_update = KlineUpdate(
@@ -304,7 +303,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.SHORT_EXT
+    assert extended_rsi.position.state == State.SHORT_EXT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     extended_rsi.kline_update = KlineUpdate(
@@ -318,7 +317,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.position.status == State.SHORT
+    assert extended_rsi.position.state == State.SHORT
 
 
 @patch("src.workers.handle_order.save_to_file")
@@ -340,7 +339,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert len(special_rsi.position.orders) == 0
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.FLAT
+    assert special_rsi.position.state == State.FLAT
 
     special_rsi.kline_update = KlineUpdate(
         kline=[
@@ -353,7 +352,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert len(special_rsi.position.orders) == 4
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG_EXT
+    assert special_rsi.position.state == State.LONG_EXT
 
     # LONG
     special_rsi.kline_update = KlineUpdate(
@@ -367,7 +366,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG
+    assert special_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONGEXT LONG NULL
     special_rsi.kline_update = KlineUpdate(
@@ -381,7 +380,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG
+    assert special_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     special_rsi.kline_update = KlineUpdate(
@@ -395,7 +394,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT_EXT
+    assert special_rsi.position.state == State.SHORT_EXT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     special_rsi.kline_update = KlineUpdate(
@@ -409,7 +408,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT
+    assert special_rsi.position.state == State.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
     special_rsi.kline_update = KlineUpdate(
@@ -422,7 +421,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null(
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT
+    assert special_rsi.position.state == State.SHORT
 
 
 @patch("src.workers.handle_order.save_to_file")
@@ -444,7 +443,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert len(special_rsi.position.orders) == 0
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.FLAT
+    assert special_rsi.position.state == State.FLAT
 
     special_rsi.kline_update = KlineUpdate(
         kline=[
@@ -457,7 +456,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert len(special_rsi.position.orders) == 4
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG_EXT
+    assert special_rsi.position.state == State.LONG_EXT
 
     # LONG
     special_rsi.kline_update = KlineUpdate(
@@ -471,7 +470,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG
+    assert special_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONGEXT LONG NULL
     special_rsi.kline_update = KlineUpdate(
@@ -485,7 +484,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG
+    assert special_rsi.position.state == State.LONG
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     special_rsi.kline_update = KlineUpdate(
@@ -499,7 +498,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT_EXT
+    assert special_rsi.position.state == State.SHORT_EXT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     special_rsi.kline_update = KlineUpdate(
@@ -513,7 +512,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT
+    assert special_rsi.position.state == State.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
     special_rsi.kline_update = KlineUpdate(
@@ -526,7 +525,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 4 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.SHORT
+    assert special_rsi.position.state == State.SHORT
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
     special_rsi.kline_update = KlineUpdate(
@@ -540,7 +539,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert 1 == len(special_rsi.position.orders)
     assert 1000 == special_rsi.balance
-    assert special_rsi.position.status == State.LONG_SPECIAL
+    assert special_rsi.position.state == State.LONG_SPECIAL
 
 
 #     # ToDO: CONTINUE WHEN THE SPECIAL FEATURE IS IMPLEMENTED
@@ -567,7 +566,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.LONG_SPECIAL
+#     assert position.current_position.state == Signals.LONG_SPECIAL
 #
 #     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT
 #     kline_update = KlineUpdate(
@@ -590,7 +589,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.LONG_SPECIAL
+#     assert position.current_position.state == Signals.LONG_SPECIAL
 #
 #     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT NULL
 #     kline_update = KlineUpdate(
@@ -613,7 +612,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.LONG_SPECIAL
+#     assert position.current_position.state == Signals.LONG_SPECIAL
 #
 #     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG SHORT_EXT SHORT NULL NULL
 #     kline_update = KlineUpdate(
@@ -638,7 +637,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 0 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.FLAT
+#     assert position.current_position.state == Signals.FLAT
 #
 #
 # @patch("binance.AsyncClient.futures_get_order")
@@ -721,7 +720,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 4 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.LONG
+#     assert position.current_position.state == Signals.LONG
 #
 #     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT
 #     kline_update = KlineUpdate(
@@ -757,7 +756,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.SHORT_SPECIAL
+#     assert position.current_position.state == Signals.SHORT_SPECIAL
 #
 #     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT
 #     kline_update = KlineUpdate(
@@ -779,7 +778,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.SHORT_SPECIAL
+#     assert position.current_position.state == Signals.SHORT_SPECIAL
 #
 #     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG
 #     kline_update = KlineUpdate(
@@ -801,7 +800,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.SHORT_SPECIAL
+#     assert position.current_position.state == Signals.SHORT_SPECIAL
 #
 #     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG NULL
 #     kline_update = KlineUpdate(
@@ -823,7 +822,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert 1 == len(position.current_position.orders)
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.SHORT_SPECIAL
+#     assert position.current_position.state == Signals.SHORT_SPECIAL
 #
 #     # NO SIGNAL THEN NULL NULL LONG SPECIAL_SHORT LONG_EXT LONG NULL CLOSE
 #     kline_update = KlineUpdate(
@@ -845,4 +844,4 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 #
 #     assert len(position.current_position.orders) == 0
 #     assert 1000 == position.balance
-#     assert position.current_position.status == Signals.FLAT
+#     assert position.current_position.state == Signals.FLAT

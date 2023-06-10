@@ -85,6 +85,7 @@ class AsyncApp(App):
                 )
 
             if isinstance(data, PriceData):
+                self.price_label = str(data.mark_price)
                 for position in self.open_positions:
                     if (
                         position["symbol"] == data.symbol
@@ -108,8 +109,6 @@ class AsyncApp(App):
         return pnl
 
     def update_price_data(self, open_positions: List, data: PriceData) -> List:
-        self.price_label = str(data.index_price)
-
         new_positions = [pos.copy() for pos in open_positions]
 
         if len(new_positions) != 0:
@@ -130,6 +129,7 @@ class AsyncApp(App):
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = pnl
+                    position["state"] = str(position["state"])
                     position["status"] = str(position["status"])
 
         return new_positions
@@ -146,6 +146,7 @@ class AsyncApp(App):
                 "mark_price": str(data.mark_price),
                 "liquidation_price": str(data.liquidation_price),
                 "pnl": str(data.pnl),
+                "state": str(data.state.value),
                 "status": str(data.status),
             }
         )
@@ -163,6 +164,7 @@ class AsyncApp(App):
                 position["mark_price"] = str(data.mark_price)
                 position["liquidation_price"] = str(data.liquidation_price)
                 position["pnl"] = str(data.pnl)
+                position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
 
                 if position["status"] == PositionStatus.CLOSED.value:
