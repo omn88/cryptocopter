@@ -9,3 +9,4 @@ sample_data.txt
 .env
 .coverage
 *.txt
+*.csv
