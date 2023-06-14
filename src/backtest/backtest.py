@@ -13,10 +13,8 @@ class CustomRSISignal(bt.Indicator):
         "sell_signal",
     )
     params = (
-        ("rsi_low1", 30),
-        ("rsi_low2", 20),
-        ("rsi_high1", 70),
-        ("rsi_high2", 80),
+        ("rsi_low", 30),
+        ("rsi_high", 70),
         ("dca_orders", 4),
         ("dca_span", 0.005),
         ("value", 4),
@@ -29,30 +27,26 @@ class CustomRSISignal(bt.Indicator):
     def next(self):
         # Buy signals
         if (
-            self.rsi[-3] < self.p.rsi_low1
-            and self.rsi[-2] > self.p.rsi_low1
-            and self.rsi[-1] > self.p.rsi_low1
+            self.rsi[-3] < self.p.rsi_low
+            and self.rsi[-2] > self.p.rsi_low
+            and self.rsi[-1] > self.p.rsi_low
         ):
-            self.lines.buy_signal[0] = True
-        elif self.rsi[-2] < self.p.rsi_low2 and self.rsi[-1] > self.p.rsi_low2:
             self.lines.buy_signal[0] = True
         else:
             self.lines.buy_signal[0] = False
 
         # Sell signals
         if (
-            self.rsi[-3] > self.p.rsi_high1
-            and self.rsi[-2] < self.p.rsi_high1
-            and self.rsi[-1] < self.p.rsi_high1
+            self.rsi[-3] > self.p.rsi_high
+            and self.rsi[-2] < self.p.rsi_high
+            and self.rsi[-1] < self.p.rsi_high
         ):
-            self.lines.sell_signal[0] = True
-        elif self.rsi[-2] > self.p.rsi_high2 and self.rsi[-1] < self.p.rsi_high2:
             self.lines.sell_signal[0] = True
         else:
             self.lines.sell_signal[0] = False
 
 
-class StrategyRsiExtended(bt.Strategy):
+class StrategyRsiBasic(bt.Strategy):
     def log(self, txt, dt=None):
         """Logging function fot this strategy"""
         dt = dt or self.datas[0].datetime.datetime(0)
@@ -62,10 +56,12 @@ class StrategyRsiExtended(bt.Strategy):
         ("dca_orders", 4),
         ("dca_span", 0.005),
         ("value", 4),
+        ("period", 14),
     )
 
     def __init__(self):
         self.rsi_signal = CustomRSISignal(self.data)
+        self.rsi = bt.indicators.RSI_SMA(self.data.close, period=self.params.period)
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -140,7 +136,7 @@ data = PandasDataWithSignals(
     dataname=df, timeframe=bt.TimeFrame.Minutes, compression=15
 )
 cerebro.adddata(data)
-cerebro.addstrategy(StrategyRsiExtended)
+cerebro.addstrategy(StrategyRsiBasic)
 cerebro.run()
 
 cerebro.plot(style="candle")
