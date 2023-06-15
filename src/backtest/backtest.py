@@ -1,5 +1,6 @@
 import backtrader as bt
 import pandas as pd
+from backtrader import Order
 from backtrader.feeds import PandasData
 import logging
 import logging_config
@@ -59,9 +60,12 @@ class StrategyRsiBasic(bt.Strategy):
     )
 
     def __init__(self):
-        self.rsi = bt.indicators.RSI_SMA(self.data.close, period=self.params.period, plothlines=[20, 30, 70, 80],)
+        self.rsi = bt.ind.RSI(
+            self.data.close,
+            period=self.params.period,
+            plothlines=[20, 30, 70, 80],
+        )
         self.rsi_signal = CustomRSISignal(self.data)
-
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -97,24 +101,22 @@ class StrategyRsiBasic(bt.Strategy):
                 order_price = self.data.close[0]
                 self.log("Buy signal at price: %s" % order_price)
 
-                self.buy()
+                # self.buy()
 
-                # for i in range(self.p.dca_orders):
-                #     self.buy(
-                #         price=order_price - self.p.dca_span * i,
-                #         exectype="Limit",
-                #     )
+                for i in range(self.p.dca_orders):
+                    self.buy(
+                        price=order_price - self.p.dca_span * i,
+                        exectype=Order.Limit,
+                    )
             elif self.rsi_signal.sell_signal[0] == 1:
                 order_price = self.data.close[0]
                 self.log("Sell signal at price: %s" % order_price)
 
-                # for i in range(self.p.dca_orders):
-                #     self.sell(
-                #         price=order_price + self.p.dca_span * i,
-                #         exectype="Limit",
-                #     )
-
-                self.sell()
+                for i in range(self.p.dca_orders):
+                    self.sell(
+                        price=order_price + self.p.dca_span * i,
+                        exectype=Order.Limit,
+                    )
 
 
 class PandasDataWithSignals(PandasData):
@@ -132,9 +134,9 @@ cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
 df = pd.read_csv("data/BTCUSDT/recent.csv")
 
 # Convert the 'datetime' column to datetime format and adjust to your timezone
-df['datetime'] = pd.to_datetime(df['datetime'])
+df["datetime"] = pd.to_datetime(df["datetime"])
 # Add 2 hours to the datetime column to convert to UTC+2
-df['datetime'] = df['datetime'] + pd.Timedelta(hours=2)
+df["datetime"] = df["datetime"] + pd.Timedelta(hours=2)
 
 df.set_index("datetime", inplace=True)
 
@@ -147,5 +149,5 @@ cerebro.adddata(data)
 cerebro.addstrategy(StrategyRsiBasic)
 cerebro.run()
 
-# cerebro.plot(style="candle")
+cerebro.plot(style="candle")
 logger.info("DONE")
