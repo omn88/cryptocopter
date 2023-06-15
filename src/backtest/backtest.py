@@ -17,7 +17,6 @@ class CustomRSISignal(bt.Indicator):
         ("rsi_high", 70),
         ("dca_orders", 4),
         ("dca_span", 0.005),
-        ("value", 4),
     )
 
     def __init__(self):
@@ -27,9 +26,9 @@ class CustomRSISignal(bt.Indicator):
     def next(self):
         # Buy signals
         if (
-            self.rsi[-3] < self.p.rsi_low
-            and self.rsi[-2] > self.p.rsi_low
+            self.rsi[-2] < self.p.rsi_low
             and self.rsi[-1] > self.p.rsi_low
+            and self.rsi[0] > self.p.rsi_low
         ):
             self.lines.buy_signal[0] = True
         else:
@@ -37,9 +36,9 @@ class CustomRSISignal(bt.Indicator):
 
         # Sell signals
         if (
-            self.rsi[-3] > self.p.rsi_high
-            and self.rsi[-2] < self.p.rsi_high
+            self.rsi[-2] > self.p.rsi_high
             and self.rsi[-1] < self.p.rsi_high
+            and self.rsi[0] < self.p.rsi_high
         ):
             self.lines.sell_signal[0] = True
         else:
@@ -60,8 +59,9 @@ class StrategyRsiBasic(bt.Strategy):
     )
 
     def __init__(self):
+        self.rsi = bt.indicators.RSI_SMA(self.data.close, period=self.params.period, plothlines=[20, 30, 70, 80],)
         self.rsi_signal = CustomRSISignal(self.data)
-        self.rsi = bt.indicators.RSI_SMA(self.data.close, period=self.params.period)
+
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -90,29 +90,31 @@ class StrategyRsiBasic(bt.Strategy):
         self.order = None
 
     def next(self):
-        self.log("Close, %.2f" % self.data.close[0])
+        self.log("Close, %.2f, RSI: %.2f" % (self.data.close[0], self.rsi[0]))
 
         if self.position.size == 0:  # check if there is an open position
             if self.rsi_signal.buy_signal[0] == 1:
                 order_price = self.data.close[0]
                 self.log("Buy signal at price: %s" % order_price)
 
-                for i in range(self.p.dca_orders):
-                    self.buy(
-                        price=order_price - self.p.dca_span * i,
-                        size=self.p.value,
-                        exectype="Order.Limit",
-                    )
+                self.buy()
+
+                # for i in range(self.p.dca_orders):
+                #     self.buy(
+                #         price=order_price - self.p.dca_span * i,
+                #         exectype="Limit",
+                #     )
             elif self.rsi_signal.sell_signal[0] == 1:
                 order_price = self.data.close[0]
                 self.log("Sell signal at price: %s" % order_price)
 
-                for i in range(self.p.dca_orders):
-                    self.sell(
-                        price=order_price + self.p.dca_span * i,
-                        size=self.p.value,
-                        exectype="Order.Limit",
-                    )
+                # for i in range(self.p.dca_orders):
+                #     self.sell(
+                #         price=order_price + self.p.dca_span * i,
+                #         exectype="Limit",
+                #     )
+
+                self.sell()
 
 
 class PandasDataWithSignals(PandasData):
@@ -122,12 +124,18 @@ class PandasDataWithSignals(PandasData):
 
 cerebro = bt.Cerebro()
 
+
 # Set up the backwriter for logging
 cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
 
 # Load the CSV file into a pandas DataFrame
-df = pd.read_csv("data/BTCUSDT/test.csv")
-df["datetime"] = pd.to_datetime(df["datetime"])
+df = pd.read_csv("data/BTCUSDT/recent.csv")
+
+# Convert the 'datetime' column to datetime format and adjust to your timezone
+df['datetime'] = pd.to_datetime(df['datetime'])
+# Add 2 hours to the datetime column to convert to UTC+2
+df['datetime'] = df['datetime'] + pd.Timedelta(hours=2)
+
 df.set_index("datetime", inplace=True)
 
 
@@ -139,5 +147,5 @@ cerebro.adddata(data)
 cerebro.addstrategy(StrategyRsiBasic)
 cerebro.run()
 
-cerebro.plot(style="candle")
+# cerebro.plot(style="candle")
 logger.info("DONE")
