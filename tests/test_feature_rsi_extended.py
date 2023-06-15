@@ -142,7 +142,7 @@ async def test_signal_handle_null_when_long_twenty(extended_rsi):
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.state == extended_rsi.position.status
+    assert extended_rsi.state == extended_rsi.position.state
     assert all(
         order.price <= extended_rsi.signal_update.price
         for order in extended_rsi.position.orders
@@ -235,7 +235,7 @@ async def test_signal_handle_null_when_short_eighty(extended_rsi):
 
     assert 4 == len(extended_rsi.position.orders)
     assert 1000 == extended_rsi.balance
-    assert extended_rsi.state == extended_rsi.position.status
+    assert extended_rsi.state == extended_rsi.position.state
     assert all(
         order.price >= extended_rsi.signal_update.price
         for order in extended_rsi.position.orders

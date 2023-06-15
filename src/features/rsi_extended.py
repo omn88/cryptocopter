@@ -191,5 +191,5 @@ class FeatureRsiExtended:
 
     async def change_position_state(self, *args, **kwargs):
         logger.info("Changing status to %s", self.signal_update.signal)
-        self.position.status = State(self.signal_update.signal.value)
-        self.update_position_in_df(self.position.status)
+        self.position.state = State(self.signal_update.signal.value)
+        self.update_position_in_df(self.position.state)

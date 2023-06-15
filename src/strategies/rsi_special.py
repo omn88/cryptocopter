@@ -1,7 +1,4 @@
 import logging
-
-import numpy
-
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     Signal,
@@ -105,7 +102,7 @@ class SpecialStrategy(
         )
 
     async def close_special_position(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.status)
+        logger.info("Closing %s", self.position.state)
         self.position_old = await handle_order.close_special_position(
             client=self.client, position=self.position, ui_queue=self.ui_queue
         )
@@ -118,10 +115,10 @@ class SpecialStrategy(
         assert expected_index == int(self.kline_update.kline[0])
 
         if (
-            self.position.status == State.SHORT_SPECIAL
+            self.position.state == State.SHORT_SPECIAL
             and self.df["RSI"] > 50 >= self.df["RSI"].shift(1)
         ) or (
-            self.position.status == State.LONG_SPECIAL
+            self.position.state == State.LONG_SPECIAL
             and self.df["RSI"] < 50 <= self.df["RSI"].shift(1)
         ):
             signal = Signal.CLOSE_SPECIAL
