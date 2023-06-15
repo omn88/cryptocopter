@@ -524,7 +524,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position_old.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED.value,
+                status=PositionStatus.CLOSED,
                 state=self.position.state,
             )
         )
@@ -642,7 +642,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE.value,
+                status=PositionStatus.ACTIVE,
                 state=self.position.state,
             )
         )
@@ -679,7 +679,7 @@ class TradingStateMachine:
                 mark_price=0,
                 liquidation_price=self.position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.ACTIVE.value,
+                status=PositionStatus.ACTIVE,
                 state=self.position.state,
             )
         )

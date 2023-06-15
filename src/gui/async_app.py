@@ -167,7 +167,7 @@ class AsyncApp(App):
                 position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
 
-                if position["status"] == PositionStatus.CLOSED.value:
+                if position["status"] == PositionStatus.CLOSED:
                     Logger.info("Position status: %s", data.status)
                     Logger.info("Length of open positions: %s", len(open_positions))
                     Logger.info(

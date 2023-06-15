@@ -138,8 +138,8 @@ async def close_long(
                 mark_price=0,
                 liquidation_price=position.liquidation_price,
                 pnl=0,
-                state=position.state.value,
-                status=PositionStatus.CLOSED.value,
+                state=position.state,
+                status=PositionStatus.CLOSED,
             )
         )
 
@@ -187,7 +187,7 @@ async def close_short(
                 mark_price=0,
                 liquidation_price=position.liquidation_price,
                 pnl=0,
-                status=PositionStatus.CLOSED.value,
+                status=PositionStatus.CLOSED,
                 state=position.state,
             )
         )
