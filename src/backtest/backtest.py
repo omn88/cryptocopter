@@ -104,17 +104,20 @@ class StrategyRsiBasic(bt.Strategy):
                 # self.buy()
 
                 for i in range(self.p.dca_orders):
+                    price = order_price - self.p.dca_span * i * order_price
+                    self.log("Trying to create buy order at price %s" % round(price, 2))
                     self.buy(
-                        price=order_price - self.p.dca_span * i,
+                        price=price,
                         exectype=Order.Limit,
                     )
+                    self.log("Order created")
             elif self.rsi_signal.sell_signal[0] == 1:
                 order_price = self.data.close[0]
                 self.log("Sell signal at price: %s" % order_price)
 
                 for i in range(self.p.dca_orders):
                     self.sell(
-                        price=order_price + self.p.dca_span * i,
+                        price=order_price + self.p.dca_span * i * order_price,
                         exectype=Order.Limit,
                     )
 
@@ -149,5 +152,5 @@ cerebro.adddata(data)
 cerebro.addstrategy(StrategyRsiBasic)
 cerebro.run()
 
-cerebro.plot(style="candle")
+# cerebro.plot(style="candle")
 logger.info("DONE")
