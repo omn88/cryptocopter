@@ -16,6 +16,7 @@ class FeatureRsiSpecial:
                 "source": State.LONG,
                 "dest": State.SHORT_SPECIAL,
                 "conditions": "conditions_for_opening_special_short",
+                "before": "close_long",
                 "after": "open_special_short",
             },
             {
@@ -23,6 +24,7 @@ class FeatureRsiSpecial:
                 "source": State.SHORT,
                 "dest": State.LONG_SPECIAL,
                 "conditions": "conditions_for_opening_special_long",
+                "before": "close_short",
                 "after": "open_special_long",
             },
             {

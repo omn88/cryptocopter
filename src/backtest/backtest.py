@@ -8,7 +8,7 @@ import logging_config
 logger = logging.getLogger("backtrader")
 
 
-class CustomRSISignal(bt.Indicator):
+class BasicRSISignal(bt.Indicator):
     lines = (
         "buy_signal",
         "sell_signal",
@@ -22,13 +22,12 @@ class CustomRSISignal(bt.Indicator):
 
     def __init__(self):
         self.rsi = bt.ind.RSI(self.data.close)
-        super(CustomRSISignal, self).__init__()
+        super(BasicRSISignal, self).__init__()
 
     def next(self):
         # Buy signals
         if (
-            self.rsi[-2] < self.p.rsi_low
-            and self.rsi[-1] > self.p.rsi_low
+            self.rsi[-2] < self.p.rsi_low < self.rsi[-1]
             and self.rsi[0] > self.p.rsi_low
         ):
             self.lines.buy_signal[0] = True
@@ -37,8 +36,7 @@ class CustomRSISignal(bt.Indicator):
 
         # Sell signals
         if (
-            self.rsi[-2] > self.p.rsi_high
-            and self.rsi[-1] < self.p.rsi_high
+            self.rsi[-2] > self.p.rsi_high > self.rsi[-1]
             and self.rsi[0] < self.p.rsi_high
         ):
             self.lines.sell_signal[0] = True
@@ -47,11 +45,6 @@ class CustomRSISignal(bt.Indicator):
 
 
 class StrategyRsiBasic(bt.Strategy):
-    def log(self, txt, dt=None):
-        """Logging function fot this strategy"""
-        dt = dt or self.datas[0].datetime.datetime(0)
-        print("%s, %s" % (dt.strftime("%Y-%m-%d %H:%M"), txt))
-
     params = (
         ("dca_orders", 4),
         ("dca_span", 0.005),
@@ -59,13 +52,19 @@ class StrategyRsiBasic(bt.Strategy):
         ("period", 14),
     )
 
+    def log(self, txt, dt=None):
+        """Logging function fot this strategy"""
+        dt = dt or self.datas[0].datetime.datetime(0)
+        print("%s, %s" % (dt.strftime("%Y-%m-%d %H:%M"), txt))
+
     def __init__(self):
         self.rsi = bt.ind.RSI(
             self.data.close,
             period=self.params.period,
-            plothlines=[20, 30, 70, 80],
+            plothlines=[30, 70],
         )
-        self.rsi_signal = CustomRSISignal(self.data)
+        self.rsi_signal = BasicRSISignal(self.data)
+        self.orders = []
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -87,11 +86,12 @@ class StrategyRsiBasic(bt.Strategy):
                     % (order.executed.price, order.executed.value, order.executed.comm)
                 )
 
+            self.orders.remove(order)
+
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
             self.log("Order Canceled/Margin/Rejected")
 
-        # Write down: no pending order
-        self.order = None
+            self.orders.remove(order)
 
     def next(self):
         self.log("Close, %.2f, RSI: %.2f" % (self.data.close[0], self.rsi[0]))
@@ -106,20 +106,23 @@ class StrategyRsiBasic(bt.Strategy):
                 for i in range(self.p.dca_orders):
                     price = order_price - self.p.dca_span * i * order_price
                     self.log("Trying to create buy order at price %s" % round(price, 2))
-                    self.buy(
+                    order = self.buy(
                         price=price,
                         exectype=Order.Limit,
                     )
                     self.log("Order created")
+                    self.orders.append(order)
             elif self.rsi_signal.sell_signal[0] == 1:
                 order_price = self.data.close[0]
                 self.log("Sell signal at price: %s" % order_price)
 
                 for i in range(self.p.dca_orders):
-                    self.sell(
+                    order = self.sell(
                         price=order_price + self.p.dca_span * i * order_price,
                         exectype=Order.Limit,
                     )
+
+                    self.orders.append(order)
 
 
 class PandasDataWithSignals(PandasData):
