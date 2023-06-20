@@ -72,6 +72,9 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         )
         self.df = self.df.append(temp_df.tail(1))
 
+        # Copy current position value
+        self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
+
         if self.signal_update.signal == 0:
             self.signal_update = SignalUpdate(
                 signal=Signal.NULL,
