@@ -50,7 +50,6 @@ class StrategyRsiBasic(bt.Strategy):
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
-            # Order submitted/accepted to/by broker - Nothing to do
             return
 
         # Check if an order has been completed
@@ -58,14 +57,24 @@ class StrategyRsiBasic(bt.Strategy):
         if order.status in [order.Completed]:
             if order.isbuy():
                 self.log(
-                    "BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f"
-                    % (order.executed.price, order.executed.value, order.executed.comm)
+                    "BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, Position size %.2f"
+                    % (
+                        order.executed.price,
+                        order.executed.value,
+                        order.executed.comm,
+                        self.position.size,
+                    )
                 )
 
             else:  # Sell
                 self.log(
-                    "SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f"
-                    % (order.executed.price, order.executed.value, order.executed.comm)
+                    "SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, Position size %.2f"
+                    % (
+                        order.executed.price,
+                        order.executed.value,
+                        order.executed.comm,
+                        self.position.size,
+                    )
                 )
 
             self.orders.remove(order)
@@ -80,7 +89,7 @@ class StrategyRsiBasic(bt.Strategy):
 
         order_price = self.data.close[0]
 
-        self.log("Position size: %s" % self.position.size)
+        # self.log("Position size: %s" % self.position.size)
 
         if self.position.size == 0:  # check if there is an open position
             if self.rsi_signal.buy_signal[0] == 1:
@@ -98,7 +107,7 @@ class StrategyRsiBasic(bt.Strategy):
                         order = self.sell(
                             price=order_price,
                             exectype=Order.Market,
-                            size=self.position.size,
+                            size=abs(self.position.size),
                         )
                         self.orders.append(order)
                         self.send_sell_dca_orders(order_price=order_price)
@@ -111,7 +120,7 @@ class StrategyRsiBasic(bt.Strategy):
                         order = self.buy(
                             price=order_price,
                             exectype=Order.Market,
-                            size=self.position.size,
+                            size=abs(self.position.size),
                         )
                         self.orders.append(order)
                         self.send_buy_dca_orders(order_price=order_price)
