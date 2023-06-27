@@ -118,83 +118,107 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
 
 
 async def send_order(
-    client: binance.AsyncClient, side: str, order: Order, ui_queue: asyncio.Queue
+    client: binance.AsyncClient,
+    side: str,
+    order: Order,
+    ui_queue: asyncio.Queue,
+    attempts=10,
 ) -> Order:
-    try:
-        resp = await client.futures_create_order(
-            symbol=SYMBOL,
-            price=round(order.price, 1),
-            quantity=round(abs(order.quantity), 3),
-            side=side,
-            type=FUTURE_ORDER_TYPE_LIMIT,
-            timeInForce=TIME_IN_FORCE_GTC,
-        )
-    except BinanceAPIException as e:
-        logger.error("Failed to create order due to BinanceAPIException: %s", e)
-        raise e
-    except BinanceOrderException as e:
-        logger.error("Failed to create order due to BinanceOrderException: ", e)
-        raise e
-    except BinanceRequestException as e:
-        logger.error("Failed to create order due to BinanceRequestException: ", e)
-        raise e
-    else:
-        logger.debug("RESP: %s", resp)
-        order.order_id = int(resp["orderId"])
-        order.status = resp["status"]
-        logger.info("New: %s", order)
-        order.open_time = convert_time(resp["updateTime"])
-
-        await ui_queue.put(
-            OrderData(
-                order_id=order.order_id,
-                open_time=order.open_time,
+    for attempt in range(attempts):
+        try:
+            resp = await client.futures_create_order(
                 symbol=SYMBOL,
-                order_type=order.order_type,
+                price=round(order.price, 1),
+                quantity=round(abs(order.quantity), 3),
                 side=side,
-                price=order.price,
-                quantity=order.quantity,
-                realized_quantity=order.realized_quantity,
-                status=order.status,
+                type=FUTURE_ORDER_TYPE_LIMIT,
+                timeInForce=TIME_IN_FORCE_GTC,
             )
-        )
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as e:
+            logger.error(
+                "Attempt #%s: Failed to create order due to %s: %s",
+                attempt + 1,
+                type(e).__name__,
+                e,
+            )
+            if attempt < attempts - 1:  # not the last attempt
+                await asyncio.sleep(0.5)  # wait for 1 second before the next attempt
+                continue
+            else:  # if it's the last attempt, raise the exception
+                raise
+        else:
+            logger.info("CREATED ORDER: %s", resp)
+            order.order_id = int(resp["orderId"])
+            order.status = resp["status"]
+            logger.info("New: %s", order)
+            order.open_time = convert_time(resp["updateTime"])
 
-        return order
+            await ui_queue.put(
+                OrderData(
+                    order_id=order.order_id,
+                    open_time=order.open_time,
+                    symbol=SYMBOL,
+                    order_type=order.order_type,
+                    side=side,
+                    price=order.price,
+                    quantity=order.quantity,
+                    realized_quantity=order.realized_quantity,
+                    status=order.status,
+                )
+            )
+
+            return order
 
 
 async def cancel_order(
-    client: binance.AsyncClient, order: Order, ui_queue: asyncio.Queue, side: str
+    client: binance.AsyncClient,
+    order: Order,
+    ui_queue: asyncio.Queue,
+    side: str,
+    attempts=10,
 ):
     logger.info("Enter cancel order: %s, symbol: %s", order.order_id, SYMBOL)
-
-    try:
-        resp = await client.futures_cancel_order(symbol=SYMBOL, orderId=order.order_id)
-        order.status = resp["status"]
-        await ui_queue.put(
-            OrderData(
-                order_id=order.order_id,
-                open_time=order.open_time,
-                symbol=SYMBOL,
-                order_type=order.order_type,
-                side=side,
-                price=order.price,
-                quantity=order.quantity,
-                realized_quantity=order.realized_quantity,
-                status=order.status,
+    for attempt in range(attempts):
+        try:
+            resp = await client.futures_cancel_order(
+                symbol=SYMBOL, orderId=order.order_id
             )
-        )
-    except BinanceAPIException as e:
-        logger.error("Failed to cancel order due to BinanceAPIException: %s", e)
-        raise e
-    except BinanceOrderException as e:
-        logger.error("Failed to cancel order due to BinanceOrderException: ", e)
-        raise e
-    except BinanceRequestException as e:
-        logger.error("Failed to cancel order due to BinanceRequestException: ", e)
-        raise e
+            order.status = resp["status"]
+            await ui_queue.put(
+                OrderData(
+                    order_id=order.order_id,
+                    open_time=order.open_time,
+                    symbol=SYMBOL,
+                    order_type=order.order_type,
+                    side=side,
+                    price=order.price,
+                    quantity=order.quantity,
+                    realized_quantity=order.realized_quantity,
+                    status=order.status,
+                )
+            )
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as e:
+            logger.error(
+                "Attempt #%s: Failed to cancel order due to %s: %s",
+                attempt + 1,
+                type(e).__name__,
+                e,
+            )
+            if attempt < attempts - 1:  # not the last attempt
+                await asyncio.sleep(0.5)  # wait for 1 second before the next attempt
+                continue
+            else:  # if it's the last attempt, raise the exception
+                raise
 
-    logger.info("Exit cancel order")
-    return resp["status"]
+        return resp["status"]
 
 
 async def send_orders(
@@ -406,43 +430,47 @@ async def cancel_take_profit_order(
 
 
 async def send_market_order(
-    client: binance.AsyncClient,
-    position: Position,
-    side: str,
+    client: binance.AsyncClient, position: Position, side: str, attempts=10
 ) -> Position:
     order_type = FUTURE_ORDER_TYPE_MARKET
     quantity = abs(position.quantity)
-    try:
-        resp = await client.futures_create_order(
-            symbol=SYMBOL,
-            side=side,
-            quantity=quantity,
-            type=order_type,
-        )
-    except BinanceAPIException as e:
-        logger.error("Failed to create market order due to BinanceAPIException: %s", e)
-        raise e
-    except BinanceOrderException as e:
-        logger.error("Failed to create market order due to BinanceOrderException: ", e)
-        raise e
-    except BinanceRequestException as e:
-        logger.error(
-            "Failed to create market order due to BinanceRequestException: ", e
-        )
-        raise e
-    else:
-        position.market_order = Order(
-            order_type=order_type,
-            order_id=int(resp["orderId"]),
-            price=0,
-            quantity=quantity,
-        )
-        logger.info(
-            "%s order, type: %s send: %s",
-            side,
-            order_type,
-            resp,
-        )
+    for attempt in range(attempts):
+        try:
+            resp = await client.futures_create_order(
+                symbol=SYMBOL,
+                side=side,
+                quantity=quantity,
+                type=order_type,
+            )
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as e:
+            logger.error(
+                "Attempt #%s: Failed to create order due to %s: %s",
+                attempt + 1,
+                type(e).__name__,
+                e,
+            )
+            if attempt < attempts - 1:  # not the last attempt
+                await asyncio.sleep(0.5)  # wait for 1 second before the next attempt
+                continue
+            else:  # if it's the last attempt, raise the exception
+                raise
+        else:
+            position.market_order = Order(
+                order_type=order_type,
+                order_id=int(resp["orderId"]),
+                price=0,
+                quantity=quantity,
+            )
+            logger.info(
+                "%s order, type: %s send: %s",
+                side,
+                order_type,
+                resp,
+            )
 
     return position
 
