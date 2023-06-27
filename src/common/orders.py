@@ -187,20 +187,6 @@ async def cancel_order(
             resp = await client.futures_cancel_order(
                 symbol=SYMBOL, orderId=order.order_id
             )
-            order.status = resp["status"]
-            await ui_queue.put(
-                OrderData(
-                    order_id=order.order_id,
-                    open_time=order.open_time,
-                    symbol=SYMBOL,
-                    order_type=order.order_type,
-                    side=side,
-                    price=order.price,
-                    quantity=order.quantity,
-                    realized_quantity=order.realized_quantity,
-                    status=order.status,
-                )
-            )
         except (
             BinanceAPIException,
             BinanceOrderException,
@@ -217,8 +203,24 @@ async def cancel_order(
                 continue
             else:  # if it's the last attempt, raise the exception
                 raise
+        else:
+            logger.info("CANCELLED ORDER: %s", order)
+            order.status = resp["status"]
+            await ui_queue.put(
+                OrderData(
+                    order_id=order.order_id,
+                    open_time=order.open_time,
+                    symbol=SYMBOL,
+                    order_type=order.order_type,
+                    side=side,
+                    price=order.price,
+                    quantity=order.quantity,
+                    realized_quantity=order.realized_quantity,
+                    status=order.status,
+                )
+            )
 
-        return resp["status"]
+            return resp["status"]
 
 
 async def send_orders(
