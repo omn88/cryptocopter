@@ -171,7 +171,7 @@ async def send_order(
                 )
             )
 
-            return order
+    return order
 
 
 async def cancel_order(
@@ -220,7 +220,7 @@ async def cancel_order(
                 )
             )
 
-            return resp["status"]
+            return order.status
 
 
 async def send_orders(
