@@ -122,7 +122,6 @@ async def send_order(
     side: str,
     order: Order,
     ui_queue: asyncio.Queue,
-    attempts=10,
 ) -> Order:
     last_exception = None
 
@@ -380,7 +379,7 @@ async def cancel_take_profit_order(
 
 
 async def send_market_order(
-    client: binance.AsyncClient, position: Position, side: str, attempts=10
+    client: binance.AsyncClient, position: Position, side: str
 ) -> Position:
     order_type = FUTURE_ORDER_TYPE_MARKET
     quantity = abs(position.quantity)
