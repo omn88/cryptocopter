@@ -62,8 +62,7 @@ async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
             logger.info("Balance %s: %s", account["asset"], balance)
             return balance
 
-    logger.info("Asset: %s not found in account balance", asset)
-    return 0
+    raise KeyError("Asset: %s not found in account balance" % asset)
 
 
 async def log_signal_change(df, signal):
