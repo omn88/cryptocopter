@@ -77,6 +77,9 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
 
         self.df = self.df.append(temp_df.tail(1))
 
+        # Copy current position value
+        self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
+
         signal = self.df.iloc[-1]["Signal"]
 
         if signal == 0:
