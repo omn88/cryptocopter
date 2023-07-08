@@ -164,9 +164,8 @@ async def send_order(
 
             return order
 
-    # if we've exhausted all retries and still have an exception, raise it
-    if last_exception is not None:
-        raise last_exception
+    assert last_exception is not None
+    raise last_exception
 
 
 async def cancel_order(
@@ -417,9 +416,8 @@ async def send_market_order(
 
         return position
 
-    # if we've exhausted all retries and still have an exception, raise it
-    if last_exception is not None:
-        raise last_exception
+    assert last_exception is not None
+    raise last_exception
 
 
 async def cancel_remaining_limit_orders(
