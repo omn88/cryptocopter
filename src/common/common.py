@@ -56,12 +56,13 @@ async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
 
 async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
     account_balance = await client.futures_account_balance(asset=asset)
-    assert asset == account_balance[8]["asset"]
-    balance = round(float(account_balance[8]["balance"]), 2)
+    for account in account_balance:
+        if account["asset"] == asset:
+            balance = round(float(account["balance"]), 2)
+            logger.info("Balance %s: %s", account["asset"], balance)
+            return balance
 
-    logger.info("Balance %s: %s", account_balance[8]["asset"], balance)
-
-    return balance
+    logger.info("Asset: %s not found in account balance", asset)
 
 
 async def log_signal_change(df, signal):
