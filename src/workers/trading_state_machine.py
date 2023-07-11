@@ -29,6 +29,7 @@ from src.common.identifiers import (
     Event,
     EventName,
     Order,
+    BinanceClient,
 )
 from src.common.orders import cancel_order
 from src.gui.identifiers import PositionData, PositionStatus, OrderData
@@ -53,7 +54,7 @@ logger = logging.getLogger("trading_state_machine")
 class TradingStateMachine:
     def __init__(
         self,
-        client: binance.AsyncClient,
+        client: BinanceClient,
         queue: asyncio.Queue,
         ui_queue: asyncio.Queue,
         position: Position,
@@ -63,7 +64,7 @@ class TradingStateMachine:
         raw_data,
     ):
         self.state: State = State.FLAT
-        self.client: binance.AsyncClient = client
+        self.client: BinanceClient = client
         self.queue: asyncio.Queue = queue
         self.ui_queue: asyncio.Queue = ui_queue
         self.position: Position = position
@@ -577,7 +578,6 @@ class TradingStateMachine:
         logger.info("Closing %s", self.position.state)
         self.position_old = await close_long(
             client=self.client,
-            balance=self.balance,
             position=self.position,
             ui_queue=self.ui_queue,
         )
@@ -586,7 +586,6 @@ class TradingStateMachine:
         logger.info("Closing %s", self.position.state)
         self.position_old = await close_short(
             client=self.client,
-            balance=self.balance,
             position=self.position,
             ui_queue=self.ui_queue,
         )
