@@ -46,4 +46,4 @@ def run_strategy(start_timestamp, end_timestamp):
 
 
 # Usage example
-run_strategy("2023-04-01 00:00:00", "2023-06-01 00:00:00")
+run_strategy("2023-05-01 00:00:00", "2023-05-10 00:00:00")

@@ -104,8 +104,8 @@ class StrategyRsiBasic(bt.Strategy):
                     self.log("Another buy signal when already long")
                 else:
                     if self.rsi_signal.sell_signal[0] == 1:
+                        self.log("Closing Long, position: %s" % self.position.size)
                         order = self.sell(
-                            price=order_price,
                             exectype=Order.Market,
                             size=abs(self.position.size),
                         )
@@ -117,6 +117,7 @@ class StrategyRsiBasic(bt.Strategy):
                     self.log("Another sell signal when already short")
                 else:
                     if self.rsi_signal.buy_signal[0] == 1:
+                        self.log("Closing Short, position: %s" % self.position.size)
                         order = self.buy(
                             price=order_price,
                             exectype=Order.Market,
