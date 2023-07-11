@@ -75,7 +75,6 @@ async def worker(
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
             await futures_position_close(
-                balance=tsm.balance,
                 client=tsm.client,
                 ui_queue=tsm.ui_queue,
                 position=tsm.position,

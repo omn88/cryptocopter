@@ -106,7 +106,6 @@ async def close_special_position(
 async def close_long(
     client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = SIDE_SELL
@@ -155,7 +154,6 @@ async def close_long(
 async def close_short(
     client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = client.SIDE_BUY
@@ -522,17 +520,12 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
 async def futures_position_close(
     client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ):
     if position.state in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
-        _ = await close_long(
-            client=client, position=position, balance=balance, ui_queue=ui_queue
-        )
+        _ = await close_long(client=client, position=position, ui_queue=ui_queue)
     elif position.state in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
-        _ = await close_short(
-            client=client, position=position, balance=balance, ui_queue=ui_queue
-        )
+        _ = await close_short(client=client, position=position, ui_queue=ui_queue)
 
 
 async def futures_get_position_info(
