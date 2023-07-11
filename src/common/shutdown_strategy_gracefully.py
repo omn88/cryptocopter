@@ -4,7 +4,7 @@ import signal
 
 import binance
 
-from src.common.identifiers import Position
+from src.common.identifiers import Position, BinanceClient
 from src.workers.handle_order import futures_position_close
 
 
@@ -12,7 +12,7 @@ logger = logging.getLogger("shutdown_strategy_gracefully")
 
 
 async def shutdown(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     posix_signal: signal.Signals,
     position: Position,
     balance: float,

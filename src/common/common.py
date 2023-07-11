@@ -10,7 +10,7 @@ import pandas
 import pytz
 
 from src.common.constants import SYMBOL
-from src.common.identifiers import Signal, State
+from src.common.identifiers import Signal, State, BinanceClient
 
 logger = logging.getLogger("common")
 
@@ -42,7 +42,7 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
 
 
 async def get_futures_historical_data(
-    client: binance.AsyncClient, interval: str, lookback: str
+    client: BinanceClient, interval: str, lookback: str
 ) -> List:
     historical_data = await client.futures_historical_klines(
         SYMBOL, interval, lookback + "min ago UTC"
@@ -54,7 +54,7 @@ async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
     logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())
 
 
-async def futures_get_balance(client: binance.AsyncClient, asset: str) -> float:
+async def futures_get_balance(client: BinanceClient, asset: str) -> float:
     account_balance = await client.futures_account_balance(asset=asset)
     for account in account_balance:
         if account["asset"] == asset:

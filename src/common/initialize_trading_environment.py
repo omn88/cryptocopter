@@ -1,6 +1,4 @@
 import asyncio
-import signal
-
 import binance
 import pandas
 from binance import AsyncClient, BinanceSocketManager
@@ -10,6 +8,7 @@ from decouple import config
 import logging
 
 from src.common.constants import SYMBOL, MARGIN_TYPE
+from src.common.identifiers import BinanceClient
 from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
@@ -21,8 +20,8 @@ from src.workers.worker import worker
 logger = logging.getLogger("initialize_trading_environment")
 
 
-async def create_async_client() -> binance.AsyncClient:
-    client = await AsyncClient.create(
+async def create_async_client() -> BinanceClient:
+    client = await BinanceClient.create(
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
     logger.info("Async client created")
@@ -30,7 +29,7 @@ async def create_async_client() -> binance.AsyncClient:
     return client
 
 
-async def create_socket_manager(client: binance.AsyncClient) -> BinanceSocketManager:
+async def create_socket_manager(client: BinanceClient) -> BinanceSocketManager:
     bsm = BinanceSocketManager(client)
     logger.info("Binance socket manager created.")
 
@@ -44,23 +43,7 @@ def create_async_queue() -> asyncio.Queue:
     return queue
 
 
-# def register_signal_handlers(loop, client, position, balance):
-#     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-#     for s in signals:
-#         loop.add_signal_handler(
-#             s,
-#             lambda s=s: asyncio.create_task(  # ToDo: THERE IS A METHOD FOR CLOSING ALL OPEN ORDERS
-#                 shutdown(
-#                     client=client,
-#                     posix_signal=s,
-#                     position=position,
-#                     balance=balance,
-#                 )
-#             ),
-#         )
-
-
-async def change_margin_type(client: binance.AsyncClient) -> None:
+async def change_margin_type(client: BinanceClient) -> None:
     try:
         await client.futures_change_margin_type(symbol=SYMBOL, marginType=MARGIN_TYPE)
     except binance.exceptions.BinanceAPIException as e:
