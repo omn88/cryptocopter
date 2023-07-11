@@ -17,6 +17,7 @@ from src.common.identifiers import (
     State,
     Order,
     Artifacts,
+    BinanceClient,
 )
 from src.common.orders import (
     cancel_remaining_limit_orders,
@@ -37,7 +38,7 @@ logger = logging.getLogger("handle_order")
 
 
 async def prepare_and_send_orders(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     balance: float,
     order_quantity_list: pandas.DataFrame,
     signal: Signal,
@@ -76,7 +77,7 @@ async def prepare_and_send_orders(
 
 
 async def close_special_position(
-    client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
+    client: BinanceClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
     if position.state in [State.SHORT_SPECIAL, State.LONG_SPECIAL]:
         close_side = (
@@ -103,9 +104,8 @@ async def close_special_position(
 
 
 async def close_long(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = SIDE_SELL
@@ -152,9 +152,8 @@ async def close_long(
 
 
 async def close_short(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ) -> Position:
     close_side = client.SIDE_BUY
@@ -201,7 +200,7 @@ async def close_short(
 
 
 async def update_take_profit_order(
-    client: binance.AsyncClient, position: Position, ui_queue: asyncio.Queue
+    client: BinanceClient, position: Position, ui_queue: asyncio.Queue
 ) -> Position:
     tp_side = (
         PositionSide.LONG if position.side == PositionSide.SHORT else PositionSide.SHORT
@@ -314,7 +313,7 @@ async def target_partially_reached(
 
 
 async def target_reached(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
     order_update: OrderUpdate,
     balance: float,
@@ -361,7 +360,7 @@ async def target_reached(
 
 
 async def handle_order_partially_filled(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
     order_update: OrderUpdate,
     ui_queue: asyncio.Queue,
@@ -392,7 +391,7 @@ async def handle_order_partially_filled(
 
 
 async def handle_order_filled(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
     order_update: OrderUpdate,
     ui_queue: asyncio.Queue,
@@ -519,23 +518,18 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
 
 
 async def futures_position_close(
-    client: binance.AsyncClient,
+    client: BinanceClient,
     position: Position,
-    balance: float,
     ui_queue: asyncio.Queue,
 ):
     if position.state in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
-        _ = await close_long(
-            client=client, position=position, balance=balance, ui_queue=ui_queue
-        )
+        _ = await close_long(client=client, position=position, ui_queue=ui_queue)
     elif position.state in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
-        _ = await close_short(
-            client=client, position=position, balance=balance, ui_queue=ui_queue
-        )
+        _ = await close_short(client=client, position=position, ui_queue=ui_queue)
 
 
 async def futures_get_position_info(
-    client: binance.AsyncClient,
+    client: BinanceClient,
 ) -> Tuple[float, float, float]:
     """
     Retrieve the liquidation price for a given symbol on the Binance Futures trading platform.
