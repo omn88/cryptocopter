@@ -578,7 +578,6 @@ class TradingStateMachine:
         logger.info("Closing %s", self.position.state)
         self.position_old = await close_long(
             client=self.client,
-            balance=self.balance,
             position=self.position,
             ui_queue=self.ui_queue,
         )
@@ -587,7 +586,6 @@ class TradingStateMachine:
         logger.info("Closing %s", self.position.state)
         self.position_old = await close_short(
             client=self.client,
-            balance=self.balance,
             position=self.position,
             ui_queue=self.ui_queue,
         )
