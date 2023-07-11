@@ -194,20 +194,20 @@ class BinanceClient(AsyncClient):
     async def time_sync_loop(self):
         while True:
             try:
-                self.time_difference = self.get_server_time_difference()
+                self.time_difference = await self.get_server_time_difference()
                 self.last_sync = time.time()
             except Exception as e:
                 self.logger.info("Failed to sync time: %s", e)
             await asyncio.sleep(self.sync_interval)
 
-    async def get_server_time_difference(self):
+    async def get_server_time_difference(self) -> float:
         server_time = await self.get_server_time()
         server_time = server_time["serverTime"] / 1000  # Convert from ms to s
         local_time = time.time()
         return local_time - server_time
 
-    async def get_adjusted_time(self):
+    async def get_adjusted_time(self) -> float:
         if time.time() - self.last_sync > self.sync_interval:
-            self.time_difference = self.get_server_time_difference()
+            self.time_difference = await self.get_server_time_difference()
             self.last_sync = time.time()
-        return time.time() - await self.time_difference
+        return time.time() - self.time_difference

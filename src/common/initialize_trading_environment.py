@@ -21,7 +21,7 @@ logger = logging.getLogger("initialize_trading_environment")
 
 
 async def create_async_client() -> BinanceClient:
-    client = await BinanceClient.create(
+    client = BinanceClient(
         api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
     )
     logger.info("Async client created")
