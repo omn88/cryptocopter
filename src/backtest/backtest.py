@@ -13,8 +13,24 @@ class PandasDataWithSignals(PandasData):
     params = (("rsi_signal", -1),)
 
 
+class CommInfoFutures(bt.CommInfoBase):
+    """Custom commission scheme for futures"""
+
+    params = (
+        ("stocklike", False),
+        ("commtype", bt.CommInfoBase.COMM_FIXED),
+        ("percabs", True),
+        # Add more parameters if necessary
+    )
+
+
 def run_strategy(start_timestamp, end_timestamp):
     cerebro = bt.Cerebro()
+
+    comminfo = CommInfoFutures(mult=25)  # leverage of 25
+    cerebro.broker.addcommissioninfo(comminfo)
+
+    cerebro.broker.setcash(100000.0)  # cash set to reflect leverage
 
     # Set up the backwriter for logging
     cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
@@ -46,4 +62,4 @@ def run_strategy(start_timestamp, end_timestamp):
 
 
 # Usage example
-run_strategy("2023-05-01 00:00:00", "2023-05-10 00:00:00")
+run_strategy("2023-05-01 00:00:00", "2023-05-05 00:00:00")
