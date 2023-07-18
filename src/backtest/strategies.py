@@ -25,6 +25,7 @@ class StrategyRsiBasic(bt.Strategy):
             plothlines=[30, 70],
         )
         self.rsi_signal = BasicRSISignal(self.data)
+        self.cash = 0
         self.orders = []
 
     def send_buy_dca_orders(self, order_price):
@@ -32,7 +33,7 @@ class StrategyRsiBasic(bt.Strategy):
             price = order_price - self.p.dca_span * i * order_price
             order = self.buy(
                 price=price,
-                size=0.25,
+                size=0.05,
                 exectype=Order.Limit,
             )
             self.log("Buy order send at price %s" % round(price, 2))
@@ -44,21 +45,23 @@ class StrategyRsiBasic(bt.Strategy):
             order = self.sell(
                 price=price,
                 exectype=Order.Limit,
-                size=0.25,
+                size=0.05,
             )
             self.log("Sell order send at price %s" % round(price, 2))
             self.orders.append(order)
 
     def notify_cashvalue(self, cash, value):
-        self.log("cash: %.2f value: %.2f update" % (cash, value))
+        self.cash = cash
 
     def notify_trade(self, trade):
         if not trade.isclosed:
             return
 
-        self.log("OPERATION PROFIT, GROSS %.2f, NET %.2f" % (trade.pnl, trade.pnlcomm))
+        self.log("OPERATION PROFIT, GROSS %.2f, CASH: %.2f" % (trade.pnl, self.cash))
 
     def notify_order(self, order):
+        # self.log("Dir od Position: %s" % dir(self.position))
+
         if order.status in [order.Submitted, order.Accepted]:
             # self.log("Order Status: %s" % order.status)
             return
@@ -68,23 +71,27 @@ class StrategyRsiBasic(bt.Strategy):
         if order.status is order.Completed:
             if order.isbuy():
                 self.log(
-                    "BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, Position: %s"
+                    "BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, \nPosition price: %.2f, size: %.2f, opened: %.2f"
                     % (
                         order.executed.price,
                         order.executed.value,
                         order.executed.comm,
-                        self.position,
+                        self.position.price,
+                        self.position.size,
+                        self.position.upopened,
                     )
                 )
 
             else:  # Sell
                 self.log(
-                    "SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, Position: %s"
+                    "SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, Position price: %.2f, size: %.2f, opened: %.2f"
                     % (
                         order.executed.price,
                         order.executed.value,
                         order.executed.comm,
-                        self.position,
+                        self.position.price,
+                        self.position.size,
+                        self.position.upopened,
                     )
                 )
 
@@ -117,7 +124,10 @@ class StrategyRsiBasic(bt.Strategy):
         def cancel_remaining_limit_orders():
             for order in self.orders:
                 if order.status in [Order.Accepted, Order.Partial]:
-                    self.log("Cancelling order: %s" % order)
+                    self.log(
+                        "Cancelling order %.d, price: %.2f, size: %.2f"
+                        % (order.ref, order.price, order.size)
+                    )
                     self.cancel(order)
 
         if flat:  # check if there is an open position
@@ -135,7 +145,10 @@ class StrategyRsiBasic(bt.Strategy):
                 self.log("Another buy signal when already long")
 
             if sell_signal:
-                self.log("Closing Long, position: %s" % self.position)
+                self.log(
+                    "Closing Long, Position price: %.2f, size: %.2f, opened: %.2f"
+                    % (self.position.price, self.position.size, self.position.upopened)
+                )
                 cancel_remaining_limit_orders()
 
                 order = self.sell(
@@ -154,7 +167,10 @@ class StrategyRsiBasic(bt.Strategy):
                 self.log("Another sell signal when already short")
 
             if buy_signal:
-                self.log("Closing Short, position: %s" % self.position)
+                self.log(
+                    "Closing Short, Position price: %.2f, size: %.2f, opened: %.2f"
+                    % (self.position.price, self.position.size, self.position.upopened)
+                )
                 cancel_remaining_limit_orders()
 
                 order = self.buy(
