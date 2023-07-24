@@ -19,8 +19,8 @@ class DataRetriever:
     def get_historical_data(self) -> pd.DataFrame:
         historical_data = []
         # Define the start and end date for the data
-        start_date = "2019-09-02"
-        end_date = "2023-06-09"
+        start_date = "2023-06-09"
+        end_date = "2023-07-24"
 
         # Convert the date strings to timestamps
         start_ts = int(pd.Timestamp(start_date, tz="utc").timestamp() * 1000)

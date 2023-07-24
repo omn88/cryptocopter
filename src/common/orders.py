@@ -1,7 +1,6 @@
 import asyncio
 from typing import List, Optional, Tuple
 import logging
-import binance
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -383,6 +382,7 @@ async def send_market_order(
 ) -> Position:
     order_type = FUTURE_ORDER_TYPE_MARKET
     quantity = abs(position.quantity)
+
     last_exception = None
 
     for _ in range(MAX_RETRIES):

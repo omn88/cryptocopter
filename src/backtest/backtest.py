@@ -1,128 +1,11 @@
 import backtrader as bt
 import pandas as pd
-from backtrader import Order
 from backtrader.feeds import PandasData
 import logging
-import logging_config
+
+from src.backtest.strategies.rsi_extended import StrategyRsiExtended
 
 logger = logging.getLogger("backtrader")
-
-
-class BasicRSISignal(bt.Indicator):
-    lines = (
-        "buy_signal",
-        "sell_signal",
-    )
-    params = (
-        ("rsi_low", 30),
-        ("rsi_high", 70),
-        ("dca_orders", 4),
-        ("dca_span", 0.005),
-    )
-
-    def __init__(self):
-        self.rsi = bt.ind.RSI(self.data.close)
-        super(BasicRSISignal, self).__init__()
-
-    def next(self):
-        # Buy signals
-        if (
-            self.rsi[-2] < self.p.rsi_low < self.rsi[-1]
-            and self.rsi[0] > self.p.rsi_low
-        ):
-            self.lines.buy_signal[0] = True
-        else:
-            self.lines.buy_signal[0] = False
-
-        # Sell signals
-        if (
-            self.rsi[-2] > self.p.rsi_high > self.rsi[-1]
-            and self.rsi[0] < self.p.rsi_high
-        ):
-            self.lines.sell_signal[0] = True
-        else:
-            self.lines.sell_signal[0] = False
-
-
-class StrategyRsiBasic(bt.Strategy):
-    params = (
-        ("dca_orders", 4),
-        ("dca_span", 0.005),
-        ("value", 4),
-        ("period", 14),
-    )
-
-    def log(self, txt, dt=None):
-        """Logging function fot this strategy"""
-        dt = dt or self.datas[0].datetime.datetime(0)
-        print("%s, %s" % (dt.strftime("%Y-%m-%d %H:%M"), txt))
-
-    def __init__(self):
-        self.rsi = bt.ind.RSI(
-            self.data.close,
-            period=self.params.period,
-            plothlines=[30, 70],
-        )
-        self.rsi_signal = BasicRSISignal(self.data)
-        self.orders = []
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(
-                    "BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f"
-                    % (order.executed.price, order.executed.value, order.executed.comm)
-                )
-
-            else:  # Sell
-                self.log(
-                    "SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f"
-                    % (order.executed.price, order.executed.value, order.executed.comm)
-                )
-
-            self.orders.remove(order)
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log("Order Canceled/Margin/Rejected")
-
-            self.orders.remove(order)
-
-    def next(self):
-        self.log("Close, %.2f, RSI: %.2f" % (self.data.close[0], self.rsi[0]))
-
-        if self.position.size == 0:  # check if there is an open position
-            if self.rsi_signal.buy_signal[0] == 1:
-                order_price = self.data.close[0]
-                self.log("Buy signal at price: %s" % order_price)
-
-                # self.buy()
-
-                for i in range(self.p.dca_orders):
-                    price = order_price - self.p.dca_span * i * order_price
-                    self.log("Trying to create buy order at price %s" % round(price, 2))
-                    order = self.buy(
-                        price=price,
-                        exectype=Order.Limit,
-                    )
-                    self.log("Order created")
-                    self.orders.append(order)
-            elif self.rsi_signal.sell_signal[0] == 1:
-                order_price = self.data.close[0]
-                self.log("Sell signal at price: %s" % order_price)
-
-                for i in range(self.p.dca_orders):
-                    order = self.sell(
-                        price=order_price + self.p.dca_span * i * order_price,
-                        exectype=Order.Limit,
-                    )
-
-                    self.orders.append(order)
 
 
 class PandasDataWithSignals(PandasData):
@@ -130,30 +13,54 @@ class PandasDataWithSignals(PandasData):
     params = (("rsi_signal", -1),)
 
 
-cerebro = bt.Cerebro()
+class CommInfoFutures(bt.CommInfoBase):
+    """Custom commission scheme for futures"""
+
+    params = (
+        # ("commission", 0.032),
+        ("stocklike", False),
+        ("commtype", bt.CommInfoBase.COMM_FIXED),
+        ("percabs", True),
+        # Add more parameters if necessary
+    )
 
 
-# Set up the backwriter for logging
-cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
+def run_strategy(start_timestamp, end_timestamp):
+    cerebro = bt.Cerebro()
 
-# Load the CSV file into a pandas DataFrame
-df = pd.read_csv("data/BTCUSDT/recent.csv")
+    comminfo = CommInfoFutures(mult=25)  # leverage of 25
+    cerebro.broker.addcommissioninfo(comminfo)
 
-# Convert the 'datetime' column to datetime format and adjust to your timezone
-df["datetime"] = pd.to_datetime(df["datetime"])
-# Add 2 hours to the datetime column to convert to UTC+2
-df["datetime"] = df["datetime"] + pd.Timedelta(hours=2)
+    cerebro.broker.setcash(80000.0)  # cash set to reflect leverage
 
-df.set_index("datetime", inplace=True)
+    # Set up the backwriter for logging
+    cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
+
+    # Load the CSV file into a pandas DataFrame
+    df = pd.read_csv("data/BTCUSDT/15m_historical_klines_full.csv")
+
+    # Convert the 'datetime' column to datetime format and adjust to your timezone
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    # Add 2 hours to the datetime column to convert to UTC+2
+    df["datetime"] = df["datetime"] + pd.Timedelta(hours=2)
+
+    df.set_index("datetime", inplace=True)
+
+    # Filter dataframe based on start and end timestamps
+    start = pd.to_datetime(start_timestamp)
+    end = pd.to_datetime(end_timestamp)
+    df = df.loc[start:end]
+
+    # Create a data feed
+    data = PandasDataWithSignals(
+        dataname=df, timeframe=bt.TimeFrame.Minutes, compression=15
+    )
+    cerebro.adddata(data)
+    cerebro.addstrategy(StrategyRsiExtended)
+    cerebro.run()
+
+    cerebro.plot(style="candle")
 
 
-# Create a data feed
-data = PandasDataWithSignals(
-    dataname=df, timeframe=bt.TimeFrame.Minutes, compression=15
-)
-cerebro.adddata(data)
-cerebro.addstrategy(StrategyRsiBasic)
-cerebro.run()
-
-# cerebro.plot(style="candle")
-logger.info("DONE")
+# Usage example
+run_strategy("2023-06-24 00:00:00", "2023-07-24 00:00:00")
