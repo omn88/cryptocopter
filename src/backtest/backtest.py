@@ -2,8 +2,8 @@ import backtrader as bt
 import pandas as pd
 from backtrader.feeds import PandasData
 import logging
-import logging_config
-from src.backtest.strategies import StrategyRsiBasic
+
+from src.backtest.strategies.rsi_extended import StrategyRsiExtended
 
 logger = logging.getLogger("backtrader")
 
@@ -56,11 +56,11 @@ def run_strategy(start_timestamp, end_timestamp):
         dataname=df, timeframe=bt.TimeFrame.Minutes, compression=15
     )
     cerebro.adddata(data)
-    cerebro.addstrategy(StrategyRsiBasic)
+    cerebro.addstrategy(StrategyRsiExtended)
     cerebro.run()
 
     cerebro.plot(style="candle")
 
 
 # Usage example
-run_strategy("2023-06-22 00:00:00", "2023-07-24 00:00:00")
+run_strategy("2023-06-24 00:00:00", "2023-07-24 00:00:00")

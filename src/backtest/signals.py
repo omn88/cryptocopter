@@ -1,7 +1,7 @@
 import backtrader as bt
 
 
-class BasicRSISignal(bt.Indicator):
+class BasicRsiSignal(bt.Indicator):
     lines = (
         "buy_signal",
         "sell_signal",
@@ -13,7 +13,7 @@ class BasicRSISignal(bt.Indicator):
 
     def __init__(self):
         self.rsi = bt.ind.RSI(self.data.close)
-        super(BasicRSISignal, self).__init__()
+        super(BasicRsiSignal, self).__init__()
 
     def next(self):
         # Buy signals
