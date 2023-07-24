@@ -122,7 +122,7 @@ class StrategyRsiExtended(bt.Strategy):
         )
 
         flat = self.position.size == 0
-        long = self.position.size > 0
+        long_pos = self.position.size > 0
         short = self.position.size < 0
 
         self.log("Close, %.2f, RSI: %.2f" % (order_price, self.rsi[0]))
@@ -142,7 +142,7 @@ class StrategyRsiExtended(bt.Strategy):
             if sell_signal:
                 self.send_sell_dca_orders(order_price=order_price)
 
-        if long:
+        if long_pos:
             if liquidation_long:
                 self.log("Liquidating LONG")
                 order = self.close()
