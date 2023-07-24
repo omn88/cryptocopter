@@ -1,10 +1,10 @@
 import backtrader as bt
 from backtrader import Order
 
-from src.backtest.signals import BasicRSISignal
+from src.backtest.signals import BasicRSISignal, ExtendedRsiSignal
 
 
-class StrategyRsiBasic(bt.Strategy):
+class StrategyRsi(bt.Strategy):
     params = (
         ("dca_orders", 4),
         ("dca_span", 0.005),
@@ -18,13 +18,9 @@ class StrategyRsiBasic(bt.Strategy):
         dt = dt or self.datas[0].datetime.datetime(0)
         print("%s, %s" % (dt.strftime("%Y-%m-%d %H:%M"), txt))
 
-    def __init__(self):
-        self.rsi = bt.ind.RSI(
-            self.data.close,
-            period=self.params.period,
-            plothlines=[30, 70],
-        )
-        self.rsi_signal = BasicRSISignal(self.data)
+    def __init__(self, rsi, rsi_signal):
+        self.rsi = rsi
+        self.rsi_signal = rsi_signal
         self.cash = 0
         self.orders = []
 
@@ -180,3 +176,39 @@ class StrategyRsiBasic(bt.Strategy):
                 )
                 self.orders.append(order)
                 self.send_buy_dca_orders(order_price=order_price)
+
+
+class StrategyRsiBasic(StrategyRsi):
+    def __init__(
+        self,
+        rsi=None,
+        rsi_signal=None,
+    ):
+        if rsi is None:
+            rsi = bt.ind.RSI(
+                self.data.close,
+                period=self.params.period,
+                plothlines=[30, 70],
+            )
+        if rsi_signal is None:
+            rsi_signal = BasicRSISignal(self.data)
+
+        super().__init__(rsi=rsi, rsi_signal=rsi_signal)
+
+
+class StrategyRsiExtended(StrategyRsi):
+    def __init__(
+        self,
+        rsi=None,
+        rsi_signal=None,
+    ):
+        if rsi is None:
+            rsi = bt.ind.RSI(
+                self.data.close,
+                period=self.params.period,
+                plothlines=[20, 30, 70, 80],
+            )
+        if rsi_signal is None:
+            rsi_signal = ExtendedRsiSignal(self.data)
+
+        super().__init__(rsi=rsi, rsi_signal=rsi_signal)

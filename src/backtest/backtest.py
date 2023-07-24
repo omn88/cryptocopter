@@ -37,7 +37,7 @@ def run_strategy(start_timestamp, end_timestamp):
     cerebro.addwriter(bt.WriterFile, out="backtrader_log.csv", csv=True)
 
     # Load the CSV file into a pandas DataFrame
-    df = pd.read_csv("data/BTCUSDT/15m_historical_klines.csv")
+    df = pd.read_csv("data/BTCUSDT/15m_historical_klines_full.csv")
 
     # Convert the 'datetime' column to datetime format and adjust to your timezone
     df["datetime"] = pd.to_datetime(df["datetime"])
@@ -63,4 +63,4 @@ def run_strategy(start_timestamp, end_timestamp):
 
 
 # Usage example
-run_strategy("2023-01-01 00:00:00", "2023-05-15 00:00:00")
+run_strategy("2023-06-22 00:00:00", "2023-07-24 00:00:00")
