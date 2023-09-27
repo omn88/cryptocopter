@@ -1,3 +1,5 @@
+import os
+os.environ['KIVY_LOG_MODE'] = 'MIXED'
 import asyncio
 
 from kivy.core.window import Window
@@ -5,6 +7,7 @@ import logging_config  # noinspection PyUnresolvedReferences
 import warnings
 
 from src.gui.async_app import AsyncApp
+
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
