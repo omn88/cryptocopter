@@ -1,5 +1,6 @@
 import os
-os.environ['KIVY_LOG_MODE'] = 'MIXED'
+
+os.environ["KIVY_LOG_MODE"] = "MIXED"
 import asyncio
 
 from kivy.core.window import Window
