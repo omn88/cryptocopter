@@ -368,5 +368,7 @@ BoxLayout:
 
         TabbedPanelItem:
             text: 'Logs'
-            Label:
-                text: 'Log data'
+            TextInput:
+                id: log_display
+                readonly: True  # Prevent manual edits
+                scroll_y: 0     # Always show the latest log at the bottom

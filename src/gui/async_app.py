@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List, Tuple
 
 from binance.enums import (
@@ -7,14 +8,17 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
 )
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import (
     ListProperty,
     NumericProperty,
     StringProperty,
+    ObjectProperty,
 )
 
+from logging_config import KivyGuiHandler
 from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event
 from src.gui.identifiers import (
@@ -37,6 +41,24 @@ class AsyncApp(App):
 
     order_count = NumericProperty(0)
     position_count = NumericProperty(0)
+
+    log_display = ObjectProperty(None)
+
+    def on_start(self):
+        # This is a Kivy App lifecycle method that gets called after the app has started.
+        # We will schedule the logging handler setup to be run immediately after.
+        Clock.schedule_once(self.setup_logging_handler, 1)
+
+    def setup_logging_handler(self, *args):
+        log_display_widget = self.log_display
+
+        gui_log_handler = KivyGuiHandler(log_display_widget)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        gui_log_handler.setFormatter(formatter)
+
+        logging.getLogger().addHandler(gui_log_handler)
 
     def build(self):
         return Builder.load_file("src/gui/main.kv")
