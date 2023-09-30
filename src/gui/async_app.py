@@ -47,6 +47,7 @@ class AsyncApp(App):
     def on_start(self):
         # This is a Kivy App lifecycle method that gets called after the app has started.
         # We will schedule the logging handler setup to be run immediately after.
+
         Clock.schedule_once(self.setup_logging_handler, 1)
 
     def setup_logging_handler(self, *args):
@@ -59,6 +60,8 @@ class AsyncApp(App):
         gui_log_handler.setFormatter(formatter)
 
         logging.getLogger().addHandler(gui_log_handler)
+
+        Logger.info("Logging handler configured with success")
 
     def build(self):
         return Builder.load_file("src/gui/main.kv")
