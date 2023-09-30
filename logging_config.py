@@ -34,3 +34,5 @@ class KivyGuiHandler(logging.Handler):
         # Ensure that the update happens on the main thread
         if self.widget:
             self.widget.text += f"\n{log_entry}"
+            # Auto-scroll to the bottom
+            self.widget.parent.scroll_y = 0
