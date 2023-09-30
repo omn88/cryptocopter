@@ -53,13 +53,7 @@ class AsyncApp(App):
         Clock.schedule_once(self.setup_logging_handler, 0.1)
 
     def setup_logging_handler(self, *args):
-        logger.info("Log display: %s", self.log_display)
         log_display_widget = self.log_display
-        if not log_display_widget:
-            print("Failed to bind to the log_display widget!")
-            return
-        else:
-            print("Successfully bound to the log_display widget!")
 
         gui_log_handler = KivyGuiHandler(log_display_widget)
         formatter = logging.Formatter(
