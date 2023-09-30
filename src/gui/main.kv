@@ -368,5 +368,18 @@ BoxLayout:
 
         TabbedPanelItem:
             text: 'Logs'
-            Label:
-                text: 'Log data'
+            ScrollView:
+                scroll_type: ['bars', 'content']
+                bar_width: 10
+                effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
+                TextInput:
+                    id: log_display
+                    on_parent: app.log_display = self
+                    font_size: '14sp'
+                    background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
+                    foreground_color: (1, 1, 1, 1)  # White text
+                    padding: 10  # Padding inside TextInput
+                    readonly: True
+                    multiline: True
+                    size_hint_y: None  # Allow the height to adjust dynamically
+                    height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
