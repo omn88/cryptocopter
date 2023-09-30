@@ -30,6 +30,8 @@ from src.gui.identifiers import (
 )
 from src.trading_system import TradingSystem
 
+logger = logging.getLogger("async_app")
+
 
 class AsyncApp(App):
     balance_label = StringProperty("0")
@@ -48,10 +50,16 @@ class AsyncApp(App):
         # This is a Kivy App lifecycle method that gets called after the app has started.
         # We will schedule the logging handler setup to be run immediately after.
 
-        Clock.schedule_once(self.setup_logging_handler, 1)
+        Clock.schedule_once(self.setup_logging_handler, 0.1)
 
     def setup_logging_handler(self, *args):
+        logger.info("Log display: %s", self.log_display)
         log_display_widget = self.log_display
+        if not log_display_widget:
+            print("Failed to bind to the log_display widget!")
+            return
+        else:
+            print("Successfully bound to the log_display widget!")
 
         gui_log_handler = KivyGuiHandler(log_display_widget)
         formatter = logging.Formatter(
@@ -61,7 +69,7 @@ class AsyncApp(App):
 
         logging.getLogger().addHandler(gui_log_handler)
 
-        Logger.info("Logging handler configured with success")
+        logger.info("Logging handler configured with success")
 
     def build(self):
         return Builder.load_file("src/gui/main.kv")

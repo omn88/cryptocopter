@@ -369,8 +369,12 @@ BoxLayout:
         TabbedPanelItem:
             text: 'Logs'
             TextInput:
+                id: log_display
+                on_parent: app.log_display = self
                 text: 'Initializing logs...'
                 background_color: (0.9, 0.9, 0.9, 1)  # A shade of gray
-                id: log_display
+
                 readonly: True  # Prevent manual edits
                 scroll_y: 0     # Always show the latest log at the bottom
+
+
