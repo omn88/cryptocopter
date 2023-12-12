@@ -1,385 +1,52 @@
-#:import SymbolMarkPrice src.gui.identifiers.SymbolMarkPrice
-#:import PnL src.gui.identifiers.PnL
-#:import ColorChangingQuantity src.gui.identifiers.ColorChangingQuantity
-#:import ColorChangingSide src.gui.identifiers.ColorChangingSide
+TabbedPanel:
+    id: root_tabbed_panel
+    do_default_tab: False
 
-
-
-BoxLayout:
-    orientation: "vertical"
-    spacing: 8
-
-    TopSection:
-    MiddleSection:
-    BottomSection:
-
-
-<TopSection@BoxLayout>:
-    orientation: 'horizontal'
-    size_hint_y: None
-    height: '50dp'
-
-
-    # Strategy Selection
-    BoxLayout:
-        size_hint_x: 0.5
-        Label:
-            text: 'Strategy:'
-            size_hint_x: 0.25
-        Spinner:
-            id: strategy
-            text: 'Choose Strategy...'
-            values: ['RSI_Basic', 'RSI_Extended', 'RSI_Special']
-            size_hint_x: 0.75
-            on_text: app.on_strategy_change(self, self.text)
-
-    # Spacer
-    Widget:
-        size_hint_x: 0.02
-
-
-
-    # Price Label
-    BoxLayout:
-        size_hint_x: 0.14
-        Label:
-            text: 'Index price:'
-        Label:
-            id: index_price
-            text: app.price_label
-
-    # Balance Label
-    BoxLayout:
-        size_hint_x: 0.14
-        Label:
-            text: 'Balance:'
-        Label:
-            id: balance
-            text: app.balance_label
-
-    # Mode Label
-    BoxLayout:
-        size_hint_x: 0.2
-        Label:
-            text: 'Auto-Pilot:'
-        Switch:
-            active: True
-
-<MiddleSection@BoxLayout>:
-    orientation: 'horizontal'
-    size_hint_y: None
-    height: '50dp'
-
-    # Symbol Selection and DCA Orders
-    BoxLayout:
-        size_hint_x: 0.5
-        Label:
-            text: 'Symbol:'
-        Spinner:
-            id: symbol
-            text: 'BTCUSDT'
-            values: ['BTCUSDT']
-        Label:
-            text: 'DCA Orders:'
-        Spinner:
-            id: dca_orders
-            text: '4'
-            values: [str(i) for i in range(1, 9)]
-
-    # Spacer
-    Widget:
-        size_hint_x: 0.25
-
-    # Start button
-    Button:
-        text: 'Start'
-        size_hint_x: 0.125
-        on_press: app.on_start_trading()
-
-    # Cancel button
-    Button:
-        text: 'Cancel'
-        size_hint_x: 0.125
-        on_press: app.on_cancel()
-
-
-<PositionListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
-    symbol: ''
-    quantity: ''
-    entry_price: ''
-    mark_price: ''
-    liquidation_price: ''
-    pnl: ''
-    state: ''
-
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
-
-
-    Label:
-        text: root.symbol
-    ColorChangingQuantity:
-        quantity: 0 if root.quantity == '' else root.quantity
-        text: str(root.quantity)
-        color: self.color
-    Label:
-        text: root.entry_price
-    SymbolMarkPrice:
-        mark_price: 0 if root.mark_price == '' else root.mark_price
-        text: root.mark_price
-    Label:
-        text: root.liquidation_price
-    PnL:
-        pnl: 0 if root.pnl == '' else root.pnl
-        text: '%s %%' % root.pnl
-    Label:
-        text: root.state
-
-<OrderListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
-    open_time: ''
-    symbol: ''
-    order_type: ''
-    side: ''
-    price: ''
-    quantity: ''
-    realized_quantity: ''
-    status: ''
-    order_id: ''
-
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
-
-    Label:
-        text: root.open_time
-        size_hint_x: 0.15
-    Label:
-        text: root.symbol
-        size_hint_x: 0.11
-    Label:
-        text: root.order_type
-        size_hint_x: 0.10
-    ColorChangingSide:
-        side: root.side
-        text: str(root.side)
-        color: self.color
-        size_hint_x: 0.08
-    Label:
-        text: root.price
-        size_hint_x: 0.08
-    Label:
-        text: root.quantity
-        size_hint_x: 0.09
-    Label:
-        text: root.realized_quantity
-        size_hint_x: 0.09
-    Label:
-        text: root.status
-        size_hint_x: 0.15
-    Label:
-        text: root.order_id
-        size_hint_x: 0.15
-
-
-<BottomSection@BoxLayout>:
-    id: bottom_section
-    orientation: 'horizontal'
-
-    TabbedPanel:
-        do_default_tab: False
-
-        TabbedPanelItem:
-            text: 'Positions (' + str(app.position_count) + ')'
+    TabbedPanelItem:
+        text: 'Configure'
+        BoxLayout:
+            orientation: 'vertical'
             BoxLayout:
-                orientation: "vertical"
-
+                orientation: 'horizontal'
+                size_hint_y: 0.07
+                Spinner:
+                    id: strategy_spinner
+                    text: 'Choose Strategy'
+                    values: ('RSI Basic', 'RSI Extended', 'RSI Special')
+                    size_hint: (0.2, 1)
+                Spinner:
+                    id: symbol_spinner
+                    text: 'Choose Symbol'
+                    values: ('BTCUSDT', 'ETHUSDT', 'ETHBTC')
+                    size_hint: (0.2, 1)
                 BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
-                    canvas.before:
-                        Color:
-                            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-                        Line:
-                            points: [self.x, self.y, self.x + self.width, self.y]
-
-                    Label:
-                        text: 'Symbol'
-                    Label:
-                        text: 'Quantity'
-                    Label:
-                        text: 'Entry Price'
-                    Label:
-                        text: 'Mark Price'
-                    Label:
-                        text: 'Liquidation Price'
-                    Label:
-                        text: 'PnL'
-                    Label:
-                        text: 'State'
-                RecycleView:
-                    id: positions_list
-                    data: app.open_positions
-                    viewclass: 'PositionListItem'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height
-                        orientation: 'vertical'
-        TabbedPanelItem:
-            text: 'Orders (' + str(app.order_count) + ')'
-            BoxLayout:
-                orientation: "vertical"
+                    size_hint_x: 0.25
                 BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
-
-                    canvas.before:
-                        Color:
-                            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-                        Line:
-                            points: [self.x, self.y, self.x + self.width, self.y]
-
-                    Label:
-                        text: 'Open Time'
-                        size_hint_x: 0.15
-                    Label:
-                        text: 'Symbol'
-                        size_hint_x: 0.11
-                    Label:
-                        text: 'Type'
-                        size_hint_x: 0.10
-                    Label:
-                        text: 'Side'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Quantity'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Realized'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Status'
-                        size_hint_x: 0.15
-                    Label:
-                        text: 'Order ID'
-                        size_hint_x: 0.15
-                RecycleView:
-                    id: orders_list
-                    data: app.open_orders
-                    viewclass: 'OrderListItem'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height
-                        orientation: 'vertical'
-        TabbedPanelItem:
-            text: 'History O'
-            BoxLayout:
-                orientation: "vertical"
-                BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
-                    Label:
-                        text: 'Open Time'
-                        size_hint_x: 0.15
-                    Label:
-                        text: 'Symbol'
-                        size_hint_x: 0.11
-                    Label:
-                        text: 'Type'
-                        size_hint_x: 0.10
-                    Label:
-                        text: 'Side'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Quantity'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Realized'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Status'
-                        size_hint_x: 0.15
-                    Label:
-                        text: 'Order ID'
-                        size_hint_x: 0.15
-                RecycleView:
-                    id: history_list
-                    data: app.closed_orders
-                    viewclass: 'OrderListItem'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height
-                        orientation: 'vertical'
-        TabbedPanelItem:
-            text: 'History P'
-            BoxLayout:
-                orientation: "vertical"
-                BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
-                    Label:
-                        text: 'Symbol'
-                    Label:
-                        text: 'Quantity'
-                    Label:
-                        text: 'Entry Price'
-                    Label:
-                        text: 'Mark Price'
-                    Label:
-                        text: 'Liquidation Price'
-                    Label:
-                        text: 'PnL'
-                    Label:
-                        text: 'Status'
-                RecycleView:
-                    id: positions_list
-                    data: app.closed_positions
-                    viewclass: 'PositionListItem'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height
-                        orientation: 'vertical'
-
-        TabbedPanelItem:
-            text: 'Logs'
-            ScrollView:
-                scroll_type: ['bars', 'content']
-                bar_width: 10
-                effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
-                TextInput:
-                    id: log_display
-                    on_parent: app.log_display = self
-                    font_size: '14sp'
-                    background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
-                    foreground_color: (1, 1, 1, 1)  # White text
-                    padding: 10  # Padding inside TextInput
-                    readonly: True
-                    multiline: True
-                    size_hint_y: None  # Allow the height to adjust dynamically
-                    height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
+                    orientation: 'horizontal'
+                    size_hint: (0.35, 1)
+                    Button:
+                        id: start_button
+                        text: 'Start'
+                        size_hint: (0.5, 1)
+                        on_press: app.on_start_strategy()
+                    Button:
+                        id: cancel_button
+                        text: 'Cancel'
+                        size_hint: (0.5, 1)
+                        on_press: app.on_cancel()
+            Label:
+                size_hint_y: 0.1
+                text: ''
+            TabbedPanel:
+                size_hint_y: 0.67
+                do_default_tab: False
+                TabbedPanelItem:
+                    text: 'Strategies'
+                    size_hint_x: None
+                    width: 800
+                    # Add the content of the 'Strategies' tab here
+                TabbedPanelItem:
+                    text: 'Portfolio'
+                    size_hint_x: None
+                    width: 800
+                    # Add the content of the 'Portfolio' tab here

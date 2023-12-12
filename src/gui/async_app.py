@@ -17,6 +17,9 @@ from kivy.properties import (
     StringProperty,
     ObjectProperty,
 )
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.tabbedpanel import TabbedPanelItem
 
 from logging_config import KivyGuiHandler
 from src.common.constants import LEVERAGE
@@ -31,6 +34,20 @@ from src.gui.identifiers import (
 from src.trading_system import TradingSystem
 
 logger = logging.getLogger("async_app")
+
+
+class StrategyTab(BoxLayout):
+    def __init__(self, trading_system, **kwargs):
+        super().__init__(**kwargs)
+        self.trading_system = trading_system
+
+        # Add details of the strategy
+
+        self.add_widget(Button(text="Cancel", on_press=self.on_cancel))
+
+    def on_cancel(self, instance):
+        # Stop the trading system
+        asyncio.create_task(self.trading_system.stop())
 
 
 class AsyncApp(App):
@@ -121,6 +138,19 @@ class AsyncApp(App):
                         self.open_positions = self.update_price_data(
                             data=data, open_positions=self.open_positions
                         )
+
+    def on_start_strategy(self):
+        # Create a new TradingSystem instance
+        trading_system = TradingSystem(ui_queue=asyncio.Queue())
+        self.trading_systems.append(trading_system)
+
+        # Add a new tab for the strategy
+        self.root_tabbed_panel.add_widget(
+            TabbedPanelItem(
+                text=trading_system.strategy_name,
+                content=StrategyTab(trading_system=trading_system),
+            )
+        )
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
