@@ -33,7 +33,7 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, ui_queue):
+    def __init__(self, ui_queue, strategy_name, symbol):
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
@@ -43,7 +43,8 @@ class TradingSystem:
         self.df = None
         self.position = None
         self.strategy = None
-        self.strategy_name = None
+        self.strategy_name = strategy_name
+        self.symbol = symbol
 
     async def initialize(self):
         # Initialize client, queue, balance, position

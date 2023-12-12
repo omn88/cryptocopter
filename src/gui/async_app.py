@@ -62,6 +62,15 @@ class AsyncApp(App):
     position_count = NumericProperty(0)
 
     log_display = ObjectProperty(None)
+    trading_systems = ListProperty(
+        []
+    )  # Add this line to declare the trading_systems attribute
+
+    def __init__(self, **kwargs):
+        super(AsyncApp, self).__init__(**kwargs)
+        self.trading_systems = (
+            []
+        )  # Initialize the trading_systems attribute as an empty list
 
     def on_start(self):
         # This is a Kivy App lifecycle method that gets called after the app has started.
@@ -83,7 +92,8 @@ class AsyncApp(App):
         logger.info("Logging handler configured with success")
 
     def build(self):
-        return Builder.load_file("src/gui/main.kv")
+        self.root = Builder.load_file("src/gui/main.kv")
+        return self.root
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
@@ -139,18 +149,42 @@ class AsyncApp(App):
                             data=data, open_positions=self.open_positions
                         )
 
-    def on_start_strategy(self):
-        # Create a new TradingSystem instance
-        trading_system = TradingSystem(ui_queue=asyncio.Queue())
-        self.trading_systems.append(trading_system)
+    # def on_start_strategy(self):
+    #     # Create a new TradingSystem instance
+    #     trading_system = TradingSystem(ui_queue=asyncio.Queue())
+    #     self.trading_systems.append(trading_system)
 
-        # Add a new tab for the strategy
-        self.root_tabbed_panel.add_widget(
-            TabbedPanelItem(
-                text=trading_system.strategy_name,
-                content=StrategyTab(trading_system=trading_system),
+    #     # Add a new tab for the strategy
+    #     self.root_tabbed_panel.add_widget(
+    #         TabbedPanelItem(
+    #             text=trading_system.strategy_name,
+    #             content=StrategyTab(trading_system=trading_system),
+    #         )
+    #     )
+
+    def on_start_strategy(self):
+        # Check if a strategy and symbol are selected
+
+        strategy = self.root.ids.strategy_spinner.text
+        symbol = self.root.ids.symbol_spinner.text
+        if strategy != "Choose Strategy" and symbol != "Choose Symbol":
+            # Create a new TradingSystem instance
+            trading_system = TradingSystem(
+                strategy_name=strategy,
+                symbol=symbol,
+                ui_queue=asyncio.Queue(),
             )
-        )
+            self.trading_systems.append(trading_system)
+
+            # Add a new tab for the strategy
+            self.root.ids.root_tabbed_panel.add_widget(
+                TabbedPanelItem(
+                    text=f"{trading_system.strategy_name}_{trading_system.symbol}",
+                    content=StrategyTab(trading_system=trading_system),
+                )
+            )
+        else:
+            Logger.info("App: Please select a strategy and a symbol.")
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -347,24 +381,26 @@ class AsyncApp(App):
         """This will run both methods asynchronously and then block until they
         are finished
         """
-        self.ui_queue = asyncio.Queue()
 
-        self.trading_system = TradingSystem(ui_queue=self.ui_queue)
-        initialize_trading_system_task = asyncio.ensure_future(
-            self.trading_system.initialize()
-        )
+        return asyncio.gather(self.async_run())
 
-        # Start the task for updating the UI
-        ui_update_task = asyncio.ensure_future(self.update_ui())
+        # self.ui_queue = asyncio.Queue()
 
-        async def run_wrapper():
-            # we don't actually need to set asyncio as the lib because it is
-            # the default, but it doesn't hurt to be explicit
-            await self.async_run(async_lib="asyncio")
-            Logger.info("App done")
-            initialize_trading_system_task.cancel()
-            ui_update_task.cancel()
+        # initialize_trading_system_task = asyncio.ensure_future(
+        #     self.trading_system.initialize()
+        # )
 
-        return asyncio.gather(
-            run_wrapper(), initialize_trading_system_task, ui_update_task
-        )
+        # # Start the task for updating the UI
+        # ui_update_task = asyncio.ensure_future(self.update_ui())
+
+        # async def run_wrapper():
+        #     # we don't actually need to set asyncio as the lib because it is
+        #     # the default, but it doesn't hurt to be explicit
+        #     await self.async_run(async_lib="asyncio")
+        #     Logger.info("App done")
+        #     initialize_trading_system_task.cancel()
+        #     ui_update_task.cancel()
+
+        # return asyncio.gather(
+        #     run_wrapper(), initialize_trading_system_task, ui_update_task
+        # )
