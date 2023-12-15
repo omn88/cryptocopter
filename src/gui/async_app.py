@@ -67,6 +67,12 @@ class AsyncApp(App):
     )  # Add this line to declare the trading_systems attribute
     root_tabbed_panel = ObjectProperty(None)  # Add this line
 
+    strategy_mapping = {
+        "RSI Basic": "RB",
+        "RSI Extended": "RE",
+        "RSI Special": "RS",
+    }
+
     def __init__(self, **kwargs):
         super(AsyncApp, self).__init__(**kwargs)
         self.trading_systems = (
@@ -115,10 +121,12 @@ class AsyncApp(App):
             # Add a new tab for the strategy
             self.root.add_widget(
                 TabbedPanelItem(
-                    text=f"{trading_system.strategy_name}_{trading_system.symbol}",
+                    text=f"{self.strategy_mapping[strategy]}_{trading_system.symbol}",
                     content=StrategyTab(trading_system=trading_system),
                 )
             )
+            self.root.ids.strategy_spinner.text = "Choose Strategy"
+            self.root.ids.symbol_spinner.text = "Choose Symbol"
         else:
             Logger.info("App: Please select a strategy and a symbol.")
 
