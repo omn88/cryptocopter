@@ -96,22 +96,38 @@ class AsyncApp(App):
         self.root = Builder.load_file("src/gui/main.kv")
         return self.root
 
-    # def on_strategy_change(self, instance, value):
-    #     self.trading_system.strategy_name = value
-    #     Logger.info("Strategy: Chosen strategy is %s", value)
-
-    # def on_start_trading(self):
-    #     loop = asyncio.get_event_loop()
-    #     loop.create_task(self.trading_system.start_trading())
-    #     Logger.info("App: Start button pressed.")
-
-    # def on_cancel(self):
-    #     loop = asyncio.get_event_loop()
-    #     loop.create_task(self.trading_system.stop())
-    #     Logger.info("App: Cancel button pressed.")
-
     def log_spinner_change(self, spinner, new_value):
         Logger.info("%s spinner value changed to %s", spinner, new_value)
+
+    def on_start_strategy(self):
+        # Check if a strategy and symbol are selected
+        strategy = self.root.ids.strategy_spinner.text
+        symbol = self.root.ids.symbol_spinner.text
+        if strategy != "Choose Strategy" and symbol != "Choose Symbol":
+            # Create a new TradingSystem instance
+            trading_system = TradingSystem(
+                strategy_name=strategy,
+                symbol=symbol,
+                ui_queue=asyncio.Queue(),
+            )
+            self.trading_systems.append(trading_system)
+
+            # Add a new tab for the strategy
+            self.root.add_widget(
+                TabbedPanelItem(
+                    text=f"{trading_system.strategy_name}_{trading_system.symbol}",
+                    content=StrategyTab(trading_system=trading_system),
+                )
+            )
+        else:
+            Logger.info("App: Please select a strategy and a symbol.")
+
+    def app_func(self):
+        """This will run both methods asynchronously and then block until they
+        are finished
+        """
+
+        return asyncio.gather(self.async_run())
 
     # async def update_ui(self):
     #     while True:
@@ -152,66 +168,6 @@ class AsyncApp(App):
     #                     self.open_positions = self.update_price_data(
     #                         data=data, open_positions=self.open_positions
     #                     )
-
-    # def on_start_strategy(self):
-    #     # Create a new TradingSystem instance
-    #     trading_system = TradingSystem(ui_queue=asyncio.Queue())
-    #     self.trading_systems.append(trading_system)
-
-    #     # Add a new tab for the strategy
-    #     self.root_tabbed_panel.add_widget(
-    #         TabbedPanelItem(
-    #             text=trading_system.strategy_name,
-    #             content=StrategyTab(trading_system=trading_system),
-    #         )
-    #     )
-
-    # def on_start_strategy(self):
-    #     # Check if a strategy and symbol are selected
-
-    #     strategy = self.root.ids.strategy_spinner.text
-    #     symbol = self.root.ids.symbol_spinner.text
-    #     if strategy != "Choose Strategy" and symbol != "Choose Symbol":
-    #         # Create a new TradingSystem instance
-    #         trading_system = TradingSystem(
-    #             strategy_name=strategy,
-    #             symbol=symbol,
-    #             ui_queue=asyncio.Queue(),
-    #         )
-    #         self.trading_systems.append(trading_system)
-
-    #         # Add a new tab for the strategy
-    #         self.root.ids.root_tabbed_panel.add_widget(
-    #             TabbedPanelItem(
-    #                 text=f"{trading_system.strategy_name}_{trading_system.symbol}",
-    #                 content=StrategyTab(trading_system=trading_system),
-    #             )
-    #         )
-    #     else:
-    #         Logger.info("App: Please select a strategy and a symbol.")
-
-    def on_start_strategy(self):
-        # Check if a strategy and symbol are selected
-        strategy = self.root.ids.strategy_spinner.text
-        symbol = self.root.ids.symbol_spinner.text
-        if strategy != "Choose Strategy" and symbol != "Choose Symbol":
-            # Create a new TradingSystem instance
-            trading_system = TradingSystem(
-                strategy_name=strategy,
-                symbol=symbol,
-                ui_queue=asyncio.Queue(),
-            )
-            self.trading_systems.append(trading_system)
-
-            # Add a new tab for the strategy
-            self.root_tabbed_panel.add_widget(
-                TabbedPanelItem(
-                    text=f"{trading_system.strategy_name}_{trading_system.symbol}",
-                    content=StrategyTab(trading_system=trading_system),
-                )
-            )
-        else:
-            Logger.info("App: Please select a strategy and a symbol.")
 
     # @staticmethod
     # def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -404,30 +360,16 @@ class AsyncApp(App):
 
     #     return open_orders, closed_orders
 
-    def app_func(self):
-        """This will run both methods asynchronously and then block until they
-        are finished
-        """
+    # def on_strategy_change(self, instance, value):
+    #     self.trading_system.strategy_name = value
+    #     Logger.info("Strategy: Chosen strategy is %s", value)
 
-        return asyncio.gather(self.async_run())
+    # def on_start_trading(self):
+    #     loop = asyncio.get_event_loop()
+    #     loop.create_task(self.trading_system.start_trading())
+    #     Logger.info("App: Start button pressed.")
 
-        # self.ui_queue = asyncio.Queue()
-
-        # initialize_trading_system_task = asyncio.ensure_future(
-        #     self.trading_system.initialize()
-        # )
-
-        # # Start the task for updating the UI
-        # ui_update_task = asyncio.ensure_future(self.update_ui())
-
-        # async def run_wrapper():
-        #     # we don't actually need to set asyncio as the lib because it is
-        #     # the default, but it doesn't hurt to be explicit
-        #     await self.async_run(async_lib="asyncio")
-        #     Logger.info("App done")
-        #     initialize_trading_system_task.cancel()
-        #     ui_update_task.cancel()
-
-        # return asyncio.gather(
-        #     run_wrapper(), initialize_trading_system_task, ui_update_task
-        # )
+    # def on_cancel(self):
+    #     loop = asyncio.get_event_loop()
+    #     loop.create_task(self.trading_system.stop())
+    #     Logger.info("App: Cancel button pressed.")
