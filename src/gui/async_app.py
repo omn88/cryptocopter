@@ -13,7 +13,7 @@ from kivy.properties import (
 from kivy.uix.tabbedpanel import TabbedPanelItem
 
 from logging_config import KivyGuiHandler
-from src.gui.strategy_tab import StrategyTab
+from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
 
 logger = logging.getLogger("async_app")

@@ -1,0 +1,64 @@
+<StrategyTab>:
+    orientation: 'vertical'
+    BoxLayout:
+        id: top_section
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: '50dp'
+        # Add widgets for displaying strategy-specific information here
+
+    BoxLayout:
+        id: middle_section
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: '50dp'
+        # Add widgets for displaying strategy-specific information here
+
+    BoxLayout:
+        id: bottom_section
+        orientation: 'horizontal'
+        TabbedPanel:
+            do_default_tab: False
+            TabbedPanelItem:
+                text: 'Positions (' + str(app.position_count) + ')'
+                BoxLayout:
+                    orientation: "vertical"
+                    BoxLayout:
+                        size_hint_y: None
+                        height: '30dp'
+                        Label:
+                            text: 'Symbol'
+                        Label:
+                            text: 'Quantity'
+                        Label:
+                            text: 'Entry Price'
+                        Label:
+                            text: 'Mark Price'
+                        Label:
+                            text: 'Liquidation Price'
+                        Label:
+                            text: 'PnL'
+                        Label:
+                            text: 'State'
+                    RecycleView:
+                        id: positions_list
+                        data: app.open_positions
+                        viewclass: 'PositionListItem'
+                        RecycleBoxLayout:
+                            default_size: None, dp(56)
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height
+                            orientation: 'vertical'
+            TabbedPanelItem:
+                text: 'Orders (' + str(app.order_count) + ')'
+                # Add the content of the 'Orders' tab here
+            TabbedPanelItem:
+                text: 'History O'
+                # Add the content of the 'History O' tab here
+            TabbedPanelItem:
+                text: 'History P'
+                # Add the content of the 'History P' tab here
+    Button:
+        text: "Cancel"
+        on_release: root.on_cancel()
