@@ -26,9 +26,9 @@ import logging
 logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "RSI_Basic": BasicStrategy,
-    "RSI_Extended": ExtendedStrategy,
-    "RSI_Special": SpecialStrategy,
+    "RSI Basic": BasicStrategy,
+    "RSI Extended": ExtendedStrategy,
+    "RSI Special": SpecialStrategy,
 }
 
 

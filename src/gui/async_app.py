@@ -105,7 +105,10 @@ class AsyncApp(App):
     def log_spinner_change(self, spinner, new_value):
         Logger.info("%s spinner value changed to %s", spinner, new_value)
 
-    def on_start_strategy(self):
+    def start_strategy(self):
+        asyncio.create_task(self.on_start_strategy())
+
+    async def on_start_strategy(self):
         # Check if a strategy and symbol are selected
         strategy = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
@@ -125,17 +128,15 @@ class AsyncApp(App):
                     content=StrategyTab(trading_system=trading_system),
                 )
             )
+
+            # Initialize and start trading system
+            await trading_system.initialize()
+            await trading_system.start_trading()
+
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
         else:
             Logger.info("App: Please select a strategy and a symbol.")
-
-    def app_func(self):
-        """This will run both methods asynchronously and then block until they
-        are finished
-        """
-
-        return asyncio.gather(self.async_run())
 
     # async def update_ui(self):
     #     while True:
