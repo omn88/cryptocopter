@@ -68,6 +68,8 @@ class AsyncApp(App):
         logger.info("Logging handler configured with success")
 
     def build(self):
+        Builder.load_file("src/gui/common_widgets.kv")
+        Builder.load_file("src/gui/strategytab.kv")
         self.root = Builder.load_file("src/gui/main.kv")
         return self.root
 

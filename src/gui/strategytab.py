@@ -21,15 +21,11 @@ from src.gui.identifiers import (
 )
 from kivy.lang import Builder
 
+
 class StrategyTab(BoxLayout):
     def __init__(self, trading_system, **kwargs):
         super().__init__(**kwargs)
         self.trading_system = trading_system
-
-        # Add details of the strategy
-        kv_file_path = os.path.join(os.path.dirname(__file__), 'strategytab.kv')
-        Builder.load_file(kv_file_path)
-        # self.add_widget(Button(text="Cancel", on_release=self.on_cancel))
 
     def on_cancel(self, instance):
         # Stop the trading system
