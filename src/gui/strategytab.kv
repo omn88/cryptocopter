@@ -1,200 +1,204 @@
+#:import SymbolMarkPrice src.gui.identifiers.SymbolMarkPrice
+#:import PnL src.gui.identifiers.PnL
+#:import ColorChangingQuantity src.gui.identifiers.ColorChangingQuantity
+#:import ColorChangingSide src.gui.identifiers.ColorChangingSide
+
 <StrategyTab>:
     orientation: 'vertical'
     BoxLayout:
-        id: top_section
-        orientation: 'horizontal'
-        size_hint_y: None
-        height: '50dp'
-        # Add widgets for displaying strategy-specific information here
+        orientation: 'vertical'
+        BoxLayout:
+            id: top_section
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '100dp'
+            # Add widgets for displaying strategy-specific information here
+            BoxLayout:
+                size_hint_x: 1
+            Button:
+                text: "Cancel"
+                size_hint: None, None
+                width: '100dp'
+                height: self.width
+                on_release: root.on_cancel()
 
-    BoxLayout:
-        id: middle_section
-        orientation: 'horizontal'
-        size_hint_y: None
-        height: '50dp'
-        # Add widgets for displaying strategy-specific information here
-
-    BoxLayout:
-        id: bottom_section
-        orientation: 'horizontal'
-        TabbedPanel:
-            do_default_tab: False
-            TabbedPanelItem:
-                text: 'Positions (' + str(app.position_count) + ')'
-                BoxLayout:
-                    orientation: "vertical"
+        BoxLayout:
+            id: bottom_section
+            orientation: 'horizontal'
+            TabbedPanel:
+                do_default_tab: False
+                TabbedPanelItem:
+                    text: 'Positions (' + str(app.position_count) + ')'
                     BoxLayout:
-                        size_hint_y: None
-                        height: '30dp'
-                        Label:
-                            text: 'Symbol'
-                        Label:
-                            text: 'Quantity'
-                        Label:
-                            text: 'Entry Price'
-                        Label:
-                            text: 'Mark Price'
-                        Label:
-                            text: 'Liquidation Price'
-                        Label:
-                            text: 'PnL'
-                        Label:
-                            text: 'State'
-                    RecycleView:
-                        id: positions_list
-                        data: app.open_positions
-                        viewclass: 'PositionListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
+                        orientation: "vertical"
+                        BoxLayout:
                             size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
-            TabbedPanelItem:
-                text: 'Orders (' + str(app.order_count) + ')'
-                BoxLayout:
-                    orientation: "vertical"
+                            height: '30dp'
+                            Label:
+                                text: 'Symbol'
+                            Label:
+                                text: 'Quantity'
+                            Label:
+                                text: 'Entry Price'
+                            Label:
+                                text: 'Mark Price'
+                            Label:
+                                text: 'Liquidation Price'
+                            Label:
+                                text: 'PnL'
+                            Label:
+                                text: 'State'
+                        RecycleView:
+                            id: positions_list
+                            data: app.open_positions
+                            viewclass: 'PositionListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'
+                TabbedPanelItem:
+                    text: 'Orders (' + str(app.order_count) + ')'
                     BoxLayout:
-                        size_hint_y: None
-                        height: '30dp'
-
-                        canvas.before:
-                            Color:
-                                rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-                            Line:
-                                points: [self.x, self.y, self.x + self.width, self.y]
-
-                        Label:
-                            text: 'Open Time'
-                            size_hint_x: 0.15
-                        Label:
-                            text: 'Symbol'
-                            size_hint_x: 0.11
-                        Label:
-                            text: 'Type'
-                            size_hint_x: 0.10
-                        Label:
-                            text: 'Side'
-                            size_hint_x: 0.08
-                        Label:
-                            text: 'Price'
-                            size_hint_x: 0.08
-                        Label:
-                            text: 'Quantity'
-                            size_hint_x: 0.09
-                        Label:
-                            text: 'Realized'
-                            size_hint_x: 0.09
-                        Label:
-                            text: 'Status'
-                            size_hint_x: 0.15
-                        Label:
-                            text: 'Order ID'
-                            size_hint_x: 0.15
-                    RecycleView:
-                        id: orders_list
-                        data: app.open_orders
-                        viewclass: 'OrderListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
+                        orientation: "vertical"
+                        BoxLayout:
                             size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
-            TabbedPanelItem:
-                text: 'History O'
-                BoxLayout:
-                    orientation: "vertical"
+                            height: '30dp'
+
+                            canvas.before:
+                                Color:
+                                    rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+                                Line:
+                                    points: [self.x, self.y, self.x + self.width, self.y]
+
+                            Label:
+                                text: 'Open Time'
+                                size_hint_x: 0.15
+                            Label:
+                                text: 'Symbol'
+                                size_hint_x: 0.11
+                            Label:
+                                text: 'Type'
+                                size_hint_x: 0.10
+                            Label:
+                                text: 'Side'
+                                size_hint_x: 0.08
+                            Label:
+                                text: 'Price'
+                                size_hint_x: 0.08
+                            Label:
+                                text: 'Quantity'
+                                size_hint_x: 0.09
+                            Label:
+                                text: 'Realized'
+                                size_hint_x: 0.09
+                            Label:
+                                text: 'Status'
+                                size_hint_x: 0.15
+                            Label:
+                                text: 'Order ID'
+                                size_hint_x: 0.15
+                        RecycleView:
+                            id: orders_list
+                            data: app.open_orders
+                            viewclass: 'OrderListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'
+                TabbedPanelItem:
+                    text: 'History O'
                     BoxLayout:
-                        size_hint_y: None
-                        height: '30dp'
-                        Label:
-                            text: 'Open Time'
-                            size_hint_x: 0.15
-                        Label:
-                            text: 'Symbol'
-                            size_hint_x: 0.11
-                        Label:
-                            text: 'Type'
-                            size_hint_x: 0.10
-                        Label:
-                            text: 'Side'
-                            size_hint_x: 0.08
-                        Label:
-                            text: 'Price'
-                            size_hint_x: 0.08
-                        Label:
-                            text: 'Quantity'
-                            size_hint_x: 0.09
-                        Label:
-                            text: 'Realized'
-                            size_hint_x: 0.09
-                        Label:
-                            text: 'Status'
-                            size_hint_x: 0.15
-                        Label:
-                            text: 'Order ID'
-                            size_hint_x: 0.15
-                    RecycleView:
-                        id: history_list
-                        data: app.closed_orders
-                        viewclass: 'OrderListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
+                        orientation: "vertical"
+                        BoxLayout:
                             size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
-            TabbedPanelItem:
-                text: 'History P'
-                BoxLayout:
-                    orientation: "vertical"
+                            height: '30dp'
+                            Label:
+                                text: 'Open Time'
+                                size_hint_x: 0.15
+                            Label:
+                                text: 'Symbol'
+                                size_hint_x: 0.11
+                            Label:
+                                text: 'Type'
+                                size_hint_x: 0.10
+                            Label:
+                                text: 'Side'
+                                size_hint_x: 0.08
+                            Label:
+                                text: 'Price'
+                                size_hint_x: 0.08
+                            Label:
+                                text: 'Quantity'
+                                size_hint_x: 0.09
+                            Label:
+                                text: 'Realized'
+                                size_hint_x: 0.09
+                            Label:
+                                text: 'Status'
+                                size_hint_x: 0.15
+                            Label:
+                                text: 'Order ID'
+                                size_hint_x: 0.15
+                        RecycleView:
+                            id: history_list
+                            data: app.closed_orders
+                            viewclass: 'OrderListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'
+                TabbedPanelItem:
+                    text: 'History P'
                     BoxLayout:
-                        size_hint_y: None
-                        height: '30dp'
-                        Label:
-                            text: 'Symbol'
-                        Label:
-                            text: 'Quantity'
-                        Label:
-                            text: 'Entry Price'
-                        Label:
-                            text: 'Mark Price'
-                        Label:
-                            text: 'Liquidation Price'
-                        Label:
-                            text: 'PnL'
-                        Label:
-                            text: 'Status'
-                    RecycleView:
-                        id: positions_list
-                        data: app.closed_positions
-                        viewclass: 'PositionListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
+                        orientation: "vertical"
+                        BoxLayout:
                             size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
+                            height: '30dp'
+                            Label:
+                                text: 'Symbol'
+                            Label:
+                                text: 'Quantity'
+                            Label:
+                                text: 'Entry Price'
+                            Label:
+                                text: 'Mark Price'
+                            Label:
+                                text: 'Liquidation Price'
+                            Label:
+                                text: 'PnL'
+                            Label:
+                                text: 'Status'
+                        RecycleView:
+                            id: positions_list
+                            data: app.closed_positions
+                            viewclass: 'PositionListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'
 
-            TabbedPanelItem:
-                text: 'Logs'
-                ScrollView:
-                    scroll_type: ['bars', 'content']
-                    bar_width: 10
-                    effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
-                    TextInput:
-                        id: log_display
-                        on_parent: app.log_display = self
-                        font_size: '14sp'
-                        background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
-                        foreground_color: (1, 1, 1, 1)  # White text
-                        padding: 10  # Padding inside TextInput
-                        readonly: True
-                        multiline: True
-                        size_hint_y: None  # Allow the height to adjust dynamically
-                        height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
-
-    Button:
-        text: "Cancel"
-        on_release: root.on_cancel()
+                TabbedPanelItem:
+                    text: 'Logs'
+                    ScrollView:
+                        scroll_type: ['bars', 'content']
+                        bar_width: 10
+                        effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
+                        TextInput:
+                            id: log_display
+                            on_parent: app.log_display = self
+                            font_size: '14sp'
+                            background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
+                            foreground_color: (1, 1, 1, 1)  # White text
+                            padding: 10  # Padding inside TextInput
+                            readonly: True
+                            multiline: True
+                            size_hint_y: None  # Allow the height to adjust dynamically
+                            height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
