@@ -53,6 +53,7 @@ class TradingStateMachine:
     def __init__(
         self,
         client: BinanceClient,
+        symbol: str,
         queue: asyncio.Queue,
         ui_queue: asyncio.Queue,
         position: Position,
@@ -62,6 +63,7 @@ class TradingStateMachine:
         raw_data,
     ):
         self.state: State = State.FLAT
+        self.symbol: str = symbol
         self.client: BinanceClient = client
         self.queue: asyncio.Queue = queue
         self.ui_queue: asyncio.Queue = ui_queue
@@ -548,6 +550,7 @@ class TradingStateMachine:
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -566,6 +569,7 @@ class TradingStateMachine:
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         self.update_position_in_df(
@@ -578,6 +582,7 @@ class TradingStateMachine:
             client=self.client,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def close_short(self, *args, **kwargs):
@@ -586,6 +591,7 @@ class TradingStateMachine:
             client=self.client,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def send_close_position_to_ui(self, symbol: str):
@@ -651,7 +657,7 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-        await self.send_close_position_to_ui()
+        await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
         logger.info("Entering handle partial liquidation")
@@ -672,9 +678,10 @@ class TradingStateMachine:
             order_update=self.order_update,
             balance=self.balance,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
-        await self.send_close_position_to_ui()
+        await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle target order partially filled")
@@ -706,10 +713,11 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=self.symbol,
                 quantity=self.position.quantity,
                 entry_price=self.position.entry_price,
                 mark_price=0,
@@ -730,7 +738,9 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
+            await self.send_order_update_to_ui(
+                order=order, open_time=order.open_time, symbol=self.symbol
+            )
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
@@ -743,10 +753,11 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=self.symbol,
                 quantity=self.position.quantity,
                 entry_price=self.position.entry_price,
                 mark_price=0,
@@ -767,7 +778,9 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
+            await self.send_order_update_to_ui(
+                order=order, open_time=order.open_time, symbol=self.symbol
+            )
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id

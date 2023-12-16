@@ -30,6 +30,7 @@ class SpecialStrategy(
         raw_data,
         ui_queue,
         queue,
+        symbol,
     ):
         super().__init__(
             client=client,
@@ -40,6 +41,7 @@ class SpecialStrategy(
             balance=balance,
             order_quantity_list=order_quantity_list,
             raw_data=raw_data,
+            symbol=symbol,
         )
 
         self.import_feature_configuration(feature=FeatureRsiBasic())
@@ -83,6 +85,7 @@ class SpecialStrategy(
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def open_special_short(self, *args, **kwargs):
@@ -99,12 +102,16 @@ class SpecialStrategy(
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def close_special_position(self, *args, **kwargs):
         logger.info("Closing %s", self.position.state)
         self.position_old = await handle_order.close_special_position(
-            client=self.client, position=self.position, ui_queue=self.ui_queue
+            client=self.client,
+            position=self.position,
+            ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def handle_kline(self, *args, **kwargs):

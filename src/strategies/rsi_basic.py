@@ -25,6 +25,7 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         position,
         raw_data,
         ui_queue,
+        symbol,
     ):
         super().__init__(
             client=client,
@@ -35,6 +36,7 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
             order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             ui_queue=ui_queue,
+            symbol=symbol,
         )
 
         self.import_feature_configuration(feature=FeatureRsiBasic())

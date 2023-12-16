@@ -56,12 +56,12 @@ class TradingSystem:
         logger.info("Send account data: %s", self.balance)
 
         # Change margin type and leverage
-        await change_margin_type(client=self.client)
+        await change_margin_type(client=self.client, symbol=self.symbol)
         await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(
-            client=self.client, interval=INTERVAL, lookback="4320"
+            client=self.client, interval=INTERVAL, lookback="4320", symbol=self.symbol
         )
         self.df = insert_to_pandas(data=self.raw_data)
         logger.info("DF: %s", self.df)
@@ -81,6 +81,7 @@ class TradingSystem:
             position=self.position,
             raw_data=self.raw_data,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         await asyncio.gather(
@@ -91,8 +92,9 @@ class TradingSystem:
                 queue=self.queue,
                 tsm=self.strategy,
                 ui_queue=self.ui_queue,
+                symbol=self.symbol,
             ),
-            *prepare_workers(tsm=self.strategy, queue=self.queue),
+            *prepare_workers(tsm=self.strategy, queue=self.queue, symbol=self.symbol),
             return_exceptions=True,
         )
 
