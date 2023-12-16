@@ -19,17 +19,29 @@ from src.gui.identifiers import (
     PriceData,
     PositionStatus,
 )
-from kivy.lang import Builder
+from kivy.properties import (
+    ListProperty,
+    NumericProperty,
+    StringProperty,
+    ObjectProperty,
+)
 
 
 class StrategyTab(BoxLayout):
+    price_label = StringProperty("0")
+    open_positions = ListProperty([])
+    open_orders = ListProperty([])
+    closed_orders = ListProperty([])
+    closed_positions = ListProperty([])
+
+    order_count = NumericProperty(0)
+    position_count = NumericProperty(0)
+
+    log_display = ObjectProperty(None)
+
     def __init__(self, trading_system, **kwargs):
         super().__init__(**kwargs)
         self.trading_system = trading_system
-
-    def on_cancel(self, instance):
-        # Stop the trading system
-        asyncio.create_task(self.trading_system.stop())
 
     async def update_ui(self):
         while True:

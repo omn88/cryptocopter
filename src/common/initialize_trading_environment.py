@@ -7,7 +7,7 @@ from decouple import config
 
 import logging
 
-from src.common.constants import SYMBOL, MARGIN_TYPE
+from src.common.constants import MARGIN_TYPE
 from src.common.identifiers import BinanceClient
 from src.producers.producers import (
     kline_futures_socket,
@@ -43,9 +43,9 @@ def create_async_queue() -> asyncio.Queue:
     return queue
 
 
-async def change_margin_type(client: BinanceClient) -> None:
+async def change_margin_type(client: BinanceClient, symbol: str) -> None:
     try:
-        await client.futures_change_margin_type(symbol=SYMBOL, marginType=MARGIN_TYPE)
+        await client.futures_change_margin_type(symbol=symbol, marginType=MARGIN_TYPE)
     except binance.exceptions.BinanceAPIException as e:
         logger.debug("All: %s" % e)
 
@@ -57,6 +57,7 @@ def prepare_producers(
     interval: str,
     df: pandas.DataFrame,
     tsm: TradingStateMachine,
+    symbol: str,
 ):
     return [
         asyncio.create_task(
@@ -65,24 +66,15 @@ def prepare_producers(
                 queue=queue,
                 interval=interval,
                 last_index=df.index[-1],
+                symbol=symbol,
             )
         ),
         asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
         asyncio.create_task(
-            futures_symbol_mark_price_socket(bsm=bsm, ui_queue=ui_queue)
+            futures_symbol_mark_price_socket(bsm=bsm, ui_queue=ui_queue, symbol=symbol)
         ),
     ]
 
 
-def prepare_workers(
-    tsm: TradingStateMachine,
-    queue: asyncio.Queue,
-):
-    return [
-        asyncio.create_task(
-            worker(
-                tsm=tsm,
-                queue=queue,
-            )
-        )
-    ]
+def prepare_workers(tsm: TradingStateMachine, queue: asyncio.Queue, symbol: str):
+    return [asyncio.create_task(worker(tsm=tsm, queue=queue, symbol=symbol))]

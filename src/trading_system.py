@@ -6,7 +6,7 @@ from src.common.common import (
     insert_to_pandas,
     rsi_indicator_apply,
 )
-from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
+from src.common.constants import ASSET, LEVERAGE, INTERVAL
 from src.common.identifiers import Position, EventName, Event, SentinelUpdate
 from src.common.initialize_trading_environment import (
     create_async_client,
@@ -57,7 +57,7 @@ class TradingSystem:
 
         # Change margin type and leverage
         await change_margin_type(client=self.client)
-        await self.client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
+        await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(

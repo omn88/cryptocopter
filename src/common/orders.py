@@ -16,7 +16,6 @@ from binance.exceptions import (
 
 from src.common.common import convert_time
 from src.common.constants import (
-    SYMBOL,
     LEVERAGE,
     DCA_SPAN,
     NUMBER_OF_DCA_ORDERS,
@@ -118,14 +117,14 @@ def order_quantity_check(oql: pandas.DataFrame, balance: float) -> Tuple[int, in
 
 
 async def send_order(
-    client: BinanceClient, side: str, order: Order, ui_queue: asyncio.Queue
+    client: BinanceClient, side: str, order: Order, ui_queue: asyncio.Queue, symbol: str
 ) -> Order:
     last_exception = None
 
     for _ in range(MAX_RETRIES):
         try:
             resp = await client.futures_create_order(
-                symbol=SYMBOL,
+                symbol=symbol,
                 price=round(order.price, 1),
                 quantity=round(abs(order.quantity), 3),
                 side=side,
@@ -153,7 +152,7 @@ async def send_order(
                 OrderData(
                     order_id=order.order_id,
                     open_time=order.open_time,
-                    symbol=SYMBOL,
+                    symbol=symbol,
                     order_type=order.order_type,
                     side=side,
                     price=order.price,
@@ -170,15 +169,15 @@ async def send_order(
 
 
 async def cancel_order(
-    client: BinanceClient, order: Order, ui_queue: asyncio.Queue, side: str
+    client: BinanceClient, order: Order, ui_queue: asyncio.Queue, side: str, symbol: str
 ):
-    logger.info("Enter cancel order: %s, symbol: %s", order.order_id, SYMBOL)
+    logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
     last_exception = None
 
     for _ in range(MAX_RETRIES):
         try:
             resp = await client.futures_cancel_order(
-                symbol=SYMBOL,
+                symbol=symbol,
                 orderId=order.order_id,
                 timestamp=int(await client.get_adjusted_time() * 1000),
             )
@@ -187,7 +186,7 @@ async def cancel_order(
                 OrderData(
                     order_id=order.order_id,
                     open_time=order.open_time,
-                    symbol=SYMBOL,
+                    symbol=symbol,
                     order_type=order.order_type,
                     side=side,
                     price=order.price,
@@ -217,7 +216,11 @@ async def cancel_order(
 
 
 async def send_orders(
-    client: BinanceClient, side: str, orders: List[Order], ui_queue: asyncio.Queue
+    client: BinanceClient,
+    side: str,
+    orders: List[Order],
+    ui_queue: asyncio.Queue,
+    symbol: str,
 ) -> List[Order]:
     """Send a list of orders concurrently.
 
@@ -232,7 +235,9 @@ async def send_orders(
     tasks = []
     for order in orders:
         task = asyncio.create_task(
-            send_order(client=client, side=side, order=order, ui_queue=ui_queue)
+            send_order(
+                client=client, side=side, order=order, ui_queue=ui_queue, symbol=symbol
+            )
         )
         tasks.append(task)
     results = await asyncio.gather(*tasks)
@@ -362,9 +367,14 @@ async def cancel_take_profit_order(
     take_profit_order: Order,
     side: str,
     ui_queue: asyncio.Queue,
+    symbol: str,
 ) -> str:
     take_profit_order.status = await cancel_order(
-        client=client, order=take_profit_order, side=side, ui_queue=ui_queue
+        client=client,
+        order=take_profit_order,
+        side=side,
+        ui_queue=ui_queue,
+        symbol=symbol,
     )
     logger.info(
         "Take profit order: %s, status: %s",
@@ -376,9 +386,7 @@ async def cancel_take_profit_order(
 
 
 async def send_market_order(
-    client: BinanceClient,
-    position: Position,
-    side: str,
+    client: BinanceClient, position: Position, side: str, symbol: str
 ) -> Position:
     order_type = FUTURE_ORDER_TYPE_MARKET
     quantity = abs(position.quantity)
@@ -388,7 +396,7 @@ async def send_market_order(
     for _ in range(MAX_RETRIES):
         try:
             resp = await client.futures_create_order(
-                symbol=SYMBOL,
+                symbol=symbol,
                 side=side,
                 quantity=quantity,
                 type=order_type,
@@ -426,7 +434,7 @@ async def send_market_order(
 
 
 async def cancel_remaining_limit_orders(
-    client: BinanceClient, position: Position, ui_queue: asyncio.Queue
+    client: BinanceClient, position: Position, ui_queue: asyncio.Queue, symbol: str
 ) -> Tuple[Position, bool]:
     logger.info("Cancelling remaining limit orders")
     assert position.orders is not None
@@ -435,14 +443,22 @@ async def cancel_remaining_limit_orders(
     for order in position.orders:
         if order.status == ORDER_STATUS_PARTIALLY_FILLED:
             order.status = await cancel_order(
-                client=client, order=order, ui_queue=ui_queue, side=position.side
+                client=client,
+                order=order,
+                ui_queue=ui_queue,
+                side=position.side,
+                symbol=symbol,
             )
             logger.info("Cancelled partially filled order_id: %s", order.order_id)
             cancelled_orders_count += 1
         elif order.status == ORDER_STATUS_NEW:
             new_orders_count += 1
             order.status = await cancel_order(
-                client=client, order=order, ui_queue=ui_queue, side=position.side
+                client=client,
+                order=order,
+                ui_queue=ui_queue,
+                side=position.side,
+                symbol=symbol,
             )
             logger.info("Cancelled new order_id: %s", order.order_id)
             cancelled_orders_count += 1

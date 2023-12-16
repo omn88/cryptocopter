@@ -14,8 +14,6 @@ from binance.enums import (
 )
 from transitions.extensions.asyncio import AsyncMachine
 import logging
-
-from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Position,
     State,
@@ -590,10 +588,10 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
         )
 
-    async def send_close_position_to_ui(self):
+    async def send_close_position_to_ui(self, symbol: str):
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=symbol,
                 quantity=self.position_old.quantity,
                 entry_price=self.position_old.entry_price,
                 mark_price=0,
@@ -604,9 +602,9 @@ class TradingStateMachine:
             )
         )
 
-    async def send_order_update_to_ui(self, order: Order, open_time):
+    async def send_order_update_to_ui(self, order: Order, open_time, symbol: str):
         order_data = OrderData(
-            symbol=SYMBOL,
+            symbol=symbol,
             order_id=order.order_id,
             order_type=order.order_type,
             side=self.position.side,
@@ -633,14 +631,14 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
 
-    async def log_expired_order(self, *args, **kwargs) -> None:
+    async def log_expired_order(self, symbol: str, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
-                    order=order, open_time=order.open_time
+                    order=order, open_time=order.open_time, symbol=symbol
                 )
 
     async def handle_account(self, *args, **kwargs):
@@ -775,7 +773,9 @@ class TradingStateMachine:
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
 
-    async def cancel_order(self, order, side: str, ui_queue: asyncio.Queue):
+    async def cancel_order(
+        self, order, side: str, ui_queue: asyncio.Queue, symbol: str
+    ):
         await cancel_order(
-            client=self.client, order=order, side=side, ui_queue=ui_queue
+            client=self.client, order=order, side=side, ui_queue=ui_queue, symbol=symbol
         )

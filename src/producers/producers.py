@@ -4,8 +4,6 @@ from typing import Dict
 from binance import BinanceSocketManager
 import pandas
 import numpy
-
-from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Event,
     EventName,
@@ -69,10 +67,9 @@ async def futures_user_socket(
 
 
 async def futures_symbol_mark_price_socket(
-    bsm: BinanceSocketManager,
-    ui_queue: asyncio.Queue,
+    bsm: BinanceSocketManager, ui_queue: asyncio.Queue, symbol: str
 ):
-    smp = bsm.symbol_mark_price_socket(symbol=SYMBOL)
+    smp = bsm.symbol_mark_price_socket(symbol=symbol)
 
     async with smp:
         logger.info("Ready to receive first mark price socket message.")
@@ -94,9 +91,10 @@ async def kline_futures_socket(
     interval: str,
     queue: asyncio.Queue,
     last_index,
+    symbol: str,
 ):
     last_msg_before_new_kline: Dict = {}
-    kfs = bsm.kline_futures_socket(symbol=SYMBOL, interval=interval)
+    kfs = bsm.kline_futures_socket(symbol=symbol, interval=interval)
     async with kfs:
         logger.info("Ready to receive first kline socket message.")
         while True:

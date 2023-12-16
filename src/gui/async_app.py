@@ -6,9 +6,9 @@ from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import (
     ListProperty,
-    NumericProperty,
     StringProperty,
     ObjectProperty,
+    NumericProperty,
 )
 from kivy.uix.tabbedpanel import TabbedPanelItem
 
@@ -26,14 +26,11 @@ class AsyncApp(App):
     open_orders = ListProperty([])
     closed_orders = ListProperty([])
     closed_positions = ListProperty([])
-
+    log_display = ObjectProperty(None)
     order_count = NumericProperty(0)
     position_count = NumericProperty(0)
 
-    log_display = ObjectProperty(None)
-    trading_systems = ListProperty(
-        []
-    )  # Add this line to declare the trading_systems attribute
+    trading_systems = ListProperty([])
     root_tabbed_panel = ObjectProperty(None)  # Add this line
 
     strategy_mapping = {
@@ -44,14 +41,9 @@ class AsyncApp(App):
 
     def __init__(self, **kwargs):
         super(AsyncApp, self).__init__(**kwargs)
-        self.trading_systems = (
-            []
-        )  # Initialize the trading_systems attribute as an empty list
+        self.trading_systems = []
 
     def on_start(self):
-        # This is a Kivy App lifecycle method that gets called after the app has started.
-        # We will schedule the logging handler setup to be run immediately after.
-
         Clock.schedule_once(self.setup_logging_handler, 0.1)
 
     def setup_logging_handler(self, *args):
