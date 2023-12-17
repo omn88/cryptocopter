@@ -13,6 +13,7 @@ from kivy.properties import (
 from kivy.uix.tabbedpanel import TabbedPanelItem
 
 from logging_config import KivyGuiHandler
+from src.common.identifiers import BinanceClient
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
 
@@ -39,9 +40,10 @@ class AsyncApp(App):
         "RSI Special": "RS",
     }
 
-    def __init__(self, **kwargs):
+    def __init__(self, client: BinanceClient, **kwargs):
         super(AsyncApp, self).__init__(**kwargs)
         self.trading_systems = []
+        self.client = client
 
     def on_start(self):
         Clock.schedule_once(self.setup_logging_handler, 0.1)
@@ -79,6 +81,7 @@ class AsyncApp(App):
             # Create a new TradingSystem instance
             ui_queue = asyncio.Queue()
             trading_system = TradingSystem(
+                client=self.client,
                 strategy_name=strategy,
                 symbol=symbol,
                 ui_queue=ui_queue,

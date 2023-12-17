@@ -1,4 +1,9 @@
+"""
+Cryptocopter main module.
+"""
+
 import os
+from src.common.common import create_async_client
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 import asyncio
@@ -6,7 +11,6 @@ import asyncio
 from kivy.core.window import Window
 import logging_config  # noinspection PyUnresolvedReferences
 import warnings
-from kivy.lang import Builder
 from src.gui.async_app import AsyncApp
 
 
@@ -18,7 +22,7 @@ Window.size = (960, 600)
 
 
 async def main():
-    app = AsyncApp()
+    app = AsyncApp(client=await create_async_client())
     await app.async_run()
 
 
