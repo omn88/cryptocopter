@@ -6,7 +6,7 @@ from src.common.common import (
     insert_to_pandas,
     rsi_indicator_apply,
 )
-from src.common.constants import ASSET, SYMBOL, LEVERAGE, INTERVAL
+from src.common.constants import ASSET, LEVERAGE, INTERVAL
 from src.common.identifiers import Position, EventName, Event, SentinelUpdate
 from src.common.initialize_trading_environment import (
     create_async_client,
@@ -26,14 +26,14 @@ import logging
 logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "RSI_Basic": BasicStrategy,
-    "RSI_Extended": ExtendedStrategy,
-    "RSI_Special": SpecialStrategy,
+    "RSI Basic": BasicStrategy,
+    "RSI Extended": ExtendedStrategy,
+    "RSI Special": SpecialStrategy,
 }
 
 
 class TradingSystem:
-    def __init__(self, ui_queue):
+    def __init__(self, ui_queue, strategy_name, symbol):
         self.client = None
         self.binance_socket_manager = None
         self.queue = None
@@ -43,7 +43,8 @@ class TradingSystem:
         self.df = None
         self.position = None
         self.strategy = None
-        self.strategy_name = None
+        self.strategy_name = strategy_name
+        self.symbol = symbol
 
     async def initialize(self):
         # Initialize client, queue, balance, position
@@ -55,12 +56,12 @@ class TradingSystem:
         logger.info("Send account data: %s", self.balance)
 
         # Change margin type and leverage
-        await change_margin_type(client=self.client)
-        await self.client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
+        await change_margin_type(client=self.client, symbol=self.symbol)
+        await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(
-            client=self.client, interval=INTERVAL, lookback="4320"
+            client=self.client, interval=INTERVAL, lookback="4320", symbol=self.symbol
         )
         self.df = insert_to_pandas(data=self.raw_data)
         logger.info("DF: %s", self.df)
@@ -80,6 +81,7 @@ class TradingSystem:
             position=self.position,
             raw_data=self.raw_data,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         await asyncio.gather(
@@ -90,8 +92,9 @@ class TradingSystem:
                 queue=self.queue,
                 tsm=self.strategy,
                 ui_queue=self.ui_queue,
+                symbol=self.symbol,
             ),
-            *prepare_workers(tsm=self.strategy, queue=self.queue),
+            *prepare_workers(tsm=self.strategy, queue=self.queue, symbol=self.symbol),
             return_exceptions=True,
         )
 

@@ -14,8 +14,6 @@ from binance.enums import (
 )
 from transitions.extensions.asyncio import AsyncMachine
 import logging
-
-from src.common.constants import SYMBOL
 from src.common.identifiers import (
     Position,
     State,
@@ -55,6 +53,7 @@ class TradingStateMachine:
     def __init__(
         self,
         client: BinanceClient,
+        symbol: str,
         queue: asyncio.Queue,
         ui_queue: asyncio.Queue,
         position: Position,
@@ -64,6 +63,7 @@ class TradingStateMachine:
         raw_data,
     ):
         self.state: State = State.FLAT
+        self.symbol: str = symbol
         self.client: BinanceClient = client
         self.queue: asyncio.Queue = queue
         self.ui_queue: asyncio.Queue = ui_queue
@@ -550,6 +550,7 @@ class TradingStateMachine:
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -568,6 +569,7 @@ class TradingStateMachine:
             order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
         self.update_position_in_df(
@@ -580,6 +582,7 @@ class TradingStateMachine:
             client=self.client,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
     async def close_short(self, *args, **kwargs):
@@ -588,12 +591,13 @@ class TradingStateMachine:
             client=self.client,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
-    async def send_close_position_to_ui(self):
+    async def send_close_position_to_ui(self, symbol: str):
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=symbol,
                 quantity=self.position_old.quantity,
                 entry_price=self.position_old.entry_price,
                 mark_price=0,
@@ -604,9 +608,9 @@ class TradingStateMachine:
             )
         )
 
-    async def send_order_update_to_ui(self, order: Order, open_time):
+    async def send_order_update_to_ui(self, order: Order, open_time, symbol: str):
         order_data = OrderData(
-            symbol=SYMBOL,
+            symbol=symbol,
             order_id=order.order_id,
             order_type=order.order_type,
             side=self.position.side,
@@ -633,14 +637,14 @@ class TradingStateMachine:
                 order.order_id = self.order_update.order_id
                 logger.info("Cancelled order: %s", self.order_update.order_id)
 
-    async def log_expired_order(self, *args, **kwargs) -> None:
+    async def log_expired_order(self, symbol: str, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 logger.info("Expired order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
-                    order=order, open_time=order.open_time
+                    order=order, open_time=order.open_time, symbol=symbol
                 )
 
     async def handle_account(self, *args, **kwargs):
@@ -653,7 +657,7 @@ class TradingStateMachine:
             balance=self.balance,
         )
 
-        await self.send_close_position_to_ui()
+        await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
         logger.info("Entering handle partial liquidation")
@@ -674,9 +678,10 @@ class TradingStateMachine:
             order_update=self.order_update,
             balance=self.balance,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
 
-        await self.send_close_position_to_ui()
+        await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         logger.info("Entering handle target order partially filled")
@@ -708,10 +713,11 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=self.symbol,
                 quantity=self.position.quantity,
                 entry_price=self.position.entry_price,
                 mark_price=0,
@@ -732,7 +738,9 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
+            await self.send_order_update_to_ui(
+                order=order, open_time=order.open_time, symbol=self.symbol
+            )
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
@@ -745,10 +753,11 @@ class TradingStateMachine:
             order_update=self.order_update,
             position=self.position,
             ui_queue=self.ui_queue,
+            symbol=self.symbol,
         )
         await self.ui_queue.put(
             PositionData(
-                symbol=SYMBOL,
+                symbol=self.symbol,
                 quantity=self.position.quantity,
                 entry_price=self.position.entry_price,
                 mark_price=0,
@@ -769,13 +778,17 @@ class TradingStateMachine:
         )
 
         if order is not None:
-            await self.send_order_update_to_ui(order=order, open_time=order.open_time)
+            await self.send_order_update_to_ui(
+                order=order, open_time=order.open_time, symbol=self.symbol
+            )
         else:
             logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
 
-    async def cancel_order(self, order, side: str, ui_queue: asyncio.Queue):
+    async def cancel_order(
+        self, order, side: str, ui_queue: asyncio.Queue, symbol: str
+    ):
         await cancel_order(
-            client=self.client, order=order, side=side, ui_queue=ui_queue
+            client=self.client, order=order, side=side, ui_queue=ui_queue, symbol=symbol
         )

@@ -36,10 +36,7 @@ async def process_order(tsm: TradingStateMachine, order_update: OrderUpdate):
     await tsm.process_order()  # type: ignore
 
 
-async def worker(
-    queue: asyncio.Queue,
-    tsm: TradingStateMachine,
-):
+async def worker(queue: asyncio.Queue, tsm: TradingStateMachine, symbol: str):
     while True:
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"
@@ -78,6 +75,7 @@ async def worker(
                 client=tsm.client,
                 ui_queue=tsm.ui_queue,
                 position=tsm.position,
+                symbol=symbol,
             )
             return
 

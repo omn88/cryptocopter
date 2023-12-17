@@ -3,13 +3,11 @@ import logging
 import os
 from typing import List
 from datetime import datetime
-import binance
 import btalib
 import numpy
 import pandas
 import pytz
 
-from src.common.constants import SYMBOL
 from src.common.identifiers import Signal, State, BinanceClient
 
 logger = logging.getLogger("common")
@@ -42,10 +40,10 @@ def insert_to_pandas(data: List) -> pandas.DataFrame:
 
 
 async def get_futures_historical_data(
-    client: BinanceClient, interval: str, lookback: str
+    client: BinanceClient, interval: str, lookback: str, symbol: str
 ) -> List:
     historical_data = await client.futures_historical_klines(
-        SYMBOL, interval, lookback + "min ago UTC"
+        symbol, interval, lookback + "min ago UTC"
     )
     return historical_data[:-1]
 
