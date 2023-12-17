@@ -1,5 +1,4 @@
 import asyncio
-import os
 from typing import List, Tuple
 
 from binance.enums import (
@@ -9,7 +8,6 @@ from binance.enums import (
 )
 from kivy.logger import Logger
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event
 from src.gui.identifiers import (
@@ -39,9 +37,10 @@ class StrategyTab(BoxLayout):
 
     log_display = ObjectProperty(None)
 
-    def __init__(self, trading_system, **kwargs):
+    def __init__(self, trading_system, ui_queue, **kwargs):
         super().__init__(**kwargs)
         self.trading_system = trading_system
+        self.ui_queue = ui_queue
 
     async def update_ui(self):
         while True:
@@ -57,7 +56,7 @@ class StrategyTab(BoxLayout):
                     return
             if isinstance(data, AccountData):
                 Logger.info("PANU  DYS IS update account")
-                self.balance_label = f"{str(data.balance)} USDT"
+                # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
                 self.open_positions, self.closed_positions = self.update_position(
                     open_positions=self.open_positions,

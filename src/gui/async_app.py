@@ -77,10 +77,11 @@ class AsyncApp(App):
         symbol = self.root.ids.symbol_spinner.text
         if strategy != "Choose Strategy" and symbol != "Choose Symbol":
             # Create a new TradingSystem instance
+            ui_queue = asyncio.Queue()
             trading_system = TradingSystem(
                 strategy_name=strategy,
                 symbol=symbol,
-                ui_queue=asyncio.Queue(),
+                ui_queue=ui_queue,
             )
             self.trading_systems.append(trading_system)
 
@@ -88,7 +89,9 @@ class AsyncApp(App):
             self.root.add_widget(
                 TabbedPanelItem(
                     text=f"{self.strategy_mapping[strategy]}_{trading_system.symbol}",
-                    content=StrategyTab(trading_system=trading_system),
+                    content=StrategyTab(
+                        trading_system=trading_system, ui_queue=ui_queue
+                    ),
                 )
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
@@ -97,8 +100,5 @@ class AsyncApp(App):
             # Initialize and start trading system
             await trading_system.initialize()
             await trading_system.start_trading()
-
-            self.root.ids.strategy_spinner.text = "Choose Strategy"
-            self.root.ids.symbol_spinner.text = "Choose Symbol"
         else:
             Logger.info("App: Please select a strategy and a symbol.")
