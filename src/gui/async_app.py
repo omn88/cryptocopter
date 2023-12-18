@@ -21,18 +21,10 @@ logger = logging.getLogger("async_app")
 
 
 class AsyncApp(App):
-    balance_label = StringProperty("0")
-    price_label = StringProperty("0")
-    open_positions = ListProperty([])
-    open_orders = ListProperty([])
-    closed_orders = ListProperty([])
-    closed_positions = ListProperty([])
-    log_display = ObjectProperty(None)
-    order_count = NumericProperty(0)
-    position_count = NumericProperty(0)
-
+    strategy_tabs = ListProperty([])
     trading_systems = ListProperty([])
-    root_tabbed_panel = ObjectProperty(None)  # Add this line
+
+    # root_tabbed_panel = ObjectProperty(None)  # Add this line
 
     strategy_mapping = {
         "RSI Basic": "RB",
@@ -45,21 +37,21 @@ class AsyncApp(App):
         self.trading_systems = []
         self.client = client
 
-    def on_start(self):
-        Clock.schedule_once(self.setup_logging_handler, 0.1)
+    # def on_start(self):
+    #     Clock.schedule_once(self.setup_logging_handler, 0.1)
 
-    def setup_logging_handler(self, *args):
-        log_display_widget = self.log_display
+    # def setup_logging_handler(self, *args):
+    #     log_display_widget = self.log_display
 
-        gui_log_handler = KivyGuiHandler(log_display_widget)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        gui_log_handler.setFormatter(formatter)
+    #     gui_log_handler = KivyGuiHandler(log_display_widget)
+    #     formatter = logging.Formatter(
+    #         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    #     )
+    #     gui_log_handler.setFormatter(formatter)
 
-        logging.getLogger().addHandler(gui_log_handler)
+    #     logging.getLogger().addHandler(gui_log_handler)
 
-        logger.info("Logging handler configured with success")
+    #     logger.info("Logging handler configured with success")
 
     def build(self):
         Builder.load_file("src/gui/common_widgets.kv")
@@ -88,13 +80,14 @@ class AsyncApp(App):
             )
             self.trading_systems.append(trading_system)
 
+            strategy_tab = StrategyTab(trading_system=trading_system, ui_queue=ui_queue)
+            self.strategy_tabs.append(strategy_tab)
+
             # Add a new tab for the strategy
             self.root.add_widget(
                 TabbedPanelItem(
                     text=f"{self.strategy_mapping[strategy]}_{trading_system.symbol}",
-                    content=StrategyTab(
-                        trading_system=trading_system, ui_queue=ui_queue
-                    ),
+                    content=strategy_tab,
                 )
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"

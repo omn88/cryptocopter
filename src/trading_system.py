@@ -55,7 +55,7 @@ class TradingSystem:
 
         # Change margin type and leverage
         await change_margin_type(client=self.client, symbol=self.symbol)
-        await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
+        # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(

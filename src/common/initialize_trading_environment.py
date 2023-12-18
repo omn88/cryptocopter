@@ -2,6 +2,7 @@ import asyncio
 import binance
 import pandas
 from binance import BinanceSocketManager
+
 import logging
 
 from src.common.constants import MARGIN_TYPE

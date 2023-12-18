@@ -41,6 +41,7 @@ class StrategyTab(BoxLayout):
         super().__init__(**kwargs)
         self.trading_system = trading_system
         self.ui_queue = ui_queue
+        asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
         while True:
