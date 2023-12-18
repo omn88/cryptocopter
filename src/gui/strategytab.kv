@@ -12,15 +12,29 @@
             orientation: 'horizontal'
             size_hint_y: None
             height: '100dp'
-            # Add widgets for displaying strategy-specific information here
+            GridLayout:
+                cols: 1
+                size_hint_x: 0.8
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: "Strategy: " + root.strategy_name
+                    Label:
+                        text: "Symbol: " + root.symbol
+                    Label:
+                        text: "Price: " + root.price_label
             BoxLayout:
-                size_hint_x: 1
-            Button:
-                text: "Cancel"
-                size_hint: None, None
-                width: '100dp'
-                height: self.width
-                on_release: root.on_cancel()
+                size_hint_x: 0.2
+                orientation: 'horizontal'
+                Widget:
+                    size_hint_x: 1
+                Button:
+                    text: "Cancel"
+                    size_hint: None, None
+                    width: '100dp'
+                    height: self.width
+                    on_release: root.on_cancel()
 
         BoxLayout:
             id: bottom_section

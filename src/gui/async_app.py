@@ -80,7 +80,12 @@ class AsyncApp(App):
             )
             self.trading_systems.append(trading_system)
 
-            strategy_tab = StrategyTab(trading_system=trading_system, ui_queue=ui_queue)
+            strategy_tab = StrategyTab(
+                trading_system=trading_system,
+                ui_queue=ui_queue,
+                strategy_name=strategy,
+                symbol=symbol,
+            )
             self.strategy_tabs.append(strategy_tab)
 
             # Add a new tab for the strategy

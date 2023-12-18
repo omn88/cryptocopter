@@ -26,6 +26,8 @@ from kivy.properties import (
 
 
 class StrategyTab(BoxLayout):
+    strategy_name = StringProperty("")
+    symbol = StringProperty("")
     price_label = StringProperty("0")
     open_positions = ListProperty([])
     open_orders = ListProperty([])
