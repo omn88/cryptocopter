@@ -1,9 +1,7 @@
 import asyncio
 import binance
 import pandas
-from binance import AsyncClient, BinanceSocketManager
-from binance.exceptions import BinanceAPIException
-from decouple import config
+from binance import BinanceSocketManager
 
 import logging
 
@@ -18,15 +16,6 @@ from src.workers.trading_state_machine import TradingStateMachine
 from src.workers.worker import worker
 
 logger = logging.getLogger("initialize_trading_environment")
-
-
-async def create_async_client() -> BinanceClient:
-    client = BinanceClient(
-        api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
-    )
-    logger.info("Async client created")
-
-    return client
 
 
 async def create_socket_manager(client: BinanceClient) -> BinanceSocketManager:

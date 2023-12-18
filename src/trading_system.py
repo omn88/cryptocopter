@@ -9,7 +9,6 @@ from src.common.common import (
 from src.common.constants import ASSET, LEVERAGE, INTERVAL
 from src.common.identifiers import Position, EventName, Event, SentinelUpdate
 from src.common.initialize_trading_environment import (
-    create_async_client,
     create_async_queue,
     change_margin_type,
     prepare_producers,
@@ -33,8 +32,8 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, ui_queue, strategy_name, symbol):
-        self.client = None
+    def __init__(self, client, ui_queue, strategy_name, symbol):
+        self.client = client
         self.binance_socket_manager = None
         self.queue = None
         self.ui_queue = ui_queue
@@ -47,8 +46,7 @@ class TradingSystem:
         self.symbol = symbol
 
     async def initialize(self):
-        # Initialize client, queue, balance, position
-        self.client = await create_async_client()
+        # Initialize queue, balance, position
         self.binance_socket_manager = await create_socket_manager(client=self.client)
         self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
@@ -57,7 +55,7 @@ class TradingSystem:
 
         # Change margin type and leverage
         await change_margin_type(client=self.client, symbol=self.symbol)
-        await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
+        # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(

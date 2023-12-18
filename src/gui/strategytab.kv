@@ -12,15 +12,29 @@
             orientation: 'horizontal'
             size_hint_y: None
             height: '100dp'
-            # Add widgets for displaying strategy-specific information here
+            GridLayout:
+                cols: 1
+                size_hint_x: 0.8
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: "Strategy: " + root.strategy_name
+                    Label:
+                        text: "Symbol: " + root.symbol
+                    Label:
+                        text: "Price: " + root.price_label
             BoxLayout:
-                size_hint_x: 1
-            Button:
-                text: "Cancel"
-                size_hint: None, None
-                width: '100dp'
-                height: self.width
-                on_release: root.on_cancel()
+                size_hint_x: 0.2
+                orientation: 'horizontal'
+                Widget:
+                    size_hint_x: 1
+                Button:
+                    text: "Cancel"
+                    size_hint: None, None
+                    width: '100dp'
+                    height: self.width
+                    on_release: root.on_cancel()
 
         BoxLayout:
             id: bottom_section
@@ -28,7 +42,7 @@
             TabbedPanel:
                 do_default_tab: False
                 TabbedPanelItem:
-                    text: 'Positions (' + str(app.position_count) + ')'
+                    text: 'Positions (' + str(root.position_count) + ')'
                     BoxLayout:
                         orientation: "vertical"
                         BoxLayout:
@@ -50,7 +64,7 @@
                                 text: 'State'
                         RecycleView:
                             id: positions_list
-                            data: app.open_positions
+                            data: root.open_positions
                             viewclass: 'PositionListItem'
                             RecycleBoxLayout:
                                 default_size: None, dp(56)
@@ -59,7 +73,7 @@
                                 height: self.minimum_height
                                 orientation: 'vertical'
                 TabbedPanelItem:
-                    text: 'Orders (' + str(app.order_count) + ')'
+                    text: 'Orders (' + str(root.order_count) + ')'
                     BoxLayout:
                         orientation: "vertical"
                         BoxLayout:
@@ -101,7 +115,7 @@
                                 size_hint_x: 0.15
                         RecycleView:
                             id: orders_list
-                            data: app.open_orders
+                            data: root.open_orders
                             viewclass: 'OrderListItem'
                             RecycleBoxLayout:
                                 default_size: None, dp(56)
@@ -145,7 +159,7 @@
                                 size_hint_x: 0.15
                         RecycleView:
                             id: history_list
-                            data: app.closed_orders
+                            data: root.closed_orders
                             viewclass: 'OrderListItem'
                             RecycleBoxLayout:
                                 default_size: None, dp(56)
@@ -176,7 +190,7 @@
                                 text: 'Status'
                         RecycleView:
                             id: positions_list
-                            data: app.closed_positions
+                            data: root.closed_positions
                             viewclass: 'PositionListItem'
                             RecycleBoxLayout:
                                 default_size: None, dp(56)
@@ -193,7 +207,7 @@
                         effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
                         TextInput:
                             id: log_display
-                            on_parent: app.log_display = self
+                            on_parent: root.log_display = self
                             font_size: '14sp'
                             background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
                             foreground_color: (1, 1, 1, 1)  # White text

@@ -3,10 +3,7 @@ import logging
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
-from src.common.initialize_trading_environment import (
-    create_async_queue,
-    create_async_client,
-)
+from src.common.initialize_trading_environment import create_async_queue
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy

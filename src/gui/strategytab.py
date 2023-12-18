@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List, Tuple
 
 from binance.enums import (
@@ -26,6 +27,8 @@ from kivy.properties import (
 
 
 class StrategyTab(BoxLayout):
+    strategy_name = StringProperty("")
+    symbol = StringProperty("")
     price_label = StringProperty("0")
     open_positions = ListProperty([])
     open_orders = ListProperty([])
@@ -41,21 +44,23 @@ class StrategyTab(BoxLayout):
         super().__init__(**kwargs)
         self.trading_system = trading_system
         self.ui_queue = ui_queue
+        self.strategy_logger = logging.getLogger(self.strategy_name)
+        asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
         while True:
-            Logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
+            self.strategy_logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
             if self.ui_queue.qsize() == 0:
-                Logger.debug("Awaiting new Event")
+                self.strategy_logger.debug("Awaiting new Event")
             data = await self.ui_queue.get()
             # Update the UI based on data
             if isinstance(data, Event):
                 if data.name == EventName.SENTINEL:
-                    Logger.info("SENTINEL -> Exiting UI updates.")
+                    self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
                     await asyncio.sleep(3)
                     return
             if isinstance(data, AccountData):
-                Logger.info("PANU  DYS IS update account")
+                self.strategy_logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
                 self.open_positions, self.closed_positions = self.update_position(
@@ -122,7 +127,7 @@ class StrategyTab(BoxLayout):
         return new_positions
 
     def add_new_position(self, symbol, open_positions, data) -> List:
-        Logger.info("Creating a new position: %s", symbol)
+        self.strategy_logger.info("Creating a new position: %s", symbol)
         # If the position does not exist, create it
         self.position_count += 1
         open_positions.append(
@@ -138,7 +143,9 @@ class StrategyTab(BoxLayout):
             }
         )
 
-        Logger.info("Open Positions after adding position: %s", open_positions)
+        self.strategy_logger.info(
+            "Open Positions after adding position: %s", open_positions
+        )
 
         return open_positions
 
@@ -155,25 +162,27 @@ class StrategyTab(BoxLayout):
                 position["status"] = str(data.status)
 
                 if position["status"] == PositionStatus.CLOSED:
-                    Logger.info("Position status: %s", data.status)
-                    Logger.info("Length of open positions: %s", len(open_positions))
-                    Logger.info(
+                    self.strategy_logger.info("Position status: %s", data.status)
+                    self.strategy_logger.info(
+                        "Length of open positions: %s", len(open_positions)
+                    )
+                    self.strategy_logger.info(
                         "Length of closed positions: %s",
                         len(closed_positions),
                     )
                     closed_positions.append(position)
                     open_positions.remove(position)
-                    Logger.info(
+                    self.strategy_logger.info(
                         "Length of open positions after removal: %s",
                         len(open_positions),
                     )
-                    Logger.info(
+                    self.strategy_logger.info(
                         "Length of closed positions after appending: %s",
                         len(closed_positions),
                     )
                     self.position_count -= 1
 
-                Logger.info("Updated positions: %s", open_positions)
+                self.strategy_logger.info("Updated positions: %s", open_positions)
 
         return open_positions, closed_positions
 
@@ -192,7 +201,7 @@ class StrategyTab(BoxLayout):
                 "status": data.status,
             }
         )
-        Logger.info("Open Orders after adding order: %s", open_orders)
+        self.strategy_logger.info("Open Orders after adding order: %s", open_orders)
 
         return open_orders
 
@@ -216,22 +225,26 @@ class StrategyTab(BoxLayout):
                     ORDER_STATUS_CANCELED,
                     ORDER_STATUS_EXPIRED,
                 ]:
-                    Logger.info("Order fil, can or exp: %s", data.status)
-                    Logger.info("Length of open orders: %s", len(open_orders))
-                    Logger.info("Length of closed orders: %s", len(self.closed_orders))
+                    self.strategy_logger.info("Order fil, can or exp: %s", data.status)
+                    self.strategy_logger.info(
+                        "Length of open orders: %s", len(open_orders)
+                    )
+                    self.strategy_logger.info(
+                        "Length of closed orders: %s", len(self.closed_orders)
+                    )
                     closed_orders.append(order)
                     open_orders.remove(order)
-                    Logger.info(
+                    self.strategy_logger.info(
                         "Length of open orders after removal: %s",
                         len(open_orders),
                     )
-                    Logger.info(
+                    self.strategy_logger.info(
                         "Length of closed orders after appending: %s",
                         len(closed_orders),
                     )
                     self.order_count -= 1
 
-                Logger.info("Updated Orders: %s", open_orders)
+                self.strategy_logger.info("Updated Orders: %s", open_orders)
 
         return open_orders, closed_orders
 
@@ -275,14 +288,14 @@ class StrategyTab(BoxLayout):
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
-        Logger.info("Strategy: Chosen strategy is %s", value)
+        self.strategy_logger.info("Strategy: Chosen strategy is %s", value)
 
     def on_start_trading(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.start_trading())
-        Logger.info("App: Start button pressed.")
+        self.strategy_logger.info("App: Start button pressed.")
 
     def on_cancel(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.stop())
-        Logger.info("App: Cancel button pressed.")
+        self.strategy_logger.info("App: Cancel button pressed.")
