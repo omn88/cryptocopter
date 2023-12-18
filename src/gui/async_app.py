@@ -11,7 +11,6 @@ from kivy.properties import (
     NumericProperty,
 )
 from kivy.uix.tabbedpanel import TabbedPanelItem
-
 from logging_config import KivyGuiHandler
 from src.common.identifiers import BinanceClient
 from src.gui.strategytab import StrategyTab
@@ -37,21 +36,16 @@ class AsyncApp(App):
         self.trading_systems = []
         self.client = client
 
-    # def on_start(self):
-    #     Clock.schedule_once(self.setup_logging_handler, 0.1)
+    def setup_logging_handler(self, strategy_logger, log_display_widget):
+        gui_log_handler = KivyGuiHandler(log_display_widget)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        gui_log_handler.setFormatter(formatter)
 
-    # def setup_logging_handler(self, *args):
-    #     log_display_widget = self.log_display
+        strategy_logger.addHandler(gui_log_handler)
 
-    #     gui_log_handler = KivyGuiHandler(log_display_widget)
-    #     formatter = logging.Formatter(
-    #         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    #     )
-    #     gui_log_handler.setFormatter(formatter)
-
-    #     logging.getLogger().addHandler(gui_log_handler)
-
-    #     logger.info("Logging handler configured with success")
+        strategy_logger.info("Logging handler configured with success")
 
     def build(self):
         Builder.load_file("src/gui/common_widgets.kv")
@@ -87,6 +81,11 @@ class AsyncApp(App):
                 symbol=symbol,
             )
             self.strategy_tabs.append(strategy_tab)
+
+            # Set up a logging handler for the strategy
+            self.setup_logging_handler(
+                strategy_tab.strategy_logger, strategy_tab.log_display
+            )
 
             # Add a new tab for the strategy
             self.root.add_widget(

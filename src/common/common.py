@@ -8,7 +8,9 @@ import numpy
 import pandas
 import pytz
 from decouple import config
+from logging_config import KivyGuiHandler
 from src.common.identifiers import Signal, State, BinanceClient
+
 
 logger = logging.getLogger("common")
 
