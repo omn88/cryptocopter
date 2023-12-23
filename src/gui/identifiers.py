@@ -91,7 +91,7 @@ class PositionData:
 class StrategyData:
     def __init__(self, strategy_name, position_data):
         self.strategy_name: str = strategy_name
-        self.position_data = position_data
+        self.position_data: PositionData = position_data
 
 
 class AccountData:

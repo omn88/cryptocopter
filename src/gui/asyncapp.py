@@ -20,6 +20,9 @@ from src.trading_system import TradingSystem
 
 logger = logging.getLogger("async_app")
 
+# Load the common_widgets.kv file first
+Builder.load_file("src/gui/common_widgets.kv")
+
 
 class AsyncApp(App):
     """Main application class for managing trading strategies.
@@ -59,21 +62,6 @@ class AsyncApp(App):
         self.client = client
         asyncio.create_task(self.update_ui())
 
-    async def update_ui(self):
-        while True:
-            logger.debug("Events in UI queue: %s", self.main_ui_queue.qsize())
-            if self.main_ui_queue.qsize() == 0:
-                logger.debug("Awaiting new Event")
-            data = await self.main_ui_queue.get()
-            # Update the UI based on data
-            # if isinstance(data, Event):
-            #     if data.name == EventName.SENTINEL:
-            #         self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
-            #         await asyncio.sleep(3)
-            #         return
-            if isinstance(data, StrategyData):
-                self.update_strategies(data=data)
-
     def setup_logging_handler(self, strategy_logger, log_display_widget):
         """Sets up a logging handler for a strategy.
 
@@ -97,7 +85,7 @@ class AsyncApp(App):
         Returns:
             Widget: The root widget of the application.
         """
-        Builder.load_file("src/gui/common_widgets.kv")
+        # Builder.load_file("src/gui/common_widgets.kv")
         Builder.load_file("src/gui/strategytab.kv")
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
@@ -163,34 +151,55 @@ class AsyncApp(App):
         else:
             Logger.info("App: Please select a strategy and a symbol.")
 
-    def update_strategies(self, data: PositionData):
+    async def update_ui(self):
+        while True:
+            logger.info("Events in Main UI queue: %s", self.main_ui_queue.qsize())
+            if self.main_ui_queue.qsize() == 0:
+                logger.info("Awaiting new Event")
+            data = await self.main_ui_queue.get()
+            # Update the UI based on data
+            # if isinstance(data, Event):
+            #     if data.name == EventName.SENTINEL:
+            #         self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
+            #         await asyncio.sleep(3)
+            #         return
+            if isinstance(data, StrategyData):
+                self.update_strategies(data=data)
+
+    def update_strategies(self, data: StrategyData):
         if len(self.active_strategies):
             if any(
-                strategy["symbol"] == data.symbol for strategy in self.active_strategies
+                strategy["symbol"] == data.position_data.symbol
+                for strategy in self.active_strategies
             ):
-                self.update_active_strategies_tab(
-                    data=data,
-                )
+                self.update_active_strategies_tab(data=data)
             else:
                 self.add_position_to_active_strategies_tab(data=data)
         else:
             logger.info("Adding new strategy to active strategies tab")
             self.add_position_to_active_strategies_tab(data=data)
 
-    def update_active_strategies_tab(self, data: PositionData) -> None:
-        for position in self.active_strategies:
-            if position["symbol"] == data.symbol:
+    def update_active_strategies_tab(self, data: StrategyData) -> None:
+        for strategy in self.active_strategies:
+            if (
+                strategy["symbol"] == data.position_data.symbol
+                and strategy["name"] == data.strategy_name
+            ):
                 # If it exists, update the values
-                position["quantity"] = str(data.quantity)
-                position["entry_price"] = str(data.entry_price)
-                position["mark_price"] = str(data.mark_price)
-                position["liquidation_price"] = str(data.liquidation_price)
-                position["pnl"] = str(data.pnl)
-                position["state"] = str(data.state.value)
-                position["status"] = str(data.status)
+                strategy["quantity"] = str(data.position_data.quantity)
+                strategy["entry_price"] = str(data.position_data.entry_price)
+                strategy["mark_price"] = str(data.position_data.mark_price)
+                strategy["liquidation_price"] = str(
+                    data.position_data.liquidation_price
+                )
+                strategy["pnl"] = str(data.position_data.pnl)
+                strategy["state"] = str(data.position_data.state.value)
+                strategy["status"] = str(data.position_data.status)
 
-                if position["status"] == PositionStatus.CLOSED:
-                    self.strategy_logger.info("Position status: %s", data.status)
+                if strategy["status"] == PositionStatus.CLOSED:
+                    self.strategy_logger.info(
+                        "Position status: %s", data.position_data.status
+                    )
                     self.strategy_logger.info(
                         "Length of active strategies: %s", len(self.active_strategies)
                     )
@@ -198,8 +207,8 @@ class AsyncApp(App):
                         "Length of closed strategies: %s",
                         len(self.closed_strategies),
                     )
-                    self.closed_strategies.append(position)
-                    self.active_strategies.remove(position)
+                    self.closed_strategies.append(strategy)
+                    self.active_strategies.remove(strategy)
                     self.strategy_logger.info(
                         "Length of active strategies after removal: %s",
                         len(self.active_strategies),
@@ -213,17 +222,18 @@ class AsyncApp(App):
                     "Updated active strategies: %s", self.active_strategies
                 )
 
-    def add_position_to_active_strategies_tab(self, data):
+    def add_position_to_active_strategies_tab(self, data: StrategyData):
         self.active_strategies.append(
             {
-                "symbol": self.trading_system.position.symbol,
-                "quantity": str(data.quantity),
-                "entry_price": str(data.entry_price),
-                "mark_price": str(data.mark_price),
-                "liquidation_price": str(data.liquidation_price),
-                "pnl": str(data.pnl),
-                "state": str(data.state.value),
-                "status": str(data.status),
+                "name": data.strategy_name,
+                "symbol": data.position_data.symbol,
+                "quantity": str(data.position_data.quantity),
+                "entry_price": str(data.position_data.entry_price),
+                "mark_price": str(data.position_data.mark_price),
+                "liquidation_price": str(data.position_data.liquidation_price),
+                "pnl": str(data.position_data.pnl),
+                "state": str(data.position_data.state),
+                "status": str(data.position_data.status),
             }
         )
 

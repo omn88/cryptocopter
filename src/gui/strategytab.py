@@ -15,7 +15,7 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from src.common.constants import LEVERAGE
-from src.common.identifiers import EventName, Event
+from src.common.identifiers import EventName, Event, State
 from src.gui.identifiers import (
     AccountData,
     PositionData,
@@ -51,6 +51,24 @@ class StrategyTab(BoxLayout):
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
+        initial_strategy_data = StrategyData(
+            strategy_name=self.strategy_name,
+            position_data=PositionData(
+                symbol=self.trading_system.symbol,
+                quantity=0,
+                entry_price=0,
+                mark_price=0,
+                liquidation_price=0,
+                pnl=0,
+                status=PositionStatus.NEW.value,
+                state=State.FLAT.value,
+            ),
+        )
+        await self.main_ui_queue.put(initial_strategy_data)
+        self.strategy_logger.info(
+            "Put initial strategy data to main ui queue: %s", initial_strategy_data
+        )
+
         while True:
             self.strategy_logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
             if self.ui_queue.qsize() == 0:
@@ -66,6 +84,7 @@ class StrategyTab(BoxLayout):
                 self.strategy_logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
+                self.strategy_logger("PositionData update")
                 (
                     self.open_positions,
                     self.closed_positions,
@@ -73,9 +92,6 @@ class StrategyTab(BoxLayout):
                     open_positions=self.open_positions,
                     closed_positions=self.closed_positions,
                     data=data,
-                )
-                await self.main_ui_queue.put(
-                    StrategyData(strategy_name=self.strategy_name, position_data=data)
                 )
 
             if isinstance(data, OrderData):
