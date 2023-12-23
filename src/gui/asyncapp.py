@@ -237,6 +237,6 @@ class AsyncApp(App):
             }
         )
 
-        self.strategy_logger.info(
+        logger.info(
             "Active strategies after adding position: %s", self.active_strategies
         )
