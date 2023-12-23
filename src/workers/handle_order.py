@@ -138,7 +138,6 @@ async def close_long(
     await main_ui_queue.put(
         StrategyData(strategy_name=strategy_name, position_data=position_data)
     )
-    logger.info("StrategyData to close long send with status: %s", position_data.status)
 
     if position_was_opened:
         logger.info("Entering position close, trying to Market %s", close_side)
@@ -187,10 +186,6 @@ async def close_short(
 
     await main_ui_queue.put(
         StrategyData(strategy_name=strategy_name, position_data=position_data)
-    )
-
-    logger.info(
-        "StrategyData to close short send with status: %s", position_data.status
     )
 
     if position_was_opened:

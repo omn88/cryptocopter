@@ -84,15 +84,7 @@ class StrategyTab(BoxLayout):
                 self.strategy_logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.strategy_logger.info("PositionData update")
-                (
-                    self.open_positions,
-                    self.closed_positions,
-                ) = self.update_position(
-                    open_positions=self.open_positions,
-                    closed_positions=self.closed_positions,
-                    data=data,
-                )
+                self.update_position(data=data)
 
             if isinstance(data, OrderData):
                 self.open_orders, self.closed_orders = self.update_order(
@@ -108,9 +100,7 @@ class StrategyTab(BoxLayout):
                         position["symbol"] == data.symbol
                         and position["status"] != PositionStatus.CLOSED.value
                     ):
-                        self.open_positions = self.update_price_data(
-                            data=data, open_positions=self.open_positions
-                        )
+                        self.open_positions = self.update_price_data(data=data)
 
     @staticmethod
     def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
@@ -125,8 +115,8 @@ class StrategyTab(BoxLayout):
 
         return pnl
 
-    def update_price_data(self, open_positions: List, data: PriceData) -> List:
-        new_positions = [pos.copy() for pos in open_positions]
+    def update_price_data(self, data: PriceData) -> List:
+        new_positions = [pos.copy() for pos in self.open_positions]
 
         if len(new_positions) != 0:
             for position in new_positions:
@@ -151,11 +141,11 @@ class StrategyTab(BoxLayout):
 
         return new_positions
 
-    def add_new_position(self, symbol, open_positions, data) -> List:
+    def add_new_position(self, symbol, data):
         self.strategy_logger.info("Creating a new position: %s", symbol)
         # If the position does not exist, create it
         self.position_count += 1
-        open_positions.append(
+        self.open_positions.append(
             {
                 "symbol": symbol,
                 "quantity": str(data.quantity),
@@ -169,13 +159,11 @@ class StrategyTab(BoxLayout):
         )
 
         self.strategy_logger.info(
-            "Open Positions after adding position: %s", open_positions
+            "Open Positions after adding position: %s", self.open_positions
         )
 
-        return open_positions
-
-    def update_existing_position(self, open_positions, data, closed_positions):
-        for position in open_positions:
+    def update_existing_position(self, data):
+        for position in self.open_positions:
             if position["symbol"] == data.symbol:
                 # If it exists, update the values
                 position["quantity"] = str(data.quantity)
@@ -189,27 +177,25 @@ class StrategyTab(BoxLayout):
                 if position["status"] == PositionStatus.CLOSED:
                     self.strategy_logger.info("Position status: %s", data.status)
                     self.strategy_logger.info(
-                        "Length of open positions: %s", len(open_positions)
+                        "Length of open positions: %s", len(self.open_positions)
                     )
                     self.strategy_logger.info(
                         "Length of closed positions: %s",
-                        len(closed_positions),
+                        len(self.closed_positions),
                     )
-                    closed_positions.append(position)
-                    open_positions.remove(position)
+                    self.closed_positions.append(position)
+                    self.open_positions.remove(position)
                     self.strategy_logger.info(
                         "Length of open positions after removal: %s",
-                        len(open_positions),
+                        len(self.open_positions),
                     )
                     self.strategy_logger.info(
                         "Length of closed positions after appending: %s",
-                        len(closed_positions),
+                        len(self.closed_positions),
                     )
                     self.position_count -= 1
 
-                self.strategy_logger.info("Updated positions: %s", open_positions)
-
-        return open_positions, closed_positions
+                self.strategy_logger.info("Updated positions: %s", self.open_positions)
 
     def add_new_order(self, open_orders, data):
         self.order_count += 1
@@ -275,30 +261,26 @@ class StrategyTab(BoxLayout):
 
     def update_position(
         self,
-        open_positions: List,
-        closed_positions: List,
         data: PositionData,
-    ) -> Tuple[List, List]:
-        self.strategy_logger.info("Entering update position")
+    ) -> None:
+        self.strategy_logger.info(
+            "Entering update position, len open positions: %s", len(self.open_positions)
+        )
         symbol = data.symbol
 
-        if len(open_positions) != 0:
-            if any(position["symbol"] == symbol for position in open_positions):
-                open_positions, closed_positions = self.update_existing_position(
-                    closed_positions=closed_positions,
-                    data=data,
-                    open_positions=open_positions,
-                )
-            else:
-                open_positions = self.add_new_position(
-                    data=data, open_positions=open_positions, symbol=symbol
-                )
-        else:
-            open_positions = self.add_new_position(
-                data=data, open_positions=open_positions, symbol=symbol
-            )
+        self.strategy_logger.info(
+            "data status: %s, type: %s", data.status, type(data.status)
+        )
 
-        return open_positions, closed_positions
+        if len(self.open_positions) != 0:
+            if any(position["symbol"] == symbol for position in self.open_positions):
+                self.update_existing_position(data=data)
+            else:
+                self.add_new_position(data=data, symbol=symbol)
+        else:
+            # Without this if statement, the cancelled strategy was adding new position.
+            if data.status != PositionStatus.CLOSED:
+                self.add_new_position(data=data, symbol=symbol)
 
     def update_order(
         self, open_orders: List, closed_orders: List, data: OrderData
