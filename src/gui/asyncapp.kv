@@ -53,10 +53,17 @@ TabbedPanel:
                 do_default_tab: False
 
                 TabbedPanelItem:
+                    id: strategies_tab
                     text: 'Strategies'
                     size_hint_x: None
                     width: 800
-                    # Add the content of the 'Strategies' tab here
+
+                    ScrollView:
+                        BoxLayout:
+                            id: strategies_list
+                            orientation: 'vertical'
+                            size_hint_y: None
+                            height: self.minimum_height
 
                 TabbedPanelItem:
                     text: 'Portfolio'

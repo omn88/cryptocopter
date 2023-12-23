@@ -1,0 +1,40 @@
+<StrategyListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    name: ''
+    symbol: ''
+    quantity: ''
+    entry_price: ''
+    mark_price: ''
+    liquidation_price: ''
+    pnl: ''
+    state: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
+
+    Label:
+        text: root.name
+    Label:
+        text: root.symbol
+    ColorChangingQuantity:
+        quantity: 0 if root.quantity == '' else root.quantity
+        text: str(root.quantity)
+        color: self.color
+    Label:
+        text: root.entry_price
+    SymbolMarkPrice:
+        mark_price: 0 if root.mark_price == '' else root.mark_price
+        text: root.mark_price
+    Label:
+        text: root.liquidation_price
+    PnL:
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
+    Label:
+        text: root.state

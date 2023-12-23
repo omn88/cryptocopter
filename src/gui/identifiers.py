@@ -88,6 +88,12 @@ class PositionData:
         return f"PositionData(symbol={self.symbol}, quantity={self.quantity}, entry_price={self.entry_price}, mark_price={self.mark_price}, liquidation_price={self.liquidation_price}, pnl={self.pnl})"
 
 
+class StrategyData:
+    def __init__(self, strategy_name, position_data):
+        self.strategy_name: str = strategy_name
+        self.position_data = position_data
+
+
 class AccountData:
     def __init__(self, balance):
         self.balance = balance

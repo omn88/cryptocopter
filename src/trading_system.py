@@ -32,7 +32,7 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, client, ui_queue, strategy_name, symbol):
+    def __init__(self, client, ui_queue, strategy_name, symbol, main_ui_queue):
         self.client = client
         self.binance_socket_manager = None
         self.queue = None
@@ -44,6 +44,7 @@ class TradingSystem:
         self.strategy = None
         self.strategy_name = strategy_name
         self.symbol = symbol
+        self.main_ui_queue = main_ui_queue
 
     async def initialize(self):
         # Initialize queue, balance, position
@@ -80,6 +81,8 @@ class TradingSystem:
             raw_data=self.raw_data,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
+            strategy_name=self.strategy_name,
+            main_ui_queue=self.main_ui_queue,
         )
 
         await asyncio.gather(

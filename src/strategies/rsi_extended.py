@@ -21,6 +21,8 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
         raw_data,
         ui_queue,
         symbol,
+        strategy_name,
+        main_ui_queue,
     ):
         super().__init__(
             client=client,
@@ -32,6 +34,8 @@ class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended)
             order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             symbol=symbol,
+            strategy_name=strategy_name,
+            main_ui_queue=main_ui_queue,
         )
 
         self.import_feature_configuration(feature=FeatureRsiBasic())

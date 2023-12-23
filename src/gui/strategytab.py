@@ -7,7 +7,12 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
     ORDER_STATUS_CANCELED,
 )
-from kivy.logger import Logger
+from kivy.properties import (
+    ListProperty,
+    NumericProperty,
+    StringProperty,
+    ObjectProperty,
+)
 from kivy.uix.boxlayout import BoxLayout
 from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event
@@ -17,13 +22,10 @@ from src.gui.identifiers import (
     OrderData,
     PriceData,
     PositionStatus,
+    StrategyData,
 )
-from kivy.properties import (
-    ListProperty,
-    NumericProperty,
-    StringProperty,
-    ObjectProperty,
-)
+
+from src.trading_system import TradingSystem
 
 
 class StrategyTab(BoxLayout):
@@ -40,10 +42,11 @@ class StrategyTab(BoxLayout):
 
     log_display = ObjectProperty(None)
 
-    def __init__(self, trading_system, ui_queue, **kwargs):
+    def __init__(self, trading_system, ui_queue, main_ui_queue, **kwargs):
         super().__init__(**kwargs)
-        self.trading_system = trading_system
-        self.ui_queue = ui_queue
+        self.trading_system: TradingSystem = trading_system
+        self.ui_queue: asyncio.Queue = ui_queue
+        self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.strategy_logger = logging.getLogger(self.strategy_name)
         asyncio.create_task(self.update_ui())
 
@@ -63,10 +66,16 @@ class StrategyTab(BoxLayout):
                 self.strategy_logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.open_positions, self.closed_positions = self.update_position(
+                (
+                    self.open_positions,
+                    self.closed_positions,
+                ) = self.update_position(
                     open_positions=self.open_positions,
                     closed_positions=self.closed_positions,
                     data=data,
+                )
+                await self.main_ui_queue.put(
+                    StrategyData(strategy_name=self.strategy_name, position_data=data)
                 )
 
             if isinstance(data, OrderData):
@@ -249,8 +258,12 @@ class StrategyTab(BoxLayout):
         return open_orders, closed_orders
 
     def update_position(
-        self, open_positions: List, closed_positions: List, data: PositionData
+        self,
+        open_positions: List,
+        closed_positions: List,
+        data: PositionData,
     ) -> Tuple[List, List]:
+        self.strategy_logger.info("Entering update position")
         symbol = data.symbol
 
         if len(open_positions) != 0:
