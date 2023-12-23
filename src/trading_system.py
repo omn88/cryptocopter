@@ -16,7 +16,7 @@ from src.common.initialize_trading_environment import (
     create_socket_manager,
 )
 from src.common.orders import order_quantity_list_prepare
-from src.gui.identifiers import AccountData, PositionData, StrategyData
+from src.gui.identifiers import AccountData
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy
@@ -105,5 +105,11 @@ class TradingSystem:
         logger.info("Trading system STOP initiated properly")
         await self.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
+        )
+        await self.main_ui_queue.put(
+            Event(
+                EventName.SENTINEL,
+                content={"strategy_name": self.strategy_name, "symbol": self.symbol},
+            )
         )
         logger.info("Sentinel should be send.")

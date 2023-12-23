@@ -7,6 +7,7 @@ for each strategy.
 
 import asyncio
 import logging
+from typing import Dict
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -14,14 +15,16 @@ from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import KivyGuiHandler
 from src.common.identifiers import BinanceClient
-from src.gui.identifiers import PositionData, PositionStatus, StrategyData
+from src.gui.identifiers import PositionStatus, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
+from src.common.identifiers import Position, EventName, Event, SentinelUpdate
 
 logger = logging.getLogger("async_app")
 
 # Load the common_widgets.kv file first
 Builder.load_file("src/gui/common_widgets.kv")
+Builder.load_file("src/gui/strategytab.kv")
 
 
 class AsyncApp(App):
@@ -60,6 +63,7 @@ class AsyncApp(App):
         super(AsyncApp, self).__init__(**kwargs)
         self.trading_systems = []
         self.client = client
+        self.tabs: Dict = {}
         asyncio.create_task(self.update_ui())
 
     def setup_logging_handler(self, strategy_logger, log_display_widget):
@@ -85,8 +89,6 @@ class AsyncApp(App):
         Returns:
             Widget: The root widget of the application.
         """
-        # Builder.load_file("src/gui/common_widgets.kv")
-        Builder.load_file("src/gui/strategytab.kv")
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
@@ -135,13 +137,17 @@ class AsyncApp(App):
                 log_display_widget=strategy_tab.log_display,
             )
 
-            # Add a new tab for the strategy
-            self.root.add_widget(
-                TabbedPanelItem(
-                    text=f"{self.strategy_mapping[strategy]}_{trading_system.symbol}",
-                    content=strategy_tab,
-                )
+            strategy_name = f"{self.strategy_mapping[strategy]}_{trading_system.symbol}"
+            tab = TabbedPanelItem(
+                text=strategy_name,
+                content=strategy_tab,
             )
+
+            # Store a reference to the tab
+            self.tabs[strategy_name] = tab
+
+            # Add a new tab for the strategy
+            self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
@@ -150,6 +156,13 @@ class AsyncApp(App):
             await trading_system.start_trading()
         else:
             Logger.info("App: Please select a strategy and a symbol.")
+
+    async def on_close_strategy(self, strategy_name, symbol):
+        # Get the tab for the strategy
+        tab = self.tabs[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
+
+        # Remove the tab from the TabbedPanel
+        self.root.remove_widget(tab)
 
     async def update_ui(self):
         while True:
@@ -165,6 +178,13 @@ class AsyncApp(App):
             #         return
             if isinstance(data, StrategyData):
                 self.update_strategies(data=data)
+            if isinstance(data, Event):
+                if data.name == EventName.SENTINEL:
+                    logger.info("Sentinel came, closing the strategy.")
+                    await self.on_close_strategy(
+                        strategy_name=data.content["strategy_name"],
+                        symbol=data.content["symbol"],
+                    )
 
     def update_strategies(self, data: StrategyData):
         if len(self.active_strategies):

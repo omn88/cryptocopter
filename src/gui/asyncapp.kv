@@ -53,7 +53,7 @@ TabbedPanel:
                 do_default_tab: False
 
                 TabbedPanelItem:
-                    id: strategies_tab
+                    id: active_strategies_tab
                     text: 'Strategies'
                     size_hint_x: None
                     width: 800
@@ -90,7 +90,39 @@ TabbedPanel:
                                 height: self.minimum_height
                                 orientation: 'vertical'
                 TabbedPanelItem:
-                    text: 'Portfolio'
+                    id: closed_strategies_tab
+                    text: 'History'
                     size_hint_x: None
                     width: 800
-                    # Add the content of the 'Portfolio' tab here
+
+                    BoxLayout:
+                        orientation: "vertical"
+                        BoxLayout:
+                            size_hint_y: None
+                            height: '30dp'
+                            Label:
+                                text: 'Strategy'
+                            Label:
+                                text: 'Symbol'
+                            Label:
+                                text: 'Quantity'
+                            Label:
+                                text: 'Entry Price'
+                            Label:
+                                text: 'Mark Price'
+                            Label:
+                                text: 'Liquidation Price'
+                            Label:
+                                text: 'PnL'
+                            Label:
+                                text: 'State'
+                        RecycleView:
+                            id: closed_strategies_list
+                            data: app.closed_strategies
+                            viewclass: 'StrategyListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'

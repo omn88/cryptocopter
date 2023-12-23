@@ -268,10 +268,6 @@ class StrategyTab(BoxLayout):
         )
         symbol = data.symbol
 
-        self.strategy_logger.info(
-            "data status: %s, type: %s", data.status, type(data.status)
-        )
-
         if len(self.open_positions) != 0:
             if any(position["symbol"] == symbol for position in self.open_positions):
                 self.update_existing_position(data=data)
@@ -309,5 +305,4 @@ class StrategyTab(BoxLayout):
     def on_cancel(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.stop())
-
         self.strategy_logger.info("App: Cancel button pressed.")
