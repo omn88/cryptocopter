@@ -76,6 +76,8 @@ async def worker(queue: asyncio.Queue, tsm: TradingStateMachine, symbol: str):
                 ui_queue=tsm.ui_queue,
                 position=tsm.position,
                 symbol=symbol,
+                main_ui_queue=tsm.main_ui_queue,
+                strategy_name=tsm.strategy_name,
             )
             return
 

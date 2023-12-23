@@ -84,7 +84,7 @@ class StrategyTab(BoxLayout):
                 self.strategy_logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USDT"
             if isinstance(data, PositionData):
-                self.strategy_logger("PositionData update")
+                self.strategy_logger.info("PositionData update")
                 (
                     self.open_positions,
                     self.closed_positions,
@@ -327,4 +327,5 @@ class StrategyTab(BoxLayout):
     def on_cancel(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.stop())
+
         self.strategy_logger.info("App: Cancel button pressed.")

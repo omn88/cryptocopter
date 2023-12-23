@@ -31,7 +31,7 @@ from src.common.orders import (
 )
 import logging
 
-from src.gui.identifiers import PositionData, PositionStatus
+from src.gui.identifiers import PositionData, PositionStatus, StrategyData
 from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
@@ -109,12 +109,36 @@ async def close_special_position(
 
 
 async def close_long(
-    client: BinanceClient, position: Position, ui_queue: asyncio.Queue, symbol: str
+    client: BinanceClient,
+    position: Position,
+    ui_queue: asyncio.Queue,
+    main_ui_queue: asyncio.Queue,
+    symbol: str,
+    strategy_name: str,
 ) -> Position:
     close_side = SIDE_SELL
     position, position_was_opened = await cancel_remaining_limit_orders(
         client, position=position, ui_queue=ui_queue, symbol=symbol
     )
+
+    logger.info("sending close position to ui")
+    position_data = PositionData(
+        symbol=symbol,
+        quantity=position.quantity,
+        entry_price=position.entry_price,
+        mark_price=0,
+        liquidation_price=position.liquidation_price,
+        pnl=0,
+        state=position.state,
+        status=PositionStatus.CLOSED,
+    )
+
+    await ui_queue.put(position_data)
+
+    await main_ui_queue.put(
+        StrategyData(strategy_name=strategy_name, position_data=position_data)
+    )
+    logger.info("StrategyData to close long send with status: %s", position_data.status)
 
     if position_was_opened:
         logger.info("Entering position close, trying to Market %s", close_side)
@@ -131,34 +155,42 @@ async def close_long(
         )
         logger.info("Cancelled take profit order")
 
-        logger.info("sending close position to ui")
-        await ui_queue.put(
-            PositionData(
-                symbol=symbol,
-                quantity=position.quantity,
-                entry_price=position.entry_price,
-                mark_price=0,
-                liquidation_price=position.liquidation_price,
-                pnl=0,
-                state=position.state,
-                status=PositionStatus.CLOSED,
-            )
-        )
-
-    else:
-        pass
-        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
-
     logger.info("Exiting close long")
     return position
 
 
 async def close_short(
-    client: BinanceClient, position: Position, ui_queue: asyncio.Queue, symbol: str
+    client: BinanceClient,
+    position: Position,
+    ui_queue: asyncio.Queue,
+    main_ui_queue,
+    strategy_name,
+    symbol: str,
 ) -> Position:
     close_side = client.SIDE_BUY
     position, position_was_opened = await cancel_remaining_limit_orders(
         client, position=position, ui_queue=ui_queue, symbol=symbol
+    )
+
+    logger.info("sending close position to ui")
+    position_data = PositionData(
+        symbol=symbol,
+        quantity=position.quantity,
+        entry_price=position.entry_price,
+        mark_price=0,
+        liquidation_price=position.liquidation_price,
+        pnl=0,
+        status=PositionStatus.CLOSED,
+        state=position.state,
+    )
+    await ui_queue.put(position_data)
+
+    await main_ui_queue.put(
+        StrategyData(strategy_name=strategy_name, position_data=position_data)
+    )
+
+    logger.info(
+        "StrategyData to close short send with status: %s", position_data.status
     )
 
     if position_was_opened:
@@ -175,24 +207,6 @@ async def close_short(
             symbol=symbol,
         )
         logger.info("Cancelled take profit order")
-
-        logger.info("sending close position to ui")
-        await ui_queue.put(
-            PositionData(
-                symbol=symbol,
-                quantity=position.quantity,
-                entry_price=position.entry_price,
-                mark_price=0,
-                liquidation_price=position.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED,
-                state=position.state,
-            )
-        )
-
-    else:
-        pass
-        # update_artifacts_and_save(position=position, order_update=None, balance=balance)
 
     logger.info("Exiting close short")
     return position
@@ -525,15 +539,31 @@ async def market_order_partially_filled(order_update: OrderUpdate, position: Pos
 
 
 async def futures_position_close(
-    client: BinanceClient, position: Position, ui_queue: asyncio.Queue, symbol: str
+    client: BinanceClient,
+    position: Position,
+    ui_queue: asyncio.Queue,
+    main_ui_queue,
+    strategy_name,
+    symbol: str,
 ):
+    logger.info("FAAK position state: %s", position.state)
     if position.state in [State.LONG, State.LONG_EXT, State.LONG_SPECIAL]:
         _ = await close_long(
-            client=client, position=position, ui_queue=ui_queue, symbol=symbol
+            client=client,
+            position=position,
+            ui_queue=ui_queue,
+            symbol=symbol,
+            main_ui_queue=main_ui_queue,
+            strategy_name=strategy_name,
         )
     elif position.state in [State.SHORT, State.SHORT_EXT, State.SHORT_SPECIAL]:
         _ = await close_short(
-            client=client, position=position, ui_queue=ui_queue, symbol=symbol
+            client=client,
+            position=position,
+            ui_queue=ui_queue,
+            symbol=symbol,
+            main_ui_queue=main_ui_queue,
+            strategy_name=strategy_name,
         )
 
 

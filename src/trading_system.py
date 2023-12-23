@@ -16,7 +16,7 @@ from src.common.initialize_trading_environment import (
     create_socket_manager,
 )
 from src.common.orders import order_quantity_list_prepare
-from src.gui.identifiers import AccountData
+from src.gui.identifiers import AccountData, PositionData, StrategyData
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy

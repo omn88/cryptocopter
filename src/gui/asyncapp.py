@@ -160,7 +160,7 @@ class AsyncApp(App):
             # Update the UI based on data
             # if isinstance(data, Event):
             #     if data.name == EventName.SENTINEL:
-            #         self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
+            #         logger.info("SENTINEL -> Exiting UI updates.")
             #         await asyncio.sleep(3)
             #         return
             if isinstance(data, StrategyData):
@@ -196,31 +196,27 @@ class AsyncApp(App):
                 strategy["state"] = str(data.position_data.state.value)
                 strategy["status"] = str(data.position_data.status)
 
-                if strategy["status"] == PositionStatus.CLOSED:
-                    self.strategy_logger.info(
-                        "Position status: %s", data.position_data.status
-                    )
-                    self.strategy_logger.info(
+                if strategy["status"] == str(PositionStatus.CLOSED):
+                    logger.info("Position status: %s", data.position_data.status)
+                    logger.info(
                         "Length of active strategies: %s", len(self.active_strategies)
                     )
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of closed strategies: %s",
                         len(self.closed_strategies),
                     )
                     self.closed_strategies.append(strategy)
                     self.active_strategies.remove(strategy)
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of active strategies after removal: %s",
                         len(self.active_strategies),
                     )
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of closed strategies after appending: %s",
                         len(self.closed_strategies),
                     )
 
-                self.strategy_logger.info(
-                    "Updated active strategies: %s", self.active_strategies
-                )
+                logger.info("Updated active strategies: %s", self.active_strategies)
 
     def add_position_to_active_strategies_tab(self, data: StrategyData):
         self.active_strategies.append(

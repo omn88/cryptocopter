@@ -16,13 +16,20 @@ async def shutdown(
     posix_signal: signal.Signals,
     position: Position,
     ui_queue: asyncio.Queue,
+    main_ui_queue: asyncio.Queue,
+    strategy_name: str,
     symbol: str,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
 
     await futures_position_close(
-        client=client, position=position, ui_queue=ui_queue, symbol=symbol
+        client=client,
+        position=position,
+        ui_queue=ui_queue,
+        symbol=symbol,
+        main_ui_queue=main_ui_queue,
+        strategy_name=strategy_name,
     )
 
     logging.info("Nacking outstanding messages")
