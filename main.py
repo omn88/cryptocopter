@@ -20,7 +20,7 @@ os.environ["KIVY_LOG_MODE"] = "MIXED"
 
 from kivy.core.window import Window
 from src.common.common import create_async_client
-from src.gui.async_app import AsyncApp
+from src.gui.asyncapp import AsyncApp
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 

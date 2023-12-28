@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 from kivy.properties import NumericProperty, ListProperty, StringProperty
 from kivy.uix.label import Label
+from src.common.identifiers import State
 
 from src.gui.constants import GREEN_COLOR, RED_COLOR, WHITE_COLOR
 
@@ -66,26 +67,40 @@ class PositionStatus(Enum):
 class PositionData:
     def __init__(
         self,
-        symbol,
-        quantity,
-        entry_price,
-        mark_price,
-        liquidation_price,
-        pnl,
-        status,
-        state,
+        symbol: str,
+        quantity: float,
+        entry_price: float,
+        mark_price: float,
+        liquidation_price: float,
+        pnl: float,
+        status: PositionStatus,
+        state: State,
     ):
-        self.symbol = symbol
-        self.quantity = quantity
-        self.entry_price = entry_price
-        self.mark_price = mark_price
-        self.liquidation_price = liquidation_price
-        self.pnl = pnl
-        self.status = status
-        self.state = state
+        self.symbol: str = symbol
+        self.quantity: float = quantity
+        self.entry_price: float = entry_price
+        self.mark_price: float = mark_price
+        self.liquidation_price: float = liquidation_price
+        self.pnl: float = pnl
+        self.status: PositionStatus = status
+        self.state: State = state
 
-    def __repr__(self):
-        return f"PositionData(symbol={self.symbol}, quantity={self.quantity}, entry_price={self.entry_price}, mark_price={self.mark_price}, liquidation_price={self.liquidation_price}, pnl={self.pnl})"
+    def __repr__(self) -> str:
+        return (
+            f"PositionData("
+            f"symbol={self.symbol}, "
+            f"quantity={self.quantity}, "
+            f"entry_price={self.entry_price}, "
+            f"mark_price={self.mark_price}, "
+            f"liquidation_price={self.liquidation_price}, "
+            f"pnl={self.pnl})"
+        )
+
+
+class StrategyData:
+    def __init__(self, strategy_name: str, position_data: PositionData):
+        self.strategy_name: str = strategy_name
+        self.position_data: PositionData = position_data
 
 
 class AccountData:

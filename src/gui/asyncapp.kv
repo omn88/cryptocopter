@@ -1,0 +1,128 @@
+TabbedPanel:
+    id: root_tabbed_panel
+    do_default_tab: False
+
+    TabbedPanelItem:
+        text: 'Configure'
+        BoxLayout:
+            orientation: 'vertical'
+
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: 0.07
+
+                Spinner:
+                    id: strategy_spinner
+                    text: 'Choose Strategy'
+                    values: ('RSI Basic', 'RSI Extended', 'RSI Special')
+                    size_hint: (0.2, 1)
+                    on_text: app.log_spinner_change('strategy', self.text)
+
+                Spinner:
+                    id: symbol_spinner
+                    text: 'Choose Symbol'
+                    values: ('BTCUSDT', 'ETHUSDT', 'ETHBTC')
+                    size_hint: (0.2, 1)
+                    on_text: app.log_spinner_change('symbol', self.text)
+
+                BoxLayout:
+                    size_hint_x: 0.25
+
+                BoxLayout:
+                    orientation: 'horizontal'
+                    size_hint: (0.35, 1)
+
+                    Button:
+                        id: start_button
+                        text: 'Start'
+                        size_hint: (0.5, 1)
+                        on_release: app.start_strategy()
+
+                    Button:
+                        id: cancel_button
+                        text: 'Cancel'
+                        size_hint: (0.5, 1)
+                        on_press: app.on_cancel()
+
+            Label:
+                size_hint_y: 0.1
+                text: ''
+
+            TabbedPanel:
+                size_hint_y: 0.67
+                do_default_tab: False
+
+                TabbedPanelItem:
+                    id: active_strategies_tab
+                    text: 'Strategies'
+                    size_hint_x: None
+                    width: 800
+
+                    BoxLayout:
+                        orientation: "vertical"
+                        BoxLayout:
+                            size_hint_y: None
+                            height: '30dp'
+                            Label:
+                                text: 'Strategy'
+                            Label:
+                                text: 'Symbol'
+                            Label:
+                                text: 'Quantity'
+                            Label:
+                                text: 'Entry Price'
+                            Label:
+                                text: 'Mark Price'
+                            Label:
+                                text: 'Liquidation Price'
+                            Label:
+                                text: 'PnL'
+                            Label:
+                                text: 'State'
+                        RecycleView:
+                            id: active_strategies_list
+                            data: app.active_strategies
+                            viewclass: 'StrategyListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'
+                TabbedPanelItem:
+                    id: closed_strategies_tab
+                    text: 'History'
+                    size_hint_x: None
+                    width: 800
+
+                    BoxLayout:
+                        orientation: "vertical"
+                        BoxLayout:
+                            size_hint_y: None
+                            height: '30dp'
+                            Label:
+                                text: 'Strategy'
+                            Label:
+                                text: 'Symbol'
+                            Label:
+                                text: 'Quantity'
+                            Label:
+                                text: 'Entry Price'
+                            Label:
+                                text: 'Mark Price'
+                            Label:
+                                text: 'Liquidation Price'
+                            Label:
+                                text: 'PnL'
+                            Label:
+                                text: 'State'
+                        RecycleView:
+                            id: closed_strategies_list
+                            data: app.closed_strategies
+                            viewclass: 'StrategyListItem'
+                            RecycleBoxLayout:
+                                default_size: None, dp(56)
+                                default_size_hint: 1, None
+                                size_hint_y: None
+                                height: self.minimum_height
+                                orientation: 'vertical'

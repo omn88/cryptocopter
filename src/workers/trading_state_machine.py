@@ -1,6 +1,5 @@
 import asyncio
 from typing import List, Union, Optional
-import binance
 import numpy
 import pandas
 from binance.enums import (
@@ -30,7 +29,7 @@ from src.common.identifiers import (
     BinanceClient,
 )
 from src.common.orders import cancel_order
-from src.gui.identifiers import PositionData, PositionStatus, OrderData
+from src.gui.identifiers import PositionData, PositionStatus, OrderData, StrategyData
 from src.workers.handle_order import (
     position_liquidation,
     target_reached,
@@ -53,20 +52,24 @@ class TradingStateMachine:
     def __init__(
         self,
         client: BinanceClient,
+        strategy_name: str,
         symbol: str,
         queue: asyncio.Queue,
         ui_queue: asyncio.Queue,
+        main_ui_queue: asyncio.Queue,
         position: Position,
         df: pandas.DataFrame,
         balance: float,
         order_quantity_list,
         raw_data,
     ):
+        self.strategy_name: str = strategy_name
         self.state: State = State.FLAT
         self.symbol: str = symbol
         self.client: BinanceClient = client
         self.queue: asyncio.Queue = queue
         self.ui_queue: asyncio.Queue = ui_queue
+        self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.position: Position = position
         self.position_old: Position = position
         self.raw_data: List = raw_data
@@ -595,17 +598,19 @@ class TradingStateMachine:
         )
 
     async def send_close_position_to_ui(self, symbol: str):
-        await self.ui_queue.put(
-            PositionData(
-                symbol=symbol,
-                quantity=self.position_old.quantity,
-                entry_price=self.position_old.entry_price,
-                mark_price=0,
-                liquidation_price=self.position_old.liquidation_price,
-                pnl=0,
-                status=PositionStatus.CLOSED,
-                state=self.position.state,
-            )
+        data = PositionData(
+            symbol=symbol,
+            quantity=self.position_old.quantity,
+            entry_price=self.position_old.entry_price,
+            mark_price=0,
+            liquidation_price=self.position_old.liquidation_price,
+            pnl=0,
+            status=PositionStatus.CLOSED,
+            state=self.position.state,
+        )
+        await self.ui_queue.put(data)
+        await self.main_ui_queue.put(
+            StrategyData(strategy_name=self.strategy_name, position_data=data)
         )
 
     async def send_order_update_to_ui(self, order: Order, open_time, symbol: str):
@@ -715,18 +720,23 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
             symbol=self.symbol,
         )
-        await self.ui_queue.put(
-            PositionData(
-                symbol=self.symbol,
-                quantity=self.position.quantity,
-                entry_price=self.position.entry_price,
-                mark_price=0,
-                liquidation_price=self.position.liquidation_price,
-                pnl=0,
-                status=PositionStatus.ACTIVE,
-                state=self.position.state,
-            )
+
+        position_data = PositionData(
+            symbol=self.symbol,
+            quantity=self.position.quantity,
+            entry_price=self.position.entry_price,
+            mark_price=0,
+            liquidation_price=self.position.liquidation_price,
+            pnl=0,
+            status=PositionStatus.ACTIVE,
+            state=self.position.state,
         )
+        await self.ui_queue.put(position_data)
+
+        await self.main_ui_queue.put(
+            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
+        )
+
         self.update_position_in_df(update=self.position.state)
         order = next(
             (
@@ -755,17 +765,22 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
             symbol=self.symbol,
         )
-        await self.ui_queue.put(
-            PositionData(
-                symbol=self.symbol,
-                quantity=self.position.quantity,
-                entry_price=self.position.entry_price,
-                mark_price=0,
-                liquidation_price=self.position.liquidation_price,
-                pnl=0,
-                status=PositionStatus.ACTIVE,
-                state=self.position.state,
-            )
+
+        position_data = PositionData(
+            symbol=self.symbol,
+            quantity=self.position.quantity,
+            entry_price=self.position.entry_price,
+            mark_price=0,
+            liquidation_price=self.position.liquidation_price,
+            pnl=0,
+            status=PositionStatus.ACTIVE,
+            state=self.position.state,
+        )
+
+        await self.ui_queue.put(position_data)
+
+        await self.main_ui_queue.put(
+            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
         order = next(
