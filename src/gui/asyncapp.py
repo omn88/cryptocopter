@@ -7,15 +7,16 @@ for each strategy.
 
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, List
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import KivyGuiHandler
+from src.common.constants import LEVERAGE
 from src.common.identifiers import BinanceClient
-from src.gui.identifiers import PositionStatus, StrategyData
+from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
 from src.common.identifiers import Position, EventName, Event, SentinelUpdate
@@ -164,18 +165,18 @@ class AsyncApp(App):
         # Remove the tab from the TabbedPanel
         self.root.remove_widget(tab)
 
+        if len(self.root.tab_list) > 0:
+            self.root.switch_to(self.root.tab_list[0])
+
     async def update_ui(self):
         while True:
-            logger.info("Events in Main UI queue: %s", self.main_ui_queue.qsize())
-            if self.main_ui_queue.qsize() == 0:
-                logger.info("Awaiting new Event")
             data = await self.main_ui_queue.get()
-            # Update the UI based on data
-            # if isinstance(data, Event):
-            #     if data.name == EventName.SENTINEL:
-            #         logger.info("SENTINEL -> Exiting UI updates.")
-            #         await asyncio.sleep(3)
-            #         return
+            if isinstance(data, Event):
+                if data.name == EventName.SENTINEL:
+                    logger.info(
+                        "Strategy %s send a SENTINEL.", data.content["strategy_name"]
+                    )
+
             if isinstance(data, StrategyData):
                 self.update_strategies(data=data)
             if isinstance(data, Event):
@@ -185,6 +186,53 @@ class AsyncApp(App):
                         strategy_name=data.content["strategy_name"],
                         symbol=data.content["symbol"],
                     )
+
+            if isinstance(data, PriceData):
+                for strategy in self.active_strategies:
+                    if (
+                        strategy["symbol"] == data.symbol
+                        and strategy["status"] != PositionStatus.CLOSED.value
+                    ):
+                        self.active_strategies = self.update_price_data(data=data)
+
+    @staticmethod
+    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+        pnl = 0.0
+
+        if quantity > 0:
+            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
+        if quantity == 0:
+            pnl = 0
+        if quantity < 0:
+            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
+
+        return pnl
+
+    def update_price_data(self, data: PriceData) -> List:
+        copied_strategies = [pos.copy() for pos in self.active_strategies]
+
+        if len(copied_strategies) != 0:
+            for strategy in copied_strategies:
+                if strategy["symbol"] == data.symbol:
+                    pnl = str(
+                        round(
+                            self.calculate_pnl(
+                                quantity=round(float(strategy["quantity"]), 3),
+                                index_price=float(data.mark_price),
+                                entry_price=float(strategy["entry_price"]),
+                            ),
+                            3,
+                        )
+                    )
+                    strategy["quantity"] = str(strategy["quantity"])
+                    strategy["entry_price"] = str(strategy["entry_price"])
+                    strategy["mark_price"] = str(data.mark_price)
+                    strategy["liquidation_price"] = str(strategy["liquidation_price"])
+                    strategy["pnl"] = pnl
+                    strategy["state"] = str(strategy["state"])
+                    strategy["status"] = str(strategy["status"])
+
+        return copied_strategies
 
     def update_strategies(self, data: StrategyData):
         if len(self.active_strategies):

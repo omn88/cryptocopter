@@ -94,6 +94,7 @@ class TradingSystem:
                 tsm=self.strategy,
                 ui_queue=self.ui_queue,
                 symbol=self.symbol,
+                main_ui_queue=self.main_ui_queue,
             ),
             *prepare_workers(tsm=self.strategy, queue=self.queue, symbol=self.symbol),
             return_exceptions=True,

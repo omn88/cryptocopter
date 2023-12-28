@@ -98,7 +98,7 @@ class PositionData:
 
 
 class StrategyData:
-    def __init__(self, strategy_name, position_data):
+    def __init__(self, strategy_name: str, position_data: PositionData):
         self.strategy_name: str = strategy_name
         self.position_data: PositionData = position_data
 

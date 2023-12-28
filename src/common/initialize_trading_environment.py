@@ -43,6 +43,7 @@ def prepare_producers(
     bsm: BinanceSocketManager,
     queue: asyncio.Queue,
     ui_queue: asyncio.Queue,
+    main_ui_queue: asyncio.Queue,
     interval: str,
     df: pandas.DataFrame,
     tsm: TradingStateMachine,
@@ -60,7 +61,9 @@ def prepare_producers(
         ),
         asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
         asyncio.create_task(
-            futures_symbol_mark_price_socket(bsm=bsm, ui_queue=ui_queue, symbol=symbol)
+            futures_symbol_mark_price_socket(
+                bsm=bsm, ui_queue=ui_queue, symbol=symbol, main_ui_queue=main_ui_queue
+            )
         ),
     ]
 

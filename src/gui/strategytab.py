@@ -42,7 +42,13 @@ class StrategyTab(BoxLayout):
 
     log_display = ObjectProperty(None)
 
-    def __init__(self, trading_system, ui_queue, main_ui_queue, **kwargs):
+    def __init__(
+        self,
+        trading_system: TradingSystem,
+        ui_queue: asyncio.Queue,
+        main_ui_queue: asyncio.Queue,
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.trading_system: TradingSystem = trading_system
         self.ui_queue: asyncio.Queue = ui_queue

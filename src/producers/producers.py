@@ -67,7 +67,10 @@ async def futures_user_socket(
 
 
 async def futures_symbol_mark_price_socket(
-    bsm: BinanceSocketManager, ui_queue: asyncio.Queue, symbol: str
+    bsm: BinanceSocketManager,
+    ui_queue: asyncio.Queue,
+    main_ui_queue: asyncio.Queue,
+    symbol: str,
 ):
     smp = bsm.symbol_mark_price_socket(symbol=symbol)
 
@@ -80,9 +83,11 @@ async def futures_symbol_mark_price_socket(
             mark_price = round(float(msg["data"]["p"]), 1)
             index_price = round(float(msg["data"]["i"]), 1)
 
-            await ui_queue.put(
-                PriceData(index_price=index_price, symbol=symbol, mark_price=mark_price)
+            price_data = PriceData(
+                index_price=index_price, symbol=symbol, mark_price=mark_price
             )
+            await ui_queue.put(price_data)
+            await main_ui_queue.put(price_data)
             await asyncio.sleep(1)
 
 
