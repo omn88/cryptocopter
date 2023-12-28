@@ -720,18 +720,23 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
             symbol=self.symbol,
         )
-        await self.ui_queue.put(
-            PositionData(
-                symbol=self.symbol,
-                quantity=self.position.quantity,
-                entry_price=self.position.entry_price,
-                mark_price=0,
-                liquidation_price=self.position.liquidation_price,
-                pnl=0,
-                status=PositionStatus.ACTIVE,
-                state=self.position.state,
-            )
+
+        position_data = PositionData(
+            symbol=self.symbol,
+            quantity=self.position.quantity,
+            entry_price=self.position.entry_price,
+            mark_price=0,
+            liquidation_price=self.position.liquidation_price,
+            pnl=0,
+            status=PositionStatus.ACTIVE,
+            state=self.position.state,
         )
+        await self.ui_queue.put(position_data)
+
+        await self.main_ui_queue.put(
+            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
+        )
+
         self.update_position_in_df(update=self.position.state)
         order = next(
             (
@@ -760,17 +765,22 @@ class TradingStateMachine:
             ui_queue=self.ui_queue,
             symbol=self.symbol,
         )
-        await self.ui_queue.put(
-            PositionData(
-                symbol=self.symbol,
-                quantity=self.position.quantity,
-                entry_price=self.position.entry_price,
-                mark_price=0,
-                liquidation_price=self.position.liquidation_price,
-                pnl=0,
-                status=PositionStatus.ACTIVE,
-                state=self.position.state,
-            )
+
+        position_data = PositionData(
+            symbol=self.symbol,
+            quantity=self.position.quantity,
+            entry_price=self.position.entry_price,
+            mark_price=0,
+            liquidation_price=self.position.liquidation_price,
+            pnl=0,
+            status=PositionStatus.ACTIVE,
+            state=self.position.state,
+        )
+
+        await self.ui_queue.put(position_data)
+
+        await self.main_ui_queue.put(
+            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
         order = next(
