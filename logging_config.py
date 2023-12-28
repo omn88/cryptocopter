@@ -1,6 +1,21 @@
 import logging
 from datetime import datetime
 
+import os
+
+# Get the environment variable
+env = os.getenv("ENVIRONMENT")
+
+# Set the log directory based on the environment
+if env == "GITLAB":
+    LOG_DIR = "/builds/omn88/rsi_based_futures/artifacts"
+else:
+    LOG_DIR = os.path.join(os.getcwd(), "artifacts")
+
+# Create the directory if it doesn't exist
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
 # get current date and time
 now = datetime.now()
 

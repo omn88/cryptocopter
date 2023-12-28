@@ -586,6 +586,8 @@ class TradingStateMachine:
             position=self.position,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
+            main_ui_queue=self.main_ui_queue,
+            strategy_name=self.strategy_name,
         )
 
     async def close_short(self, *args, **kwargs):
@@ -595,6 +597,8 @@ class TradingStateMachine:
             position=self.position,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
+            main_ui_queue=self.main_ui_queue,
+            strategy_name=self.strategy_name,
         )
 
     async def send_close_position_to_ui(self, symbol: str):

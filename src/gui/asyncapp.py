@@ -19,7 +19,7 @@ from src.common.identifiers import BinanceClient
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
-from src.common.identifiers import Position, EventName, Event, SentinelUpdate
+from src.common.identifiers import EventName, Event
 
 logger = logging.getLogger("async_app")
 
@@ -60,7 +60,6 @@ class AsyncApp(App):
             **kwargs: Additional keyword arguments.
         """
         super(AsyncApp, self).__init__(**kwargs)
-        self.trading_systems = []
         self.client = client
         self.tabs: Dict = {}
         asyncio.create_task(self.update_ui())

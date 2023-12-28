@@ -162,8 +162,8 @@ async def close_short(
     client: BinanceClient,
     position: Position,
     ui_queue: asyncio.Queue,
-    main_ui_queue,
-    strategy_name,
+    main_ui_queue: asyncio.Queue,
+    strategy_name: str,
     symbol: str,
 ) -> Position:
     close_side = client.SIDE_BUY
