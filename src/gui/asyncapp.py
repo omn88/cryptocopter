@@ -46,8 +46,6 @@ class AsyncApp(App):
     closed_strategies = ListProperty([])
     main_ui_queue: asyncio.Queue = asyncio.Queue()
 
-    # root_tabbed_panel = ObjectProperty(None)  # Add this line
-
     strategy_mapping = {
         "RSI Basic": "RB",
         "RSI Extended": "RE",
@@ -214,7 +212,11 @@ class AsyncApp(App):
         if len(copied_strategies) != 0:
             for strategy in copied_strategies:
                 if strategy["symbol"] == data.symbol:
-                    pnl = str(
+                    strategy["quantity"] = str(strategy["quantity"])
+                    strategy["entry_price"] = str(strategy["entry_price"])
+                    strategy["mark_price"] = str(data.mark_price)
+                    strategy["liquidation_price"] = str(strategy["liquidation_price"])
+                    strategy["pnl"] = str(
                         round(
                             self.calculate_pnl(
                                 quantity=round(float(strategy["quantity"]), 3),
@@ -224,11 +226,6 @@ class AsyncApp(App):
                             3,
                         )
                     )
-                    strategy["quantity"] = str(strategy["quantity"])
-                    strategy["entry_price"] = str(strategy["entry_price"])
-                    strategy["mark_price"] = str(data.mark_price)
-                    strategy["liquidation_price"] = str(strategy["liquidation_price"])
-                    strategy["pnl"] = pnl
                     strategy["state"] = str(strategy["state"])
                     strategy["status"] = str(strategy["status"])
 
