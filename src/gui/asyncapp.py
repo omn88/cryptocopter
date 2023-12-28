@@ -60,7 +60,6 @@ class AsyncApp(App):
             **kwargs: Additional keyword arguments.
         """
         super(AsyncApp, self).__init__(**kwargs)
-        self.trading_systems = []
         self.client = client
         self.tabs: Dict = {}
         asyncio.create_task(self.update_ui())
