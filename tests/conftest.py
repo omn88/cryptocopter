@@ -49,7 +49,7 @@ async def basic_rsi(mock_AsyncClient):
         ui_queue=create_async_queue(),
         main_ui_queue=create_async_queue(),
         symbol="BTCUSDT",
-        strategy_name="RB_BTCUSDT"
+        strategy_name="RB_BTCUSDT",
     )
 
     await tsm.determine_start_position()
@@ -76,7 +76,7 @@ async def extended_rsi(mock_AsyncClient):
         ui_queue=create_async_queue(),
         main_ui_queue=create_async_queue(),
         symbol="BTCUSDT",
-        strategy_name="RE_BTCUSDT"
+        strategy_name="RE_BTCUSDT",
     )
 
     await tsm.determine_start_position()
@@ -103,7 +103,7 @@ async def special_rsi(mock_AsyncClient):
         ui_queue=create_async_queue(),
         main_ui_queue=create_async_queue(),
         symbol="BTCUSDT",
-        strategy_name="RS_BTCUSDT"
+        strategy_name="RS_BTCUSDT",
     )
 
     await tsm.determine_start_position()

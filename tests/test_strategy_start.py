@@ -23,18 +23,19 @@ async def test_determine_start_position(signal, basic_rsi):
     raw_data = raw_data_generate(desired_signal=signal)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    position = Position()
-    queue = create_async_queue()
 
     tsm = ExtendedStrategy(
         client=basic_rsi.client,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
-        position=position,
+        position=Position(),
         raw_data=raw_data,
-        queue=queue,
-        ui_queue=asyncio.Queue(),
+        queue=create_async_queue(),
+        ui_queue=create_async_queue(),
+        main_ui_queue=create_async_queue(),
+        symbol=basic_rsi.symbol,
+        strategy_name=basic_rsi.strategy_name,
     )
     tsm.signals_from_features_generate(
         df=df, conditions=tsm.conditions, signals=tsm.signals
