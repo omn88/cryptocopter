@@ -51,3 +51,21 @@ class KivyGuiHandler(logging.Handler):
             self.widget.text += f"\n{log_entry}"
             # Auto-scroll to the bottom
             self.widget.parent.scroll_y = 0
+
+
+def setup_logging_handler(strategy_logger, log_display_widget) -> None:
+    """Sets up a logging handler for a strategy.
+
+    Parameters:
+        strategy_logger (Logger): The logger to set up the handler for.
+        log_display_widget (Widget): The widget to display the logs in.
+    """
+    gui_log_handler = KivyGuiHandler(log_display_widget)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    gui_log_handler.setFormatter(formatter)
+
+    strategy_logger.addHandler(gui_log_handler)
+
+    strategy_logger.info("Logging handler configured with success")
