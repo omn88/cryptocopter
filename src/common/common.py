@@ -7,21 +7,10 @@ import btalib
 import numpy
 import pandas
 import pytz
-from decouple import config
-from logging_config import KivyGuiHandler
 from src.common.identifiers import Signal, State, BinanceClient
 
 
 logger = logging.getLogger("common")
-
-
-async def create_async_client() -> BinanceClient:
-    client = BinanceClient(
-        api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
-    )
-    logger.info("Async client created")
-
-    return client
 
 
 def create_directory_with_timestamp():

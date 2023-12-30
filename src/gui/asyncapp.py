@@ -64,6 +64,9 @@ class AsyncApp(App):
         self.tabs: Dict = {}
         asyncio.create_task(self.update_ui())
 
+    def __str__(self):
+        return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
+
     def build(self):
         """Builds the application.
 
@@ -80,7 +83,8 @@ class AsyncApp(App):
             spinner (str): The name of the spinner.
             new_value (str): The new value of the spinner.
         """
-        logger.debug("%s spinner value changed to %s", spinner, new_value)
+        if new_value not in ["Choose Strategy", "Choose Symbol"]:
+            logger.info("%s spinner value changed to %s", spinner, new_value)
 
     def start_strategy(self):
         """Starts a new strategy."""
@@ -91,8 +95,11 @@ class AsyncApp(App):
         # Check if a strategy and symbol are selected
         strategy = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
+        strategy_name = f"{self.strategy_mapping[strategy]}_{symbol}"
+        # ToDo: implement check of whether such strategy is not running now, so do not start same strategy.
         if strategy != "Choose Strategy" and symbol != "Choose Symbol":
-            # Create a new TradingSystem instance
+            logger.info("Starting new strategy: %s on pair %s", strategy, symbol)
+
             ui_queue = asyncio.Queue()
             trading_system = TradingSystem(
                 client=self.client,
@@ -118,7 +125,6 @@ class AsyncApp(App):
                 log_display_widget=strategy_tab.log_display,
             )
 
-            strategy_name = f"{self.strategy_mapping[strategy]}_{trading_system.symbol}"
             tab = TabbedPanelItem(
                 text=strategy_name,
                 content=strategy_tab,
@@ -132,11 +138,17 @@ class AsyncApp(App):
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
+            logger.info(
+                "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
+                len(self.strategy_tabs),
+                len(self.trading_systems),
+            )
+
             # Initialize and start trading system
             await trading_system.initialize()
             await trading_system.start_trading()
         else:
-            Logger.info("App: Please select a strategy and a symbol.")
+            logger.info("App: Please select a strategy and a symbol.")
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
