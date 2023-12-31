@@ -18,25 +18,11 @@ from src.workers.worker import worker
 logger = logging.getLogger("initialize_trading_environment")
 
 
-async def create_socket_manager(client: BinanceClient) -> BinanceSocketManager:
-    bsm = BinanceSocketManager(client)
-    logger.info("Binance socket manager created.")
-
-    return bsm
-
-
-def create_async_queue() -> asyncio.Queue:
-    queue: asyncio.Queue = asyncio.Queue()
-    logger.info("Async FIFO Queue started")
-
-    return queue
-
-
 async def change_margin_type(client: BinanceClient, symbol: str) -> None:
     try:
         await client.futures_change_margin_type(symbol=symbol, marginType=MARGIN_TYPE)
     except binance.exceptions.BinanceAPIException as e:
-        logger.debug("All: %s" % e)
+        logger.debug("All: %s", e)
 
 
 def prepare_producers(

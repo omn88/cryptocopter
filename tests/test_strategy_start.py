@@ -7,9 +7,6 @@ from src.common.common import (
     rsi_indicator_apply,
 )
 from src.common.identifiers import Signal, SignalUpdate, Position, Event
-from src.common.initialize_trading_environment import (
-    create_async_queue,
-)
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_extended import ExtendedStrategy
 from tests.data.sample_dataframes import raw_data_generate
@@ -31,9 +28,9 @@ async def test_determine_start_position(signal, basic_rsi):
         df=df,
         position=Position(),
         raw_data=raw_data,
-        queue=create_async_queue(),
-        ui_queue=create_async_queue(),
-        main_ui_queue=create_async_queue(),
+        queue=asyncio.Queue(),
+        ui_queue=asyncio.Queue(),
+        main_ui_queue=asyncio.Queue(),
         symbol=basic_rsi.symbol,
         strategy_name=basic_rsi.strategy_name,
     )
