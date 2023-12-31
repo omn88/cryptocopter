@@ -4,8 +4,8 @@ from pprint import pformat
 from typing import Tuple, Optional
 import json
 from datetime import datetime
-import pandas
 import logging
+import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
 from src.common.common import signal_to_state

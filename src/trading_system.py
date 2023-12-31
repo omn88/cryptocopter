@@ -44,26 +44,24 @@ class TradingSystem:
         symbol: str,
         main_ui_queue: asyncio.Queue,
     ):
-        self.client = client
-        self.binance_socket_manager = BinanceSocketManager(client=client)
-        self.queue = None
+        self.client: BinanceClient = client
         self.ui_queue: asyncio.Queue = ui_queue
-        self.balance = None
-        self.raw_data = None
-        self.df = None
-        self.position = None
-        self.strategy = None
         self.strategy_name = strategy_name
         self.symbol = symbol
         self.main_ui_queue: asyncio.Queue = main_ui_queue
+        self.binance_socket_manager = BinanceSocketManager(client=client)
+        self.queue: asyncio.Queue = asyncio.Queue()
+        self.position = Position()
+        self.balance = None
+        self.raw_data = None
+        self.df = None
+        self.strategy = None
 
     async def initialize(self):
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
-        await self.ui_queue.put(AccountData(balance=self.balance))
-        logger.info("Send account data: %s", self.balance)
+        await self.main_ui_queue.put(AccountData(balance=self.balance))
 
-        # Change margin type and leverage
-        await change_margin_type(client=self.client, symbol=self.symbol)
+        # await change_margin_type(client=self.client, symbol=self.symbol)
         # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
@@ -71,15 +69,9 @@ class TradingSystem:
             client=self.client, interval=INTERVAL, lookback="4320", symbol=self.symbol
         )
         self.df = insert_to_pandas(data=self.raw_data)
-        logger.info("DF: %s", self.df)
         self.df = rsi_indicator_apply(df=self.df)
 
-    async def start_trading(self):
-        # Prepare producers and workers, then start them
-        self.position = Position()
-
-        StrategyClass = STRATEGY_MAP[self.strategy_name]
-        self.strategy = StrategyClass(
+        self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
             queue=self.queue,
             balance=self.balance,
@@ -93,6 +85,7 @@ class TradingSystem:
             main_ui_queue=self.main_ui_queue,
         )
 
+    async def start_trading(self):
         await asyncio.gather(
             *prepare_producers(
                 bsm=self.binance_socket_manager,

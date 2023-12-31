@@ -96,7 +96,6 @@ class AsyncApp(App):
         strategy = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
         strategy_name = f"{self.strategy_mapping[strategy]}_{symbol}"
-        # ToDo: implement check of whether such strategy is not running now, so do not start same strategy.
         if strategy != "Choose Strategy" and symbol != "Choose Symbol":
             logger.info("Starting new strategy: %s on pair %s", strategy, symbol)
 
@@ -108,6 +107,7 @@ class AsyncApp(App):
                 ui_queue=ui_queue,
                 main_ui_queue=self.main_ui_queue,
             )
+            await trading_system.initialize()
             self.trading_systems.append(trading_system)
 
             strategy_tab = StrategyTab(
@@ -118,12 +118,6 @@ class AsyncApp(App):
                 main_ui_queue=self.main_ui_queue,
             )
             self.strategy_tabs.append(strategy_tab)
-
-            # Set up a logging handler for the strategy
-            setup_logging_handler(
-                strategy_logger=strategy_tab.strategy_logger,
-                log_display_widget=strategy_tab.log_display,
-            )
 
             tab = TabbedPanelItem(
                 text=strategy_name,
@@ -138,14 +132,17 @@ class AsyncApp(App):
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
+            # Set up a logging handler for the strategy
+            setup_logging_handler(
+                strategy_logger=strategy_tab.strategy_logger,
+                log_display_widget=strategy_tab.log_display,
+            )
+
             logger.info(
                 "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
                 len(self.strategy_tabs),
                 len(self.trading_systems),
             )
-
-            # Initialize and start trading system
-            await trading_system.initialize()
             await trading_system.start_trading()
         else:
             logger.info("App: Please select a strategy and a symbol.")
