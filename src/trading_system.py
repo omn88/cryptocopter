@@ -1,26 +1,30 @@
 import asyncio
-
+import logging
+from binance import BinanceSocketManager
 from src.common.common import (
     futures_get_balance,
     get_futures_historical_data,
     insert_to_pandas,
     rsi_indicator_apply,
 )
-from src.common.constants import ASSET, LEVERAGE, INTERVAL
-from src.common.identifiers import Position, EventName, Event, SentinelUpdate
+from src.common.constants import ASSET, INTERVAL
+from src.common.identifiers import (
+    BinanceClient,
+    Position,
+    EventName,
+    Event,
+    SentinelUpdate,
+)
 from src.common.initialize_trading_environment import (
-    create_async_queue,
     change_margin_type,
     prepare_producers,
     prepare_workers,
-    create_socket_manager,
 )
 from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
 from src.strategies.rsi_special import SpecialStrategy
-import logging
 
 logger = logging.getLogger("trading_system")
 
@@ -32,30 +36,32 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, client, ui_queue, strategy_name, symbol, main_ui_queue):
-        self.client = client
-        self.binance_socket_manager = None
-        self.queue = None
-        self.ui_queue = ui_queue
+    def __init__(
+        self,
+        client: BinanceClient,
+        ui_queue: asyncio.Queue,
+        strategy_name: str,
+        symbol: str,
+        main_ui_queue: asyncio.Queue,
+    ):
+        self.client: BinanceClient = client
+        self.ui_queue: asyncio.Queue = ui_queue
+        self.strategy_name = strategy_name
+        self.symbol = symbol
+        self.main_ui_queue: asyncio.Queue = main_ui_queue
+        self.binance_socket_manager = BinanceSocketManager(client=client)
+        self.queue: asyncio.Queue = asyncio.Queue()
+        self.position = Position()
         self.balance = None
         self.raw_data = None
         self.df = None
-        self.position = None
         self.strategy = None
-        self.strategy_name = strategy_name
-        self.symbol = symbol
-        self.main_ui_queue = main_ui_queue
 
     async def initialize(self):
-        # Initialize queue, balance, position
-        self.binance_socket_manager = await create_socket_manager(client=self.client)
-        self.queue = create_async_queue()
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
-        await self.ui_queue.put(AccountData(balance=self.balance))
-        logger.info("Send account data: %s", self.balance)
+        await self.main_ui_queue.put(AccountData(balance=self.balance))
 
-        # Change margin type and leverage
-        await change_margin_type(client=self.client, symbol=self.symbol)
+        # await change_margin_type(client=self.client, symbol=self.symbol)
         # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
         # Fetch and process historical data
@@ -63,15 +69,9 @@ class TradingSystem:
             client=self.client, interval=INTERVAL, lookback="4320", symbol=self.symbol
         )
         self.df = insert_to_pandas(data=self.raw_data)
-        logger.info("DF: %s", self.df)
         self.df = rsi_indicator_apply(df=self.df)
 
-    async def start_trading(self):
-        # Prepare producers and workers, then start them
-        self.position = Position()
-
-        StrategyClass = STRATEGY_MAP[self.strategy_name]
-        self.strategy = StrategyClass(
+        self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
             queue=self.queue,
             balance=self.balance,
@@ -85,6 +85,7 @@ class TradingSystem:
             main_ui_queue=self.main_ui_queue,
         )
 
+    async def start_trading(self):
         await asyncio.gather(
             *prepare_producers(
                 bsm=self.binance_socket_manager,

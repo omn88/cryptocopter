@@ -4,13 +4,14 @@ from pprint import pformat
 from typing import Tuple, Optional
 import json
 from datetime import datetime
-import binance
+import logging
 import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
 from src.common.common import signal_to_state
 from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
 from src.common.identifiers import (
+    OrderUpdate,
     Signal,
     PositionMode,
     Position,
@@ -29,10 +30,8 @@ from src.common.orders import (
     send_order,
     target_price_calculate,
 )
-import logging
 
 from src.gui.identifiers import PositionData, PositionStatus, StrategyData
-from src.producers.producers import OrderUpdate
 
 logger = logging.getLogger("handle_order")
 

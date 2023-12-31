@@ -3,7 +3,6 @@ import logging
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
-from src.common.initialize_trading_environment import create_async_queue
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import BasicStrategy
 from src.strategies.rsi_extended import ExtendedStrategy
@@ -44,10 +43,10 @@ async def basic_rsi(mock_AsyncClient):
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
         position=Position(),
-        queue=create_async_queue(),
+        queue=asyncio.Queue(),
         raw_data=raw_data,
-        ui_queue=create_async_queue(),
-        main_ui_queue=create_async_queue(),
+        ui_queue=asyncio.Queue(),
+        main_ui_queue=asyncio.Queue(),
         symbol="BTCUSDT",
         strategy_name="RB_BTCUSDT",
     )
@@ -72,9 +71,9 @@ async def extended_rsi(mock_AsyncClient):
         df=df,
         position=Position(),
         raw_data=raw_data,
-        queue=create_async_queue(),
-        ui_queue=create_async_queue(),
-        main_ui_queue=create_async_queue(),
+        queue=asyncio.Queue(),
+        ui_queue=asyncio.Queue(),
+        main_ui_queue=asyncio.Queue(),
         symbol="BTCUSDT",
         strategy_name="RE_BTCUSDT",
     )
@@ -99,9 +98,9 @@ async def special_rsi(mock_AsyncClient):
         df=df,
         position=Position(),
         raw_data=raw_data,
-        queue=create_async_queue(),
-        ui_queue=create_async_queue(),
-        main_ui_queue=create_async_queue(),
+        queue=asyncio.Queue(),
+        ui_queue=asyncio.Queue(),
+        main_ui_queue=asyncio.Queue(),
         symbol="BTCUSDT",
         strategy_name="RS_BTCUSDT",
     )
