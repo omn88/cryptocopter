@@ -248,42 +248,6 @@ class TradingStateMachine:
 
             self.machine.add_transition(**updated_transition)
 
-    async def determine_start_position(self):
-        signal = Signal.NULL
-        price = 0
-        signal_index = 0
-
-        for index, row in self.df[::-1].iterrows():
-            if row["Signal"] not in [
-                0,
-                Signal.LONG_SPECIAL,
-                Signal.SHORT_SPECIAL,
-                Signal.CLOSE_SPECIAL,
-            ]:
-                signal = row["Signal"]
-                price = row["Close"]
-                # Adding extra lines to see what happened before signal
-                signal_index += 4
-                break
-
-            price = row["Close"]
-            signal_index += 1
-
-        try:
-            assert signal_index <= len(self.df.index)
-            self.df = self.df.iloc[len(self.df.index) - signal_index : :]
-            logger.debug(
-                "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
-            )
-        except AssertionError as e:
-            logger.debug(
-                "Last signal almost on top of df, leaving df as is: \n%s",
-                self.df.to_string(),
-            )
-
-        signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
         condition = self.state == signal_to_state(self.strategy.signal_update.signal)
 
