@@ -3,11 +3,18 @@ import logging
 import numpy
 import pandas
 from src.common.common import insert_to_pandas, rsi_indicator_apply
-from src.common.identifiers import Signal, SignalUpdate, Event, EventName, BinanceClient, State
+from src.common.identifiers import (
+    Signal,
+    SignalUpdate,
+    Event,
+    EventName,
+    BinanceClient,
+    State,
+)
 from src.strategies.base import BaseStrategy
 
 
-logger = logging.getLogger("BasicStrategy")
+logger = logging.getLogger("RsiBasic")
 
 
 class RsiBasic(BaseStrategy):
@@ -31,7 +38,8 @@ class RsiBasic(BaseStrategy):
             strategy_name=strategy_name,
         )
         self.signals += [Signal.LONG, Signal.SHORT]
-        self.states += [Signal.LONG, Signal.SHORT]
+        self.states += [State.LONG, State.SHORT]
+        self.df = self.add_columns_for_rsi_basic(df=self.df)
         self.conditions += self.get_conditions_for_rsi_basic(df=self.df)
         self.transitions += [
             {
@@ -66,7 +74,6 @@ class RsiBasic(BaseStrategy):
             },
         ]
 
-
         # ToDo: pass the data from the RSI Basic feature + add
 
     @staticmethod
@@ -77,17 +84,14 @@ class RsiBasic(BaseStrategy):
 
     @staticmethod
     def get_conditions_for_rsi_basic(df):
-        conditions = [
+        return [
             (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
             (df.RsiAboveSeventy.diff() == 0)
             & (df.RsiAboveSeventy.diff(periods=2) == -1),
         ]
-        return conditions
 
     def conditions_for_opening_basic_long(self, state, *args, **kwargs) -> bool:
-        condition = (
-            state == State.FLAT and self.signal_update.signal == Signal.LONG
-        )
+        condition = state == State.FLAT and self.signal_update.signal == Signal.LONG
         logger.info(
             "Open basic long: %s, state: %s signal: %s",
             condition,
@@ -98,9 +102,7 @@ class RsiBasic(BaseStrategy):
         return condition
 
     def conditions_for_opening_basic_short(self, state, *args, **kwargs) -> bool:
-        condition = (
-            state == State.FLAT and self.signal_update.signal == Signal.SHORT
-        )
+        condition = state == State.FLAT and self.signal_update.signal == Signal.SHORT
         logger.info(
             "Open basic short: %s, state: %s signal: %s",
             condition,
@@ -111,9 +113,7 @@ class RsiBasic(BaseStrategy):
         return condition
 
     def conditions_for_switch_to_short(self, state, *args, **kwargs) -> bool:
-        condition = (
-            state == State.LONG and self.signal_update.signal == Signal.SHORT
-        )
+        condition = state == State.LONG and self.signal_update.signal == Signal.SHORT
         logger.info(
             "Switch to short: %s, state: %s signal: %s",
             condition,
@@ -123,9 +123,7 @@ class RsiBasic(BaseStrategy):
         return condition
 
     def conditions_for_switch_to_long(self, state, *args, **kwargs) -> bool:
-        condition = (
-            state == State.SHORT and self.signal_update.signal == Signal.LONG
-        )
+        condition = state == State.SHORT and self.signal_update.signal == Signal.LONG
         logger.info(
             "Switch to long: %s, state: %s signal: %s",
             condition,

@@ -16,23 +16,23 @@ logger = logging.getLogger("worker_main")
 
 
 async def process_kline(tsm: TradingStateMachine, kline_update: KlineUpdate):
-    tsm.kline_update = kline_update
+    tsm.strategy.kline_update = kline_update
     # All process_* methods are created dynamically, MyPy does not know it exists.
     await tsm.process_kline()  # type: ignore
 
 
 async def process_signal(tsm: TradingStateMachine, signal_update: SignalUpdate):
-    tsm.signal_update = signal_update
+    tsm.strategy.signal_update = signal_update
     await tsm.process_signal()  # type: ignore
 
 
 async def process_account(tsm: TradingStateMachine, account_update: AccountUpdate):
-    tsm.account_update = account_update
+    tsm.strategy.account_update = account_update
     await tsm.process_account()  # type: ignore
 
 
 async def process_order(tsm: TradingStateMachine, order_update: OrderUpdate):
-    tsm.order_update = order_update
+    tsm.strategy.order_update = order_update
     await tsm.process_order()  # type: ignore
 
 
@@ -53,7 +53,7 @@ async def worker(queue: asyncio.Queue, tsm: TradingStateMachine, symbol: str):
             assert isinstance(event.content, KlineUpdate)
             await process_kline(tsm=tsm, kline_update=event.content)
 
-            await print_last_n_rows(df=tsm.df)
+            await print_last_n_rows(df=tsm.strategy.df)
 
         elif EventName.ORDER == event.name:
             assert isinstance(event.content, OrderUpdate)
@@ -67,17 +67,17 @@ async def worker(queue: asyncio.Queue, tsm: TradingStateMachine, symbol: str):
             assert isinstance(event.content, SignalUpdate)
             await process_signal(tsm=tsm, signal_update=event.content)
 
-            await print_last_n_rows(df=tsm.df)
+            await print_last_n_rows(df=tsm.strategy.df)
 
         elif EventName.SENTINEL == event.name:
             logger.info("SENTINEL -> Exiting worker")
             await futures_position_close(
-                client=tsm.client,
-                ui_queue=tsm.ui_queue,
-                position=tsm.position,
+                client=tsm.strategy.client,
+                ui_queue=tsm.strategy.ui_queue,
+                position=tsm.strategy.position,
                 symbol=symbol,
-                main_ui_queue=tsm.main_ui_queue,
-                strategy_name=tsm.strategy_name,
+                main_ui_queue=tsm.strategy.main_ui_queue,
+                strategy_name=tsm.strategy.strategy_name,
             )
 
             return

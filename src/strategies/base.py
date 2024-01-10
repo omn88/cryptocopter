@@ -14,6 +14,7 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
 )
 from src.common.identifiers import (
+    AccountUpdate,
     Event,
     EventName,
     Order,
@@ -66,22 +67,22 @@ class BaseStrategy:
         self.raw_data = raw_data
         self.symbol = symbol
         self.strategy_name = strategy_name
-        self.queue = asyncio.Queue()
-        self.ui_queue = asyncio.Queue()
-        self.main_ui_queue = asyncio.Queue()
+        self.queue: asyncio.Queue = asyncio.Queue()
+        self.ui_queue: asyncio.Queue = asyncio.Queue()
+        self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.position: Position = Position()
         self.position_old: Position = Position()
 
         # Initialize any other common attributes
-        self.signal_update = SignalUpdate(signal=Signal.NULL, price=0)
-        self.order_update = OrderUpdate(status=ORDER_STATUS_NEW)
-        self.kline_update = KlineUpdate(kline=[])
-        self.account_update = None
+        self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
+        self.order_update: OrderUpdate = OrderUpdate(status=ORDER_STATUS_NEW)
+        self.kline_update: KlineUpdate = KlineUpdate(kline=[])
+        self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.mode = PositionMode.DCA
         self.states: List[State] = []
         self.signals: List[Signal] = []
-        self.conditions = []
-        self.transitions = []
+        self.conditions: List = []
+        self.transitions: List = []
 
     @staticmethod
     def signals_from_features_generate(

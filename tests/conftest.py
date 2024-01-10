@@ -4,9 +4,10 @@ import logging
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
 from src.common.orders import order_quantity_list_prepare
-from src.strategies.rsi_basic import BasicStrategy
-from src.strategies.rsi_extended import ExtendedStrategy
-from src.strategies.rsi_special import SpecialStrategy
+from src.strategies.rsi_basic import RsiBasic
+
+# from src.strategies.rsi_extended import ExtendedStrategy
+# from src.strategies.rsi_special import SpecialStrategy
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -37,16 +38,12 @@ async def basic_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = BasicStrategy(
+    tsm = RsiBasic(
         client=mock_AsyncClient,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),
         df=df,
-        position=Position(),
-        queue=asyncio.Queue(),
         raw_data=raw_data,
-        ui_queue=asyncio.Queue(),
-        main_ui_queue=asyncio.Queue(),
         symbol="BTCUSDT",
         strategy_name="RB_BTCUSDT",
     )
