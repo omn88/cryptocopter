@@ -21,6 +21,7 @@ from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
+from src.workers.trading_state_machine import TradingStateMachine
 
 # from src.strategies.rsi_extended import RsiExtended
 # from src.strategies.rsi_special import RsiSpecial
@@ -44,6 +45,7 @@ class TradingSystem:
         self.balance = None
         self.raw_data = None
         self.df = None
+        self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
@@ -69,6 +71,8 @@ class TradingSystem:
             strategy_name=self.strategy_name,
         )
 
+        self.state_machine = TradingStateMachine(strategy=self.strategy)
+
         await self.strategy.main_ui_queue.put(AccountData(balance=self.balance))
 
     async def start_trading(self):
@@ -78,13 +82,13 @@ class TradingSystem:
                 df=self.df,
                 interval=INTERVAL,
                 queue=self.strategy.queue,
-                tsm=self.strategy,
+                tsm=self.state_machine,
                 ui_queue=self.strategy.ui_queue,
                 symbol=self.symbol,
                 main_ui_queue=self.strategy.main_ui_queue,
             ),
             *prepare_workers(
-                tsm=self.strategy, queue=self.strategy.queue, symbol=self.symbol
+                tsm=self.state_machine, queue=self.strategy.queue, symbol=self.symbol
             ),
             return_exceptions=True,
         )

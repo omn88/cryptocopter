@@ -1,7 +1,5 @@
 from typing import List
 import logging
-import numpy
-import pandas
 from transitions.extensions.asyncio import AsyncMachine
 
 from src.common.common import signal_to_state
@@ -228,17 +226,25 @@ class TradingStateMachine:
             send_event=True,
             queued=True,
         )
+        self.import_feature_configuration()
 
-    def import_feature_configuration(self, feature):
-        self.machine.add_states(feature.states)
-        self.signals.extend(feature.signals)
+    def import_feature_configuration(self):
+        logger.info("Importing strategy configuration.")
+        self.machine.add_states(self.strategy.states)
+        logger.info("New states added to the machine: %s", self.strategy.states)
+        self.signals.extend(self.strategy.signals)
+        logger.info("New signals added to the machine: %s", self.strategy.signals)
 
         updated_transitions = []
-        for transition in feature.transitions:
+        for transition in self.strategy.transitions:
             updated_transition = transition.copy()
             updated_transitions.append(updated_transition)
 
             self.machine.add_transition(**updated_transition)
+
+            logger.info(
+                "New transitions added to the machine: %s", self.strategy.transitions
+            )
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
         condition = self.state == signal_to_state(self.strategy.signal_update.signal)

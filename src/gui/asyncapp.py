@@ -45,12 +45,6 @@ class AsyncApp(App):
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
 
-    strategy_mapping = {
-        "RSI Basic": "RB",
-        "RSI Extended": "RE",
-        "RSI Special": "RS",
-    }
-
     def __init__(self, client: BinanceClient, **kwargs):
         """Initializes the `AsyncApp` instance.
 
@@ -62,6 +56,11 @@ class AsyncApp(App):
         self.client = client
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.tabs: Dict = {}
+        self.strategy_mapping = {
+            "RSI Basic": "RB",
+            "RSI Extended": "RE",
+            "RSI Special": "RS",
+        }
         asyncio.create_task(self.update_ui())
 
     def __str__(self):
