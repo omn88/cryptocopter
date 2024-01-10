@@ -2,6 +2,7 @@ import asyncio
 
 import logging
 from typing import List, Union
+import numpy
 import pandas
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -77,9 +78,18 @@ class BaseStrategy:
         self.kline_update = KlineUpdate(kline=[])
         self.account_update = None
         self.mode = PositionMode.DCA
-        self.states = []
-        self.signals = []
+        self.states: List[State] = []
+        self.signals: List[Signal] = []
         self.conditions = []
+        self.transitions = []
+
+    @staticmethod
+    def signals_from_features_generate(
+        df: pandas.DataFrame, conditions, signals
+    ) -> pandas.DataFrame:
+        df["Signal"] = numpy.select(conditions, signals)
+        df["Position"] = State.FLAT
+        return df
 
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
@@ -522,37 +532,37 @@ class BaseStrategy:
         )
 
     async def determine_start_position(self):
-            signal = Signal.NULL
-            price = 0
-            signal_index = 0
+        signal = Signal.NULL
+        price = 0
+        signal_index = 0
 
-            for index, row in self.df[::-1].iterrows():
-                if row["Signal"] not in [
-                    0,
-                    Signal.LONG_SPECIAL,
-                    Signal.SHORT_SPECIAL,
-                    Signal.CLOSE_SPECIAL,
-                ]:
-                    signal = row["Signal"]
-                    price = row["Close"]
-                    # Adding extra lines to see what happened before signal
-                    signal_index += 4
-                    break
-
+        for index, row in self.df[::-1].iterrows():
+            if row["Signal"] not in [
+                0,
+                Signal.LONG_SPECIAL,
+                Signal.SHORT_SPECIAL,
+                Signal.CLOSE_SPECIAL,
+            ]:
+                signal = row["Signal"]
                 price = row["Close"]
-                signal_index += 1
+                # Adding extra lines to see what happened before signal
+                signal_index += 4
+                break
 
-            try:
-                assert signal_index <= len(self.df.index)
-                self.df = self.df.iloc[len(self.df.index) - signal_index : :]
-                logger.debug(
-                    "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
-                )
-            except AssertionError:
-                logger.exception(
-                    "Last signal almost on top of df, leaving df as is: \n%s",
-                    self.df.to_string(),
-                )
+            price = row["Close"]
+            signal_index += 1
 
-            signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-            await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+        try:
+            assert signal_index <= len(self.df.index)
+            self.df = self.df.iloc[len(self.df.index) - signal_index : :]
+            logger.debug(
+                "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
+            )
+        except AssertionError:
+            logger.exception(
+                "Last signal almost on top of df, leaving df as is: \n%s",
+                self.df.to_string(),
+            )
+
+        signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))

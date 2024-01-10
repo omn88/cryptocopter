@@ -5,7 +5,7 @@ import pandas
 from transitions.extensions.asyncio import AsyncMachine
 
 from src.common.common import signal_to_state
-from src.common.identifiers import State, SignalUpdate, Signal, Event, EventName
+from src.common.identifiers import State, Signal
 from src.strategies.base import BaseStrategy
 
 logger = logging.getLogger("trading_state_machine")
@@ -228,14 +228,6 @@ class TradingStateMachine:
             send_event=True,
             queued=True,
         )
-
-    @staticmethod
-    def signals_from_features_generate(
-        df: pandas.DataFrame, conditions, signals
-    ) -> pandas.DataFrame:
-        df["Signal"] = numpy.select(conditions, signals)
-        df["Position"] = State.FLAT
-        return df
 
     def import_feature_configuration(self, feature):
         self.machine.add_states(feature.states)
