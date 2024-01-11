@@ -75,6 +75,12 @@ class TradingSystem:
 
         await self.strategy.main_ui_queue.put(AccountData(balance=self.balance))
 
+        self.df = self.strategy.signals_from_features_generate(
+            df=self.df,
+            conditions=self.strategy.conditions,
+            signals=self.strategy.signals,
+        )
+
     async def start_trading(self):
         await asyncio.gather(
             *prepare_producers(

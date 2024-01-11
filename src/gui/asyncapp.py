@@ -98,7 +98,6 @@ class AsyncApp(App):
         if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
             logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
-            # ui_queue = asyncio.Queue()
             trading_system = TradingSystem(
                 client=self.client, strategy_name=strategy_name, symbol=symbol
             )
