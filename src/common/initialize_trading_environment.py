@@ -32,7 +32,6 @@ def prepare_producers(
     main_ui_queue: asyncio.Queue,
     interval: str,
     df: pandas.DataFrame,
-    tsm: TradingStateMachine,
     symbol: str,
 ):
     return [
@@ -45,7 +44,7 @@ def prepare_producers(
                 symbol=symbol,
             )
         ),
-        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
+        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue)),
         asyncio.create_task(
             futures_symbol_mark_price_socket(
                 bsm=bsm, ui_queue=ui_queue, symbol=symbol, main_ui_queue=main_ui_queue
@@ -59,6 +58,7 @@ def prepare_workers(tsm: TradingStateMachine, queue: asyncio.Queue, symbol: str)
 
 
 async def determine_start_position(df, queue):
+    logger.info("Start determining strategy start position.")
     signal = Signal.NULL
     price = 0
     signal_index = 0

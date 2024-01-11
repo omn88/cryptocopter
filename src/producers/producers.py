@@ -12,18 +12,14 @@ from src.common.identifiers import (
     KlineUpdate,
 )
 from src.gui.identifiers import PriceData
-from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("producer")
 
 
-async def futures_user_socket(
-    bm: BinanceSocketManager, queue: asyncio.Queue, tsm: TradingStateMachine
-):
+async def futures_user_socket(bm: BinanceSocketManager, queue: asyncio.Queue):
     fus = bm.futures_user_socket()
     async with fus:
         logger.info("Ready to receive first user socket message.")
-        await tsm.strategy.determine_start_position()
 
         while True:
             msg = await fus.recv()

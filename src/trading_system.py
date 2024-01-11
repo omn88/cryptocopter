@@ -16,7 +16,11 @@ from src.common.identifiers import (
     Event,
     SentinelUpdate,
 )
-from src.common.initialize_trading_environment import prepare_producers, prepare_workers
+from src.common.initialize_trading_environment import (
+    determine_start_position,
+    prepare_producers,
+    prepare_workers,
+)
 from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
@@ -81,6 +85,10 @@ class TradingSystem:
             signals=self.strategy.signals,
         )
 
+    async def determine_start_position(self):
+        await asyncio.sleep(1)
+        await determine_start_position(df=self.df, queue=self.strategy.queue)
+
     async def start_trading(self):
         await asyncio.gather(
             *prepare_producers(
@@ -88,7 +96,6 @@ class TradingSystem:
                 df=self.df,
                 interval=INTERVAL,
                 queue=self.strategy.queue,
-                tsm=self.state_machine,
                 ui_queue=self.strategy.ui_queue,
                 symbol=self.symbol,
                 main_ui_queue=self.strategy.main_ui_queue,
@@ -96,6 +103,7 @@ class TradingSystem:
             *prepare_workers(
                 tsm=self.state_machine, queue=self.strategy.queue, symbol=self.symbol
             ),
+            asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )
 

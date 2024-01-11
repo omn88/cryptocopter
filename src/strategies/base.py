@@ -290,6 +290,7 @@ class BaseStrategy:
     def signals_from_features_generate(df, conditions, signals) -> pandas.DataFrame:
         df["Signal"] = numpy.select(conditions, signals)
         df["Position"] = State.FLAT.value
+        return df
 
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
