@@ -47,7 +47,7 @@
 #         self.conditions = self.get_conditions_for_rsi_features(df=self.df)
 
 #         self.df = self.signals_from_features_generate(
-#             self.df, conditions=self.conditions, signals=self.signals
+#             self.df, conditions=, signals=self.signals
 #         )
 
 #     @staticmethod

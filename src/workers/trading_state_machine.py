@@ -8,6 +8,7 @@ logger = logging.getLogger("trading_state_machine")
 
 class TradingStateMachine:
     def __init__(self, strategy: BaseStrategy):
+        self.strategy = strategy
         self.machine = AsyncMachine(
             model=self,
             states=strategy.states,

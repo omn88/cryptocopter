@@ -73,6 +73,9 @@ class BaseStrategy:
         self.position: Position = Position()
         self.position_old: Position = Position()
 
+        self.signals: List = []
+        self.conditions: List = []
+
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
         self.order_update: OrderUpdate = OrderUpdate(status=ORDER_STATUS_NEW)
@@ -81,8 +84,6 @@ class BaseStrategy:
         self.state: State = State.FLAT
         self.mode = PositionMode.DCA
         self.states: List[State] = []
-        self.signals: List[Signal] = []
-        # self.conditions: List = []
         self.transitions = [
             {
                 "trigger": "process_signal",
@@ -285,13 +286,9 @@ class BaseStrategy:
             },
         ]
 
-    @staticmethod
-    def signals_from_features_generate(
-        df: pandas.DataFrame, conditions, signals
-    ) -> pandas.DataFrame:
-        df["Signal"] = numpy.select(conditions, signals)
-        df["Position"] = State.FLAT
-        return df
+    def signals_from_features_generate(self) -> pandas.DataFrame:
+        self.df["Signal"] = numpy.select(self.conditions, self.signals)
+        self.df["Position"] = State.FLAT.value
 
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
