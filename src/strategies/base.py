@@ -78,11 +78,212 @@ class BaseStrategy:
         self.order_update: OrderUpdate = OrderUpdate(status=ORDER_STATUS_NEW)
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
+        self.state: State = State.FLAT
         self.mode = PositionMode.DCA
         self.states: List[State] = []
         self.signals: List[Signal] = []
-        self.conditions: List = []
-        self.transitions: List = []
+        # self.conditions: List = []
+        self.transitions = [
+            {
+                "trigger": "process_signal",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_no_signal",
+                "after": "skip_signal",
+            },
+            {
+                "trigger": "process_signal",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_skipping_same_signal",
+                "after": "skip_signal",
+            },
+            {
+                "trigger": "process_kline",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.FLAT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "after": "handle_kline",
+            },
+            {
+                "trigger": "process_account",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.FLAT,
+                    State.SHORT_SPECIAL,
+                    State.LONG_SPECIAL,
+                ],
+                "dest": "=",
+                "after": "handle_account",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_new_order_confirmation",
+                "after": "log_new_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.FLAT,
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_order_cancellation",
+                "after": "handle_cancelled_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_order_expiration",
+                "after": "log_expired_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_partial_position_liquidation",
+                "before": "handle_partial_liquidation",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": State.FLAT,
+                "conditions": "conditions_for_position_liquidation",
+                "before": "handle_liquidation",
+                "after": "enter_flat",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_target_partially_reached",
+                "before": "handle_target_partially_reached",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": State.FLAT,
+                "conditions": "conditions_for_target_reached",
+                "before": "handle_target_reached",
+                "after": "enter_flat",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_market_order_filled",
+                "before": "handle_market_order_filled",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_market_order_filled_partially",
+                "before": "handle_market_order_filled_partially",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_order_filled",
+                "before": "handle_order_filled",
+            },
+            {
+                "trigger": "process_order",
+                "source": [
+                    State.LONG,
+                    State.LONG_EXT,
+                    State.SHORT,
+                    State.SHORT_EXT,
+                    State.LONG_SPECIAL,
+                    State.SHORT_SPECIAL,
+                ],
+                "dest": "=",
+                "conditions": "conditions_for_order_partially_filled",
+                "before": "handle_order_partially_filled",
+            },
+        ]
 
     @staticmethod
     def signals_from_features_generate(
@@ -101,6 +302,16 @@ class BaseStrategy:
             self.signal_update.signal,
         )
 
+        return condition
+
+    def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
+        condition = self.state == signal_to_state(self.signal_update.signal)
+        logger.info(
+            "Skip same signal: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
         return condition
 
     def conditions_for_position_liquidation(self, *args, **kwargs) -> bool:
