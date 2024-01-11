@@ -39,8 +39,8 @@ class RsiBasic(BaseStrategy):
         )
         self.signals += [Signal.LONG, Signal.SHORT]
         self.states += [State.LONG, State.SHORT]
-        self.df = self.add_columns_for_rsi_basic(df=self.df)
-        self.conditions += self.get_conditions_for_rsi_basic(df=self.df)
+        self.df = self.add_columns_for_rsi_basic()
+        self.conditions += self.get_conditions_for_rsi_basic()
         self.transitions += [
             {
                 "trigger": "process_signal",
@@ -74,20 +74,16 @@ class RsiBasic(BaseStrategy):
             },
         ]
 
-        # ToDo: pass the data from the RSI Basic feature + add
+    def add_columns_for_rsi_basic(self):
+        self.df["RsiBelowThirty"] = numpy.where(self.df["RSI"] < 30, 1, 0)
+        self.df["RsiAboveSeventy"] = numpy.where(self.df["RSI"] > 70, 1, 0)
 
-    @staticmethod
-    def add_columns_for_rsi_basic(df):
-        df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
-        df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
-        return df
-
-    @staticmethod
-    def get_conditions_for_rsi_basic(df):
+    def get_conditions_for_rsi_basic(self):
         return [
-            (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
-            (df.RsiAboveSeventy.diff() == 0)
-            & (df.RsiAboveSeventy.diff(periods=2) == -1),
+            (self.df.RsiBelowThirty.diff() == 0)
+            & (self.df.RsiBelowThirty.diff(periods=2) == -1),
+            (self.df.RsiAboveSeventy.diff() == 0)
+            & (self.df.RsiAboveSeventy.diff(periods=2) == -1),
         ]
 
     def conditions_for_opening_basic_long(self, state, *args, **kwargs) -> bool:
@@ -144,11 +140,9 @@ class RsiBasic(BaseStrategy):
         temp_df = insert_to_pandas(data=self.raw_data)
         temp_df = rsi_indicator_apply(df=temp_df)
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
-        conditions = self.get_conditions_for_rsi_basic(df=temp_df)
+        self.conditions = self.get_conditions_for_rsi_basic(df=temp_df)
 
-        temp_df = self.signals_from_features_generate(
-            df=temp_df, conditions=conditions, signals=self.signals
-        )
+        temp_df = self.signals_from_features_generate()
         self.df = self.df.append(temp_df.tail(1))
 
         # Copy current position value
