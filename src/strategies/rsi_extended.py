@@ -1,109 +1,289 @@
-# import logging
+import logging
+from typing import List
+import numpy
 
-# from src.common.common import insert_to_pandas, rsi_indicator_apply
-# from src.common.identifiers import State, Signal, SignalUpdate, Event, EventName
-# from src.features.rsi_basic import FeatureRsiBasic
-# from src.features.rsi_extended import FeatureRsiExtended
-# from src.workers.trading_state_machine import TradingStateMachine
+import pandas
 
-# logger = logging.getLogger("ExtendedStrategy")
+from src.common.common import insert_to_pandas, rsi_indicator_apply
+from src.common.identifiers import (
+    BinanceClient,
+    Signal,
+    SignalUpdate,
+    Event,
+    EventName,
+    State,
+)
+from src.strategies.rsi_basic import RsiBasic
+from src.workers.trading_state_machine import TradingStateMachine
+
+logger = logging.getLogger("RsiExtended")
 
 
-# class ExtendedStrategy(TradingStateMachine, FeatureRsiBasic, FeatureRsiExtended):
-#     def __init__(
-#         self,
-#         client,
-#         queue,
-#         balance,
-#         order_quantity_list,
-#         df,
-#         position,
-#         raw_data,
-#         ui_queue,
-#         symbol,
-#         strategy_name,
-#         main_ui_queue,
-#     ):
-#         super().__init__(
-#             client=client,
-#             queue=queue,
-#             ui_queue=ui_queue,
-#             position=position,
-#             df=df,
-#             balance=balance,
-#             order_quantity_list=order_quantity_list,
-#             raw_data=raw_data,
-#             symbol=symbol,
-#             strategy_name=strategy_name,
-#             main_ui_queue=main_ui_queue,
-#         )
+class RsiExtended(RsiBasic):
+    def __init__(
+        self,
+        client: BinanceClient,
+        df: pandas.DataFrame,
+        balance: float,
+        order_quantity_list: List,
+        raw_data,
+        symbol: str,
+        strategy_name: str,
+    ):
+        super().__init__(
+            client=client,
+            df=df,
+            balance=balance,
+            order_quantity_list=order_quantity_list,
+            raw_data=raw_data,
+            symbol=symbol,
+            strategy_name=strategy_name,
+        )
+        self.df = self.add_columns_for_rsi_extended(df=self.df)
+        self.signals += [Signal.LONG_EXT, Signal.SHORT_EXT]
+        self.conditions += self.get_conditions_for_rsi_extended(df=self.df)
 
-#         self.import_feature_configuration(feature=FeatureRsiBasic())
-#         self.import_feature_configuration(feature=FeatureRsiExtended())
+        self.states += [State.LONG_EXT, State.SHORT_EXT]
+        self.df = self.signals_from_features_generate(
+            df=self.df, conditions=self.conditions, signals=self.signals
+        )
+        self.transitions += [
+            {
+                "trigger": "process_signal",
+                "source": State.FLAT,
+                "dest": State.LONG_EXT,
+                "conditions": "conditions_for_opening_extended_long",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.FLAT,
+                "dest": State.SHORT_EXT,
+                "conditions": "conditions_for_opening_extended_short",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG_EXT,
+                "dest": State.SHORT_EXT,
+                "conditions": "conditions_for_switch_from_extended_long_to_extended_short",
+                "before": "close_long",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT_EXT,
+                "dest": State.LONG_EXT,
+                "conditions": "conditions_for_switch_from_extended_short_to_extended_long",
+                "before": "close_short",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG_EXT,
+                "dest": State.SHORT,
+                "conditions": "conditions_for_switch_from_extended_long_to_basic_short",
+                "before": "close_long",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT,
+                "dest": State.LONG_EXT,
+                "conditions": "conditions_for_switch_from_basic_short_to_extended_long",
+                "before": "close_short",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG,
+                "dest": State.SHORT_EXT,
+                "conditions": "conditions_for_switch_from_basic_long_to_extended_short",
+                "before": "close_long",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT_EXT,
+                "dest": State.LONG,
+                "conditions": "conditions_for_switch_from_extended_short_to_basic_long",
+                "before": "close_short",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG_EXT,
+                "dest": State.LONG,
+                "conditions": "conditions_for_switch_from_extended_long_to_basic_long",
+                "before": "change_position_state",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT_EXT,
+                "dest": State.SHORT,
+                "conditions": "conditions_for_switch_from_extended_short_to_basic_short",
+                "before": "change_position_state",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG,
+                "dest": State.LONG_EXT,
+                "conditions": "conditions_for_skipping_extended_signal",
+                "before": "skip_signal",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT,
+                "dest": State.SHORT_EXT,
+                "conditions": "conditions_for_skipping_extended_signal",
+                "before": "skip_signal",
+            },
+        ]
 
-#         self.df = self.add_columns_for_rsi_basic(df=self.df)
-#         self.df = self.add_columns_for_rsi_extended(df=self.df)
+    @staticmethod
+    def add_columns_for_rsi_extended(df):
+        df["RsiBelowTwenty"] = numpy.where(df["RSI"] < 20, 1, 0)
+        df["RsiAboveEighty"] = numpy.where(df["RSI"] > 80, 1, 0)
+        return df
 
-#         self.conditions = self.get_conditions_for_rsi_features(df=self.df)
+    @staticmethod
+    def get_conditions_for_rsi_extended(df):
+        return [
+            (df.RsiBelowTwenty.diff() == -1),
+            (df.RsiAboveEighty.diff() == -1),
+        ]
 
-#         self.df = self.signals_from_features_generate(
-#             self.df, conditions=, signals=self.signals
-#         )
+    async def handle_kline(self, *args, **kwargs):
+        logger.info("Entering handle kline")
 
-#     @staticmethod
-#     def get_conditions_for_rsi_features(df):
-#         conditions = [
-#             (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
-#             (df.RsiAboveSeventy.diff() == 0)
-#             & (df.RsiAboveSeventy.diff(periods=2) == -1),
-#             (df.RsiBelowTwenty.diff() == -1),
-#             (df.RsiAboveEighty.diff() == -1),
-#         ]
-#         return conditions
+        expected_index = int(self.raw_data[-1][0]) + 900000
+        # I need historical data here, then add the kline, generate temp dataframe, then copy last
+        assert expected_index == int(self.kline_update.kline[0])
 
-#     async def handle_kline(self, *args, **kwargs):
-#         logger.info("Entering handle kline")
+        self.raw_data.append(self.kline_update.kline)
 
-#         expected_index = int(self.raw_data[-1][0]) + 900000
-#         # I need historical data here, then add the kline, generate temp dataframe, then copy last
-#         assert expected_index == int(self.kline_update.kline[0])
+        temp_df = insert_to_pandas(data=self.raw_data)
+        temp_df = rsi_indicator_apply(df=temp_df)
+        temp_df = self.add_columns_for_rsi_basic(df=temp_df)
+        temp_df = self.add_columns_for_rsi_extended(df=temp_df)
 
-#         self.raw_data.append(self.kline_update.kline)
+        self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
 
-#         temp_df = insert_to_pandas(data=self.raw_data)
-#         temp_df = rsi_indicator_apply(df=temp_df)
-#         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
-#         temp_df = self.add_columns_for_rsi_extended(df=temp_df)
+        temp_df = self.signals_from_features_generate(
+            df=temp_df, signals=self.signals, conditions=self.conditions
+        )
 
-#         self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
+        self.df = self.df.append(temp_df.tail(1))
 
-#         temp_df = self.signals_from_features_generate(
-#             df=temp_df, signals=self.signals, conditions=self.conditions
-#         )
+        # Copy current position value
+        self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
 
-#         self.df = self.df.append(temp_df.tail(1))
+        signal = self.df.iloc[-1]["Signal"]
 
-#         # Copy current position value
-#         self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
+        if signal == 0:
+            self.signal_update = SignalUpdate(
+                signal=Signal.NULL,
+                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            )
+            self.skip_signal()
+        else:
+            self.signal_update = SignalUpdate(
+                signal=self.df.iloc[-1]["Signal"],
+                price=round(float(self.df.iloc[-1]["Close"]), 2),
+            )
+            await self.queue.put(
+                Event(name=EventName.SIGNAL, content=self.signal_update)
+            )
+            logger.info(
+                "Added to queue, signal: %s, price: %s",
+                self.signal_update.signal,
+                self.signal_update.price,
+            )
 
-#         signal = self.df.iloc[-1]["Signal"]
+    def conditions_for_opening_extended_long(self, *args, **kwargs) -> bool:
+        return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_EXT
 
-#         if signal == 0:
-#             self.signal_update = SignalUpdate(
-#                 signal=Signal.NULL,
-#                 price=round(float(self.df.iloc[-1]["Close"]), 2),
-#             )
-#             self.skip_signal()
-#         else:
-#             self.signal_update = SignalUpdate(
-#                 signal=self.df.iloc[-1]["Signal"],
-#                 price=round(float(self.df.iloc[-1]["Close"]), 2),
-#             )
-#             await self.queue.put(
-#                 Event(name=EventName.SIGNAL, content=self.signal_update)
-#             )
-#             logger.info(
-#                 "Added to queue, signal: %s, price: %s",
-#                 self.signal_update.signal,
-#                 self.signal_update.price,
-#             )
+    def conditions_for_opening_extended_short(self, *args, **kwargs) -> bool:
+        return (
+            self.state == State.FLAT and self.signal_update.signal == Signal.SHORT_EXT
+        )
+
+    def conditions_for_switch_from_extended_long_to_extended_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.LONG_EXT
+            and self.signal_update.signal == Signal.SHORT_EXT
+        )
+
+    def conditions_for_switch_from_extended_short_to_extended_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_EXT
+            and self.signal_update.signal == Signal.LONG_EXT
+        )
+
+    def conditions_for_switch_from_extended_long_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.LONG_EXT and self.signal_update.signal == Signal.SHORT
+        )
+
+    def conditions_for_switch_from_basic_long_to_extended_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.LONG and self.signal_update.signal == Signal.SHORT_EXT
+        )
+
+    def conditions_for_switch_from_basic_short_to_extended_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT and self.signal_update.signal == Signal.LONG_EXT
+        )
+
+    def conditions_for_switch_from_extended_short_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_EXT and self.signal_update.signal == Signal.LONG
+        )
+
+    def conditions_for_switch_from_extended_long_to_basic_long(
+        self, *args, **kwargs
+    ) -> bool:
+        return self.state == State.LONG_EXT and self.signal_update.signal == Signal.LONG
+
+    def conditions_for_switch_from_extended_short_to_basic_short(
+        self, *args, **kwargs
+    ) -> bool:
+        return (
+            self.state == State.SHORT_EXT and self.signal_update.signal == Signal.SHORT
+        )
+
+    def conditions_for_skipping_extended_signal(self, *args, **kwargs) -> bool:
+        return (
+            self.state == State.LONG
+            and self.signal_update.signal == Signal.LONG_EXT
+            or self.state == State.SHORT
+            and self.signal_update.signal == Signal.SHORT_EXT
+        )
+
+    async def change_position_state(self, *args, **kwargs):
+        logger.info("Changing status to %s", self.signal_update.signal)
+        self.position.state = State(self.signal_update.signal.value)
+        self.update_position_in_df(self.position.state)
+
+    @staticmethod
+    def get_conditions_for_rsi_features(df):
+        conditions = [
+            (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
+            (df.RsiAboveSeventy.diff() == 0)
+            & (df.RsiAboveSeventy.diff(periods=2) == -1),
+            (df.RsiBelowTwenty.diff() == -1),
+            (df.RsiAboveEighty.diff() == -1),
+        ]
+        return conditions

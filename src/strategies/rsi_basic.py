@@ -151,17 +151,22 @@ class RsiBasic(BaseStrategy):
 
         self.raw_data.append(self.kline_update.kline)
 
-        logger.info("Raw data after append: %s", self.raw_data)
         logger.info("Df before append: %s", self.df)
 
         temp_df = insert_to_pandas(data=self.raw_data)
+        logger.info("inserted to pandas")
         temp_df = rsi_indicator_apply(df=temp_df)
+        logger.info("applied rsi")
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
+        logger.info("columns added for rsi basic")
         self.conditions = self.get_conditions_for_rsi_basic(df=temp_df)
+        logger.info("conditions taken")
 
         temp_df = self.signals_from_features_generate(
             df=self.df, conditions=self.conditions, signals=self.signals
         )
+        logger.info("Df JUST before append: %s", self.df)
+
         self.df = self.df.append(temp_df.tail(1))
 
         logger.info("Df after append: %s", self.df)
