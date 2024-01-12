@@ -12,8 +12,6 @@ from src.producers.producers import (
     futures_user_socket,
     futures_symbol_mark_price_socket,
 )
-from src.workers.trading_state_machine import TradingStateMachine
-from src.workers.worker import worker
 
 logger = logging.getLogger("initialize_trading_environment")
 
@@ -51,10 +49,6 @@ def prepare_producers(
             )
         ),
     ]
-
-
-def prepare_workers(state_machine: TradingStateMachine):
-    return [asyncio.create_task(worker(state_machine=state_machine))]
 
 
 async def determine_start_position(df, queue):

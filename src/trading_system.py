@@ -19,12 +19,12 @@ from src.common.identifiers import (
 from src.common.initialize_trading_environment import (
     determine_start_position,
     prepare_producers,
-    prepare_workers,
 )
 from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
+from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
 # from src.strategies.rsi_extended import RsiExtended
@@ -86,8 +86,12 @@ class TradingSystem:
         )
 
     async def determine_start_position(self):
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
         await determine_start_position(df=self.df, queue=self.strategy.queue)
+
+    async def prepare_worker(self):
+        await asyncio.sleep(5)
+        await worker.worker(state_machine=self.state_machine)
 
     async def start_trading(self):
         await asyncio.gather(
@@ -100,7 +104,7 @@ class TradingSystem:
                 symbol=self.symbol,
                 main_ui_queue=self.strategy.main_ui_queue,
             ),
-            *prepare_workers(state_machine=self.state_machine),
+            asyncio.create_task(self.prepare_worker()),
             asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )

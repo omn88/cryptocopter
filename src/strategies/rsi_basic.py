@@ -151,6 +151,9 @@ class RsiBasic(BaseStrategy):
 
         self.raw_data.append(self.kline_update.kline)
 
+        logger.info("Raw data after append: %s", self.raw_data)
+        logger.info("Df before append: %s", self.df)
+
         temp_df = insert_to_pandas(data=self.raw_data)
         temp_df = rsi_indicator_apply(df=temp_df)
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
@@ -160,6 +163,8 @@ class RsiBasic(BaseStrategy):
             df=self.df, conditions=self.conditions, signals=self.signals
         )
         self.df = self.df.append(temp_df.tail(1))
+
+        logger.info("Df after append: %s", self.df)
 
         # Copy current position value
         self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
