@@ -15,8 +15,6 @@ from binance.enums import (
 )
 from src.common.identifiers import (
     AccountUpdate,
-    Event,
-    EventName,
     Order,
     Position,
     PositionMode,
