@@ -100,9 +100,7 @@ class TradingSystem:
                 symbol=self.symbol,
                 main_ui_queue=self.strategy.main_ui_queue,
             ),
-            *prepare_workers(
-                tsm=self.state_machine, queue=self.strategy.queue, symbol=self.symbol
-            ),
+            *prepare_workers(state_machine=self.state_machine),
             asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )

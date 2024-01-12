@@ -80,6 +80,7 @@ class BaseStrategy:
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.state: State = State.FLAT
+        logger.info("State: %s, type: %s", self.state, type(self.state))
         self.mode = PositionMode.DCA
         self.states: List[State] = []
         self.transitions = [

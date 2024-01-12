@@ -107,13 +107,19 @@ class RsiBasic(BaseStrategy):
 
     def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
         condition = (
-            self.state == State.FLAT and self.signal_update.signal == Signal.SHORT
+            self.state == State.FLAT.value and self.signal_update.signal == Signal.SHORT
         )
         logger.info(
             "Open basic short: %s, state: %s signal: %s",
             condition,
             self.state,
             self.signal_update.signal,
+        )
+        logger.info(
+            "Self state = State FLAT: %s, signal = short: %s, type self state: %s",
+            self.state == State.FLAT,
+            self.signal_update.signal == Signal.SHORT,
+            type(self.state),
         )
 
         return condition

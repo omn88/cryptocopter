@@ -53,8 +53,8 @@ def prepare_producers(
     ]
 
 
-def prepare_workers(tsm: TradingStateMachine, queue: asyncio.Queue, symbol: str):
-    return [asyncio.create_task(worker(tsm=tsm, queue=queue, symbol=symbol))]
+def prepare_workers(state_machine: TradingStateMachine):
+    return [asyncio.create_task(worker(state_machine=state_machine))]
 
 
 async def determine_start_position(df, queue):
@@ -89,5 +89,9 @@ async def determine_start_position(df, queue):
             df.to_string(),
         )
 
-    signal_update = SignalUpdate(signal=signal, price=round(float(price), 2))
-    await queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+    await queue.put(
+        Event(
+            name=EventName.SIGNAL,
+            content=SignalUpdate(signal=signal, price=round(float(price), 2)),
+        )
+    )
