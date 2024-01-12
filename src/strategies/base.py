@@ -80,7 +80,6 @@ class BaseStrategy:
         self.kline_update: KlineUpdate = KlineUpdate(kline=[])
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.state: State = State.FLAT
-        logger.info("State: %s, type: %s", self.state, type(self.state))
         self.mode = PositionMode.DCA
         self.states: List[State] = []
         self.transitions = [
@@ -303,7 +302,7 @@ class BaseStrategy:
         return condition
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
-        condition = self.state == signal_to_state(self.signal_update.signal)
+        condition = self.state == signal_to_state(self.signal_update.signal).value
         logger.info(
             "Skip same signal: %s, state: %s signal: %s",
             condition,
