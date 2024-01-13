@@ -28,15 +28,14 @@ from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
 from src.strategies.rsi_extended import RsiExtended
-
-# from src.strategies.rsi_special import RsiSpecial
+from src.strategies.rsi_special import RsiSpecial
 
 logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
-    # "RSI Special": RsiSpecial,
+    "RSI Special": RsiSpecial,
 }
 
 

@@ -14,7 +14,6 @@ from src.common.identifiers import (
     State,
 )
 from src.strategies.rsi_basic import RsiBasic
-from src.workers.trading_state_machine import TradingStateMachine
 
 logger = logging.getLogger("RsiExtended")
 
@@ -153,6 +152,16 @@ class RsiExtended(RsiBasic):
             (df.RsiAboveEighty.diff() == -1),
         ]
 
+    @staticmethod
+    def get_conditions_for_rsi_features(df):
+        return [
+            (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
+            (df.RsiAboveSeventy.diff() == 0)
+            & (df.RsiAboveSeventy.diff(periods=2) == -1),
+            (df.RsiBelowTwenty.diff() == -1),
+            (df.RsiAboveEighty.diff() == -1),
+        ]
+
     async def handle_kline(self, *args, **kwargs):
         logger.info("Entering handle kline")
 
@@ -276,14 +285,3 @@ class RsiExtended(RsiBasic):
         logger.info("Changing status to %s", self.signal_update.signal)
         self.position.state = State(self.signal_update.signal.value)
         self.update_position_in_df(self.position.state)
-
-    @staticmethod
-    def get_conditions_for_rsi_features(df):
-        conditions = [
-            (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
-            (df.RsiAboveSeventy.diff() == 0)
-            & (df.RsiAboveSeventy.diff(periods=2) == -1),
-            (df.RsiBelowTwenty.diff() == -1),
-            (df.RsiAboveEighty.diff() == -1),
-        ]
-        return conditions

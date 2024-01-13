@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from src.common.common import print_last_n_rows
