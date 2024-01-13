@@ -262,17 +262,19 @@ class RsiSpecial(RsiExtended):
             # Copy current position value
             self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
 
-            signal = Signal.NULL if self.df.iloc[-1]["Signal"] == 0 else self.df.iloc[-1]["Signal"]
+            signal = (
+                Signal.NULL
+                if self.df.iloc[-1]["Signal"] == 0
+                else self.df.iloc[-1]["Signal"]
+            )
 
         signal_update = SignalUpdate(
-                signal=signal,
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
-            )
-        await self.queue.put(
-                Event(name=EventName.SIGNAL, content=signal_update)
-            )
+            signal=signal,
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
+        )
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
         logger.info(
-                "Added to queue, signal: %s, price: %s",
-                signal_update.signal,
-                signal_update.price,
-            )
+            "Added to queue, signal: %s, price: %s",
+            signal_update.signal,
+            signal_update.price,
+        )
