@@ -163,7 +163,7 @@ class RsiBasic(BaseStrategy):
         logger.info("conditions taken")
 
         temp_df = self.signals_from_features_generate(
-            df=self.df, conditions=self.conditions, signals=self.signals
+            df=temp_df, conditions=self.conditions, signals=self.signals
         )
         logger.info("Df JUST before append: %s", self.df)
 
@@ -174,22 +174,16 @@ class RsiBasic(BaseStrategy):
         # Copy current position value
         self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
 
-        if self.signal_update.signal == 0:
-            self.signal_update = SignalUpdate(
-                signal=Signal.NULL,
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
-            )
-            self.skip_signal()
-        else:
-            self.signal_update = SignalUpdate(
-                signal=self.df.iloc[-1]["Signal"],
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
-            )
-            await self.queue.put(
-                Event(name=EventName.SIGNAL, content=self.signal_update)
-            )
-            logger.info(
-                "Added to queue, signal: %s, price: %s",
-                self.signal_update.signal,
-                self.signal_update.price,
-            )
+        signal_update = SignalUpdate(
+            signal=Signal.NULL
+            if self.df.iloc[-1]["Signal"] == 0
+            else self.df.iloc[-1]["Signal"],
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
+        )
+
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+        logger.info(
+            "Added to queue, signal: %s, price: %s",
+            signal_update.signal,
+            signal_update.price,
+        )

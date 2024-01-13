@@ -39,19 +39,31 @@ async def worker(state_machine: TradingStateMachine):
             await print_last_n_rows(df=state_machine.strategy.df)
 
         elif EventName.ORDER == event.name:
-            logger.info("Entering order event ")
+            logger.info(
+                "Entering order event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, OrderUpdate)
             state_machine.strategy.order_update = event.content
             await state_machine.strategy.process_order()  # type: ignore
 
         elif EventName.ACCOUNT == event.name:
-            logger.info("Entering account event ")
+            logger.info(
+                "Entering account event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, AccountUpdate)
             state_machine.strategy.account_update = event.content
             await state_machine.strategy.process_account()  # type: ignore
 
         elif EventName.SIGNAL == event.name:
-            logger.info("Entering signal event ")
+            logger.info(
+                "Entering signal event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, SignalUpdate)
             state_machine.strategy.signal_update = event.content
             await state_machine.strategy.process_signal()  # type: ignore
