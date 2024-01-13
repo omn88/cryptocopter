@@ -7,6 +7,8 @@ from binance.enums import (
     ORDER_TYPE_LIMIT,
     ORDER_TYPE_MARKET,
 )
+from src.common.common import signal_to_state
+from src.common.constants import NUMBER_OF_DCA_ORDERS
 
 from src.common.identifiers import (
     Signal,
@@ -32,9 +34,9 @@ def assert_dca_long_opened(
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
 ):
-    assert 4 == len(position.orders)
+    assert NUMBER_OF_DCA_ORDERS == len(position.orders)
     assert 1000 == balance
-    assert state == State(signal_update.signal.value)
+    assert state == signal_to_state(signal_update.signal).value
     assert state == position.state
     assert all(order.price <= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
@@ -47,9 +49,9 @@ def assert_dca_short_opened(
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
 ):
-    assert 4 == len(position.orders)
+    assert NUMBER_OF_DCA_ORDERS == len(position.orders)
     assert 1000 == balance
-    assert state == State(signal_update.signal.value)
+    assert state == signal_to_state(signal_update.signal).value
     assert state == position.state, f"State: {state}, position.status: {position.state}"
     assert all(order.price >= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)

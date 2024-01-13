@@ -3,8 +3,10 @@ import logging
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
+from src.common.initialize_trading_environment import determine_start_position
 from src.common.orders import order_quantity_list_prepare
 from src.strategies.rsi_basic import RsiBasic
+from src.workers.trading_state_machine import TradingStateMachine
 
 # from src.strategies.rsi_extended import ExtendedStrategy
 # from src.strategies.rsi_special import SpecialStrategy
@@ -38,21 +40,25 @@ async def basic_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = RsiBasic(
-        client=mock_AsyncClient,
-        balance=1000,
-        order_quantity_list=order_quantity_list_prepare(),
-        df=df,
-        raw_data=raw_data,
-        symbol="BTCUSDT",
-        strategy_name="RB_BTCUSDT",
+    state_machine = TradingStateMachine(
+        strategy=RsiBasic(
+            client=mock_AsyncClient,
+            balance=1000,
+            order_quantity_list=order_quantity_list_prepare(),
+            df=df,
+            raw_data=raw_data,
+            symbol="BTCUSDT",
+            strategy_name="RB_BTCUSDT",
+        )
     )
 
-    await tsm.determine_start_position()
+    await determine_start_position(
+        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+    )
 
-    yield tsm
+    yield state_machine
 
-    await tsm.client.close_connection()
+    await state_machine.strategy.client.close_connection()
 
 
 @pytest.fixture
