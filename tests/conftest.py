@@ -45,6 +45,7 @@ async def base(mock_AsyncClient):
         )
     )
 
+    df["Signal"] = 0
     df["Position"] = state_machine.strategy.state
 
     await state_machine.strategy.queue.put(

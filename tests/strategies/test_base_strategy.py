@@ -56,14 +56,18 @@ async def test_signal_handle_null_when_flat(base):
         signal=Signal.NULL, df=base.strategy.df
     )
 
+    df = base.strategy.df
+
     await base.strategy.process_signal()
 
     assert 0 == len(base.strategy.position.orders)
     assert 1000 == base.strategy.balance
     assert base.strategy.state == State.FLAT.value
+    assert df.at[df.index[-1], "Position"] == df.at[df.index[-2], "Position"]
 
 
 async def test_signal_handle_long_when_long(base):
+    df = base.strategy.df
     base.strategy.client.futures_create_order.side_effect = get_orders_long()
 
     base.strategy.signal_update = generate_signal(
@@ -79,6 +83,7 @@ async def test_signal_handle_long_when_long(base):
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
     )
+    assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
 
     await base.strategy.process_signal()
 
@@ -93,6 +98,7 @@ async def test_signal_handle_long_when_long(base):
 
 @patch("src.workers.handle_order.save_to_file")
 async def test_signal_handle_short_when_long(mock_save_to_file, base):
+    df = base.strategy.df
     base.strategy.client.futures_create_order.side_effect = get_orders_long_then_short()
     base.strategy.client.futures_cancel_order.return_value = get_cancel_order()
     base.strategy.client.futures_get_order.side_effect = validation_orders()
@@ -111,6 +117,8 @@ async def test_signal_handle_short_when_long(mock_save_to_file, base):
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
     )
+
+    assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
 
     base.strategy.signal_update = generate_signal(
         signal=Signal.SHORT, df=base.strategy.df
@@ -169,15 +177,6 @@ async def test_signal_handle_long_when_short(mock_save_to_file, base):
         signal=Signal.SHORT, df=base.strategy.df
     )
 
-    import logging
-
-    logger = logging.getLogger("test")
-    logger.info(
-        "expect flat, State: %s, type: %s",
-        base.strategy.state,
-        type(base.strategy.state),
-    )
-
     await base.strategy.process_signal()
 
     assert_dca_short_opened(
@@ -193,8 +192,6 @@ async def test_signal_handle_long_when_short(mock_save_to_file, base):
     )
 
     await base.strategy.process_signal()
-
-    logger.info("State: %s, type: %s", base.strategy.state, type(base.strategy.state))
 
     assert_dca_long_opened(
         position=base.strategy.position,
