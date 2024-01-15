@@ -23,7 +23,9 @@ logger = logging.getLogger("common")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:
-    return SignalUpdate(signal=signal, price=round(float(df.at[df.index[-1], "Close"]), 1))
+    return SignalUpdate(
+        signal=signal, price=round(float(df.at[df.index[-1], "Close"]), 1)
+    )
 
 
 def assert_dca_long_opened(

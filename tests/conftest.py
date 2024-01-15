@@ -1,12 +1,10 @@
-import asyncio
 import logging
-
+from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
-from unittest.mock import AsyncMock
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
-from src.common.identifiers import Position, Signal
+from src.common.identifiers import Signal
 from src.common.initialize_trading_environment import determine_start_position
 from src.common.orders import order_quantity_list_prepare
 from src.workers.trading_state_machine import TradingStateMachine
@@ -17,19 +15,11 @@ from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
 
-import pytest
-from pytest_mock import MockerFixture
-from unittest.mock import AsyncMock
-
-# Define the module where the real AsyncClient is.
-# For example, if the real AsyncClient is in a file named 'bot.py', then:
-TESTED_MODULE = "binance"
-
 
 @pytest.fixture
 def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     # Mock the AsyncClient.
-    mocked_AsyncClient = mocker.patch(f"{TESTED_MODULE}.AsyncClient")
+    mocked_AsyncClient = mocker.patch("binance.AsyncClient")
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
     # Assign the instance to the mocked AsyncClient when used in a context manager.
@@ -70,25 +60,25 @@ async def extended_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = RsiExtended(
-        client=mock_AsyncClient,
-        balance=1000,
-        order_quantity_list=order_quantity_list_prepare(),
-        df=df,
-        position=Position(),
-        raw_data=raw_data,
-        queue=asyncio.Queue(),
-        ui_queue=asyncio.Queue(),
-        main_ui_queue=asyncio.Queue(),
-        symbol="BTCUSDT",
-        strategy_name="RE_BTCUSDT",
+    state_machine = TradingStateMachine(
+        strategy=RsiExtended(
+            client=mock_AsyncClient,
+            balance=1000,
+            order_quantity_list=order_quantity_list_prepare(),
+            df=df,
+            raw_data=raw_data,
+            symbol="BTCUSDT",
+            strategy_name="RE_BTCUSDT",
+        )
     )
 
-    await tsm.determine_start_position()
+    await determine_start_position(
+        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+    )
 
-    yield tsm
+    yield state_machine
 
-    await tsm.client.close_connection()
+    await state_machine.strategy.client.close_connection()
 
 
 @pytest.fixture
@@ -97,22 +87,22 @@ async def special_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = RsiSpecial(
-        client=mock_AsyncClient,
-        balance=1000,
-        order_quantity_list=order_quantity_list_prepare(),
-        df=df,
-        position=Position(),
-        raw_data=raw_data,
-        queue=asyncio.Queue(),
-        ui_queue=asyncio.Queue(),
-        main_ui_queue=asyncio.Queue(),
-        symbol="BTCUSDT",
-        strategy_name="RS_BTCUSDT",
+    state_machine = TradingStateMachine(
+        strategy=RsiSpecial(
+            client=mock_AsyncClient,
+            balance=1000,
+            order_quantity_list=order_quantity_list_prepare(),
+            df=df,
+            raw_data=raw_data,
+            symbol="BTCUSDT",
+            strategy_name="RS_BTCUSDT",
+        )
     )
 
-    await tsm.determine_start_position()
+    await determine_start_position(
+        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+    )
 
-    yield tsm
+    yield state_machine
 
-    await tsm.client.close_connection()
+    await state_machine.strategy.client.close_connection()

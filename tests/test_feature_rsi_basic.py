@@ -174,8 +174,13 @@ async def test_signal_handle_long_when_short(mock_save_to_file, basic_rsi):
     )
 
     import logging
+
     logger = logging.getLogger("test")
-    logger.info("expect flat, State: %s, type: %s", basic_rsi.strategy.state, type(basic_rsi.strategy.state))
+    logger.info(
+        "expect flat, State: %s, type: %s",
+        basic_rsi.strategy.state,
+        type(basic_rsi.strategy.state),
+    )
 
     await basic_rsi.strategy.process_signal()
 
@@ -192,8 +197,10 @@ async def test_signal_handle_long_when_short(mock_save_to_file, basic_rsi):
     )
 
     await basic_rsi.strategy.process_signal()
-    
-    logger.info("State: %s, type: %s", basic_rsi.strategy.state, type(basic_rsi.strategy.state))
+
+    logger.info(
+        "State: %s, type: %s", basic_rsi.strategy.state, type(basic_rsi.strategy.state)
+    )
 
     assert_dca_long_opened(
         position=basic_rsi.strategy.position,
