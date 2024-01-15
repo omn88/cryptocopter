@@ -1,5 +1,4 @@
 import asyncio
-
 import logging
 from typing import List, Union
 import numpy
@@ -71,7 +70,7 @@ class BaseStrategy:
         self.position: Position = Position()
         self.position_old: Position = Position()
 
-        self.signals: List = []
+        self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []
 
         # Initialize any other common attributes
@@ -81,7 +80,7 @@ class BaseStrategy:
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.state: State = State.FLAT
         self.mode = PositionMode.DCA
-        self.states: List[State] = []
+        self.states: List[State] = [State.LONG, State.SHORT]
         self.transitions = [
             {
                 "trigger": "process_signal",
@@ -282,6 +281,36 @@ class BaseStrategy:
                 "conditions": "conditions_for_order_partially_filled",
                 "before": "handle_order_partially_filled",
             },
+            {
+                "trigger": "process_signal",
+                "source": State.FLAT,
+                "dest": State.LONG,
+                "conditions": "conditions_for_opening_basic_long",
+                "after": "open_dca_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.FLAT,
+                "dest": State.SHORT,
+                "conditions": "conditions_for_opening_basic_short",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.LONG,
+                "dest": State.SHORT,
+                "conditions": "conditions_for_switch_to_short",
+                "before": "close_long",
+                "after": "open_dca_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.SHORT,
+                "dest": State.LONG,
+                "conditions": "conditions_for_switch_to_long",
+                "before": "close_short",
+                "after": "open_dca_long",
+            },
         ]
 
     @staticmethod
@@ -453,6 +482,56 @@ class BaseStrategy:
             "Order partially filled: %s, order update status: %s",
             condition,
             self.order_update.status,
+        )
+        return condition
+
+    def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.FLAT.value and self.signal_update.signal == Signal.LONG
+        )
+        logger.info(
+            "Open basic long: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
+
+        return condition
+
+    def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.FLAT.value and self.signal_update.signal == Signal.SHORT
+        )
+        logger.info(
+            "Open basic short: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
+
+        return condition
+
+    def conditions_for_switch_to_short(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.LONG and self.signal_update.signal == Signal.SHORT
+        )
+        logger.info(
+            "Switch to short: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
+        return condition
+
+    def conditions_for_switch_to_long(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.SHORT and self.signal_update.signal == Signal.LONG
+        )
+        logger.info(
+            "Switch to long: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
         )
         return condition
 

@@ -9,7 +9,6 @@ from src.common.identifiers import (
     Event,
     EventName,
     BinanceClient,
-    State,
 )
 from src.strategies.base import BaseStrategy
 
@@ -38,45 +37,10 @@ class RsiBasic(BaseStrategy):
             strategy_name=strategy_name,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)
-        self.signals += [Signal.LONG, Signal.SHORT]
         self.conditions += self.get_conditions_for_rsi_basic(df=self.df)
-
-        self.states += [State.LONG, State.SHORT]
         self.df = self.signals_from_features_generate(
             df=self.df, conditions=self.conditions, signals=self.signals
         )
-        self.transitions += [
-            {
-                "trigger": "process_signal",
-                "source": State.FLAT,
-                "dest": State.LONG,
-                "conditions": "conditions_for_opening_basic_long",
-                "after": "open_dca_long",
-            },
-            {
-                "trigger": "process_signal",
-                "source": State.FLAT,
-                "dest": State.SHORT,
-                "conditions": "conditions_for_opening_basic_short",
-                "after": "open_dca_short",
-            },
-            {
-                "trigger": "process_signal",
-                "source": State.LONG,
-                "dest": State.SHORT,
-                "conditions": "conditions_for_switch_to_short",
-                "before": "close_long",
-                "after": "open_dca_short",
-            },
-            {
-                "trigger": "process_signal",
-                "source": State.SHORT,
-                "dest": State.LONG,
-                "conditions": "conditions_for_switch_to_long",
-                "before": "close_short",
-                "after": "open_dca_long",
-            },
-        ]
 
     @staticmethod
     def add_columns_for_rsi_basic(df):
@@ -92,56 +56,6 @@ class RsiBasic(BaseStrategy):
             & (df.RsiAboveSeventy.diff(periods=2) == -1),
         ]
 
-    def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.FLAT.value and self.signal_update.signal == Signal.LONG
-        )
-        logger.info(
-            "Open basic long: %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
-
-        return condition
-
-    def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.FLAT.value and self.signal_update.signal == Signal.SHORT
-        )
-        logger.info(
-            "Open basic short: %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
-
-        return condition
-
-    def conditions_for_switch_to_short(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.LONG and self.signal_update.signal == Signal.SHORT
-        )
-        logger.info(
-            "Switch to short: %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
-        return condition
-
-    def conditions_for_switch_to_long(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.SHORT and self.signal_update.signal == Signal.LONG
-        )
-        logger.info(
-            "Switch to long: %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
-        return condition
-
     async def handle_kline(self, *args, **kwargs):
         logger.info("Entering handle kline")
 
@@ -151,25 +65,16 @@ class RsiBasic(BaseStrategy):
 
         self.raw_data.append(self.kline_update.kline)
 
-        logger.info("Df before append: %s", self.df)
-
         temp_df = insert_to_pandas(data=self.raw_data)
-        logger.info("inserted to pandas")
         temp_df = rsi_indicator_apply(df=temp_df)
-        logger.info("applied rsi")
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
-        logger.info("columns added for rsi basic")
         self.conditions = self.get_conditions_for_rsi_basic(df=temp_df)
-        logger.info("conditions taken")
 
         temp_df = self.signals_from_features_generate(
             df=temp_df, conditions=self.conditions, signals=self.signals
         )
-        logger.info("Df JUST before append: %s", self.df)
 
         self.df = self.df.append(temp_df.tail(1))
-
-        logger.info("Df after append: %s", self.df)
 
         # Copy current position value
         self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
