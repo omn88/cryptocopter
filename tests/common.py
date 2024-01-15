@@ -23,8 +23,7 @@ logger = logging.getLogger("common")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:
-    entry_price = round(float(df.at[df.index[-1], "Close"]), 1)
-    return SignalUpdate(signal=signal, price=entry_price)
+    return SignalUpdate(signal=signal, price=round(float(df.at[df.index[-1], "Close"]), 1))
 
 
 def assert_dca_long_opened(
@@ -36,7 +35,8 @@ def assert_dca_long_opened(
 ):
     assert NUMBER_OF_DCA_ORDERS == len(position.orders)
     assert 1000 == balance
-    assert state == signal_to_state(signal_update.signal).value
+    logger.info("State: %s, type: %s", state, type(state))
+    assert state == signal_to_state(signal_update.signal)
     assert state == position.state
     assert all(order.price <= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
@@ -51,7 +51,8 @@ def assert_dca_short_opened(
 ):
     assert NUMBER_OF_DCA_ORDERS == len(position.orders)
     assert 1000 == balance
-    assert state == signal_to_state(signal_update.signal).value
+    logger.info("State: %s, type: %s", state, type(state))
+    assert state == signal_to_state(signal_update.signal)
     assert state == position.state, f"State: {state}, position.status: {position.state}"
     assert all(order.price >= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)

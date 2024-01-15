@@ -120,7 +120,7 @@ class RsiBasic(BaseStrategy):
 
     def conditions_for_switch_to_short(self, *args, **kwargs) -> bool:
         condition = (
-            self.state == State.LONG.value and self.signal_update.signal == Signal.SHORT
+            self.state == State.LONG and self.signal_update.signal == Signal.SHORT
         )
         logger.info(
             "Switch to short: %s, state: %s signal: %s",
@@ -132,7 +132,7 @@ class RsiBasic(BaseStrategy):
 
     def conditions_for_switch_to_long(self, *args, **kwargs) -> bool:
         condition = (
-            self.state == State.SHORT.value and self.signal_update.signal == Signal.LONG
+            self.state == State.SHORT and self.signal_update.signal == Signal.LONG
         )
         logger.info(
             "Switch to long: %s, state: %s signal: %s",

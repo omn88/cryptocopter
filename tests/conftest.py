@@ -1,15 +1,18 @@
 import asyncio
 import logging
 
+import pytest
+from pytest_mock import MockerFixture
+from unittest.mock import AsyncMock
+
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Position, Signal
 from src.common.initialize_trading_environment import determine_start_position
 from src.common.orders import order_quantity_list_prepare
-from src.strategies.rsi_basic import RsiBasic
 from src.workers.trading_state_machine import TradingStateMachine
-
-# from src.strategies.rsi_extended import ExtendedStrategy
-# from src.strategies.rsi_special import SpecialStrategy
+from src.strategies.rsi_basic import RsiBasic
+from src.strategies.rsi_extended import RsiExtended
+from src.strategies.rsi_special import RsiSpecial
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -67,7 +70,7 @@ async def extended_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = ExtendedStrategy(
+    tsm = RsiExtended(
         client=mock_AsyncClient,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),
@@ -94,7 +97,7 @@ async def special_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    tsm = SpecialStrategy(
+    tsm = RsiSpecial(
         client=mock_AsyncClient,
         balance=1000,
         order_quantity_list=order_quantity_list_prepare(),

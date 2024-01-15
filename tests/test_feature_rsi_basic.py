@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from src.common.constants import NUMBER_OF_DCA_ORDERS
 
 from src.common.identifiers import Signal, State
 from tests.common import (
@@ -150,7 +151,7 @@ async def test_signal_handle_null_when_long(basic_rsi):
 
     await basic_rsi.strategy.process_signal()
 
-    assert 4 == len(basic_rsi.strategy.position.orders)
+    assert NUMBER_OF_DCA_ORDERS == len(basic_rsi.strategy.position.orders)
     assert 1000 == basic_rsi.strategy.balance
     assert basic_rsi.strategy.state == basic_rsi.strategy.position.state
     assert all(
@@ -172,6 +173,10 @@ async def test_signal_handle_long_when_short(mock_save_to_file, basic_rsi):
         signal=Signal.SHORT, df=basic_rsi.strategy.df
     )
 
+    import logging
+    logger = logging.getLogger("test")
+    logger.info("expect flat, State: %s, type: %s", basic_rsi.strategy.state, type(basic_rsi.strategy.state))
+
     await basic_rsi.strategy.process_signal()
 
     assert_dca_short_opened(
@@ -187,6 +192,8 @@ async def test_signal_handle_long_when_short(mock_save_to_file, basic_rsi):
     )
 
     await basic_rsi.strategy.process_signal()
+    
+    logger.info("State: %s, type: %s", basic_rsi.strategy.state, type(basic_rsi.strategy.state))
 
     assert_dca_long_opened(
         position=basic_rsi.strategy.position,
@@ -247,7 +254,7 @@ async def test_signal_handle_null_when_short(basic_rsi):
 
     await basic_rsi.strategy.process_signal()
 
-    assert 4 == len(basic_rsi.strategy.position.orders)
+    assert NUMBER_OF_DCA_ORDERS == len(basic_rsi.strategy.position.orders)
     assert 1000 == basic_rsi.strategy.balance
     assert basic_rsi.strategy.state == basic_rsi.strategy.position.state
     assert all(

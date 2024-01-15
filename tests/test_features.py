@@ -47,13 +47,13 @@ def test_basic_rsi_signal_generate(basic_rsi):
     test_df = rsi_indicator_apply(df=test_df)
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
-    test_df = basic_rsi.add_columns_for_rsi_basic(df=test_df)
-    basic_rsi.conditions = basic_rsi.get_conditions_for_rsi_basic(df=test_df)
+    test_df = basic_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
+    basic_rsi.strategy.conditions = basic_rsi.strategy.get_conditions_for_rsi_basic(df=test_df)
 
     logger.info("Test DF with RSI: %s", test_df)
 
-    test_df = basic_rsi.signals_from_features_generate(
-        test_df, conditions=basic_rsi.conditions, signals=basic_rsi.signals
+    test_df = basic_rsi.strategy.signals_from_features_generate(
+        test_df, conditions=basic_rsi.strategy.conditions, signals=basic_rsi.strategy.signals
     )
 
     logger.info("Test DF with signals: %s", test_df)
