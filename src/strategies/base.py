@@ -312,7 +312,6 @@ class BaseStrategy:
                 "after": "open_dca_long",
             },
         ]
-        logger.info("Finished base init")
 
     @staticmethod
     def signals_from_features_generate(df, conditions, signals) -> pandas.DataFrame:

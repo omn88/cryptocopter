@@ -1,7 +1,12 @@
 from unittest.mock import patch
+
+import pandas
+from src.common.common import rsi_indicator_apply
 from src.common.constants import NUMBER_OF_DCA_ORDERS
 
 from src.common.identifiers import Signal
+from src.strategies.rsi_extended import RsiExtended
+from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import (
     generate_signal,
     assert_dca_long_opened,
@@ -13,6 +18,72 @@ from tests.common import (
     get_orders_short_then_long,
     validation_orders,
 )
+
+
+def test_rsi_signal_extended_generate(extended_rsi: TradingStateMachine):
+    test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
+    test_df = test_df.set_index("Date")
+
+    expected_data = [
+        ["2022-10-18 10:30:00", 49.76, 0, 0, 0, 0, 0],
+        ["2022-10-18 10:45:00", 30.98, 0, 0, 0, 0, 0],
+        ["2022-10-18 11:00:00", 21.27, 1, 0, 0, 0, 0],
+        ["2022-10-18 11:15:00", 19.13, 1, 0, 1, 0, 0],
+        ["2022-10-18 11:30:00", 27.05, 1, 0, 0, 0, Signal.LONG_EXT],
+        ["2022-10-18 11:45:00", 34.04, 0, 0, 0, 0, 0],
+        ["2022-10-18 12:00:00", 54.43, 0, 0, 0, 0, Signal.LONG],
+        ["2022-10-18 12:15:00", 66.42, 0, 0, 0, 0, 0],
+        ["2022-10-18 12:30:00", 74.24, 0, 1, 0, 0, 0],
+        ["2022-10-18 12:45:00", 82.86, 0, 1, 0, 1, 0],
+        ["2022-10-18 13:00:00", 70.23, 0, 1, 0, 0, Signal.SHORT_EXT],
+        ["2022-10-18 13:15:00", 62.05, 0, 0, 0, 0, 0],
+        ["2022-10-18 13:30:00", 70.39, 0, 1, 0, 0, 0],
+        ["2022-10-18 13:45:00", 54.61, 0, 0, 0, 0, 0],
+        ["2022-10-18 14:00:00", 48.25, 0, 0, 0, 0, Signal.SHORT],
+        ["2022-10-18 14:15:00", 54.02, 0, 0, 0, 0, 0],
+        ["2022-10-18 14:30:00", 51.93, 0, 0, 0, 0, 0],
+        ["2022-10-18 14:45:00", 46.42, 0, 0, 0, 0, 0],
+        ["2022-10-18 15:00:00", 46.16, 0, 0, 0, 0, 0],
+    ]
+
+    expected_df = pandas.DataFrame(data=expected_data)
+    expected_df = expected_df.iloc[:, :7]
+    expected_df.columns = [
+        "Date",
+        "RSI",
+        "RsiBelowThirty",
+        "RsiAboveSeventy",
+        "RsiBelowTwenty",
+        "RsiAboveEighty",
+        "Signal",
+    ]
+    expected_df = expected_df.set_index("Date")
+
+    assert isinstance(extended_rsi.strategy, RsiExtended)
+
+    test_df = rsi_indicator_apply(df=test_df)
+    assert "RSI" in test_df.columns
+    test_df.RSI = test_df.RSI.round(2)
+    test_df = extended_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
+    test_df = extended_rsi.strategy.add_columns_for_rsi_extended(df=test_df)
+    test_df = extended_rsi.strategy.signals_from_features_generate(
+        test_df,
+        conditions=extended_rsi.strategy.conditions,
+        signals=extended_rsi.strategy.signals,
+    )
+
+    test_df_shortened = test_df[
+        [
+            "RSI",
+            "RsiBelowThirty",
+            "RsiAboveSeventy",
+            "RsiBelowTwenty",
+            "RsiAboveEighty",
+            "Signal",
+        ]
+    ].copy()
+
+    pandas.testing.assert_frame_equal(left=test_df_shortened, right=expected_df)
 
 
 async def test_signal_handle_long_twenty_when_flat(extended_rsi):

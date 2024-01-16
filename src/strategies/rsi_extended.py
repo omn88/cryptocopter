@@ -138,7 +138,6 @@ class RsiExtended(RsiBasic):
                 "before": "skip_signal",
             },
         ]
-        logger.info("Finished extended rsi init")
 
     @staticmethod
     def add_columns_for_rsi_extended(df):
