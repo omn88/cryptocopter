@@ -39,7 +39,7 @@ class RsiExtended(RsiBasic):
             strategy_name=strategy_name,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
-        self.signals += [Signal.LONG_EXT, Signal.SHORT_EXT]
+        self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
         self.conditions += self.get_conditions_for_rsi_extended(df=self.df)
 
         self.states += [State.LONG_EXT, State.SHORT_EXT]
@@ -138,6 +138,7 @@ class RsiExtended(RsiBasic):
                 "before": "skip_signal",
             },
         ]
+        logger.info("Finished extended rsi init")
 
     @staticmethod
     def add_columns_for_rsi_extended(df):
@@ -210,11 +211,15 @@ class RsiExtended(RsiBasic):
             )
 
     def conditions_for_opening_extended_long(self, *args, **kwargs) -> bool:
-        return self.state == State.FLAT and self.signal_update.signal == Signal.LONG_EXT
+        return (
+            self.state == State.FLAT.value
+            and self.signal_update.signal == Signal.LONG_EXT
+        )
 
     def conditions_for_opening_extended_short(self, *args, **kwargs) -> bool:
         return (
-            self.state == State.FLAT and self.signal_update.signal == Signal.SHORT_EXT
+            self.state == State.FLAT.value
+            and self.signal_update.signal == Signal.SHORT_EXT
         )
 
     def conditions_for_switch_from_extended_long_to_extended_short(

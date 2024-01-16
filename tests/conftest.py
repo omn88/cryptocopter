@@ -102,10 +102,12 @@ async def extended_rsi(mock_AsyncClient):
         )
     )
 
+    logger.info("All transitions: %s", state_machine.strategy.transitions)
+
     await determine_start_position(
         df=state_machine.strategy.df, queue=state_machine.strategy.queue
     )
-
+    logger.info("Before yield, strategy type: %s", type(state_machine.strategy))
     yield state_machine
 
     await state_machine.strategy.client.close_connection()

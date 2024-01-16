@@ -41,6 +41,7 @@ class RsiBasic(BaseStrategy):
         self.df = self.signals_from_features_generate(
             df=self.df, conditions=self.conditions, signals=self.signals
         )
+        logger.info("Finished basic rsi init")
 
     @staticmethod
     def add_columns_for_rsi_basic(df):

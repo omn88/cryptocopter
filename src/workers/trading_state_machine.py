@@ -9,7 +9,7 @@ class TradingStateMachine:
     def __init__(self, strategy):
         self.strategy = strategy
         self.machine = AsyncMachine(
-            model=self.strategy,
+            model=strategy,
             states=strategy.states,
             transitions=strategy.transitions,
             initial=strategy.state,

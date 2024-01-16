@@ -35,6 +35,7 @@ def assert_dca_long_opened(
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
 ):
+    logger.info("len pos orders: %s", len(position.orders))
     assert NUMBER_OF_DCA_ORDERS == len(position.orders)
     assert 1000 == balance
     logger.info("State: %s, type: %s", state, type(state))
