@@ -3,7 +3,8 @@ import logging
 import pandas
 from src.common.common import rsi_indicator_apply
 
-from src.common.identifiers import Signal
+from src.common.identifiers import KlineUpdate, Signal, State
+from tests.common import get_cancel_order, get_orders_long
 
 logger = logging.getLogger("test_rsi_basic")
 
@@ -73,3 +74,19 @@ def test_basic_rsi_signal_generate(basic_rsi):
     pandas.testing.assert_frame_equal(
         left=test_df_shortened, right=expected_df, check_dtype=False
     )
+
+
+async def test_rsi_basic_handle_kline_null(basic_rsi):
+    basic_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+
+    # NO SIGNAL THEN NULL
+    basic_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await basic_rsi.strategy.process_kline()
+
+    assert len(basic_rsi.strategy.position.orders) == 0
+    assert 1000 == basic_rsi.strategy.balance
+    assert basic_rsi.strategy.position.state == State.FLAT

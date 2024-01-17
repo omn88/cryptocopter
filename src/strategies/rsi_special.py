@@ -253,6 +253,10 @@ class RsiSpecial(RsiExtended):
             temp_df = self.add_columns_for_rsi_extended(df=temp_df)
             temp_df = self.add_columns_for_rsi_special(df=temp_df)
 
+            self.conditions = self.get_conditions_for_rsi_features(
+                df=temp_df
+            ) + self.get_conditions_for_rsi_special(df=temp_df)
+
             temp_df = self.signals_from_features_generate(
                 df=temp_df, signals=self.signals, conditions=self.conditions
             )

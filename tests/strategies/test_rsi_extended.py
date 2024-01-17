@@ -1,5 +1,5 @@
 from unittest.mock import patch
-
+import logging
 import pandas
 from src.common.common import rsi_indicator_apply
 from src.common.constants import NUMBER_OF_DCA_ORDERS
@@ -18,6 +18,9 @@ from tests.common import (
     get_orders_short_then_long,
     validation_orders,
 )
+
+
+logger = logging.getLogger("test_rsi_extended")
 
 
 def test_rsi_signal_extended_generate(extended_rsi: TradingStateMachine):
@@ -66,6 +69,10 @@ def test_rsi_signal_extended_generate(extended_rsi: TradingStateMachine):
     test_df.RSI = test_df.RSI.round(2)
     test_df = extended_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
     test_df = extended_rsi.strategy.add_columns_for_rsi_extended(df=test_df)
+    extended_rsi.strategy.conditions = (
+        extended_rsi.strategy.get_conditions_for_rsi_basic(df=test_df)
+        + extended_rsi.strategy.get_conditions_for_rsi_extended(df=test_df)
+    )
     test_df = extended_rsi.strategy.signals_from_features_generate(
         test_df,
         conditions=extended_rsi.strategy.conditions,
@@ -446,3 +453,310 @@ async def test_signal_handle_short_when_short_eighty(extended_rsi):
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
     )
+
+
+from unittest.mock import patch
+from src.common.constants import NUMBER_OF_DCA_ORDERS
+
+from src.common.identifiers import State
+from src.producers.producers import KlineUpdate
+from tests.common import get_orders_long, get_cancel_order, validation_orders
+import logging
+
+logger = logging.getLogger("test")
+
+
+async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
+    extended_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+
+    # NO SIGNAL THEN NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await extended_rsi.strategy.process_kline()
+
+    assert len(extended_rsi.strategy.position.orders) == 0
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.FLAT
+
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG_EXT
+
+
+async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
+    extended_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+
+    # NO SIGNAL THEN NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await extended_rsi.strategy.process_kline()
+
+    assert len(extended_rsi.strategy.position.orders) == 0
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.FLAT
+
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG_EXT
+
+    # LONG
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+
+async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
+    extended_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+
+    # NO SIGNAL THEN NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await extended_rsi.strategy.process_kline()
+
+    assert len(extended_rsi.strategy.position.orders) == 0
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.FLAT
+
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG_EXT
+
+    # LONG
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+
+@patch("src.workers.handle_order.save_to_file")
+async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
+    mock_save_to_file, extended_rsi
+):
+    extended_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.strategy.client.futures_get_order.side_effect = validation_orders()
+    mock_save_to_file.return_value = True
+
+    # NO SIGNAL THEN NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await extended_rsi.strategy.process_kline()
+
+    assert len(extended_rsi.strategy.position.orders) == 0
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.FLAT
+
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG_EXT
+
+    # LONG
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+    # NO SIGNAL THEN NULL LONGEXT LONG NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+    # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 26200.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.SHORT_EXT
+
+
+@patch("src.workers.handle_order.save_to_file")
+async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
+    mock_save_to_file,
+    extended_rsi,
+):
+    extended_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
+    extended_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+    extended_rsi.strategy.client.futures_get_order.side_effect = validation_orders()
+    mock_save_to_file.return_value = True
+
+    # NO SIGNAL THEN NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+    )
+
+    await extended_rsi.strategy.process_kline()
+
+    assert len(extended_rsi.strategy.position.orders) == 0
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.FLAT
+
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG_EXT
+
+    # LONG
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+    # NO SIGNAL THEN NULL LONGEXT LONG NULL
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.LONG
+
+    # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 26200.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.SHORT_EXT
+
+    # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
+    extended_rsi.strategy.kline_update = KlineUpdate(
+        kline=[
+            str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 22200.72, 0, 0]
+        ]
+    )
+
+    await extended_rsi.strategy.process_kline()
+    await extended_rsi.strategy.process_signal()
+
+    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert 1000 == extended_rsi.strategy.balance
+    assert extended_rsi.strategy.position.state == State.SHORT
