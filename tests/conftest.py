@@ -33,15 +33,20 @@ async def base(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
 
+    number_of_orders = 4
+
     state_machine = TradingStateMachine(
         strategy=BaseStrategy(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=number_of_orders
+            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
+            number_of_orders=number_of_orders,
         )
     )
 
@@ -63,15 +68,20 @@ async def basic_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
+    number_of_orders = 4
+
     state_machine = TradingStateMachine(
         strategy=RsiBasic(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=number_of_orders
+            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
+            number_of_orders=number_of_orders,
         )
     )
 
@@ -89,16 +99,20 @@ async def extended_rsi(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
+    number_of_orders = 4
 
     state_machine = TradingStateMachine(
         strategy=RsiExtended(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=number_of_orders
+            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RE_BTCUSDT",
+            number_of_orders=number_of_orders,
         )
     )
 
@@ -115,16 +129,20 @@ async def special_rsi(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
+    number_of_orders = 4
 
     state_machine = TradingStateMachine(
         strategy=RsiSpecial(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=number_of_orders
+            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RS_BTCUSDT",
+            number_of_orders=number_of_orders,
         )
     )
 

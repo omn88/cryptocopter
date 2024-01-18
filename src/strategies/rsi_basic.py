@@ -26,6 +26,7 @@ class RsiBasic(BaseStrategy):
         raw_data,
         symbol: str,
         strategy_name: str,
+        number_of_orders: int,
     ):
         super().__init__(
             client=client,
@@ -35,6 +36,7 @@ class RsiBasic(BaseStrategy):
             raw_data=raw_data,
             symbol=symbol,
             strategy_name=strategy_name,
+            number_of_orders=number_of_orders,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)
         self.conditions += self.get_conditions_for_rsi_basic(df=self.df)

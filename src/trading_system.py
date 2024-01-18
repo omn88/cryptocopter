@@ -68,7 +68,9 @@ class TradingSystem:
         self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
             balance=self.balance,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=self.strategy.number_of_orders
+            ),
             df=self.df,
             raw_data=self.raw_data,
             symbol=self.symbol,

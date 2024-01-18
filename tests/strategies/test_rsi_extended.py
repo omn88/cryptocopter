@@ -2,9 +2,8 @@ from unittest.mock import patch
 import logging
 import pandas
 from src.common.common import rsi_indicator_apply
-from src.common.constants import NUMBER_OF_DCA_ORDERS
 
-from src.common.identifiers import Signal
+from src.common.identifiers import KlineUpdate, Signal, State
 from src.strategies.rsi_extended import RsiExtended
 from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import (
@@ -108,6 +107,7 @@ async def test_signal_handle_long_twenty_when_flat(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -128,6 +128,7 @@ async def test_signal_handle_short_eighty_when_flat(mock_save_to_file, extended_
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -149,6 +150,7 @@ async def test_signal_handle_long_twenty_when_long_twenty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     await extended_rsi.strategy.process_signal()
@@ -159,6 +161,7 @@ async def test_signal_handle_long_twenty_when_long_twenty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -182,6 +185,7 @@ async def test_signal_handle_short_eighty_when_long_twenty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -196,6 +200,7 @@ async def test_signal_handle_short_eighty_when_long_twenty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -213,6 +218,7 @@ async def test_signal_handle_null_when_long_twenty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -221,7 +227,9 @@ async def test_signal_handle_null_when_long_twenty(extended_rsi):
 
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.state == extended_rsi.strategy.position.state
     assert all(
@@ -252,6 +260,7 @@ async def test_signal_handle_long_twenty_when_short_eighty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -266,6 +275,7 @@ async def test_signal_handle_long_twenty_when_short_eighty(
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -283,6 +293,7 @@ async def test_signal_handle_short_eighty_when_short_eighty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     await extended_rsi.strategy.process_signal()
@@ -293,6 +304,7 @@ async def test_signal_handle_short_eighty_when_short_eighty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -310,6 +322,7 @@ async def test_signal_handle_null_when_short_eighty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -318,7 +331,9 @@ async def test_signal_handle_null_when_short_eighty(extended_rsi):
 
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.state == extended_rsi.strategy.position.state
     assert all(
@@ -341,6 +356,7 @@ async def test_signal_handle_long_when_long_twenty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -355,6 +371,7 @@ async def test_signal_handle_long_when_long_twenty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -375,6 +392,7 @@ async def test_signal_handle_short_when_long_twenty(mock_save_to_file, extended_
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -388,6 +406,7 @@ async def test_signal_handle_short_when_long_twenty(mock_save_to_file, extended_
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -410,6 +429,7 @@ async def test_signal_handle_long_when_short_eighty(mock_save_to_file, extended_
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -423,6 +443,7 @@ async def test_signal_handle_long_when_short_eighty(mock_save_to_file, extended_
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
 
@@ -439,6 +460,7 @@ async def test_signal_handle_short_when_short_eighty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
 
     extended_rsi.strategy.signal_update = generate_signal(
@@ -452,18 +474,8 @@ async def test_signal_handle_short_when_short_eighty(extended_rsi):
         state=extended_rsi.strategy.state,
         signal_update=extended_rsi.strategy.signal_update,
         df=extended_rsi.strategy.df,
+        number_of_orders=extended_rsi.strategy.number_of_orders,
     )
-
-
-from unittest.mock import patch
-from src.common.constants import NUMBER_OF_DCA_ORDERS
-
-from src.common.identifiers import State
-from src.producers.producers import KlineUpdate
-from tests.common import get_orders_long, get_cancel_order, validation_orders
-import logging
-
-logger = logging.getLogger("test")
 
 
 async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
@@ -490,7 +502,10 @@ async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert (
+        len(extended_rsi.strategy.position.orders)
+        == extended_rsi.strategy.number_of_orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG_EXT
 
@@ -519,7 +534,10 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert (
+        len(extended_rsi.strategy.position.orders)
+        == extended_rsi.strategy.number_of_orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG_EXT
 
@@ -533,7 +551,9 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -562,7 +582,10 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert (
+        len(extended_rsi.strategy.position.orders)
+        == extended_rsi.strategy.number_of_orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG_EXT
 
@@ -576,7 +599,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -590,7 +615,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -624,7 +651,10 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert (
+        len(extended_rsi.strategy.position.orders)
+        == extended_rsi.strategy.number_of_orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG_EXT
 
@@ -638,7 +668,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -652,7 +684,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -666,7 +700,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.SHORT_EXT
 
@@ -701,7 +737,10 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert len(extended_rsi.strategy.position.orders) == NUMBER_OF_DCA_ORDERS
+    assert (
+        len(extended_rsi.strategy.position.orders)
+        == extended_rsi.strategy.number_of_orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG_EXT
 
@@ -715,7 +754,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -729,7 +770,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.LONG
 
@@ -743,7 +786,9 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.SHORT_EXT
 
@@ -757,6 +802,8 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(extended_rsi.strategy.position.orders)
+    assert extended_rsi.strategy.number_of_orders == len(
+        extended_rsi.strategy.position.orders
+    )
     assert 1000 == extended_rsi.strategy.balance
     assert extended_rsi.strategy.position.state == State.SHORT

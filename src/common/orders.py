@@ -15,12 +15,7 @@ from binance.exceptions import (
 )
 
 from src.common.common import convert_time
-from src.common.constants import (
-    LEVERAGE,
-    DCA_SPAN,
-    NUMBER_OF_DCA_ORDERS,
-    LOSSES_PER_LEVEL,
-)
+from src.common.constants import LEVERAGE, DCA_SPAN, LOSSES_PER_LEVEL
 import pandas
 
 from src.common.identifiers import (
@@ -38,6 +33,7 @@ logger = logging.getLogger("orders")
 
 
 def order_quantity_list_prepare(
+    number_of_orders: int,
     order_values: Optional[List[float]] = None,
 ) -> pandas.DataFrame:
     order_values = (
@@ -92,11 +88,11 @@ def order_quantity_list_prepare(
     # OQL stands for order quantity list
     oql = pandas.DataFrame(order_values, columns=["order_value"])
     oql.set_index(pandas.Index(list(range(len(order_values)))))
-    oql["sum_of_all_losses"] = oql.order_value * NUMBER_OF_DCA_ORDERS * LOSSES_PER_LEVEL
+    oql["sum_of_all_losses"] = oql.order_value * number_of_orders * LOSSES_PER_LEVEL
     oql["threshold"] = oql.sum_of_all_losses + oql.sum_of_all_losses.shift(1)
     oql.at[oql.index[0], "threshold"] = oql.at[oql.index[0], "sum_of_all_losses"]
 
-    logger.debug("Order quantity list: \n%s", oql)
+    # logger.debug("Order quantity list: \n%s", oql)
 
     return oql
 
@@ -271,6 +267,7 @@ def get_order_quantity(
     mode: PositionMode,
     order_quantity: float,
     entry_price: float,
+    number_of_orders: int,
     order: int,
 ):
     if side == PositionSide.LONG and mode == PositionMode.DCA:
@@ -285,7 +282,7 @@ def get_order_quantity(
         return round(
             LEVERAGE
             * order_quantity
-            * NUMBER_OF_DCA_ORDERS
+            * number_of_orders
             / (round((entry_price - (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
@@ -302,7 +299,7 @@ def get_order_quantity(
         return round(
             LEVERAGE
             * order_quantity
-            * NUMBER_OF_DCA_ORDERS
+            * number_of_orders
             / (round((entry_price + (DCA_SPAN * order * entry_price)), 2)),
             3,
         )
@@ -313,19 +310,17 @@ def prepare_orders(
     mode: PositionMode,
     entry_price: float,
     balance: float,
+    number_of_orders: int,
     order_quantity_list: pandas.DataFrame,
 ) -> Position:
     logger.info("Entering prepare orders")
 
-    number_of_dca_orders = 1 if mode == PositionMode.FULL else NUMBER_OF_DCA_ORDERS
     order_quantity_stable, order_level = order_quantity_check(
         oql=order_quantity_list, balance=balance
     )
     position.artifacts.order_quantity_stable = order_quantity_stable
     position.artifacts.order_level = order_level
-    position.artifacts.max_position = order_quantity_stable * float(
-        number_of_dca_orders
-    )
+    position.artifacts.max_position = order_quantity_stable * float(number_of_orders)
     position.artifacts.side = position.side
     position.artifacts.mode = mode
     position.artifacts.leverage = LEVERAGE
@@ -334,7 +329,7 @@ def prepare_orders(
         "Balance: %s, single order value: %s USDT, number of dca orders: %s, dca span: %s",
         balance,
         order_quantity_stable,
-        number_of_dca_orders,
+        number_of_orders,
         DCA_SPAN,
     )
 
@@ -351,11 +346,12 @@ def prepare_orders(
                 order_quantity=order_quantity_stable,
                 entry_price=entry_price,
                 order=order,
+                number_of_orders=number_of_orders,
             ),
             order_id=0,
             quantity_stable=order_quantity_stable,
         )
-        for order in range(number_of_dca_orders)
+        for order in range(number_of_orders)
     ]
 
     logger.info("Exiting prepare orders")

@@ -1,5 +1,4 @@
 from unittest.mock import patch
-from src.common.constants import NUMBER_OF_DCA_ORDERS
 
 from src.common.identifiers import Signal, State
 from tests.common import (
@@ -30,6 +29,7 @@ async def test_signal_handle_long_when_flat(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -48,6 +48,7 @@ async def test_signal_handle_short_when_flat(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -82,6 +83,7 @@ async def test_signal_handle_long_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
     assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
 
@@ -93,6 +95,7 @@ async def test_signal_handle_long_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -116,6 +119,7 @@ async def test_signal_handle_short_when_long(mock_save_to_file, base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
     assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
@@ -132,6 +136,7 @@ async def test_signal_handle_short_when_long(mock_save_to_file, base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -149,6 +154,7 @@ async def test_signal_handle_null_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -157,7 +163,7 @@ async def test_signal_handle_null_when_long(base):
 
     await base.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(base.strategy.position.orders)
+    assert base.strategy.number_of_orders == len(base.strategy.position.orders)
     assert 1000 == base.strategy.balance
     assert base.strategy.state == base.strategy.position.state
     assert all(
@@ -185,6 +191,7 @@ async def test_signal_handle_long_when_short(mock_save_to_file, base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -199,6 +206,7 @@ async def test_signal_handle_long_when_short(mock_save_to_file, base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -217,6 +225,7 @@ async def test_signal_handle_short_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
     await base.strategy.process_signal()
@@ -227,6 +236,7 @@ async def test_signal_handle_short_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
 
@@ -244,6 +254,7 @@ async def test_signal_handle_null_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
+        number_of_orders=base.strategy.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -252,7 +263,7 @@ async def test_signal_handle_null_when_short(base):
 
     await base.strategy.process_signal()
 
-    assert NUMBER_OF_DCA_ORDERS == len(base.strategy.position.orders)
+    assert base.strategy.number_of_orders == len(base.strategy.position.orders)
     assert 1000 == base.strategy.balance
     assert base.strategy.state == base.strategy.position.state
     assert all(

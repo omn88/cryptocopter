@@ -56,6 +56,7 @@ class BaseStrategy:
         raw_data,
         symbol: str,
         strategy_name: str,
+        number_of_orders: int,
     ):
         self.client = client
         self.df = df
@@ -64,6 +65,7 @@ class BaseStrategy:
         self.raw_data = raw_data
         self.symbol = symbol
         self.strategy_name = strategy_name
+        self.number_of_orders = number_of_orders
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
@@ -561,6 +563,7 @@ class BaseStrategy:
             mode=self.mode,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
+            number_of_orders=self.number_of_orders,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -580,6 +583,7 @@ class BaseStrategy:
             mode=self.mode,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
+            number_of_orders=self.number_of_orders,
         )
 
         self.update_position_in_df(

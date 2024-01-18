@@ -8,7 +8,6 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.common import signal_to_state
-from src.common.constants import NUMBER_OF_DCA_ORDERS
 
 from src.common.identifiers import (
     Signal,
@@ -34,9 +33,10 @@ def assert_dca_long_opened(
     state: State,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
+    number_of_orders: int,
 ):
     logger.info("len pos orders: %s", len(position.orders))
-    assert NUMBER_OF_DCA_ORDERS == len(position.orders)
+    assert number_of_orders == len(position.orders)
     assert 1000 == balance
     logger.info("State: %s, type: %s", state, type(state))
     assert state == signal_to_state(signal_update.signal)
@@ -51,8 +51,9 @@ def assert_dca_short_opened(
     state: State,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
+    number_of_orders: int,
 ):
-    assert NUMBER_OF_DCA_ORDERS == len(position.orders)
+    assert number_of_orders == len(position.orders)
     assert 1000 == balance
     logger.info("State: %s, type: %s", state, type(state))
     assert state == signal_to_state(signal_update.signal)
@@ -241,6 +242,7 @@ async def start_long(base) -> None:
         state=base.state,
         signal_update=base.signal_update,
         df=base.df,
+        number_of_orders=base.number_of_orders,
     )
 
 
@@ -255,6 +257,7 @@ async def start_short(base) -> None:
         state=base.state,
         signal_update=base.signal_update,
         df=base.df,
+        number_of_orders=base.number_of_orders,
     )
 
 
@@ -310,6 +313,36 @@ def get_orders_long():
         },
         {
             "orderId": 9,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 10,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 11,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 12,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 130,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 14,
             "price": 20500.00,
             "status": ORDER_STATUS_NEW,
             "updateTime": 1566818724722,
