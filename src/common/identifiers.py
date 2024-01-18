@@ -130,7 +130,7 @@ class Order:
 @dataclass()
 class Artifacts:
     start_balance: float = 0
-    no_of_dca_orders: int = 0
+    no_of_orders: int = 0
     leverage: int = 0
     order_quantity_stable: int = 0
     order_level: int = 0
@@ -151,7 +151,7 @@ class Artifacts:
 
     def __repr__(self):
         return (
-            f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_dca_orders},"
+            f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_orders},"
             f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
             f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
             f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"

@@ -9,7 +9,7 @@ import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
 from src.common.common import signal_to_state
-from src.common.constants import NUMBER_OF_DCA_ORDERS, LEVERAGE
+from src.common.constants import LEVERAGE
 from src.common.identifiers import (
     OrderUpdate,
     Signal,
@@ -45,12 +45,13 @@ async def prepare_and_send_orders(
     side: str,
     ui_queue: asyncio.Queue,
     symbol: str,
+    number_of_orders: int,
     mode: PositionMode = PositionMode.DCA,
 ) -> Position:
     logger.info("Entering %s position open, mode: %s", side, mode)
     position = Position(side=side)
     position.artifacts.start_balance = balance
-    position.artifacts.no_of_dca_orders = NUMBER_OF_DCA_ORDERS
+    position.artifacts.no_of_orders = number_of_orders
     position.state = signal_to_state(signal=signal)
 
     position = prepare_orders(
@@ -59,6 +60,7 @@ async def prepare_and_send_orders(
         entry_price=entry_price,
         balance=balance,
         order_quantity_list=order_quantity_list,
+        number_of_orders=number_of_orders,
     )
 
     side = SIDE_BUY if side == PositionSide.LONG else SIDE_SELL

@@ -93,7 +93,9 @@ class PositionData:
             f"entry_price={self.entry_price}, "
             f"mark_price={self.mark_price}, "
             f"liquidation_price={self.liquidation_price}, "
-            f"pnl={self.pnl})"
+            f"pnl={self.pnl}, "
+            f"status={self.status}, "
+            f"state={self.state})"
         )
 
 
@@ -101,6 +103,13 @@ class StrategyData:
     def __init__(self, strategy_name: str, position_data: PositionData):
         self.strategy_name: str = strategy_name
         self.position_data: PositionData = position_data
+
+    def __repr__(self) -> str:
+        return (
+            f"StrategyData("
+            f"strategy_name={self.strategy_name}, "
+            f"position_data={self.position_data})"
+        )
 
 
 class AccountData:

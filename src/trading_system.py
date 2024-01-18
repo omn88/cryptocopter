@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 from binance import BinanceSocketManager
 from src.common.common import (
     futures_get_balance,
@@ -16,51 +17,42 @@ from src.common.identifiers import (
     SentinelUpdate,
 )
 from src.common.initialize_trading_environment import (
-    change_margin_type,
+    determine_start_position,
     prepare_producers,
-    prepare_workers,
 )
 from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
-from src.strategies.rsi_basic import BasicStrategy
-from src.strategies.rsi_extended import ExtendedStrategy
-from src.strategies.rsi_special import SpecialStrategy
+from src.strategies.base import BaseStrategy
+from src.strategies.rsi_basic import RsiBasic
+from src.workers import worker
+from src.workers.trading_state_machine import TradingStateMachine
+
+from src.strategies.rsi_extended import RsiExtended
+from src.strategies.rsi_special import RsiSpecial
 
 logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "RSI Basic": BasicStrategy,
-    "RSI Extended": ExtendedStrategy,
-    "RSI Special": SpecialStrategy,
+    "RSI Basic": RsiBasic,
+    "RSI Extended": RsiExtended,
+    "RSI Special": RsiSpecial,
 }
 
 
 class TradingSystem:
-    def __init__(
-        self,
-        client: BinanceClient,
-        ui_queue: asyncio.Queue,
-        strategy_name: str,
-        symbol: str,
-        main_ui_queue: asyncio.Queue,
-    ):
+    def __init__(self, client: BinanceClient, strategy_name: str, symbol: str):
         self.client: BinanceClient = client
-        self.ui_queue: asyncio.Queue = ui_queue
-        self.strategy_name = strategy_name
+        self.strategy_name: str = strategy_name
         self.symbol = symbol
-        self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.binance_socket_manager = BinanceSocketManager(client=client)
-        self.queue: asyncio.Queue = asyncio.Queue()
         self.position = Position()
         self.balance = None
         self.raw_data = None
         self.df = None
-        self.strategy = None
+        self.state_machine: Optional[TradingStateMachine] = None
+        self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
-        self.balance = await futures_get_balance(client=self.client, asset=ASSET)
-        await self.main_ui_queue.put(AccountData(balance=self.balance))
-
         # await change_margin_type(client=self.client, symbol=self.symbol)
         # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
@@ -71,19 +63,37 @@ class TradingSystem:
         self.df = insert_to_pandas(data=self.raw_data)
         self.df = rsi_indicator_apply(df=self.df)
 
+        self.balance = await futures_get_balance(client=self.client, asset=ASSET)
+
         self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
-            queue=self.queue,
             balance=self.balance,
-            order_quantity_list=order_quantity_list_prepare(),
+            order_quantity_list=order_quantity_list_prepare(
+                number_of_orders=self.strategy.number_of_orders
+            ),
             df=self.df,
-            position=self.position,
             raw_data=self.raw_data,
-            ui_queue=self.ui_queue,
             symbol=self.symbol,
             strategy_name=self.strategy_name,
-            main_ui_queue=self.main_ui_queue,
         )
+
+        self.state_machine = TradingStateMachine(strategy=self.strategy)
+
+        await self.strategy.main_ui_queue.put(AccountData(balance=self.balance))
+
+        self.df = self.strategy.signals_from_features_generate(
+            df=self.df,
+            conditions=self.strategy.conditions,
+            signals=self.strategy.signals,
+        )
+
+    async def determine_start_position(self):
+        await asyncio.sleep(5)
+        await determine_start_position(df=self.df, queue=self.strategy.queue)
+
+    async def prepare_worker(self):
+        await asyncio.sleep(5)
+        await worker.worker(state_machine=self.state_machine)
 
     async def start_trading(self):
         await asyncio.gather(
@@ -91,13 +101,13 @@ class TradingSystem:
                 bsm=self.binance_socket_manager,
                 df=self.df,
                 interval=INTERVAL,
-                queue=self.queue,
-                tsm=self.strategy,
-                ui_queue=self.ui_queue,
+                queue=self.strategy.queue,
+                ui_queue=self.strategy.ui_queue,
                 symbol=self.symbol,
-                main_ui_queue=self.main_ui_queue,
+                main_ui_queue=self.strategy.main_ui_queue,
             ),
-            *prepare_workers(tsm=self.strategy, queue=self.queue, symbol=self.symbol),
+            asyncio.create_task(self.prepare_worker()),
+            asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )
 
@@ -105,10 +115,10 @@ class TradingSystem:
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
         logger.info("Trading system STOP initiated properly")
-        await self.queue.put(
+        await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
-        await self.main_ui_queue.put(
+        await self.strategy.main_ui_queue.put(
             Event(
                 EventName.SENTINEL,
                 content={"strategy_name": self.strategy_name, "symbol": self.symbol},

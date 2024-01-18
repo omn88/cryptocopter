@@ -1,63 +1,62 @@
+from typing import List
+import logging
+import numpy
+import pandas
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     Signal,
     SignalUpdate,
     Event,
     EventName,
+    BinanceClient,
 )
-from src.features.rsi_basic import FeatureRsiBasic
-from src.workers.trading_state_machine import TradingStateMachine
+from src.strategies.base import BaseStrategy
 
 
-import logging
-
-logger = logging.getLogger("BasicStrategy")
+logger = logging.getLogger("RsiBasic")
 
 
-class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
+class RsiBasic(BaseStrategy):
     def __init__(
         self,
-        client,
-        queue,
-        balance,
-        order_quantity_list,
-        df,
-        position,
+        client: BinanceClient,
+        df: pandas.DataFrame,
+        balance: float,
+        order_quantity_list: List,
         raw_data,
-        ui_queue,
-        symbol,
-        strategy_name,
-        main_ui_queue,
+        symbol: str,
+        strategy_name: str,
+        number_of_orders: int,
     ):
         super().__init__(
             client=client,
-            queue=queue,
-            position=position,
             df=df,
             balance=balance,
             order_quantity_list=order_quantity_list,
             raw_data=raw_data,
-            ui_queue=ui_queue,
             symbol=symbol,
             strategy_name=strategy_name,
-            main_ui_queue=main_ui_queue,
+            number_of_orders=number_of_orders,
         )
-
-        self.import_feature_configuration(feature=FeatureRsiBasic())
         self.df = self.add_columns_for_rsi_basic(df=self.df)
-        self.conditions = self.get_conditions_for_rsi_basic(self.df)
+        self.conditions += self.get_conditions_for_rsi_basic(df=self.df)
         self.df = self.signals_from_features_generate(
             df=self.df, conditions=self.conditions, signals=self.signals
         )
 
     @staticmethod
+    def add_columns_for_rsi_basic(df):
+        df["RsiBelowThirty"] = numpy.where(df["RSI"] < 30, 1, 0)
+        df["RsiAboveSeventy"] = numpy.where(df["RSI"] > 70, 1, 0)
+        return df
+
+    @staticmethod
     def get_conditions_for_rsi_basic(df):
-        conditions = [
+        return [
             (df.RsiBelowThirty.diff() == 0) & (df.RsiBelowThirty.diff(periods=2) == -1),
             (df.RsiAboveSeventy.diff() == 0)
             & (df.RsiAboveSeventy.diff(periods=2) == -1),
         ]
-        return conditions
 
     async def handle_kline(self, *args, **kwargs):
         logger.info("Entering handle kline")
@@ -71,32 +70,27 @@ class BasicStrategy(TradingStateMachine, FeatureRsiBasic):
         temp_df = insert_to_pandas(data=self.raw_data)
         temp_df = rsi_indicator_apply(df=temp_df)
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
-        conditions = self.get_conditions_for_rsi_basic(df=temp_df)
+        self.conditions = self.get_conditions_for_rsi_basic(df=temp_df)
 
         temp_df = self.signals_from_features_generate(
-            df=temp_df, conditions=conditions, signals=self.signals
+            df=temp_df, conditions=self.conditions, signals=self.signals
         )
+
         self.df = self.df.append(temp_df.tail(1))
 
         # Copy current position value
         self.df.iloc[-1, -1] = self.df.iloc[-2, -1]
 
-        if self.signal_update.signal == 0:
-            self.signal_update = SignalUpdate(
-                signal=Signal.NULL,
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
-            )
-            self.skip_signal()
-        else:
-            self.signal_update = SignalUpdate(
-                signal=self.df.iloc[-1]["Signal"],
-                price=round(float(self.df.iloc[-1]["Close"]), 2),
-            )
-            await self.queue.put(
-                Event(name=EventName.SIGNAL, content=self.signal_update)
-            )
-            logger.info(
-                "Added to queue, signal: %s, price: %s",
-                self.signal_update.signal,
-                self.signal_update.price,
-            )
+        signal_update = SignalUpdate(
+            signal=Signal.NULL
+            if self.df.iloc[-1]["Signal"] == 0
+            else self.df.iloc[-1]["Signal"],
+            price=round(float(self.df.iloc[-1]["Close"]), 2),
+        )
+
+        await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
+        logger.info(
+            "Added to queue, signal: %s, price: %s",
+            signal_update.signal,
+            signal_update.price,
+        )

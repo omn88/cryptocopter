@@ -1,5 +1,5 @@
-import asyncio
 import logging
+
 from src.common.common import print_last_n_rows
 from src.common.identifiers import (
     KlineUpdate,
@@ -15,71 +15,71 @@ from src.workers.trading_state_machine import TradingStateMachine
 logger = logging.getLogger("worker_main")
 
 
-async def process_kline(tsm: TradingStateMachine, kline_update: KlineUpdate):
-    tsm.kline_update = kline_update
-    # All process_* methods are created dynamically, MyPy does not know it exists.
-    await tsm.process_kline()  # type: ignore
-
-
-async def process_signal(tsm: TradingStateMachine, signal_update: SignalUpdate):
-    tsm.signal_update = signal_update
-    await tsm.process_signal()  # type: ignore
-
-
-async def process_account(tsm: TradingStateMachine, account_update: AccountUpdate):
-    tsm.account_update = account_update
-    await tsm.process_account()  # type: ignore
-
-
-async def process_order(tsm: TradingStateMachine, order_update: OrderUpdate):
-    tsm.order_update = order_update
-    await tsm.process_order()  # type: ignore
-
-
-async def worker(queue: asyncio.Queue, tsm: TradingStateMachine, symbol: str):
+async def worker(state_machine: TradingStateMachine):
     while True:
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"
         )
-        logger.info("Events in queue: %s", queue.qsize())
-        if queue.qsize() == 0:
+        logger.info("Events in queue: %s", state_machine.strategy.queue.qsize())
+        if state_machine.strategy.queue.qsize() == 0:
             logger.info("Awaiting new Event...")
 
-        event = await queue.get()
+        event = await state_machine.strategy.queue.get()
         assert isinstance(event, Event)
         logger.info("NEW: %s", event)
 
         if EventName.KLINE == event.name:
+            logger.info("Entering kline event ")
             assert isinstance(event.content, KlineUpdate)
-            await process_kline(tsm=tsm, kline_update=event.content)
+            state_machine.strategy.kline_update = event.content
+            # All process_* methods are created dynamically, MyPy does not know it exists.
+            await state_machine.strategy.process_kline()  # type: ignore
 
-            await print_last_n_rows(df=tsm.df)
+            await print_last_n_rows(df=state_machine.strategy.df)
 
         elif EventName.ORDER == event.name:
+            logger.info(
+                "Entering order event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, OrderUpdate)
-            await process_order(tsm=tsm, order_update=event.content)
+            state_machine.strategy.order_update = event.content
+            await state_machine.strategy.process_order()  # type: ignore
 
         elif EventName.ACCOUNT == event.name:
+            logger.info(
+                "Entering account event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, AccountUpdate)
-            await process_account(tsm=tsm, account_update=event.content)
+            state_machine.strategy.account_update = event.content
+            await state_machine.strategy.process_account()  # type: ignore
 
         elif EventName.SIGNAL == event.name:
+            logger.info(
+                "Entering signal event, content: %s, type: %s ",
+                event.content,
+                type(event.content),
+            )
             assert isinstance(event.content, SignalUpdate)
-            await process_signal(tsm=tsm, signal_update=event.content)
+            state_machine.strategy.signal_update = event.content
+            await state_machine.strategy.process_signal()  # type: ignore
 
-            await print_last_n_rows(df=tsm.df)
+            await print_last_n_rows(df=state_machine.strategy.df)
 
         elif EventName.SENTINEL == event.name:
-            logger.info("SENTINEL -> Exiting worker")
+            logger.info("Entering sentinel event -> Exiting worker")
             await futures_position_close(
-                client=tsm.client,
-                ui_queue=tsm.ui_queue,
-                position=tsm.position,
-                symbol=symbol,
-                main_ui_queue=tsm.main_ui_queue,
-                strategy_name=tsm.strategy_name,
+                client=state_machine.strategy.client,
+                ui_queue=state_machine.strategy.ui_queue,
+                position=state_machine.strategy.position,
+                symbol=state_machine.strategy.symbol,
+                main_ui_queue=state_machine.strategy.main_ui_queue,
+                strategy_name=state_machine.strategy.strategy_name,
             )
 
             return
 
-        queue.task_done()
+        state_machine.strategy.queue.task_done()

@@ -7,6 +7,7 @@ from binance.enums import (
     ORDER_TYPE_LIMIT,
     ORDER_TYPE_MARKET,
 )
+from src.common.common import signal_to_state
 
 from src.common.identifiers import (
     Signal,
@@ -21,8 +22,9 @@ logger = logging.getLogger("common")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:
-    entry_price = round(float(df.at[df.index[-1], "Close"]), 1)
-    return SignalUpdate(signal=signal, price=entry_price)
+    return SignalUpdate(
+        signal=signal, price=round(float(df.at[df.index[-1], "Close"]), 1)
+    )
 
 
 def assert_dca_long_opened(
@@ -31,10 +33,13 @@ def assert_dca_long_opened(
     state: State,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
+    number_of_orders: int,
 ):
-    assert 4 == len(position.orders)
+    logger.info("len pos orders: %s", len(position.orders))
+    assert number_of_orders == len(position.orders)
     assert 1000 == balance
-    assert state == State(signal_update.signal.value)
+    logger.info("State: %s, type: %s", state, type(state))
+    assert state == signal_to_state(signal_update.signal)
     assert state == position.state
     assert all(order.price <= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
@@ -46,10 +51,12 @@ def assert_dca_short_opened(
     state: State,
     signal_update: SignalUpdate,
     df: pandas.DataFrame,
+    number_of_orders: int,
 ):
-    assert 4 == len(position.orders)
+    assert number_of_orders == len(position.orders)
     assert 1000 == balance
-    assert state == State(signal_update.signal.value)
+    logger.info("State: %s, type: %s", state, type(state))
+    assert state == signal_to_state(signal_update.signal)
     assert state == position.state, f"State: {state}, position.status: {position.state}"
     assert all(order.price >= signal_update.price for order in position.orders)
     assert df.at[df.index[-1], "Position"] == State(signal_update.signal.value)
@@ -235,6 +242,7 @@ async def start_long(base) -> None:
         state=base.state,
         signal_update=base.signal_update,
         df=base.df,
+        number_of_orders=base.number_of_orders,
     )
 
 
@@ -249,6 +257,7 @@ async def start_short(base) -> None:
         state=base.state,
         signal_update=base.signal_update,
         df=base.df,
+        number_of_orders=base.number_of_orders,
     )
 
 
@@ -304,6 +313,36 @@ def get_orders_long():
         },
         {
             "orderId": 9,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 10,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 11,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 12,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 130,
+            "price": 20500.00,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 14,
             "price": 20500.00,
             "status": ORDER_STATUS_NEW,
             "updateTime": 1566818724722,

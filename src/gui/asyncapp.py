@@ -44,13 +44,6 @@ class AsyncApp(App):
     trading_systems = ListProperty([])
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
-    main_ui_queue: asyncio.Queue = asyncio.Queue()
-
-    strategy_mapping = {
-        "RSI Basic": "RB",
-        "RSI Extended": "RE",
-        "RSI Special": "RS",
-    }
 
     def __init__(self, client: BinanceClient, **kwargs):
         """Initializes the `AsyncApp` instance.
@@ -61,7 +54,13 @@ class AsyncApp(App):
         """
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
+        self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.tabs: Dict = {}
+        self.strategy_mapping = {
+            "RSI Basic": "RB",
+            "RSI Extended": "RE",
+            "RSI Special": "RS",
+        }
         asyncio.create_task(self.update_ui())
 
     def __str__(self):
@@ -93,39 +92,34 @@ class AsyncApp(App):
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
-        strategy = self.root.ids.strategy_spinner.text
+        strategy_name = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
-        strategy_name = f"{self.strategy_mapping[strategy]}_{symbol}"
-        if strategy != "Choose Strategy" and symbol != "Choose Symbol":
-            logger.info("Starting new strategy: %s on pair %s", strategy, symbol)
+        strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
+        if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
+            logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
-            ui_queue = asyncio.Queue()
             trading_system = TradingSystem(
-                client=self.client,
-                strategy_name=strategy,
-                symbol=symbol,
-                ui_queue=ui_queue,
-                main_ui_queue=self.main_ui_queue,
+                client=self.client, strategy_name=strategy_name, symbol=symbol
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
 
             strategy_tab = StrategyTab(
                 trading_system=trading_system,
-                ui_queue=ui_queue,
-                strategy_name=strategy,
+                ui_queue=trading_system.strategy.ui_queue,
+                strategy_name=strategy_name,
                 symbol=symbol,
                 main_ui_queue=self.main_ui_queue,
             )
             self.strategy_tabs.append(strategy_tab)
 
             tab = TabbedPanelItem(
-                text=strategy_name,
+                text=strategy_name_short,
                 content=strategy_tab,
             )
 
             # Store a reference to the tab
-            self.tabs[strategy_name] = tab
+            self.tabs[strategy_name_short] = tab
 
             # Add a new tab for the strategy
             self.root.add_widget(tab)

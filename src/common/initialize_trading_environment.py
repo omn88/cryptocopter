@@ -6,14 +6,12 @@ from binance import BinanceSocketManager
 import logging
 
 from src.common.constants import MARGIN_TYPE
-from src.common.identifiers import BinanceClient
+from src.common.identifiers import BinanceClient, Event, EventName, Signal, SignalUpdate
 from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
 )
-from src.workers.trading_state_machine import TradingStateMachine
-from src.workers.worker import worker
 
 logger = logging.getLogger("initialize_trading_environment")
 
@@ -32,7 +30,6 @@ def prepare_producers(
     main_ui_queue: asyncio.Queue,
     interval: str,
     df: pandas.DataFrame,
-    tsm: TradingStateMachine,
     symbol: str,
 ):
     return [
@@ -45,7 +42,7 @@ def prepare_producers(
                 symbol=symbol,
             )
         ),
-        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue, tsm=tsm)),
+        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue)),
         asyncio.create_task(
             futures_symbol_mark_price_socket(
                 bsm=bsm, ui_queue=ui_queue, symbol=symbol, main_ui_queue=main_ui_queue
@@ -54,5 +51,41 @@ def prepare_producers(
     ]
 
 
-def prepare_workers(tsm: TradingStateMachine, queue: asyncio.Queue, symbol: str):
-    return [asyncio.create_task(worker(tsm=tsm, queue=queue, symbol=symbol))]
+async def determine_start_position(df, queue):
+    logger.info("Start determining strategy start position.")
+    signal = Signal.NULL
+    price = 0
+    signal_index = 0
+
+    for index, row in df[::-1].iterrows():
+        if row["Signal"] not in [
+            0,
+            Signal.LONG_SPECIAL,
+            Signal.SHORT_SPECIAL,
+            Signal.CLOSE_SPECIAL,
+        ]:
+            signal = row["Signal"]
+            price = row["Close"]
+            # Adding extra lines to see what happened before signal
+            signal_index += 4
+            break
+
+        price = row["Close"]
+        signal_index += 1
+
+    try:
+        assert signal_index <= len(df.index)
+        df = df.iloc[len(df.index) - signal_index : :]
+        logger.debug("New DF shortened to last signal + 3 rows: \n%s", df.to_string())
+    except AssertionError:
+        logger.exception(
+            "Last signal almost on top of df, leaving df as is: \n%s",
+            df.to_string(),
+        )
+
+    await queue.put(
+        Event(
+            name=EventName.SIGNAL,
+            content=SignalUpdate(signal=signal, price=round(float(price), 2)),
+        )
+    )
