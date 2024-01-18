@@ -40,10 +40,17 @@ STRATEGY_MAP = {
 
 
 class TradingSystem:
-    def __init__(self, client: BinanceClient, strategy_name: str, symbol: str):
+    def __init__(
+        self,
+        client: BinanceClient,
+        strategy_name: str,
+        symbol: str,
+        number_of_orders: int,
+    ):
         self.client: BinanceClient = client
         self.strategy_name: str = strategy_name
         self.symbol = symbol
+        self.number_of_orders = number_of_orders
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.position = Position()
         self.balance = None
@@ -69,12 +76,13 @@ class TradingSystem:
             client=self.client,
             balance=self.balance,
             order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=self.strategy.number_of_orders
+                number_of_orders=self.number_of_orders
             ),
             df=self.df,
             raw_data=self.raw_data,
             symbol=self.symbol,
             strategy_name=self.strategy_name,
+            number_of_orders=self.number_of_orders,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
