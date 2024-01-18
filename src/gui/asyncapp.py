@@ -94,12 +94,16 @@ class AsyncApp(App):
         # Check if a strategy and symbol are selected
         strategy_name = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
+        number_of_orders = 2
         strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
         if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
             logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
             trading_system = TradingSystem(
-                client=self.client, strategy_name=strategy_name, symbol=symbol
+                client=self.client,
+                strategy_name=strategy_name,
+                symbol=symbol,
+                number_of_orders=number_of_orders,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
