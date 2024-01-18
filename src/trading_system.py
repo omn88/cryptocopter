@@ -46,11 +46,13 @@ class TradingSystem:
         strategy_name: str,
         symbol: str,
         number_of_orders: int,
+        main_ui_queue: asyncio.Queue,
     ):
         self.client: BinanceClient = client
         self.strategy_name: str = strategy_name
         self.symbol = symbol
         self.number_of_orders = number_of_orders
+        self.main_ui_queue = main_ui_queue
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.position = Position()
         self.balance = None
@@ -83,11 +85,12 @@ class TradingSystem:
             symbol=self.symbol,
             strategy_name=self.strategy_name,
             number_of_orders=self.number_of_orders,
+            main_ui_queue=self.main_ui_queue,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
 
-        await self.strategy.main_ui_queue.put(AccountData(balance=self.balance))
+        await self.main_ui_queue.put(AccountData(balance=self.balance))
 
         self.df = self.strategy.signals_from_features_generate(
             df=self.df,
@@ -112,7 +115,7 @@ class TradingSystem:
                 queue=self.strategy.queue,
                 ui_queue=self.strategy.ui_queue,
                 symbol=self.symbol,
-                main_ui_queue=self.strategy.main_ui_queue,
+                main_ui_queue=self.main_ui_queue,
             ),
             asyncio.create_task(self.prepare_worker()),
             asyncio.create_task(self.determine_start_position()),
@@ -126,7 +129,7 @@ class TradingSystem:
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
-        await self.strategy.main_ui_queue.put(
+        await self.main_ui_queue.put(
             Event(
                 EventName.SENTINEL,
                 content={"strategy_name": self.strategy_name, "symbol": self.symbol},

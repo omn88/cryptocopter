@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from unittest.mock import AsyncMock
 import pytest
@@ -47,6 +48,7 @@ async def base(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
+            main_ui_queue=asyncio.Queue,
         )
     )
 
@@ -82,6 +84,7 @@ async def basic_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
+            main_ui_queue=asyncio.Queue,
         )
     )
 
@@ -113,6 +116,7 @@ async def extended_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RE_BTCUSDT",
             number_of_orders=number_of_orders,
+            main_ui_queue=asyncio.Queue,
         )
     )
 

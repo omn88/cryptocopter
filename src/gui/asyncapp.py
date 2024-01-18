@@ -104,6 +104,7 @@ class AsyncApp(App):
                 strategy_name=strategy_name,
                 symbol=symbol,
                 number_of_orders=number_of_orders,
+                main_ui_queue=self.main_ui_queue,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
@@ -156,23 +157,22 @@ class AsyncApp(App):
             self.root.switch_to(self.root.tab_list[0])
 
     async def update_ui(self):
+        logger.info("Entered update UI method of the main UI queue.")
         while True:
             data = await self.main_ui_queue.get()
+            logger.info("Main UI queue received data: %s", data)
             if isinstance(data, Event):
                 if data.name == EventName.SENTINEL:
                     logger.info(
                         "Strategy %s send a SENTINEL.", data.content["strategy_name"]
                     )
-
-            if isinstance(data, StrategyData):
-                self.update_strategies(data=data)
-            if isinstance(data, Event):
-                if data.name == EventName.SENTINEL:
-                    logger.info("Sentinel came, closing the strategy.")
                     await self.on_close_strategy(
                         strategy_name=data.content["strategy_name"],
                         symbol=data.content["symbol"],
                     )
+
+            if isinstance(data, StrategyData):
+                self.update_strategies(data=data)
 
             if isinstance(data, PriceData):
                 for strategy in self.active_strategies:

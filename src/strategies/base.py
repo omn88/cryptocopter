@@ -57,6 +57,7 @@ class BaseStrategy:
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
+        main_ui_queue: asyncio.Queue,
     ):
         self.client = client
         self.df = df
@@ -66,9 +67,9 @@ class BaseStrategy:
         self.symbol = symbol
         self.strategy_name = strategy_name
         self.number_of_orders = number_of_orders
+        self.main_ui_queue = main_ui_queue
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
-        self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.position: Position = Position()
         self.position_old: Position = Position()
 
