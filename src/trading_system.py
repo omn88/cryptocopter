@@ -52,7 +52,7 @@ class TradingSystem:
         self.strategy_name: str = strategy_name
         self.symbol = symbol
         self.number_of_orders = number_of_orders
-        self.main_ui_queue = main_ui_queue
+        self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.position = Position()
         self.balance = None
