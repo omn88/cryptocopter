@@ -20,7 +20,13 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     # NO SIGNAL THEN NULL
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+        start_time="1672306200000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="17160.1",
+        close_price="16700.72",
+        volume="0",
+        open_interest="0"
     )
 
     await special_rsi.strategy.process_kline()
@@ -29,11 +35,15 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     assert 1000 == special_rsi.strategy.balance
     assert special_rsi.strategy.position.state == State.FLAT
 
-    # LONG EXT
+    # NO SIGNAL THEN NULL LONG EXT
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672307100000, 19573.19, 19605.9, 18360.1, 18500.72, 0, 0]
-        ]
+        start_time="1672307100000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="18500.72",
+        volume="0",
+        open_interest="0"
     )
 
     await special_rsi.strategy.process_kline()
@@ -46,12 +56,16 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     assert 1000 == special_rsi.strategy.balance
     assert special_rsi.strategy.position.state == State.LONG_EXT
 
-    # LONG
+    # NO SIGNAL THEN NULL LONG EXT LONG
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672308000000, 19573.19, 19605.9, 18360.1, 27000.72, 0, 0]
-        ]
-    )
+            start_time="1672308000000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="27000.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
@@ -62,12 +76,16 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     assert 1000 == special_rsi.strategy.balance
     assert special_rsi.strategy.position.state == State.LONG
 
-    # NO SIGNAL THEN NULL LONGEXT LONG NULL
+    # NO SIGNAL THEN NULL LONG20 LONG NULL
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672308900000, 19573.19, 19605.9, 18360.1, 29700.72, 0, 0]
-        ]
-    )
+            start_time="1672308900000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="29700.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
@@ -80,10 +98,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672309800000, 19573.19, 19605.9, 18360.1, 26200.72, 0, 0]
-        ]
-    )
+            start_time="1672309800000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="26200.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
@@ -96,10 +118,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672310700000, 19573.19, 19605.9, 18360.1, 22200.72, 0, 0]
-        ]
-    )
+            start_time="1672310700000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="22200.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
@@ -112,10 +138,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672311600000, 19573.19, 19605.9, 18360.1, 28200.72, 0, 0]
-        ]
-    )
+            start_time="1672311600000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="28200.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
 
@@ -127,10 +157,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT NULL SPECIAL_LONG
     special_rsi.strategy.kline_update = KlineUpdate(
-        kline=[
-            str(x) for x in [1672312500000, 19573.19, 19605.9, 18360.1, 56400.72, 0, 0]
-        ]
-    )
+            start_time="1672312500000",
+            open_price="19573.19",
+            high_price="19605.9",
+            low_price="18360.1",
+            close_price="56400.72",
+            volume="0",
+            open_interest="0"
+        )
 
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()

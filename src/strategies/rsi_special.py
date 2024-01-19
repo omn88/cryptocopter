@@ -200,7 +200,7 @@ class RsiSpecial(RsiExtended):
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
-        assert expected_index == int(self.kline_update.kline[0])
+        assert expected_index == int(self.kline_update.start_time)
 
         if (
             self.position.state == State.SHORT_SPECIAL
@@ -212,7 +212,7 @@ class RsiSpecial(RsiExtended):
             signal = Signal.CLOSE_SPECIAL
 
         else:
-            self.raw_data.append(self.kline_update.kline)
+            self.raw_data.append(list(self.kline_update))
 
             temp_df = insert_to_pandas(data=self.raw_data)
             temp_df = rsi_indicator_apply(df=temp_df)

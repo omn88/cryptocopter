@@ -24,28 +24,36 @@ async def change_margin_type(client: BinanceClient, symbol: str) -> None:
 
 
 def prepare_producers(
-    bsm: BinanceSocketManager,
+    socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     ui_queue: asyncio.Queue,
     main_ui_queue: asyncio.Queue,
     interval: str,
-    df: pandas.DataFrame,
     symbol: str,
+    stop_event: asyncio.Event
 ):
     return [
         asyncio.create_task(
             kline_futures_socket(
-                bsm=bsm,
+                socket_manager=socket_manager,
                 queue=queue,
                 interval=interval,
-                last_index=df.index[-1],
                 symbol=symbol,
+                stop_event=stop_event,
             )
         ),
-        asyncio.create_task(futures_user_socket(bm=bsm, queue=queue)),
+        asyncio.create_task(
+            futures_user_socket(
+                socket_manager=socket_manager, queue=queue, stop_event=stop_event
+            )
+        ),
         asyncio.create_task(
             futures_symbol_mark_price_socket(
-                bsm=bsm, ui_queue=ui_queue, symbol=symbol, main_ui_queue=main_ui_queue
+                socket_manager=socket_manager,
+                ui_queue=ui_queue,
+                symbol=symbol,
+                main_ui_queue=main_ui_queue,
+                stop_event=stop_event,
             )
         ),
     ]
