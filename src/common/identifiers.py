@@ -39,7 +39,7 @@ class Signal(Enum):
 
 
 class OrderUpdate(NamedTuple):
-    status: str
+    status: str = ORDER_STATUS_NEW
     price: float = 0
     quantity: float = 0
     realized_quantity: float = 0
@@ -60,15 +60,26 @@ class AccountUpdate(NamedTuple):
 
 
 class KlineUpdate(NamedTuple):
-    kline: List
+    start_time: int = 0
+    open_price: float = 0
+    high_price: float = 0
+    low_price: float = 0
+    close_price: float = 0
+    volume: float = 0
+    open_interest: float = 0
 
     def __repr__(self) -> str:
-        return f"KlineUpdate(kline={self.kline})"
+        return (
+            f"KlineUpdate(start_time={self.start_time}, open_price={self.open_price}, "
+            f"high_price={self.high_price}, low_price={self.low_price}, "
+            f"close_price={self.close_price}, volume={self.volume}, "
+            f"open_interest={self.open_interest})"
+        )
 
 
 class SignalUpdate(NamedTuple):
-    signal: Signal
-    price: float
+    signal: Signal = Signal.NULL
+    price: float = 0
 
     def __repr__(self) -> str:
         return f"SignalUpdate(signal={self.signal}, price={self.price})"

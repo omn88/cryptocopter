@@ -77,9 +77,9 @@ class BaseStrategy:
         self.conditions: List = []
 
         # Initialize any other common attributes
-        self.signal_update: SignalUpdate = SignalUpdate(signal=Signal.NULL, price=0)
-        self.order_update: OrderUpdate = OrderUpdate(status=ORDER_STATUS_NEW)
-        self.kline_update: KlineUpdate = KlineUpdate(kline=[])
+        self.signal_update: SignalUpdate = SignalUpdate()
+        self.order_update: OrderUpdate = OrderUpdate()
+        self.kline_update: KlineUpdate = KlineUpdate()
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.state: State = State.FLAT
         self.mode = PositionMode.DCA

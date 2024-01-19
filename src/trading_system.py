@@ -54,6 +54,7 @@ class TradingSystem:
         self.number_of_orders = number_of_orders
         self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.binance_socket_manager = BinanceSocketManager(client=client)
+        self.stop_producers_event = asyncio.Event()
         self.position = Position()
         self.balance = None
         self.raw_data = None
@@ -109,8 +110,8 @@ class TradingSystem:
     async def start_trading(self):
         await asyncio.gather(
             *prepare_producers(
-                bsm=self.binance_socket_manager,
-                df=self.df,
+                socket_manager=self.binance_socket_manager,
+                stop_event=self.stop_producers_event,
                 interval=INTERVAL,
                 queue=self.strategy.queue,
                 ui_queue=self.strategy.ui_queue,
@@ -135,4 +136,6 @@ class TradingSystem:
                 content={"strategy_name": self.strategy_name, "symbol": self.symbol},
             )
         )
+        await asyncio.sleep(5)
+        self.stop_producers_event.set()
         logger.info("Sentinel should be send.")

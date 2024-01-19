@@ -82,7 +82,13 @@ async def test_rsi_basic_handle_kline_null(basic_rsi):
 
     # NO SIGNAL THEN NULL
     basic_rsi.strategy.kline_update = KlineUpdate(
-        kline=["1672306200000", "19573.19", "19605.9", "17160.1", "16700.72", "0", "0"]
+        start_time="1672306200000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="17160.1",
+        close_price="16700.72",
+        volume="0",
+        open_interest="0",
     )
 
     await basic_rsi.strategy.process_kline()
