@@ -520,7 +520,7 @@ async def market_order_filled(
     return position, balance
 
 
-async def market_order_partially_filled(order_update: OrderUpdate, position: Position):
+async def market_order_filled_partially(order_update: OrderUpdate, position: Position):
     position.market_order = Order(
         price=order_update.price,
         quantity=order_update.quantity,

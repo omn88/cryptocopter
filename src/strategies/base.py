@@ -28,12 +28,12 @@ from src.common.identifiers import (
 from src.common.orders import cancel_order
 from src.gui.identifiers import OrderData, PositionData, StrategyData, PositionStatus
 from src.workers.handle_order import (
+    market_order_filled_partially,
     position_liquidation,
     target_reached,
     partial_position_liquidation,
     target_partially_reached,
     market_order_filled,
-    market_order_partially_filled,
     handle_order_filled,
     handle_order_partially_filled,
     signal_to_state,
@@ -57,6 +57,7 @@ class BaseStrategy:
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
+        main_ui_queue: asyncio.Queue,
     ):
         self.client = client
         self.df = df
@@ -66,9 +67,9 @@ class BaseStrategy:
         self.symbol = symbol
         self.strategy_name = strategy_name
         self.number_of_orders = number_of_orders
+        self.main_ui_queue = main_ui_queue
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
-        self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.position: Position = Position()
         self.position_old: Position = Position()
 
@@ -719,9 +720,9 @@ class BaseStrategy:
             balance=self.balance,
         )
 
-    async def handle_market_order_partially_filled(self, *args, **kwargs):
+    async def handle_market_order_filled_partially(self, *args, **kwargs):
         logger.info("Entering handle market order partially filled")
-        self.position, self.balance = await market_order_partially_filled(
+        self.position, self.balance = await market_order_filled_partially(
             position=self.position,
             order_update=self.order_update,
         )

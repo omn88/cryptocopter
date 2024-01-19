@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List
 import numpy
@@ -30,6 +31,7 @@ class RsiSpecial(RsiExtended):
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
+        main_ui_queue: asyncio.Queue,
     ):
         super().__init__(
             client=client,
@@ -40,6 +42,7 @@ class RsiSpecial(RsiExtended):
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
+            main_ui_queue=main_ui_queue,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]

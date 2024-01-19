@@ -40,6 +40,7 @@ async def test_long_first_order_filled(base):
     base.strategy.client.futures_position_information.side_effect = (
         get_position_information_when_long()
     )
+
     base.strategy.client.futures_create_order.side_effect = get_orders_long()
 
     base.strategy.client.futures_get_order.side_effect = validation_orders()
