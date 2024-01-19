@@ -97,6 +97,15 @@ class AsyncApp(App):
         number_of_orders = 2
         strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
         if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
+            for strategy in self.active_strategies:
+                if strategy["name"] == strategy_name and strategy["symbol"] == symbol:
+                    logger.info(
+                        "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
+                        strategy_name,
+                        symbol,
+                    )
+                    return  # Exit the method early
+
             logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
             trading_system = TradingSystem(
