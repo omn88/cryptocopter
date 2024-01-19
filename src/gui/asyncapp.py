@@ -156,11 +156,17 @@ class AsyncApp(App):
         if len(self.root.tab_list) > 0:
             self.root.switch_to(self.root.tab_list[0])
 
+    def cancel_all_strategies(self):
+        asyncio.create_task(self.on_cancel())
+
+    async def on_cancel(self):
+        for trading_system in self.trading_systems:
+            await trading_system.stop()
+
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
         while True:
             data = await self.main_ui_queue.get()
-            logger.info("Main UI queue received data: %s", data)
             if isinstance(data, Event):
                 if data.name == EventName.SENTINEL:
                     logger.info(

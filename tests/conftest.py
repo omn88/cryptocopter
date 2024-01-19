@@ -147,7 +147,7 @@ async def special_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RS_BTCUSDT",
             number_of_orders=number_of_orders,
-            main_ui_queue=asyncio.Queue()
+            main_ui_queue=asyncio.Queue(),
         )
     )
 
