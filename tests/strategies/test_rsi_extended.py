@@ -490,9 +490,8 @@ async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
-
 
     await extended_rsi.strategy.process_kline()
 
@@ -508,7 +507,7 @@ async def test_rsi_basic_handle_kline_long_ext(extended_rsi):
         low_price="18360.1",
         close_price="18500.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -534,7 +533,7 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -551,7 +550,7 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
         low_price="18360.1",
         close_price="18500.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -566,14 +565,14 @@ async def test_rsi_basic_handle_kline_long_ext_long(extended_rsi):
 
     # NO SIGNAL THEN NULL LONG EXT LONG
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308000000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="27000.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308000000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="27000.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -597,7 +596,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -614,7 +613,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
         low_price="18360.1",
         close_price="18500.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -629,14 +628,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     # NO SIGNAL THEN NULL LONG EXT LONG
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308000000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="27000.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308000000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="27000.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -649,14 +648,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null(extended_rsi):
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308900000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="29700.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308900000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="29700.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -685,7 +684,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -702,7 +701,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
         low_price="18360.1",
         close_price="18500.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -717,14 +716,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     # NO SIGNAL THEN NULL LONG EXT LONG
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308000000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="27000.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308000000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="27000.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -737,14 +736,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308900000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="29700.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308900000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="29700.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -757,14 +756,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext(
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672309800000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="26200.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672309800000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="26200.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -794,7 +793,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -811,7 +810,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
         low_price="18360.1",
         close_price="18500.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await extended_rsi.strategy.process_kline()
@@ -826,14 +825,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     # NO SIGNAL THEN NULL LONG EXT LONG
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308000000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="27000.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308000000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="27000.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -846,14 +845,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672308900000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="29700.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672308900000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="29700.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -866,14 +865,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     # NO SIGNAL THEN NULL LONG_EXT LONG NULL SHORT_EXT
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672309800000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="26200.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672309800000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="26200.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()
@@ -886,14 +885,14 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short(
 
     # NO SIGNAL THEN NULL LONG20 LONG NULL SHORT80 SHORT
     extended_rsi.strategy.kline_update = KlineUpdate(
-            start_time="1672310700000",
-            open_price="19573.19",
-            high_price="19605.9",
-            low_price="18360.1",
-            close_price="22200.72",
-            volume="0",
-            open_interest="0"
-        )
+        start_time="1672310700000",
+        open_price="19573.19",
+        high_price="19605.9",
+        low_price="18360.1",
+        close_price="22200.72",
+        volume="0",
+        open_interest="0",
+    )
 
     await extended_rsi.strategy.process_kline()
     await extended_rsi.strategy.process_signal()

@@ -30,7 +30,7 @@ def prepare_producers(
     main_ui_queue: asyncio.Queue,
     interval: str,
     symbol: str,
-    stop_event: asyncio.Event
+    stop_event: asyncio.Event,
 ):
     return [
         asyncio.create_task(

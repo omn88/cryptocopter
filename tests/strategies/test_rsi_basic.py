@@ -88,7 +88,7 @@ async def test_rsi_basic_handle_kline_null(basic_rsi):
         low_price="17160.1",
         close_price="16700.72",
         volume="0",
-        open_interest="0"
+        open_interest="0",
     )
 
     await basic_rsi.strategy.process_kline()
