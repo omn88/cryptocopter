@@ -67,6 +67,7 @@ async def futures_user_socket(
                     )
             except asyncio.TimeoutError:
                 continue
+        logger.debug("Stop Event is set, stopping user socket.")
 
 
 async def futures_symbol_mark_price_socket(
@@ -93,6 +94,9 @@ async def futures_symbol_mark_price_socket(
                 await main_ui_queue.put(price_data)
             except asyncio.TimeoutError:
                 continue
+        logger.debug(
+            "Stop Event is set, stopping symbol mark price socket for %s", symbol
+        )
 
 
 async def kline_futures_socket(
@@ -139,3 +143,4 @@ async def kline_futures_socket(
                     last_msg_before_new_kline = msg
             except asyncio.TimeoutError:
                 continue
+        logger.debug("Stop Event is set, stopping kline socket for %s", symbol)
