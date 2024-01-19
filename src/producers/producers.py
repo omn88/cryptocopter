@@ -38,25 +38,21 @@ async def futures_user_socket(
                     logger.debug("Account update msg: %s", msg)
                 elif msg["e"] == "ORDER_TRADE_UPDATE":
                     order_info = msg["o"]
-                    price = round(float(order_info["p"]), 1)
-                    average_price = round(float(order_info["ap"]), 1)
-                    quantity = round(float(order_info["z"]), 3)
-                    order_id = int(order_info["i"])
-                    status = order_info["X"]
-                    order_type = order_info["o"]
-                    realized_quantity = round(float(order_info["z"]), 3)
-                    last_filled_quantity = round(float(order_info["l"]), 3)
-                    order_update = OrderUpdate(
-                        price=price,
-                        average_price=average_price,
-                        quantity=quantity,
-                        status=status,
-                        order_id=order_id,
-                        order_type=order_type,
-                        last_filled_quantity=last_filled_quantity,
-                        realized_quantity=realized_quantity,
+                    await queue.put(
+                        Event(
+                            name=EventName.ORDER,
+                            content=OrderUpdate(
+                                price=round(float(order_info["p"]), 1),
+                                average_price=round(float(order_info["ap"]), 1),
+                                quantity=round(float(order_info["z"]), 3),
+                                status=order_info["X"],
+                                order_id=int(order_info["i"]),
+                                order_type=order_info["o"],
+                                last_filled_quantity=round(float(order_info["l"]), 3),
+                                realized_quantity=round(float(order_info["z"]), 3),
+                            ),
+                        )
                     )
-                    await queue.put(Event(name=EventName.ORDER, content=order_update))
                     logger.debug("Order trade update msg: %s", msg)
                 elif msg["e"] == "MARGIN_CALL":
                     logger.info("Margin call")
