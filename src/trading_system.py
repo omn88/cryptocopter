@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Optional
 from binance import BinanceSocketManager
+from logging_config import StrategyLogger
 from src.common.common import (
     futures_get_balance,
     get_futures_historical_data,
@@ -47,14 +48,14 @@ class TradingSystem:
         symbol: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        strategy_logger: logging.Logger,
+        strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
         self.strategy_name: str = strategy_name
         self.symbol = symbol
         self.number_of_orders = number_of_orders
         self.main_ui_queue: asyncio.Queue = main_ui_queue
-        self.strategy_logger: logging.Logger = strategy_logger
+        self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.position = Position()

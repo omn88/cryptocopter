@@ -111,13 +111,14 @@ class AsyncApp(App):
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name_short
             )
+
             trading_system = TradingSystem(
                 client=self.client,
                 strategy_name=strategy_name,
                 symbol=symbol,
                 number_of_orders=number_of_orders,
                 main_ui_queue=self.main_ui_queue,
-                strategy_logger=strategy_logger.logger,
+                strategy_logger=strategy_logger,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
@@ -128,7 +129,7 @@ class AsyncApp(App):
                 strategy_name=strategy_name,
                 symbol=symbol,
                 main_ui_queue=self.main_ui_queue,
-                strategy_logger=strategy_logger.logger,
+                strategy_logger=strategy_logger,
             )
             self.strategy_tabs.append(strategy_tab)
 
@@ -147,7 +148,7 @@ class AsyncApp(App):
 
             # Set up a logging handler for the strategy
             setup_logging_handler(
-                strategy_logger=strategy_logger.logger,
+                strategy_logger=strategy_logger,
                 log_display_widget=strategy_tab.log_display,
             )
 

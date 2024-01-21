@@ -53,7 +53,31 @@ class KivyGuiHandler(logging.Handler):
             self.widget.parent.scroll_y = 0
 
 
-def setup_logging_handler(strategy_logger, log_display_widget) -> None:
+class StrategyLogger:
+    def __init__(self, name, strategy_info):
+        self.logger = logging.getLogger(name)
+        self.strategy_info = strategy_info
+
+    def add_handler(self, handler):
+        self.logger.addHandler(handler)
+
+    def set_level(self, level):
+        self.logger.setLevel(level)
+
+    def info(self, message, *args, **kwargs):
+        if self.logger.isEnabledFor(logging.INFO):
+            self.logger.info("%s: %s" % (self.strategy_info, message), *args)
+
+    def debug(self, message, *args, **kwargs):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug("%s: %s" % (self.strategy_info, message), *args)
+
+    def error(self, message, *args, **kwargs):
+        if self.logger.isEnabledFor(logging.ERROR):
+            self.logger.error("%s: %s" % (self.strategy_info, message), *args)
+
+
+def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -> None:
     """Sets up a logging handler for a strategy.
 
     Parameters:
@@ -66,23 +90,6 @@ def setup_logging_handler(strategy_logger, log_display_widget) -> None:
     )
     gui_log_handler.setFormatter(formatter)
 
-    strategy_logger.addHandler(gui_log_handler)
+    strategy_logger.add_handler(gui_log_handler)
 
     strategy_logger.info("Logging handler configured with success")
-
-
-class StrategyLogger:
-    def __init__(self, name, strategy_info):
-        self.logger = logging.getLogger(name)
-        self.strategy_info = strategy_info
-
-    def info(self, message):
-        self.logger.info("%s: %s", self.strategy_info, message)
-
-    def debug(self, message):
-        self.logger.debug("%s: %s", self.strategy_info, message)
-
-    def error(self, message):
-        self.logger.error("%s: %s", self.strategy_info, message)
-
-    # Add other logging methods as needed
