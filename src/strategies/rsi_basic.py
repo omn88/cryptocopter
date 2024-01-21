@@ -14,9 +14,6 @@ from src.common.identifiers import (
 from src.strategies.base import BaseStrategy
 
 
-logger = logging.getLogger("RsiBasic")
-
-
 class RsiBasic(BaseStrategy):
     def __init__(
         self,
@@ -29,6 +26,7 @@ class RsiBasic(BaseStrategy):
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        logger: logging.Logger,
     ):
         super().__init__(
             client=client,
@@ -40,6 +38,7 @@ class RsiBasic(BaseStrategy):
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
+            logger=logger,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)
         self.conditions += self.get_conditions_for_rsi_basic(df=self.df)
@@ -62,7 +61,7 @@ class RsiBasic(BaseStrategy):
         ]
 
     async def handle_kline(self, *args, **kwargs):
-        logger.info("Entering handle kline")
+        self.logger.info("Entering handle kline")
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -92,7 +91,7 @@ class RsiBasic(BaseStrategy):
         )
 
         await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-        logger.info(
+        self.logger.info(
             "Added to queue, signal: %s, price: %s",
             signal_update.signal,
             signal_update.price,

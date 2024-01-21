@@ -17,8 +17,6 @@ from src.common.identifiers import (
 from src.strategies.rsi_extended import RsiExtended
 from src.workers import handle_order
 
-logger = logging.getLogger("RsiSpecial")
-
 
 class RsiSpecial(RsiExtended):
     def __init__(
@@ -32,6 +30,7 @@ class RsiSpecial(RsiExtended):
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        logger: logging.Logger,
     ):
         super().__init__(
             client=client,
@@ -43,6 +42,7 @@ class RsiSpecial(RsiExtended):
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
+            logger=logger,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
@@ -151,7 +151,7 @@ class RsiSpecial(RsiExtended):
         )
 
     async def open_special_long(self, *args, **kwargs):
-        logger.debug("Opening %s", self.signal_update.signal)
+        self.logger.debug("Opening %s", self.signal_update.signal)
 
         self.mode = PositionMode.FULL
 
@@ -169,7 +169,7 @@ class RsiSpecial(RsiExtended):
         )
 
     async def open_special_short(self, *args, **kwargs):
-        logger.info("Opening %s", self.signal_update.signal)
+        self.logger.info("Opening %s", self.signal_update.signal)
 
         self.mode = PositionMode.FULL
 
@@ -187,7 +187,7 @@ class RsiSpecial(RsiExtended):
         )
 
     async def close_special_position(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.state)
+        self.logger.info("Closing %s", self.position.state)
         self.position_old = await handle_order.close_special_position(
             client=self.client,
             position=self.position,
@@ -196,7 +196,7 @@ class RsiSpecial(RsiExtended):
         )
 
     async def handle_kline(self, *args, **kwargs):
-        logger.info("Entering handle kline")
+        self.logger.info("Entering handle kline")
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -244,7 +244,7 @@ class RsiSpecial(RsiExtended):
             price=round(float(self.df.iloc[-1]["Close"]), 2),
         )
         await self.queue.put(Event(name=EventName.SIGNAL, content=self.signal_update))
-        logger.info(
+        self.logger.info(
             "Added to queue, signal: %s, price: %s",
             self.signal_update.signal,
             self.signal_update.price,

@@ -14,6 +14,7 @@ from kivy.properties import (
     ObjectProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
+from logging_config import StrategyLogger
 from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event, State
 from src.gui.identifiers import (
@@ -47,13 +48,14 @@ class StrategyTab(BoxLayout):
         trading_system: TradingSystem,
         ui_queue: asyncio.Queue,
         main_ui_queue: asyncio.Queue,
+        strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.trading_system: TradingSystem = trading_system
         self.ui_queue: asyncio.Queue = ui_queue
         self.main_ui_queue: asyncio.Queue = main_ui_queue
-        self.strategy_logger = logging.getLogger(self.strategy_name)
+        self.strategy_logger: StrategyLogger = strategy_logger
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):

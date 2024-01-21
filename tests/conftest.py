@@ -49,6 +49,7 @@ async def base(mock_AsyncClient):
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
+            logger=logging.getLogger(name="RB_BTCUSDT"),
         )
     )
 
@@ -85,6 +86,7 @@ async def basic_rsi(mock_AsyncClient):
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
+            logger=logging.getLogger(name="RB_BTCUSDT"),
         )
     )
 
@@ -117,6 +119,7 @@ async def extended_rsi(mock_AsyncClient):
             strategy_name="RE_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
+            logger=logging.getLogger(name="RB_BTCUSDT"),
         )
     )
 
@@ -148,6 +151,7 @@ async def special_rsi(mock_AsyncClient):
             strategy_name="RS_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
+            logger=logging.getLogger(name="RB_BTCUSDT"),
         )
     )
 

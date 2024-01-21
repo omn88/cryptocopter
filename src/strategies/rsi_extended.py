@@ -16,8 +16,6 @@ from src.common.identifiers import (
 )
 from src.strategies.rsi_basic import RsiBasic
 
-logger = logging.getLogger("RsiExtended")
-
 
 class RsiExtended(RsiBasic):
     def __init__(
@@ -31,6 +29,7 @@ class RsiExtended(RsiBasic):
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        logger: logging.Logger,
     ):
         super().__init__(
             client=client,
@@ -42,6 +41,7 @@ class RsiExtended(RsiBasic):
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
+            logger=logger,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
@@ -168,7 +168,7 @@ class RsiExtended(RsiBasic):
         ]
 
     async def handle_kline(self, *args, **kwargs):
-        logger.info("Entering handle kline")
+        self.logger.info("Entering handle kline")
 
         expected_index = int(self.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -208,7 +208,7 @@ class RsiExtended(RsiBasic):
             await self.queue.put(
                 Event(name=EventName.SIGNAL, content=self.signal_update)
             )
-            logger.info(
+            self.logger.info(
                 "Added to queue, signal: %s, price: %s",
                 self.signal_update.signal,
                 self.signal_update.price,
@@ -291,6 +291,6 @@ class RsiExtended(RsiBasic):
         )
 
     async def change_position_state(self, *args, **kwargs):
-        logger.info("Changing status to %s", self.signal_update.signal)
+        self.logger.info("Changing status to %s", self.signal_update.signal)
         self.position.state = State(self.signal_update.signal.value)
         self.update_position_in_df(self.position.state)

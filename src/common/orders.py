@@ -1,6 +1,7 @@
 import asyncio
 from typing import List, Optional, Tuple
 import logging
+import pandas
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -16,8 +17,6 @@ from binance.exceptions import (
 
 from src.common.common import convert_time
 from src.common.constants import LEVERAGE, DCA_SPAN, LOSSES_PER_LEVEL
-import pandas
-
 from src.common.identifiers import (
     Order,
     PositionSide,
@@ -248,9 +247,9 @@ def target_price_calculate(side: str, price: float) -> float:
     elif side == PositionSide.SHORT:
         target_price = round((1 - (100 / LEVERAGE / 100)) * price, 1)
     else:
-        raise AssertionError("Wrong position side: %s", side)
+        raise AssertionError(f"Wrong position side: {side}")
 
-    logger.info("position side: %s, target: %s" % (side, target_price))
+    logger.info("position side: %s, target: %s", side, target_price)
     return target_price
 
 

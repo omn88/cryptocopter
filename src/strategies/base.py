@@ -43,7 +43,7 @@ from src.workers.handle_order import (
 )
 
 
-logger = logging.getLogger("base_strategy")
+# logger = logging.getLogger("base_strategy")
 
 
 class BaseStrategy:
@@ -58,6 +58,7 @@ class BaseStrategy:
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        logger: logging.Logger,
     ):
         self.client = client
         self.df = df
@@ -68,6 +69,7 @@ class BaseStrategy:
         self.strategy_name = strategy_name
         self.number_of_orders = number_of_orders
         self.main_ui_queue = main_ui_queue
+        self.logger = logger
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
         self.position: Position = Position()
@@ -325,7 +327,7 @@ class BaseStrategy:
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
 
-        logger.info(
+        self.logger.info(
             "Skip no signal: %s, signal: %s",
             condition,
             self.signal_update.signal,
@@ -335,7 +337,7 @@ class BaseStrategy:
 
     def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
         condition = self.state == signal_to_state(self.signal_update.signal).value
-        logger.info(
+        self.logger.info(
             "Skip same signal: %s, state: %s signal: %s",
             condition,
             self.state,
@@ -348,7 +350,7 @@ class BaseStrategy:
             self.order_update.order_type == "LIQUIDATION"
             and self.order_update.status == ORDER_STATUS_FILLED
         )
-        logger.info(
+        self.logger.info(
             "Position liquidation: %s, order update type: %s",
             condition,
             self.order_update.order_type,
@@ -361,7 +363,7 @@ class BaseStrategy:
             and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
         )
 
-        logger.info(
+        self.logger.info(
             "Partial position liquidation: %s, order update type: %s",
             condition,
             self.order_update.order_type,
@@ -379,7 +381,7 @@ class BaseStrategy:
             ]
             and self.order_update.status == ORDER_STATUS_NEW
         )
-        logger.info(
+        self.logger.info(
             "New order confirmation: %s, order type: %s order status: %s",
             condition,
             self.order_update.order_type,
@@ -392,7 +394,7 @@ class BaseStrategy:
             self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == ORDER_STATUS_CANCELED
         )
-        logger.info(
+        self.logger.info(
             "Order cancelled: %s, order update status: %s",
             condition,
             self.order_update.status,
@@ -404,7 +406,7 @@ class BaseStrategy:
             self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == ORDER_STATUS_EXPIRED
         )
-        logger.info(
+        self.logger.info(
             "Order expired: %s, order update status: %s",
             condition,
             self.order_update.status,
@@ -417,7 +419,7 @@ class BaseStrategy:
             and self.order_update.status == ORDER_STATUS_FILLED
             and self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
         )
-        logger.info(
+        self.logger.info(
             "Target reached: %s, order update status: %s",
             condition,
             self.order_update.status,
@@ -430,7 +432,7 @@ class BaseStrategy:
             and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
             and self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
         )
-        logger.info(
+        self.logger.info(
             "Target partially reached: %s, order update status: %s",
             condition,
             self.order_update.status,
@@ -442,7 +444,7 @@ class BaseStrategy:
             self.order_update.order_type == FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == ORDER_STATUS_FILLED
         )
-        logger.info(
+        self.logger.info(
             "Market order filled: %s, state: %s order update status: %s",
             condition,
             self.position_old.state,
@@ -455,7 +457,7 @@ class BaseStrategy:
             self.order_update.order_type == FUTURE_ORDER_TYPE_MARKET
             and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
         )
-        logger.info(
+        self.logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
             condition,
             self.position_old.state,
@@ -469,7 +471,7 @@ class BaseStrategy:
             and self.order_update.status == ORDER_STATUS_FILLED
         )
 
-        logger.info(
+        self.logger.info(
             "Order filled: %s, order status: %s",
             condition,
             self.order_update.status,
@@ -481,7 +483,7 @@ class BaseStrategy:
             self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
             and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
         )
-        logger.info(
+        self.logger.info(
             "Order partially filled: %s, order update status: %s",
             condition,
             self.order_update.status,
@@ -492,7 +494,7 @@ class BaseStrategy:
         condition = (
             self.state == State.FLAT.value and self.signal_update.signal == Signal.LONG
         )
-        logger.info(
+        self.logger.info(
             "Open basic long: %s, state: %s signal: %s",
             condition,
             self.state,
@@ -505,7 +507,7 @@ class BaseStrategy:
         condition = (
             self.state == State.FLAT.value and self.signal_update.signal == Signal.SHORT
         )
-        logger.info(
+        self.logger.info(
             "Open basic short: %s, state: %s signal: %s",
             condition,
             self.state,
@@ -518,7 +520,7 @@ class BaseStrategy:
         condition = (
             self.state == State.LONG and self.signal_update.signal == Signal.SHORT
         )
-        logger.info(
+        self.logger.info(
             "Switch to short: %s, state: %s signal: %s",
             condition,
             self.state,
@@ -530,7 +532,7 @@ class BaseStrategy:
         condition = (
             self.state == State.SHORT and self.signal_update.signal == Signal.LONG
         )
-        logger.info(
+        self.logger.info(
             "Switch to long: %s, state: %s signal: %s",
             condition,
             self.state,
@@ -544,13 +546,13 @@ class BaseStrategy:
         )
 
     def skip_signal(self, *args, **kwargs) -> None:
-        logger.info("Skipping signal: %s", self.signal_update.signal)
+        self.logger.info("Skipping signal: %s", self.signal_update.signal)
         self.df.at[self.df.index[-1], "Position"] = self.df.at[
             self.df.index[-2], "Position"
         ]
 
     async def open_dca_long(self, *args, **kwargs):
-        logger.debug("Opening %s", self.signal_update.signal)
+        self.logger.debug("Opening %s", self.signal_update.signal)
 
         self.position.side = PositionSide.LONG
 
@@ -570,7 +572,7 @@ class BaseStrategy:
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def open_dca_short(self, *args, **kwargs):
-        logger.info("Opening %s", self.signal_update.signal)
+        self.logger.info("Opening %s", self.signal_update.signal)
 
         self.position.side = PositionSide.SHORT
 
@@ -592,7 +594,7 @@ class BaseStrategy:
         )
 
     async def close_long(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.state)
+        self.logger.info("Closing %s", self.position.state)
         self.position_old = await close_long(
             client=self.client,
             position=self.position,
@@ -603,7 +605,7 @@ class BaseStrategy:
         )
 
     async def close_short(self, *args, **kwargs):
-        logger.info("Closing %s", self.position.state)
+        self.logger.info("Closing %s", self.position.state)
         self.position_old = await close_short(
             client=self.client,
             position=self.position,
@@ -649,30 +651,30 @@ class BaseStrategy:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                logger.info("New order: %s", self.order_update.order_id)
+                self.logger.info("New order: %s", self.order_update.order_id)
 
     async def handle_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                logger.info("Cancelled order: %s", self.order_update.order_id)
+                self.logger.info("Cancelled order: %s", self.order_update.order_id)
 
     async def log_expired_order(self, symbol: str, *args, **kwargs) -> None:
         for order in self.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                logger.info("Expired order: %s", self.order_update.order_id)
+                self.logger.info("Expired order: %s", self.order_update.order_id)
                 await self.send_order_update_to_ui(
                     order=order, open_time=order.open_time, symbol=symbol
                 )
 
     async def handle_account(self, *args, **kwargs):
-        logger.info("Account update: %s", self.account_update.account_update)
+        self.logger.info("Account update: %s", self.account_update.account_update)
 
     async def handle_liquidation(self, *args, **kwargs):
-        logger.info("Entering handle liquidation")
+        self.logger.info("Entering handle liquidation")
         self.position_old, self.balance = await position_liquidation(
             position=self.position,
             balance=self.balance,
@@ -681,18 +683,18 @@ class BaseStrategy:
         await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
-        logger.info("Entering handle partial liquidation")
+        self.logger.info("Entering handle partial liquidation")
         await partial_position_liquidation(
             order_update=self.order_update,
         )
 
     async def enter_flat(self, *args, **kwargs):
-        logger.info("Entering Flat")
+        self.logger.info("Entering Flat")
         self.position = Position()
         self.update_position_in_df(update=self.position.state)
 
     async def handle_target_reached(self, *args, **kwargs):
-        logger.info("Entering handle target order filled")
+        self.logger.info("Entering handle target order filled")
         self.position_old, self.balance = await target_reached(
             client=self.client,
             position=self.position,
@@ -705,7 +707,7 @@ class BaseStrategy:
         await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
-        logger.info("Entering handle target order partially filled")
+        self.logger.info("Entering handle target order partially filled")
         self.position, self.balance = await target_partially_reached(
             position=self.position,
             order_update=self.order_update,
@@ -713,7 +715,7 @@ class BaseStrategy:
         )
 
     async def handle_market_order_filled(self, *args, **kwargs):
-        logger.info("Entering handle market order filled")
+        self.logger.info("Entering handle market order filled")
         self.position_old, self.balance = await market_order_filled(
             position=self.position,
             order_update=self.order_update,
@@ -721,14 +723,14 @@ class BaseStrategy:
         )
 
     async def handle_market_order_filled_partially(self, *args, **kwargs):
-        logger.info("Entering handle market order partially filled")
+        self.logger.info("Entering handle market order partially filled")
         self.position, self.balance = await market_order_filled_partially(
             position=self.position,
             order_update=self.order_update,
         )
 
     async def handle_order_filled(self, *args, **kwargs):
-        logger.info("Entering handle order filled")
+        self.logger.info("Entering handle order filled")
         self.position = await handle_order_filled(
             client=self.client,
             order_update=self.order_update,
@@ -768,12 +770,12 @@ class BaseStrategy:
                 order=order, open_time=order.open_time, symbol=self.symbol
             )
         else:
-            logger.info(
+            self.logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
-        logger.info("Entering handle order partially filled")
+        self.logger.info("Entering handle order partially filled")
         self.position = await handle_order_partially_filled(
             client=self.client,
             order_update=self.order_update,
@@ -813,7 +815,7 @@ class BaseStrategy:
                 order=order, open_time=order.open_time, symbol=self.symbol
             )
         else:
-            logger.info(
+            self.logger.info(
                 "No UI update, unknown order ID: %s", self.order_update.order_id
             )
 
