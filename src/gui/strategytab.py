@@ -47,13 +47,14 @@ class StrategyTab(BoxLayout):
         trading_system: TradingSystem,
         ui_queue: asyncio.Queue,
         main_ui_queue: asyncio.Queue,
+        strategy_logger: logging.Logger,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.trading_system: TradingSystem = trading_system
         self.ui_queue: asyncio.Queue = ui_queue
         self.main_ui_queue: asyncio.Queue = main_ui_queue
-        self.strategy_logger = logging.getLogger(self.strategy_name)
+        self.strategy_logger = strategy_logger
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):

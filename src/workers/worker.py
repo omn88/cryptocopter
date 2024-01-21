@@ -12,10 +12,8 @@ from src.common.identifiers import (
 from src.workers.handle_order import futures_position_close
 from src.workers.trading_state_machine import TradingStateMachine
 
-logger = logging.getLogger("worker_main")
 
-
-async def worker(state_machine: TradingStateMachine):
+async def worker(state_machine: TradingStateMachine, logger: logging.Logger):
     while True:
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"

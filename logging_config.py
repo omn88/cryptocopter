@@ -69,3 +69,20 @@ def setup_logging_handler(strategy_logger, log_display_widget) -> None:
     strategy_logger.addHandler(gui_log_handler)
 
     strategy_logger.info("Logging handler configured with success")
+
+
+class StrategyLogger:
+    def __init__(self, name, strategy_info):
+        self.logger = logging.getLogger(name)
+        self.strategy_info = strategy_info
+
+    def info(self, message):
+        self.logger.info("%s: %s", self.strategy_info, message)
+
+    def debug(self, message):
+        self.logger.debug("%s: %s", self.strategy_info, message)
+
+    def error(self, message):
+        self.logger.error("%s: %s", self.strategy_info, message)
+
+    # Add other logging methods as needed

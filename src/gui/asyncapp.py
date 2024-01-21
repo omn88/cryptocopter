@@ -13,7 +13,7 @@ from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
-from logging_config import setup_logging_handler
+from logging_config import StrategyLogger, setup_logging_handler
 from src.common.constants import LEVERAGE
 from src.common.identifiers import BinanceClient
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
@@ -108,12 +108,16 @@ class AsyncApp(App):
 
             logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
+            strategy_logger = StrategyLogger(
+                name=strategy_name, strategy_info=strategy_name_short
+            )
             trading_system = TradingSystem(
                 client=self.client,
                 strategy_name=strategy_name,
                 symbol=symbol,
                 number_of_orders=number_of_orders,
                 main_ui_queue=self.main_ui_queue,
+                strategy_logger=strategy_logger.logger,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
@@ -124,6 +128,7 @@ class AsyncApp(App):
                 strategy_name=strategy_name,
                 symbol=symbol,
                 main_ui_queue=self.main_ui_queue,
+                strategy_logger=strategy_logger.logger,
             )
             self.strategy_tabs.append(strategy_tab)
 
@@ -142,7 +147,7 @@ class AsyncApp(App):
 
             # Set up a logging handler for the strategy
             setup_logging_handler(
-                strategy_logger=strategy_tab.strategy_logger,
+                strategy_logger=strategy_logger.logger,
                 log_display_widget=strategy_tab.log_display,
             )
 
