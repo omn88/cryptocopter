@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Tuple
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -190,7 +190,6 @@ class OrderHandler:
 
     async def cancel_order(
         self,
-        client: BinanceClient,
         order: Order,
         symbol: str,
     ):
@@ -201,10 +200,10 @@ class OrderHandler:
 
         for _ in range(self.MAX_RETRIES):
             try:
-                resp = await client.futures_cancel_order(
+                resp = await self.client.futures_cancel_order(
                     symbol=symbol,
                     orderId=order.order_id,
-                    timestamp=int(await client.get_adjusted_time() * 1000),
+                    timestamp=int(await self.client.get_adjusted_time() * 1000),
                 )
                 order.status = resp["status"]
                 # await ui_queue.put(
@@ -240,10 +239,10 @@ class OrderHandler:
             raise last_exception
 
     async def create_market_order(
-        self, position: Position, side: str, symbol: str
-    ) -> Position:
+        self, side: str, symbol: str, quantity: float
+    ) -> Order:
         order_type = FUTURE_ORDER_TYPE_MARKET
-        quantity = abs(position.quantity)
+        quantity = abs(quantity)
 
         last_exception = None
 
@@ -270,7 +269,7 @@ class OrderHandler:
                 await asyncio.sleep(1)  # wait for a second before retrying
                 continue
             else:
-                position.market_order = Order(
+                market_order = Order(
                     order_type=order_type,
                     order_id=int(resp["orderId"]),
                     price=0,
@@ -283,10 +282,39 @@ class OrderHandler:
                     resp,
                 )
 
-            return position
+            return market_order
 
         assert last_exception is not None
         raise last_exception
+
+    async def cancel_remaining_limit_orders(
+        self, orders: List[Order], symbol: str
+    ) -> List[Order]:
+        self.strategy_logger.info("Cancelling remaining limit orders")
+        assert orders
+        for order in orders:
+            if order.status == ORDER_STATUS_PARTIALLY_FILLED:
+                order.status = await self.cancel_order(order=order, symbol=symbol)
+                self.strategy_logger.info(
+                    "Cancelled partially filled order_id: %s", order.order_id
+                )
+            elif order.status == ORDER_STATUS_NEW:
+                order.status = await self.cancel_order(order=order, symbol=symbol)
+                self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
+
+        return orders
+
+    def target_price_calculate(self, side: str, price: float) -> float:
+        self.strategy_logger.info("Entering target price calculate")
+        if side == PositionSide.LONG:
+            target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)
+        elif side == PositionSide.SHORT:
+            target_price = round((1 - (100 / LEVERAGE / 100)) * price, 1)
+        else:
+            raise AssertionError(f"Wrong position side: {side}")
+
+        self.strategy_logger.info("position side: %s, target: %s", side, target_price)
+        return target_price
 
     # async def update_order(self, symbol, order_id, new_quantity=None, new_price=None):
     #     # Binance does not support modifying an existing order. You must cancel and create a new order.

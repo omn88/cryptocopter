@@ -182,6 +182,7 @@ class PositionStatus(Enum):
 @dataclass()
 class Position:
     id: str
+    symbol: str
     entry_price: float = 0
     quantity: float = 0
     state: State = State.FLAT
