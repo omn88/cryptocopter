@@ -171,8 +171,17 @@ class Artifacts:
         )
 
 
+class PositionStatus(Enum):
+    OPEN = "OPEN"
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
+    CONFIRMED = "CONFIRMED"
+    CLOSING = "CLOSING"
+    CLOSED = "CLOSED"
+
+
 @dataclass()
 class Position:
+    id: str
     entry_price: float = 0
     quantity: float = 0
     state: State = State.FLAT
@@ -182,6 +191,7 @@ class Position:
     target_price: float = 0
     take_profit_order: Order = Order(price=0, quantity=0)
     market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
+    status: PositionStatus = PositionStatus.OPEN
 
     def __repr__(self) -> str:
         return (

@@ -12,6 +12,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
+from src.common.common import generate_position_id, signal_to_state
 from src.common.identifiers import (
     AccountUpdate,
     Order,
@@ -25,26 +26,9 @@ from src.common.identifiers import (
     BinanceClient,
     State,
 )
-from src.common.orders import cancel_order
 from src.gui.identifiers import OrderData, PositionData, StrategyData, PositionStatus
 from src.order_handler import OrderHandler
-from src.workers.handle_order import (
-    market_order_filled_partially,
-    position_liquidation,
-    target_reached,
-    partial_position_liquidation,
-    target_partially_reached,
-    market_order_filled,
-    handle_order_filled,
-    handle_order_partially_filled,
-    signal_to_state,
-    prepare_and_send_orders,
-    close_long,
-    close_short,
-)
-
-
-# logger = logging.getLogger("base_strategy")
+from src.position_handler import PositionHandler
 
 
 class BaseStrategy:
@@ -59,7 +43,6 @@ class BaseStrategy:
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
         logger: logging.Logger,
-        order_handler: OrderHandler,
     ):
         self.client = client
         self.df = df
@@ -70,11 +53,11 @@ class BaseStrategy:
         self.number_of_orders = number_of_orders
         self.main_ui_queue = main_ui_queue
         self.logger = logger
-        self.order_handler: OrderHandler = order_handler
+        self.position_handler: PositionHandler = PositionHandler(
+            client=client, strategy_logger=logger
+        )
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
-        self.position: Position = Position()
-        self.position_old: Position = Position()
 
         self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []
@@ -590,24 +573,20 @@ class BaseStrategy:
     async def open_dca_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)
 
-        self.position.side = PositionSide.LONG
-
-        self.position.orders = self.order_handler.prepare_orders(
-            side=self.position.side,
-            mode=self.mode,
-            entry_price=self.position.entry_price,
+        self.position_handler.open_position(
+            side=PositionSide.LONG,
+            strategy_name=self.strategy_name,
             number_of_orders=self.number_of_orders,
-        )
-
-        self.position.orders = self.order_handler.create_orders(
-            side=self.position.side, orders=self.position.orders, symbol=self.symbol
+            symbol=self.symbol,
+            mode=self.mode,
+            entry_price=self.signal_update.price,
         )
 
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
-            orders=self.position.orders,
+            orders=self.position_handler.position.orders,
             symbol=self.symbol,
-            side=self.position.side,
+            side=self.position_handler.position.side,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -615,38 +594,27 @@ class BaseStrategy:
     async def open_dca_short(self, *args, **kwargs):
         self.logger.info("Opening %s", self.signal_update.signal)
 
-        self.position.side = PositionSide.SHORT
-
-        self.position.orders = self.order_handler.prepare_orders(
-            side=self.position.side,
-            mode=self.mode,
-            entry_price=self.position.entry_price,
+        self.position_handler.open_position(
+            side=PositionSide.SHORT,
+            strategy_name=self.strategy_name,
             number_of_orders=self.number_of_orders,
-        )
-
-        self.position.orders = self.order_handler.create_orders(
-            side=self.position.side, orders=self.position.orders, symbol=self.symbol
+            symbol=self.symbol,
+            mode=self.mode,
+            entry_price=self.signal_update.price,
         )
 
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
-            orders=self.position.orders,
+            orders=self.position_handler.position.orders,
             symbol=self.symbol,
-            side=self.position.side,
+            side=self.position_handler.position.side,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position.state)
-        self.position_old = await close_long(
-            client=self.client,
-            position=self.position,
-            ui_queue=self.ui_queue,
-            symbol=self.symbol,
-            main_ui_queue=self.main_ui_queue,
-            strategy_name=self.strategy_name,
-        )
+        self.position_handler.close_position()
 
     async def close_short(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position.state)
