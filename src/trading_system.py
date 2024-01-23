@@ -23,6 +23,7 @@ from src.common.initialize_trading_environment import (
 )
 from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
+from src.order_handler import OrderHandler
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
 from src.workers import worker
@@ -56,6 +57,7 @@ class TradingSystem:
         self.number_of_orders = number_of_orders
         self.main_ui_queue: asyncio.Queue = main_ui_queue
         self.strategy_logger: StrategyLogger = strategy_logger
+        self.order_handler: OrderHandler = OrderHandler()
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.position = Position()
@@ -91,6 +93,7 @@ class TradingSystem:
             number_of_orders=self.number_of_orders,
             main_ui_queue=self.main_ui_queue,
             logger=self.strategy_logger,
+            order_handler=self.order_handler,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)

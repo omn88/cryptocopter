@@ -5,7 +5,6 @@ from typing import Tuple, Optional
 import json
 from datetime import datetime
 import logging
-import pandas
 from binance.enums import SIDE_SELL, SIDE_BUY
 
 from src.common.common import signal_to_state
@@ -20,16 +19,6 @@ from src.common.identifiers import (
     Artifacts,
     BinanceClient,
 )
-from src.common.orders import (
-    cancel_remaining_limit_orders,
-    cancel_order,
-    prepare_orders,
-    send_orders,
-    PositionSide,
-    send_market_order,
-    send_order,
-    target_price_calculate,
-)
 
 from src.gui.identifiers import PositionData, PositionStatus, StrategyData
 
@@ -38,8 +27,6 @@ logger = logging.getLogger("handle_order")
 
 async def prepare_and_send_orders(
     client: BinanceClient,
-    balance: float,
-    order_quantity_list: pandas.DataFrame,
     signal: Signal,
     entry_price: float,
     side: str,
@@ -50,16 +37,12 @@ async def prepare_and_send_orders(
 ) -> Position:
     logger.info("Entering %s position open, mode: %s", side, mode)
     position = Position(side=side)
-    position.artifacts.start_balance = balance
-    position.artifacts.no_of_orders = number_of_orders
     position.state = signal_to_state(signal=signal)
 
     position = prepare_orders(
         position=position,
         mode=mode,
         entry_price=entry_price,
-        balance=balance,
-        order_quantity_list=order_quantity_list,
         number_of_orders=number_of_orders,
     )
 
@@ -585,3 +568,74 @@ async def futures_get_position_info(
     logger.info("Exit position information")
 
     return liquidation_price, entry_price, position_amt
+
+
+def target_price_calculate(side: str, price: float) -> float:
+    logger.info("Entering target price calculate")
+    if side == PositionSide.LONG:
+        target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)
+    elif side == PositionSide.SHORT:
+        target_price = round((1 - (100 / LEVERAGE / 100)) * price, 1)
+    else:
+        raise AssertionError(f"Wrong position side: {side}")
+
+    logger.info("position side: %s, target: %s", side, target_price)
+    return target_price
+
+
+async def cancel_take_profit_order(
+    client: BinanceClient,
+    take_profit_order: Order,
+    side: str,
+    ui_queue: asyncio.Queue,
+    symbol: str,
+) -> str:
+    take_profit_order.status = await cancel_order(
+        client=client,
+        order=take_profit_order,
+        side=side,
+        ui_queue=ui_queue,
+        symbol=symbol,
+    )
+    logger.info(
+        "Take profit order: %s, status: %s",
+        take_profit_order.order_id,
+        take_profit_order.status,
+    )
+
+    return take_profit_order.status
+
+
+async def cancel_remaining_limit_orders(
+    client: BinanceClient, position: Position, ui_queue: asyncio.Queue, symbol: str
+) -> Tuple[Position, bool]:
+    logger.info("Cancelling remaining limit orders")
+    assert position.orders is not None
+    new_orders_count = 0
+    cancelled_orders_count = 0
+    for order in position.orders:
+        if order.status == ORDER_STATUS_PARTIALLY_FILLED:
+            order.status = await cancel_order(
+                client=client,
+                order=order,
+                ui_queue=ui_queue,
+                side=position.side,
+                symbol=symbol,
+            )
+            logger.info("Cancelled partially filled order_id: %s", order.order_id)
+            cancelled_orders_count += 1
+        elif order.status == ORDER_STATUS_NEW:
+            new_orders_count += 1
+            order.status = await cancel_order(
+                client=client,
+                order=order,
+                ui_queue=ui_queue,
+                side=position.side,
+                symbol=symbol,
+            )
+            logger.info("Cancelled new order_id: %s", order.order_id)
+            cancelled_orders_count += 1
+
+    position_opened = new_orders_count != len(position.orders)
+
+    return position, position_opened

@@ -14,6 +14,7 @@ from src.common.identifiers import (
     SignalUpdate,
     State,
 )
+from src.order_handler import OrderHandler
 from src.strategies.rsi_extended import RsiExtended
 from src.workers import handle_order
 
@@ -24,25 +25,25 @@ class RsiSpecial(RsiExtended):
         client: BinanceClient,
         df: pandas.DataFrame,
         balance: float,
-        order_quantity_list: List,
         raw_data,
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
         logger: logging.Logger,
+        order_handler: OrderHandler,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
-            order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
+            order_handler=order_handler,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
@@ -160,8 +161,6 @@ class RsiSpecial(RsiExtended):
             entry_price=self.signal_update.price,
             signal=self.signal_update.signal,
             side=self.position.side,
-            balance=self.balance,
-            order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
             symbol=self.symbol,
@@ -178,8 +177,6 @@ class RsiSpecial(RsiExtended):
             entry_price=self.signal_update.price,
             signal=self.signal_update.signal,
             side=self.position.side,
-            balance=self.balance,
-            order_quantity_list=self.order_quantity_list,
             mode=self.mode,
             ui_queue=self.ui_queue,
             symbol=self.symbol,

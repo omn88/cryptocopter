@@ -14,6 +14,7 @@ from src.common.identifiers import (
     EventName,
     State,
 )
+from src.order_handler import OrderHandler
 from src.strategies.rsi_basic import RsiBasic
 
 
@@ -23,25 +24,25 @@ class RsiExtended(RsiBasic):
         client: BinanceClient,
         df: pandas.DataFrame,
         balance: float,
-        order_quantity_list: List,
         raw_data,
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
         logger: logging.Logger,
+        order_handler: OrderHandler,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
-            order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
+            order_handler=order_handler,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
