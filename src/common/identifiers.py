@@ -105,7 +105,7 @@ class Event(NamedTuple):
         return f"Event(name={self.name}, content={self.content})"
 
 
-class PositionSide:
+class PositionSide(Enum):
     LONG = "BUY"
     SHORT = "SELL"
     FLAT = "FLAT"
@@ -181,12 +181,12 @@ class PositionStatus(Enum):
 
 @dataclass()
 class Position:
-    id: str
-    symbol: str
+    id: str = ""
+    symbol: str = ""
     entry_price: float = 0
     quantity: float = 0
     state: State = State.FLAT
-    side: str = PositionSide.FLAT  # ToDo: create a function
+    side: PositionSide = PositionSide.FLAT  # ToDo: create a function
     orders: List[Order] = field(default_factory=lambda: [])
     liquidation_price: float = 0
     target_price: float = 0

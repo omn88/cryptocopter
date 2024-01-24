@@ -12,11 +12,11 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
+from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.common.identifiers import (
     AccountUpdate,
     Order,
-    Position,
     PositionMode,
     PositionSide,
     SignalUpdate,
@@ -26,7 +26,7 @@ from src.common.identifiers import (
     BinanceClient,
     State,
 )
-from src.gui.identifiers import OrderData, PositionData, StrategyData, PositionStatus
+from src.gui.identifiers import OrderData, StrategyData
 from src.position_handler import PositionHandler
 
 
@@ -41,7 +41,7 @@ class BaseStrategy:
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        logger: logging.Logger,
+        logger: StrategyLogger,
     ):
         self.client = client
         self.df = df
@@ -398,7 +398,8 @@ class BaseStrategy:
 
     def conditions_for_target_reached(self, *args, **kwargs) -> bool:
         condition = (
-            self.position.take_profit_order.price == self.order_update.price
+            self.position_handler.position.take_profit_order.price
+            == self.order_update.price
             and self.order_update.status == ORDER_STATUS_FILLED
             and self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
         )
@@ -411,7 +412,8 @@ class BaseStrategy:
 
     def conditions_for_target_partially_reached(self, *args, **kwargs) -> bool:
         condition = (
-            self.position.take_profit_order.price == self.order_update.price
+            self.position_handler.position.take_profit_order.price
+            == self.order_update.price
             and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
             and self.order_update.order_type == FUTURE_ORDER_TYPE_LIMIT
         )
@@ -430,7 +432,7 @@ class BaseStrategy:
         self.logger.info(
             "Market order filled: %s, state: %s order update status: %s",
             condition,
-            self.position_old.state,
+            self.position_handler.closed_positions[-1].state,
             self.order_update.status,
         )
         return condition
@@ -443,7 +445,7 @@ class BaseStrategy:
         self.logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
             condition,
-            self.position_old.state,
+            self.position_handler.closed_positions[-1].state,
             self.order_update.status,
         )
         return condition
@@ -539,7 +541,7 @@ class BaseStrategy:
         ui_queue: asyncio.Queue,
         order: Order,
         symbol: str,
-        side: str,
+        side: PositionSide,
         *args,
         **kwargs
     ) -> None:
@@ -565,7 +567,7 @@ class BaseStrategy:
         side: PositionSide,
     ):
         for order in orders:
-            self.ui_update_order(
+            await self.ui_update_order(
                 ui_queue=ui_queue, order=order, side=side, symbol=symbol
             )
 
@@ -665,86 +667,76 @@ class BaseStrategy:
     #     await self.ui_queue.put(order_data)
 
     async def log_new_order(self, *args, **kwargs) -> None:
-        for order in self.position.orders:
+        for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 self.logger.info("New order: %s", self.order_update.order_id)
 
     async def handle_cancelled_order(self, *args, **kwargs) -> None:
-        for order in self.position.orders:
+        for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 self.logger.info("Cancelled order: %s", self.order_update.order_id)
 
     async def log_expired_order(self, symbol: str, *args, **kwargs) -> None:
-        for order in self.position.orders:
+        for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
                 self.logger.info("Expired order: %s", self.order_update.order_id)
-                await self.send_order_update_to_ui(
-                    order=order, open_time=order.open_time, symbol=symbol
-                )
+                # await self.send_order_update_to_ui(
+                #     order=order, open_time=order.open_time, symbol=symbol
+                # )
 
     async def handle_account(self, *args, **kwargs):
         self.logger.info("Account update: %s", self.account_update.account_update)
 
     async def handle_liquidation(self, *args, **kwargs):
         self.logger.info("Entering handle liquidation")
-        self.position_old, self.balance = await position_liquidation(
-            position=self.position,
-            balance=self.balance,
+        self.balance = await self.position_handler.position_liquidation(
+            balance=self.balance
         )
 
-        await self.send_close_position_to_ui(symbol=self.symbol)
+        # await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_partial_liquidation(self, *args, **kwargs):
         self.logger.info("Entering handle partial liquidation")
-        await partial_position_liquidation(
-            order_update=self.order_update,
+        await self.position_handler.partial_position_liquidation(
+            order_update=self.order_update
         )
 
     async def enter_flat(self, *args, **kwargs):
         self.logger.info("Entering Flat")
-        self.position = Position()
-        self.update_position_in_df(update=self.position.state)
+        self.update_position_in_df(update=State.FLAT)
 
     async def handle_target_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order filled")
-        self.position_old, self.balance = await target_reached(
-            client=self.client,
-            position=self.position,
-            order_update=self.order_update,
-            balance=self.balance,
-            ui_queue=self.ui_queue,
-            symbol=self.symbol,
+        self.balance = await self.position_handler.target_reached(
+            order_update=self.order_update, balance=self.balance
         )
 
-        await self.send_close_position_to_ui(symbol=self.symbol)
+        # await self.send_close_position_to_ui(symbol=self.symbol)
 
     async def handle_target_partially_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order partially filled")
-        self.position, self.balance = await target_partially_reached(
-            position=self.position,
+        self.balance = await self.position_handler.target_partially_reached(
             order_update=self.order_update,
             balance=self.balance,
         )
 
     async def handle_market_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle market order filled")
-        self.position_old, self.balance = await market_order_filled(
-            position=self.position,
+        self.balance = await self.position_handler.market_order_filled(
             order_update=self.order_update,
             balance=self.balance,
         )
 
     async def handle_market_order_filled_partially(self, *args, **kwargs):
         self.logger.info("Entering handle market order partially filled")
-        self.position, self.balance = await market_order_filled_partially(
-            position=self.position,
-            order_update=self.order_update,
+        self.balance = await self.position_handler.market_order_filled_partially(
+            order_update=self.order_update
         )
 
     async def handle_order_filled(self, *args, **kwargs):
@@ -752,20 +744,11 @@ class BaseStrategy:
         (
             filled_order_data,
             take_profit_order_data,
+            position_data,
         ) = await self.position_handler.handle_order_filled(
             order_update=self.order_update
         )
 
-        position_data = PositionData(
-            symbol=self.symbol,
-            quantity=self.position.quantity,
-            entry_price=self.position.entry_price,
-            mark_price=0,
-            liquidation_price=self.position.liquidation_price,
-            pnl=0,
-            status=PositionStatus.ACTIVE,
-            state=self.position.state,
-        )
         await self.ui_queue.put(position_data)
         await self.ui_queue.put(filled_order_data)
         await self.ui_queue.put(take_profit_order_data)
@@ -778,52 +761,22 @@ class BaseStrategy:
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
-        self.position = await handle_order_partially_filled(
-            client=self.client,
-            order_update=self.order_update,
-            position=self.position,
-            ui_queue=self.ui_queue,
-            symbol=self.symbol,
-        )
-
-        position_data = PositionData(
-            symbol=self.symbol,
-            quantity=self.position.quantity,
-            entry_price=self.position.entry_price,
-            mark_price=0,
-            liquidation_price=self.position.liquidation_price,
-            pnl=0,
-            status=PositionStatus.ACTIVE,
-            state=self.position.state,
+        (
+            part_filled_order_data,
+            take_profit_order_data,
+            position_data,
+        ) = await self.position_handler.handle_order_partially_filled(
+            order_update=self.order_update
         )
 
         await self.ui_queue.put(position_data)
-
+        await self.ui_queue.put(part_filled_order_data)
+        await self.ui_queue.put(take_profit_order_data)
         await self.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
-        order = next(
-            (
-                order
-                for order in self.position.orders
-                if order.order_id == self.order_update.order_id
-            ),
-            None,
-        )
-
-        if order is not None:
-            await self.send_order_update_to_ui(
-                order=order, open_time=order.open_time, symbol=self.symbol
-            )
-        else:
-            self.logger.info(
-                "No UI update, unknown order ID: %s", self.order_update.order_id
-            )
-
-    async def cancel_order(
-        self, order, side: str, ui_queue: asyncio.Queue, symbol: str
-    ):
-        await cancel_order(
-            client=self.client, order=order, side=side, ui_queue=ui_queue, symbol=symbol
+    async def cancel_order(self, order: Order, symbol: str):
+        order.status = await self.position_handler.order_handler.cancel_order(
+            order=order, symbol=symbol
         )

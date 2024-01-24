@@ -2,6 +2,7 @@ import asyncio
 import logging
 import numpy
 import pandas
+from logging_config import StrategyLogger
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     Signal,
@@ -10,7 +11,6 @@ from src.common.identifiers import (
     EventName,
     BinanceClient,
 )
-from src.order_handler import OrderHandler
 from src.strategies.base import BaseStrategy
 
 
@@ -25,8 +25,7 @@ class RsiBasic(BaseStrategy):
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        logger: logging.Logger,
-        order_handler: OrderHandler,
+        logger: StrategyLogger,
     ):
         super().__init__(
             client=client,
@@ -38,7 +37,6 @@ class RsiBasic(BaseStrategy):
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
-            order_handler=order_handler,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)
         self.conditions += self.get_conditions_for_rsi_basic(df=self.df)

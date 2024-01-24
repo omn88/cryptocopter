@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Tuple
+from typing import List
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -23,7 +23,6 @@ from src.common.identifiers import (
     PositionMode,
     PositionSide,
 )
-from src.gui.identifiers import OrderData
 
 
 class OrderHandler:
@@ -39,7 +38,7 @@ class OrderHandler:
         mode: PositionMode,
         entry_price: float,
         number_of_orders: int,
-    ) -> Position:
+    ) -> List[Order]:
         self.strategy_logger.info("Entering prepare orders")
 
         order_quantity_stable = 5
@@ -70,7 +69,7 @@ class OrderHandler:
 
     async def create_orders(
         self,
-        side: str,
+        side: PositionSide,
         orders: List[Order],
         symbol: str,
     ) -> List[Order]:
@@ -94,7 +93,7 @@ class OrderHandler:
 
         return list(results)
 
-    def get_order_price(self, side: str, entry_price: float, order: int):
+    def get_order_price(self, side: PositionSide, entry_price: float, order: int):
         if side == PositionSide.LONG:
             return round((entry_price - (DCA_SPAN * order * entry_price)), 1)
 
@@ -103,7 +102,7 @@ class OrderHandler:
 
     def get_order_quantity(
         self,
-        side: str,
+        side: PositionSide,
         mode: PositionMode,
         order_quantity: float,
         entry_price: float,
@@ -146,7 +145,7 @@ class OrderHandler:
 
     async def create_order(
         self,
-        side: str,
+        side: PositionSide,
         order: Order,
         symbol: str,
     ) -> Order:
@@ -158,7 +157,7 @@ class OrderHandler:
                     symbol=symbol,
                     price=round(order.price, 1),
                     quantity=round(abs(order.quantity), 3),
-                    side=side,
+                    side=side.value,
                     type=FUTURE_ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                     timestamp=int(await self.client.get_adjusted_time() * 1000),
@@ -169,7 +168,7 @@ class OrderHandler:
                 BinanceRequestException,
             ) as exception:
                 last_exception = exception
-                self.strategy_logger.exception(
+                self.strategy_logger.error(
                     "Failed to create order due to %s: %s",
                     type(exception).__name__,
                     exception,
@@ -192,7 +191,7 @@ class OrderHandler:
         self,
         order: Order,
         symbol: str,
-    ):
+    ) -> str:
         self.strategy_logger.info(
             "Enter cancel order: %s, symbol: %s", order.order_id, symbol
         )
@@ -223,20 +222,22 @@ class OrderHandler:
                 BinanceAPIException,
                 BinanceOrderException,
                 BinanceRequestException,
-            ) as e:
-                last_exception = e
+            ) as exception:
+                last_exception = exception
                 self.strategy_logger.error(
-                    "Failed to cancel order order due to %s: %s", type(e).__name__, e
+                    "Failed to cancel order order due to %s: %s",
+                    type(exception).__name__,
+                    exception,
                 )
                 await asyncio.sleep(1)  # wait for a second before retrying
-                continue
-
-            self.strategy_logger.info("Exit cancel order")
-            return resp["status"]
+            else:
+                self.strategy_logger.info("Exit cancel order")
+                return resp["status"]
 
         # if we've exhausted all retries and still have an exception, raise it
         if last_exception is not None:
             raise last_exception
+        return ""
 
     async def create_market_order(
         self, side: str, symbol: str, quantity: float
@@ -304,7 +305,7 @@ class OrderHandler:
 
         return orders
 
-    def target_price_calculate(self, side: str, price: float) -> float:
+    def target_price_calculate(self, side: PositionSide, price: float) -> float:
         self.strategy_logger.info("Entering target price calculate")
         if side == PositionSide.LONG:
             target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)

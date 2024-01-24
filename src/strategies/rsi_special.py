@@ -4,6 +4,7 @@ from typing import List
 import numpy
 
 import pandas
+from logging_config import StrategyLogger
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     BinanceClient,
@@ -30,8 +31,7 @@ class RsiSpecial(RsiExtended):
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        logger: logging.Logger,
-        order_handler: OrderHandler,
+        logger: StrategyLogger,
     ):
         super().__init__(
             client=client,
@@ -43,7 +43,6 @@ class RsiSpecial(RsiExtended):
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
-            order_handler=order_handler,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]

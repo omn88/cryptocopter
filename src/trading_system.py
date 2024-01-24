@@ -107,7 +107,7 @@ class TradingSystem:
         await asyncio.sleep(5)
         await determine_start_position(df=self.df, queue=self.strategy.queue)
 
-    async def prepare_worker(self, logger: logging.Logger):
+    async def prepare_worker(self, logger: StrategyLogger):
         await asyncio.sleep(5)
         if self.state_machine:
             await worker.worker(state_machine=self.state_machine, logger=logger)

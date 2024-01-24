@@ -1,4 +1,5 @@
 import logging
+from logging_config import StrategyLogger
 
 from src.common.common import print_last_n_rows
 from src.common.identifiers import (
@@ -9,11 +10,11 @@ from src.common.identifiers import (
     EventName,
     Event,
 )
-from src.workers.handle_order import futures_position_close
+from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 
 
-async def worker(state_machine: TradingStateMachine, logger: logging.Logger):
+async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
     while True:
         logger.info(
             "-------------------------------------POSITION-------------------------------------------------------------------"
@@ -69,14 +70,8 @@ async def worker(state_machine: TradingStateMachine, logger: logging.Logger):
 
         elif EventName.SENTINEL == event.name:
             logger.info("Entering sentinel event -> Exiting worker")
-            await futures_position_close(
-                client=state_machine.strategy.client,
-                ui_queue=state_machine.strategy.ui_queue,
-                position=state_machine.strategy.position,
-                symbol=state_machine.strategy.symbol,
-                main_ui_queue=state_machine.strategy.main_ui_queue,
-                strategy_name=state_machine.strategy.strategy_name,
-            )
+
+            await state_machine.strategy.position_handler.close_position()
 
             return
 

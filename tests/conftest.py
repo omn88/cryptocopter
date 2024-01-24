@@ -7,7 +7,6 @@ from pytest_mock import MockerFixture
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
 from src.common.initialize_trading_environment import determine_start_position
-from src.common.orders import order_quantity_list_prepare
 from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.rsi_basic import RsiBasic
@@ -40,9 +39,6 @@ async def base(mock_AsyncClient):
         strategy=BaseStrategy(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
@@ -77,9 +73,6 @@ async def basic_rsi(mock_AsyncClient):
         strategy=RsiBasic(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
@@ -110,9 +103,6 @@ async def extended_rsi(mock_AsyncClient):
         strategy=RsiExtended(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
@@ -142,9 +132,6 @@ async def special_rsi(mock_AsyncClient):
         strategy=RsiSpecial(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
