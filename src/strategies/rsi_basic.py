@@ -10,6 +10,7 @@ from src.common.identifiers import (
     EventName,
     BinanceClient,
 )
+from src.gui.gui_handler import GuiHandler
 from src.strategies.base import BaseStrategy
 
 
@@ -23,9 +24,9 @@ class RsiBasic(BaseStrategy):
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
         budget: float,
+        gui_handler: GuiHandler,
     ):
         super().__init__(
             client=client,
@@ -35,7 +36,7 @@ class RsiBasic(BaseStrategy):
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
+            gui_handler=gui_handler,
             budget=budget,
             logger=logger,
         )

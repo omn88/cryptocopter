@@ -25,6 +25,7 @@ from src.common.identifiers import (
     BinanceClient,
     State,
 )
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import OrderData, StrategyData
 from src.position_handler import PositionHandler
 
@@ -40,7 +41,7 @@ class BaseStrategy:
         budget: float,
         strategy_name: str,
         number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
     ):
         self.client = client
@@ -49,7 +50,7 @@ class BaseStrategy:
         self.raw_data = raw_data
         self.symbol = symbol
         self.strategy_name = strategy_name
-        self.main_ui_queue = main_ui_queue
+        self.gui_handler = gui_handler
         self.logger = logger
         self.position_handler: PositionHandler = PositionHandler(
             client=client,
@@ -58,7 +59,6 @@ class BaseStrategy:
             number_of_orders=number_of_orders,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
-        self.ui_queue: asyncio.Queue = asyncio.Queue()
 
         self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []

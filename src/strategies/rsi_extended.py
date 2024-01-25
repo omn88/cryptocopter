@@ -13,6 +13,7 @@ from src.common.identifiers import (
     EventName,
     State,
 )
+from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_basic import RsiBasic
 
 
@@ -26,7 +27,7 @@ class RsiExtended(RsiBasic):
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
         budget: float,
     ):
@@ -38,7 +39,7 @@ class RsiExtended(RsiBasic):
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
+            gui_handler=gui_handler,
             logger=logger,
             budget=budget,
         )

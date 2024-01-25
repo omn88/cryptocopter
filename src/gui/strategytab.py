@@ -17,6 +17,7 @@ from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event, State
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import (
     AccountData,
     PositionData,
@@ -46,15 +47,13 @@ class StrategyTab(BoxLayout):
     def __init__(
         self,
         trading_system: TradingSystem,
-        ui_queue: asyncio.Queue,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.trading_system: TradingSystem = trading_system
-        self.ui_queue: asyncio.Queue = ui_queue
-        self.main_ui_queue: asyncio.Queue = main_ui_queue
+        self.gui_handler: GuiHandler = gui_handler
         self.strategy_logger: StrategyLogger = strategy_logger
         asyncio.create_task(self.update_ui())
 
@@ -72,16 +71,18 @@ class StrategyTab(BoxLayout):
                 state=State.FLAT.value,
             ),
         )
-        await self.main_ui_queue.put(initial_strategy_data)
+        await self.gui_handler.update_strategy(initial_strategy_data)
         self.strategy_logger.info(
             "Put initial strategy data to main ui queue: %s", initial_strategy_data
         )
 
         while True:
-            self.strategy_logger.debug("Events in UI queue: %s", self.ui_queue.qsize())
-            if self.ui_queue.qsize() == 0:
+            self.strategy_logger.debug(
+                "Events in UI queue: %s", self.gui_handler.ui_queue.qsize()
+            )
+            if self.gui_handler.ui_queue.qsize() == 0:
                 self.strategy_logger.debug("Awaiting new Event")
-            data = await self.ui_queue.get()
+            data = await self.gui_handler.ui_queue.get()
             # Update the UI based on data
             if isinstance(data, Event):
                 if data.name == EventName.SENTINEL:

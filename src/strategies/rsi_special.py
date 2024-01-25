@@ -14,6 +14,7 @@ from src.common.identifiers import (
     SignalUpdate,
     State,
 )
+from src.gui.gui_handler import GuiHandler
 from src.order_handler import OrderHandler
 from src.strategies.rsi_extended import RsiExtended
 from src.workers import handle_order
@@ -29,7 +30,7 @@ class RsiSpecial(RsiExtended):
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
         budget: float,
     ):
@@ -41,7 +42,7 @@ class RsiSpecial(RsiExtended):
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
+            gui_handler=gui_handler,
             logger=logger,
             budget=budget,
         )

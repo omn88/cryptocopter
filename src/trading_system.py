@@ -20,6 +20,7 @@ from src.common.initialize_trading_environment import (
     determine_start_position,
     prepare_producers,
 )
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
@@ -46,7 +47,7 @@ class TradingSystem:
         strategy_name: str,
         symbol: str,
         number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         budget: float,
         strategy_logger: StrategyLogger,
     ):
@@ -54,7 +55,7 @@ class TradingSystem:
         self.strategy_name: str = strategy_name
         self.symbol = symbol
         self.number_of_orders = number_of_orders
-        self.main_ui_queue: asyncio.Queue = main_ui_queue
+        self.gui_handler: GuiHandler = gui_handler
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
@@ -86,14 +87,14 @@ class TradingSystem:
             symbol=self.symbol,
             strategy_name=self.strategy_name,
             number_of_orders=self.number_of_orders,
-            main_ui_queue=self.main_ui_queue,
+            gui_handler=self.gui_handler,
             logger=self.strategy_logger,
-            budget=budget,
+            budget=self.budget,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
 
-        await self.main_ui_queue.put(AccountData(balance=self.balance))
+        await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
 
         self.df = self.strategy.signals_from_features_generate(
             df=self.df,
@@ -117,9 +118,8 @@ class TradingSystem:
                 stop_event=self.stop_producers_event,
                 interval=INTERVAL,
                 queue=self.strategy.queue,
-                ui_queue=self.strategy.ui_queue,
+                gui_handler=self.gui_handler,
                 symbol=self.symbol,
-                main_ui_queue=self.main_ui_queue,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             asyncio.create_task(self.determine_start_position()),
@@ -133,7 +133,7 @@ class TradingSystem:
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
-        await self.main_ui_queue.put(
+        await self.gui_handler.main_ui_queue.put(
             Event(
                 EventName.SENTINEL,
                 content={"strategy_name": self.strategy_name, "symbol": self.symbol},

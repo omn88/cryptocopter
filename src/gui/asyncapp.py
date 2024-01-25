@@ -16,6 +16,7 @@ from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.constants import LEVERAGE
 from src.common.identifiers import BinanceClient
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
@@ -106,11 +107,14 @@ class AsyncApp(App):
                         symbol,
                     )
                     return  # Exit the method early
-
             logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
 
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name_short
+            )
+
+            gui_handler = GuiHandler(
+                main_ui_queue=self.main_ui_queue, ui_queue=asyncio.Queue()
             )
 
             trading_system = TradingSystem(
@@ -118,31 +122,25 @@ class AsyncApp(App):
                 strategy_name=strategy_name,
                 symbol=symbol,
                 number_of_orders=number_of_orders,
-                main_ui_queue=self.main_ui_queue,
+                gui_handler=gui_handler,
                 strategy_logger=strategy_logger,
                 budget=budget,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
 
-            strategy_tab = StrategyTab(
-                trading_system=trading_system,
-                ui_queue=trading_system.strategy.ui_queue,
-                strategy_name=strategy_name,
-                symbol=symbol,
-                main_ui_queue=self.main_ui_queue,
-                strategy_logger=strategy_logger,
-            )
-            self.strategy_tabs.append(strategy_tab)
-
             tab = TabbedPanelItem(
                 text=strategy_name_short,
-                content=strategy_tab,
+                content=StrategyTab(
+                    trading_system=trading_system,
+                    strategy_name=strategy_name,
+                    symbol=symbol,
+                    strategy_logger=strategy_logger,
+                    gui_handler=gui_handler,
+                ),
             )
-
             # Store a reference to the tab
             self.tabs[strategy_name_short] = tab
-
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
@@ -151,7 +149,7 @@ class AsyncApp(App):
             # Set up a logging handler for the strategy
             setup_logging_handler(
                 strategy_logger=strategy_logger,
-                log_display_widget=strategy_tab.log_display,
+                log_display_widget=tab.content.log_display,
             )
 
             logger.info(
