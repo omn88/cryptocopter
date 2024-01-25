@@ -432,7 +432,7 @@ class BaseStrategy:
         self.logger.info(
             "Market order filled: %s, state: %s order update status: %s",
             condition,
-            self.position_handler.closed_positions[-1].state,
+            self.position_handler.position.state,
             self.order_update.status,
         )
         return condition
@@ -445,7 +445,7 @@ class BaseStrategy:
         self.logger.info(
             "Market order partially filled: %s, state: %s order update status: %s",
             condition,
-            self.position_handler.closed_positions[-1].state,
+            self.position_handler.position.state,
             self.order_update.status,
         )
         return condition
@@ -574,7 +574,7 @@ class BaseStrategy:
     async def open_dca_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)
 
-        self.position_handler.open_position(
+        await self.position_handler.open_position(
             side=PositionSide.LONG,
             strategy_name=self.strategy_name,
             number_of_orders=self.number_of_orders,
@@ -582,6 +582,8 @@ class BaseStrategy:
             mode=self.mode,
             entry_price=self.signal_update.price,
         )
+
+        self.position_handler.position.state = State.LONG
 
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
@@ -604,6 +606,8 @@ class BaseStrategy:
             entry_price=self.signal_update.price,
         )
 
+        self.position_handler.position.state = State.SHORT
+
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
             orders=self.position_handler.position.orders,
@@ -614,8 +618,10 @@ class BaseStrategy:
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def close_long(self, *args, **kwargs):
-        self.logger.info("Closing %s", self.position.state)
+        self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = self.position_handler.close_position()
+
+        self.position_handler.position.state = State.FLAT
 
         await self.ui_queue.put(position_data)
         await self.main_ui_queue.put(
@@ -625,8 +631,9 @@ class BaseStrategy:
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def close_short(self, *args, **kwargs):
-        self.logger.info("Closing %s", self.position.state)
+        self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = self.position_handler.close_position()
+        self.position_handler.position.state = State.FLAT
 
         await self.ui_queue.put(position_data)
         await self.main_ui_queue.put(
@@ -698,6 +705,7 @@ class BaseStrategy:
         self.balance = await self.position_handler.position_liquidation(
             balance=self.balance
         )
+        self.position_handler.position.state = State.FLAT
 
         # await self.send_close_position_to_ui(symbol=self.symbol)
 
@@ -707,15 +715,17 @@ class BaseStrategy:
             order_update=self.order_update
         )
 
-    async def enter_flat(self, *args, **kwargs):
-        self.logger.info("Entering Flat")
-        self.update_position_in_df(update=State.FLAT)
+    # async def enter_flat(self, *args, **kwargs):
+    #     self.logger.info("Entering Flat")
+    #     self.update_position_in_df(update=State.FLAT)
 
     async def handle_target_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order filled")
         self.balance = await self.position_handler.target_reached(
             order_update=self.order_update, balance=self.balance
         )
+
+        self.position_handler.position.state = State.FLAT
 
         # await self.send_close_position_to_ui(symbol=self.symbol)
 
@@ -732,6 +742,7 @@ class BaseStrategy:
             order_update=self.order_update,
             balance=self.balance,
         )
+        self.position_handler.position.state = State.FLAT
 
     async def handle_market_order_filled_partially(self, *args, **kwargs):
         self.logger.info("Entering handle market order partially filled")
@@ -757,7 +768,7 @@ class BaseStrategy:
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
-        self.update_position_in_df(update=self.position.state)
+        self.update_position_in_df(update=self.position_handler.position.state)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")

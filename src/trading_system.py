@@ -12,7 +12,6 @@ from src.common.common import (
 from src.common.constants import ASSET, INTERVAL
 from src.common.identifiers import (
     BinanceClient,
-    Position,
     EventName,
     Event,
     SentinelUpdate,
@@ -21,23 +20,22 @@ from src.common.initialize_trading_environment import (
     determine_start_position,
     prepare_producers,
 )
-from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
-from src.order_handler import OrderHandler
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
 from src.strategies.rsi_extended import RsiExtended
-from src.strategies.rsi_special import RsiSpecial
+
+# from src.strategies.rsi_special import RsiSpecial
 
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
-    "RSI Special": RsiSpecial,
+    # "RSI Special": RsiSpecial,
 }
 
 

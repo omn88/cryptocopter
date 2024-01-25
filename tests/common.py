@@ -17,6 +17,7 @@ from src.common.identifiers import (
     OrderUpdate,
     Order,
 )
+from src.strategies.base import BaseStrategy
 
 logger = logging.getLogger("common")
 
@@ -39,6 +40,7 @@ def assert_dca_long_opened(
     assert number_of_orders == len(position.orders)
     assert 1000 == balance
     logger.info("State: %s, type: %s", state, type(state))
+    logger.info("Position.State: %s, type: %s", position.state, type(position.state))
     assert state == signal_to_state(signal_update.signal)
     assert state == position.state
     assert all(order.price <= signal_update.price for order in position.orders)
@@ -56,6 +58,7 @@ def assert_dca_short_opened(
     assert number_of_orders == len(position.orders)
     assert 1000 == balance
     logger.info("State: %s, type: %s", state, type(state))
+    logger.info("Position.State: %s, type: %s", position.state, type(position.state))
     assert state == signal_to_state(signal_update.signal)
     assert state == position.state, f"State: {state}, position.status: {position.state}"
     assert all(order.price >= signal_update.price for order in position.orders)
@@ -63,9 +66,9 @@ def assert_dca_short_opened(
 
 
 async def first_order_filled(base, order_id=1):
-    assert base.position.orders is not None
-    price = base.position.orders[0].price
-    quantity = base.position.orders[0].quantity
+    assert base.position_handler.position.orders is not None
+    price = base.position_handler.position.orders[0].price
+    quantity = base.position_handler.position.orders[0].quantity
 
     base.order_update = OrderUpdate(
         price=price,
@@ -78,28 +81,35 @@ async def first_order_filled(base, order_id=1):
 
     await base.process_order()
 
-    assert base.position.orders is not None
+    assert base.position_handler.position.orders is not None
 
     logger.info(
         "tpq: %s, bpoq: %s, tp: %s",
-        base.position.take_profit_order.quantity,
-        base.position.orders[0].quantity,
-        base.position.take_profit_order,
+        base.position_handler.position.take_profit_order.quantity,
+        base.position_handler.position.orders[0].quantity,
+        base.position_handler.position.take_profit_order,
     )
 
-    assert base.position.orders[0].status == ORDER_STATUS_FILLED
-    assert base.position.orders[1].status == ORDER_STATUS_NEW
-    assert base.position.orders[2].status == ORDER_STATUS_NEW
-    assert base.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.position.entry_price == price
-    assert base.position.quantity == quantity
-    assert base.position.take_profit_order is not None
-    assert base.position.take_profit_order.quantity == base.position.orders[0].quantity
-    assert base.position.orders[0].realized_quantity == quantity
+    logger.info(
+        "pos quant: %s, quant: %s", base.position_handler.position.quantity, quantity
+    )
+
+    assert base.position_handler.position.orders[0].status == ORDER_STATUS_FILLED
+    assert base.position_handler.position.orders[1].status == ORDER_STATUS_NEW
+    assert base.position_handler.position.orders[2].status == ORDER_STATUS_NEW
+    assert base.position_handler.position.orders[3].status == ORDER_STATUS_NEW
+    assert base.position_handler.position.entry_price == price
+    assert base.position_handler.position.quantity == quantity
+    assert base.position_handler.position.take_profit_order is not None
+    assert (
+        base.position_handler.position.take_profit_order.quantity
+        == base.position_handler.position.orders[0].quantity
+    )
+    assert base.position_handler.position.orders[0].realized_quantity == quantity
 
 
 async def second_order_filled(base):
-    orders = base.position.orders
+    orders = base.position_handler.position.orders
     assert orders is not None
 
     price = orders[1].price
@@ -126,20 +136,22 @@ async def second_order_filled(base):
         (orders[0].quantity + orders[1].quantity),
         3,
     )
-    logger.info("q: %s, tq: %s", base.position.quantity, total_quantity)
+    logger.info(
+        "q: %s, tq: %s", base.position_handler.position.quantity, total_quantity
+    )
     assert orders[0].status == ORDER_STATUS_FILLED
     assert orders[1].status == ORDER_STATUS_FILLED
     assert orders[2].status == ORDER_STATUS_NEW
     assert orders[3].status == ORDER_STATUS_NEW
-    assert base.position.entry_price == average_price
-    assert base.position.quantity == total_quantity
-    assert base.position.take_profit_order is not None
-    assert base.position.take_profit_order.quantity == total_quantity
+    assert base.position_handler.position.entry_price == average_price
+    assert base.position_handler.position.quantity == total_quantity
+    assert base.position_handler.position.take_profit_order is not None
+    assert base.position_handler.position.take_profit_order.quantity == total_quantity
     assert orders[1].realized_quantity == quantity
 
 
 async def third_and_fourth_order_filled(base):
-    orders = base.position.orders
+    orders = base.position_handler.position.orders
     assert orders is not None
 
     price = orders[2].price
@@ -161,9 +173,9 @@ async def third_and_fourth_order_filled(base):
     assert orders[1].status == ORDER_STATUS_FILLED
     assert orders[2].status == ORDER_STATUS_FILLED
     assert orders[3].status == ORDER_STATUS_NEW
-    assert base.position.take_profit_order is not None
+    assert base.position_handler.position.take_profit_order is not None
 
-    assert base.position.take_profit_order.quantity == (
+    assert base.position_handler.position.take_profit_order.quantity == (
         orders[0].quantity + orders[1].quantity + orders[2].quantity
     )
 
@@ -186,14 +198,14 @@ async def third_and_fourth_order_filled(base):
     assert orders[1].status == ORDER_STATUS_FILLED
     assert orders[2].status == ORDER_STATUS_FILLED
     assert orders[3].status == ORDER_STATUS_FILLED
-    assert base.position.entry_price == round(
+    assert base.position_handler.position.entry_price == round(
         (orders[0].price + orders[1].price + orders[2].price + orders[3].price) / 4,
         1,
     )
-    assert base.position.take_profit_order is not None
+    assert base.position_handler.position.take_profit_order is not None
     logger.info(
         "1: %s, 2: %s",
-        base.position.take_profit_order.quantity,
+        base.position_handler.position.take_profit_order.quantity,
         (
             orders[0].quantity
             + orders[1].quantity
@@ -201,7 +213,7 @@ async def third_and_fourth_order_filled(base):
             + orders[3].quantity
         ),
     )
-    assert base.position.take_profit_order.quantity == (
+    assert base.position_handler.position.take_profit_order.quantity == (
         orders[0].quantity
         + orders[1].quantity
         + orders[2].quantity
@@ -210,10 +222,10 @@ async def third_and_fourth_order_filled(base):
 
 
 async def target_reached(base):
-    assert isinstance(base.position.take_profit_order, Order)
+    assert isinstance(base.position_handler.position.take_profit_order, Order)
 
-    price = base.position.take_profit_order.price
-    quantity = base.position.take_profit_order.quantity
+    price = base.position_handler.position.take_profit_order.price
+    quantity = base.position_handler.position.take_profit_order.quantity
     status = ORDER_STATUS_FILLED
 
     base.order_update = OrderUpdate(
@@ -227,8 +239,10 @@ async def target_reached(base):
 
     await base.process_order()
 
-    assert base.position.orders == []
-    assert base.position.take_profit_order == Order(price=0, quantity=0)
+    assert base.position_handler.position.orders == []
+    assert base.position_handler.position.take_profit_order == Order(
+        price=0, quantity=0
+    )
 
 
 async def start_long(base) -> None:
@@ -237,9 +251,9 @@ async def start_long(base) -> None:
     await base.process_signal()
 
     assert_dca_long_opened(
-        position=base.position,
+        position=base.position_handler.position,
         balance=base.balance,
-        state=base.state,
+        state=base.position_handler.position.state,
         signal_update=base.signal_update,
         df=base.df,
         number_of_orders=base.number_of_orders,
@@ -252,9 +266,9 @@ async def start_short(base) -> None:
     await base.process_signal()
 
     assert_dca_short_opened(
-        position=base.position,
+        position=base.position_handler.position,
         balance=base.balance,
-        state=base.state,
+        state=base.position_handler.position.state,
         signal_update=base.signal_update,
         df=base.df,
         number_of_orders=base.number_of_orders,

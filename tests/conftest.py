@@ -3,6 +3,7 @@ import logging
 from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
+from logging_config import StrategyLogger
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
@@ -11,7 +12,8 @@ from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
-from src.strategies.rsi_special import RsiSpecial
+
+# from src.strategies.rsi_special import RsiSpecial
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -45,7 +47,7 @@ async def base(mock_AsyncClient):
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
-            logger=logging.getLogger(name="RB_BTCUSDT"),
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )
 

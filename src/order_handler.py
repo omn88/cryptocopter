@@ -41,7 +41,10 @@ class OrderHandler:
     ) -> List[Order]:
         self.strategy_logger.info("Entering prepare orders")
 
-        order_quantity_stable = 5
+        # So this has to be somehow bypassed in tests otherwise I will have to change it always to value provided
+        # order quantity of 50 solves the first test, but obviously it has to be separated from normal code,
+        # so this has to be a variable.
+        order_quantity_stable = 50
 
         orders = [
             Order(

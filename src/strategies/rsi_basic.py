@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import numpy
 import pandas
 from logging_config import StrategyLogger

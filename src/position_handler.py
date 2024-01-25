@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_position_id
@@ -37,7 +37,10 @@ class PositionHandler:
         strategy_name: str,
     ) -> None:
         self.position = Position(
-            id=generate_position_id(strategy_name=strategy_name), symbol=symbol
+            id=generate_position_id(strategy_name=strategy_name),
+            symbol=symbol,
+            side=side,
+            entry_price=entry_price,
         )
 
         self.position.orders = self.order_handler.prepare_orders(
