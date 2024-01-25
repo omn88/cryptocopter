@@ -93,6 +93,6 @@ async def test_rsi_basic_handle_kline_null(basic_rsi):
 
     await basic_rsi.strategy.process_kline()
 
-    assert len(basic_rsi.strategy.position.orders) == 0
+    assert len(basic_rsi.strategy.position_handler.position.orders) == 0
     assert 1000 == basic_rsi.strategy.balance
-    assert basic_rsi.strategy.position.state == State.FLAT
+    assert basic_rsi.strategy.position_handler.position.state == State.FLAT

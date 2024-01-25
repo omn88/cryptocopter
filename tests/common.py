@@ -239,6 +239,8 @@ async def target_reached(base):
 
     await base.process_order()
 
+    logger.info("Orders: %s", base.position_handler.position.orders)
+
     assert base.position_handler.position.orders == []
     assert base.position_handler.position.take_profit_order == Order(
         price=0, quantity=0
@@ -271,7 +273,7 @@ async def start_short(base) -> None:
         state=base.position_handler.position.state,
         signal_update=base.signal_update,
         df=base.df,
-        number_of_orders=base.number_of_orders,
+        number_of_orders=base.position_handler.number_of_orders,
     )
 
 

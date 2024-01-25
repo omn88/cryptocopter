@@ -56,6 +56,7 @@ class RsiExtended(RsiBasic):
                 "source": State.FLAT,
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_opening_extended_long",
+                # THIS HAS TO CHANGE TO OPEN EXT LONG AS IN THE METHOD STATE HAS TO BE SET.
                 "after": "open_dca_long",
             },
             {
