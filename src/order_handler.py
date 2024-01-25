@@ -19,7 +19,6 @@ from src.common.constants import DCA_SPAN, LEVERAGE
 from src.common.identifiers import (
     BinanceClient,
     Order,
-    Position,
     PositionMode,
     PositionSide,
 )
@@ -28,9 +27,15 @@ from src.common.identifiers import (
 class OrderHandler:
     MAX_RETRIES = 10
 
-    def __init__(self, strategy_logger: StrategyLogger, client: BinanceClient):
+    def __init__(
+        self,
+        strategy_logger: StrategyLogger,
+        client: BinanceClient,
+        order_quantity_stable: float,
+    ):
         self.strategy_logger = strategy_logger
         self.client = client
+        self.order_quantity_stable = order_quantity_stable
 
     def prepare_orders(
         self,
@@ -44,7 +49,6 @@ class OrderHandler:
         # So this has to be somehow bypassed in tests otherwise I will have to change it always to value provided
         # order quantity of 50 solves the first test, but obviously it has to be separated from normal code,
         # so this has to be a variable.
-        order_quantity_stable = 50
 
         orders = [
             Order(
@@ -56,13 +60,13 @@ class OrderHandler:
                 quantity=self.get_order_quantity(
                     side=side,
                     mode=mode,
-                    order_quantity=order_quantity_stable,
+                    order_quantity=self.order_quantity_stable,
                     entry_price=entry_price,
                     order=order,
                     number_of_orders=number_of_orders,
                 ),
                 order_id=0,
-                quantity_stable=order_quantity_stable,
+                quantity_stable=self.order_quantity_stable,
             )
             for order in range(number_of_orders)
         ]

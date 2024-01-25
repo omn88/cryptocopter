@@ -18,12 +18,22 @@ from src.order_handler import OrderHandler
 
 
 class PositionHandler:
-    def __init__(self, client: BinanceClient, strategy_logger: StrategyLogger):
+    def __init__(
+        self,
+        client: BinanceClient,
+        strategy_logger: StrategyLogger,
+        budget: float,
+        number_of_orders: int,
+    ):
         self.client = client
+        self.budget = budget
+        self.number_of_orders = number_of_orders
         self.position: Position = Position()
         self.closed_positions: List[Position] = []
         self.order_handler = OrderHandler(
-            client=client, strategy_logger=strategy_logger
+            client=client,
+            strategy_logger=strategy_logger,
+            order_quantity_stable=(self.budget / (2 * self.number_of_orders)),
         )
         self.strategy_logger = strategy_logger
 

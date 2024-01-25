@@ -35,8 +35,6 @@ async def base(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
 
-    number_of_orders = 4
-
     state_machine = TradingStateMachine(
         strategy=BaseStrategy(
             client=mock_AsyncClient,
@@ -45,8 +43,9 @@ async def base(mock_AsyncClient):
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
-            number_of_orders=number_of_orders,
+            number_of_orders=4,
             main_ui_queue=asyncio.Queue(),
+            budget=400,
             logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )

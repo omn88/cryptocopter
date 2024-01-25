@@ -138,37 +138,37 @@ class Order:
         )
 
 
-@dataclass()
-class Artifacts:
-    start_balance: float = 0
-    no_of_orders: int = 0
-    leverage: int = 0
-    order_quantity_stable: int = 0
-    order_level: int = 0
-    max_position: float = 0
-    price: float = 0
-    quantity: float = 0
-    side: str = "NEW"
-    mode: PositionMode = PositionMode.NEW
-    close_price: float = 0
-    orders: Optional[List[Order]] = None
-    market_order = Order = Order(
-        price=0, quantity=0, order_type=FUTURE_ORDER_TYPE_MARKET
-    )
-    per_cent_earned: float = 0
-    stable_earned: float = 0
-    end_balance: float = 0
-    status: str = "NEW"
+# @dataclass()
+# class Artifacts:
+#     start_balance: float = 0
+#     no_of_orders: int = 0
+#     leverage: int = 0
+#     order_quantity_stable: int = 0
+#     order_level: int = 0
+#     max_position: float = 0
+#     price: float = 0
+#     quantity: float = 0
+#     side: str = "NEW"
+#     mode: PositionMode = PositionMode.NEW
+#     close_price: float = 0
+#     orders: Optional[List[Order]] = None
+#     market_order = Order = Order(
+#         price=0, quantity=0, order_type=FUTURE_ORDER_TYPE_MARKET
+#     )
+#     per_cent_earned: float = 0
+#     stable_earned: float = 0
+#     end_balance: float = 0
+#     status: str = "NEW"
 
-    def __repr__(self):
-        return (
-            f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_orders},"
-            f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
-            f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
-            f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
-            f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
-            f" end_balance={self.end_balance}, status='{self.status}')"
-        )
+#     def __repr__(self):
+#         return (
+#             f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_orders},"
+#             f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
+#             f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
+#             f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
+#             f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
+#             f" end_balance={self.end_balance}, status='{self.status}')"
+#         )
 
 
 class PositionStatus(Enum):

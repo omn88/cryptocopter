@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from typing import List, Union
 import numpy
 import pandas
@@ -38,6 +37,7 @@ class BaseStrategy:
         balance: float,
         raw_data,
         symbol: str,
+        budget: float,
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
@@ -49,11 +49,13 @@ class BaseStrategy:
         self.raw_data = raw_data
         self.symbol = symbol
         self.strategy_name = strategy_name
-        self.number_of_orders = number_of_orders
         self.main_ui_queue = main_ui_queue
         self.logger = logger
         self.position_handler: PositionHandler = PositionHandler(
-            client=client, strategy_logger=logger
+            client=client,
+            strategy_logger=logger,
+            budget=budget,
+            number_of_orders=number_of_orders,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
         self.ui_queue: asyncio.Queue = asyncio.Queue()
@@ -577,7 +579,7 @@ class BaseStrategy:
         await self.position_handler.open_position(
             side=PositionSide.LONG,
             strategy_name=self.strategy_name,
-            number_of_orders=self.number_of_orders,
+            number_of_orders=self.position_handler.number_of_orders,
             symbol=self.symbol,
             mode=self.mode,
             entry_price=self.signal_update.price,
@@ -600,7 +602,7 @@ class BaseStrategy:
         self.position_handler.open_position(
             side=PositionSide.SHORT,
             strategy_name=self.strategy_name,
-            number_of_orders=self.number_of_orders,
+            number_of_orders=self.position_handler.number_of_orders,
             symbol=self.symbol,
             mode=self.mode,
             entry_price=self.signal_update.price,

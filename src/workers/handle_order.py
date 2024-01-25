@@ -16,7 +16,6 @@ from src.common.identifiers import (
     Position,
     State,
     Order,
-    Artifacts,
     BinanceClient,
 )
 

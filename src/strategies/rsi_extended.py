@@ -28,6 +28,7 @@ class RsiExtended(RsiBasic):
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
+        budget: float,
     ):
         super().__init__(
             client=client,
@@ -39,6 +40,7 @@ class RsiExtended(RsiBasic):
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
+            budget=budget,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])

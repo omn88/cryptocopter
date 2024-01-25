@@ -25,6 +25,7 @@ class RsiBasic(BaseStrategy):
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
+        budget: float,
     ):
         super().__init__(
             client=client,
@@ -35,6 +36,7 @@ class RsiBasic(BaseStrategy):
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
+            budget=budget,
             logger=logger,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)
