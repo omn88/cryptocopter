@@ -582,10 +582,8 @@ class BaseStrategy:
             number_of_orders=self.position_handler.number_of_orders,
             symbol=self.symbol,
             mode=self.mode,
-            entry_price=self.signal_update.price,
+            signal_update=self.signal_update,
         )
-
-        self.position_handler.position.state = State.LONG
 
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
@@ -605,10 +603,8 @@ class BaseStrategy:
             number_of_orders=self.position_handler.number_of_orders,
             symbol=self.symbol,
             mode=self.mode,
-            entry_price=self.signal_update.price,
+            signal_update=self.signal_update,
         )
-
-        self.position_handler.position.state = State.SHORT
 
         await self.ui_update_orders(
             ui_queue=self.ui_queue,
@@ -616,33 +612,30 @@ class BaseStrategy:
             symbol=self.symbol,
             side=self.position_handler.position.side,
         )
-
+        self.logger.info("Co to: %s", self.position_handler.position.state)
         self.update_position_in_df(update=self.position_handler.position.state)
+        self.logger.info("DF position: %s", self.df.at[self.df.index[-1], "Position"])
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = await self.position_handler.close_position()
 
-        self.position_handler.position.state = State.FLAT
-
         await self.ui_queue.put(position_data)
         await self.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
-
-        self.update_position_in_df(update=State(self.signal_update.signal.value))
+        # self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def close_short(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = await self.position_handler.close_position()
-        self.position_handler.position.state = State.FLAT
 
         await self.ui_queue.put(position_data)
         await self.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
-        self.update_position_in_df(update=State(self.signal_update.signal.value))
+        # self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     # async def send_close_position_to_ui(self, symbol: str):
     #     data = PositionData(
@@ -774,8 +767,6 @@ class BaseStrategy:
         await self.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
-
-        self.update_position_in_df(update=self.position_handler.position.state)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")

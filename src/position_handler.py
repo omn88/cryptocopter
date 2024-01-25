@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
-from src.common.common import generate_position_id
+from src.common.common import generate_position_id, signal_to_state
 from src.common.constants import LEVERAGE
 from src.common.identifiers import (
     BinanceClient,
@@ -11,6 +11,7 @@ from src.common.identifiers import (
     PositionMode,
     PositionSide,
     PositionStatus,
+    SignalUpdate,
     State,
 )
 from src.gui.identifiers import OrderData, PositionData
@@ -40,7 +41,7 @@ class PositionHandler:
     async def open_position(
         self,
         side: PositionSide,
-        entry_price: float,
+        signal_update: SignalUpdate,
         number_of_orders: int,
         symbol: str,
         mode: PositionMode,
@@ -50,19 +51,21 @@ class PositionHandler:
             id=generate_position_id(strategy_name=strategy_name),
             symbol=symbol,
             side=side,
-            entry_price=entry_price,
+            entry_price=signal_update.price,
         )
 
         self.position.orders = self.order_handler.prepare_orders(
             side=side,
             mode=mode,
-            entry_price=entry_price,
+            entry_price=signal_update.price,
             number_of_orders=number_of_orders,
         )
 
         self.position.orders = await self.order_handler.create_orders(
             side=side, orders=self.position.orders, symbol=symbol
         )
+
+        self.position.state = signal_to_state(signal_update.signal)
 
     async def close_position(self) -> PositionData:
         self.strategy_logger.info(

@@ -70,6 +70,11 @@ async def first_order_filled(base, order_id=1):
     price = base.position_handler.position.orders[0].price
     quantity = base.position_handler.position.orders[0].quantity
 
+    logger.info(
+        "DF AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAposition przed assertem: %s",
+        base.df.at[base.df.index[-1], "Position"],
+    )
+
     base.order_update = OrderUpdate(
         price=price,
         quantity=quantity,
@@ -80,6 +85,10 @@ async def first_order_filled(base, order_id=1):
     )
 
     await base.process_order()
+
+    logger.info(
+        "DF position przed assertem: %s", base.df.at[base.df.index[-1], "Position"]
+    )
 
     assert base.position_handler.position.orders is not None
 

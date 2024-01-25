@@ -56,7 +56,6 @@ class RsiExtended(RsiBasic):
                 "source": State.FLAT,
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_opening_extended_long",
-                # THIS HAS TO CHANGE TO OPEN EXT LONG AS IN THE METHOD STATE HAS TO BE SET.
                 "after": "open_dca_long",
             },
             {
@@ -292,5 +291,5 @@ class RsiExtended(RsiBasic):
 
     async def change_position_state(self, *args, **kwargs):
         self.logger.info("Changing status to %s", self.signal_update.signal)
-        self.position.state = State(self.signal_update.signal.value)
-        self.update_position_in_df(self.position.state)
+        self.position_handler.position.state = State(self.signal_update.signal.value)
+        self.update_position_in_df(self.position_handler.position.state)
