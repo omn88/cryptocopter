@@ -3,16 +3,18 @@ import logging
 from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
+from logging_config import StrategyLogger
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
 from src.common.initialize_trading_environment import determine_start_position
-from src.common.orders import order_quantity_list_prepare
 from src.strategies.base import BaseStrategy
+from src.strategies.rsi_special import RsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
-from src.strategies.rsi_special import RsiSpecial
+
+# from src.strategies.rsi_special import RsiSpecial
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
@@ -34,22 +36,18 @@ async def base(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
 
-    number_of_orders = 4
-
     state_machine = TradingStateMachine(
         strategy=BaseStrategy(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
-            number_of_orders=number_of_orders,
+            number_of_orders=4,
             main_ui_queue=asyncio.Queue(),
-            logger=logging.getLogger(name="RB_BTCUSDT"),
+            budget=400,
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )
 
@@ -77,16 +75,14 @@ async def basic_rsi(mock_AsyncClient):
         strategy=RsiBasic(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
-            logger=logging.getLogger(name="RB_BTCUSDT"),
+            budget=400,
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )
 
@@ -110,16 +106,14 @@ async def extended_rsi(mock_AsyncClient):
         strategy=RsiExtended(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RE_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
-            logger=logging.getLogger(name="RB_BTCUSDT"),
+            budget=400,
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )
 
@@ -142,16 +136,14 @@ async def special_rsi(mock_AsyncClient):
         strategy=RsiSpecial(
             client=mock_AsyncClient,
             balance=1000,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=number_of_orders
-            ),
             df=df,
             raw_data=raw_data,
             symbol="BTCUSDT",
             strategy_name="RS_BTCUSDT",
             number_of_orders=number_of_orders,
             main_ui_queue=asyncio.Queue(),
-            logger=logging.getLogger(name="RB_BTCUSDT"),
+            budget=400,
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
     )
 

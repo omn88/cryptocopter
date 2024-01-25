@@ -7,8 +7,8 @@ import btalib
 import numpy
 import pandas
 import pytz
+import uuid
 from src.common.identifiers import Signal, State, BinanceClient
-
 
 logger = logging.getLogger("common")
 
@@ -101,3 +101,9 @@ def convert_time(timestamp):
     formatted_poland_time = poland_time.strftime("%Y-%m-%d %H:%M:%S")
 
     return formatted_poland_time
+
+
+def generate_position_id(strategy_name):
+    current_time = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    unique_id = uuid.uuid4().hex
+    return f"{strategy_name}_{current_time}_{unique_id}"

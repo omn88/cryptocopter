@@ -68,7 +68,7 @@ class StrategyTab(BoxLayout):
                 mark_price=0,
                 liquidation_price=0,
                 pnl=0,
-                status=PositionStatus.NEW.value,
+                status=PositionStatus.OPEN.value,
                 state=State.FLAT.value,
             ),
         )

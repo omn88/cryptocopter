@@ -1,19 +1,20 @@
 import asyncio
-import logging
-from typing import List
 import numpy
 
 import pandas
+from logging_config import StrategyLogger
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     BinanceClient,
     Event,
     EventName,
     PositionMode,
+    PositionSide,
     Signal,
     SignalUpdate,
     State,
 )
+from src.order_handler import OrderHandler
 from src.strategies.rsi_extended import RsiExtended
 from src.workers import handle_order
 
@@ -24,25 +25,25 @@ class RsiSpecial(RsiExtended):
         client: BinanceClient,
         df: pandas.DataFrame,
         balance: float,
-        order_quantity_list: List,
         raw_data,
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        logger: logging.Logger,
+        logger: StrategyLogger,
+        budget: float,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
-            order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
+            budget=budget,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
@@ -155,17 +156,13 @@ class RsiSpecial(RsiExtended):
 
         self.mode = PositionMode.FULL
 
-        self.position = await handle_order.prepare_and_send_orders(
-            client=self.client,
-            entry_price=self.signal_update.price,
-            signal=self.signal_update.signal,
-            side=self.position.side,
-            balance=self.balance,
-            order_quantity_list=self.order_quantity_list,
+        await self.position_handler.open_position(
+            side=PositionSide.LONG,
+            signal_update=self.signal_update,
             mode=self.mode,
-            ui_queue=self.ui_queue,
             symbol=self.symbol,
-            number_of_orders=self.number_of_orders,
+            number_of_orders=self.position_handler.number_of_orders,
+            strategy_name=self.strategy_name,
         )
 
     async def open_special_short(self, *args, **kwargs):
@@ -173,27 +170,18 @@ class RsiSpecial(RsiExtended):
 
         self.mode = PositionMode.FULL
 
-        self.position = await handle_order.prepare_and_send_orders(
-            client=self.client,
-            entry_price=self.signal_update.price,
-            signal=self.signal_update.signal,
-            side=self.position.side,
-            balance=self.balance,
-            order_quantity_list=self.order_quantity_list,
+        await self.position_handler.open_position(
+            side=PositionSide.SHORT,
+            signal_update=self.signal_update,
             mode=self.mode,
-            ui_queue=self.ui_queue,
             symbol=self.symbol,
-            number_of_orders=self.number_of_orders,
+            number_of_orders=self.position_handler.number_of_orders,
+            strategy_name=self.strategy_name,
         )
 
     async def close_special_position(self, *args, **kwargs):
-        self.logger.info("Closing %s", self.position.state)
-        self.position_old = await handle_order.close_special_position(
-            client=self.client,
-            position=self.position,
-            ui_queue=self.ui_queue,
-            symbol=self.symbol,
-        )
+        self.logger.info("Closing %s", self.position_handler.position.state)
+        await self.position_handler.close_position()
 
     async def handle_kline(self, *args, **kwargs):
         self.logger.info("Entering handle kline")
@@ -203,10 +191,10 @@ class RsiSpecial(RsiExtended):
         assert expected_index == int(self.kline_update.start_time)
 
         if (
-            self.position.state == State.SHORT_SPECIAL
+            self.position_handler.position.state == State.SHORT_SPECIAL
             and self.df["RSI"] > 50 >= self.df["RSI"].shift(1)
         ) or (
-            self.position.state == State.LONG_SPECIAL
+            self.position_handler.position.state == State.LONG_SPECIAL
             and self.df["RSI"] < 50 <= self.df["RSI"].shift(1)
         ):
             signal = Signal.CLOSE_SPECIAL

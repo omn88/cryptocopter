@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from kivy.properties import NumericProperty, ListProperty, StringProperty
 from kivy.uix.label import Label
-from src.common.identifiers import State
+from src.common.identifiers import PositionStatus, State
 
 from src.gui.constants import GREEN_COLOR, RED_COLOR, WHITE_COLOR
 
@@ -56,12 +56,6 @@ class PriceData(NamedTuple):
     index_price: float
     mark_price: float
     symbol: str
-
-
-class PositionStatus(Enum):
-    NEW = "NEW"
-    ACTIVE = "ACTIVE"
-    CLOSED = "CLOSED"
 
 
 class PositionData:

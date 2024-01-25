@@ -2,10 +2,8 @@ import asyncio
 import logging
 import signal
 
-import binance
-
-from src.common.identifiers import Position, BinanceClient
-from src.workers.handle_order import futures_position_close
+from src.common.identifiers import BinanceClient
+from src.position_handler import PositionHandler
 
 
 logger = logging.getLogger("shutdown_strategy_gracefully")
@@ -14,28 +12,17 @@ logger = logging.getLogger("shutdown_strategy_gracefully")
 async def shutdown(
     client: BinanceClient,
     posix_signal: signal.Signals,
-    position: Position,
-    ui_queue: asyncio.Queue,
-    main_ui_queue: asyncio.Queue,
-    strategy_name: str,
-    symbol: str,
+    position_handler: PositionHandler,
 ):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info("Received exit signal %s...", posix_signal.name)
 
-    await futures_position_close(
-        client=client,
-        position=position,
-        ui_queue=ui_queue,
-        symbol=symbol,
-        main_ui_queue=main_ui_queue,
-        strategy_name=strategy_name,
-    )
+    await position_handler.close_position()
 
     logging.info("Nacking outstanding messages")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
 
-    [task.cancel() for task in tasks]
+    results = [task.cancel() for task in tasks]
 
-    logging.info(f"Flushing metrics")
+    logging.info("Flushing metrics")
     await client.close_connection()

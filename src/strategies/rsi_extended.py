@@ -1,9 +1,8 @@
 import asyncio
-import logging
-from typing import List
 import numpy
 
 import pandas
+from logging_config import StrategyLogger
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
@@ -23,25 +22,25 @@ class RsiExtended(RsiBasic):
         client: BinanceClient,
         df: pandas.DataFrame,
         balance: float,
-        order_quantity_list: List,
         raw_data,
         symbol: str,
         strategy_name: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
-        logger: logging.Logger,
+        logger: StrategyLogger,
+        budget: float,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
-            order_quantity_list=order_quantity_list,
             raw_data=raw_data,
             symbol=symbol,
             strategy_name=strategy_name,
             number_of_orders=number_of_orders,
             main_ui_queue=main_ui_queue,
             logger=logger,
+            budget=budget,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
@@ -292,5 +291,5 @@ class RsiExtended(RsiBasic):
 
     async def change_position_state(self, *args, **kwargs):
         self.logger.info("Changing status to %s", self.signal_update.signal)
-        self.position.state = State(self.signal_update.signal.value)
-        self.update_position_in_df(self.position.state)
+        self.position_handler.position.state = State(self.signal_update.signal.value)
+        self.update_position_in_df(self.position_handler.position.state)

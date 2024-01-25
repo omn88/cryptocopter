@@ -12,7 +12,6 @@ from src.common.common import (
 from src.common.constants import ASSET, INTERVAL
 from src.common.identifiers import (
     BinanceClient,
-    Position,
     EventName,
     Event,
     SentinelUpdate,
@@ -21,7 +20,6 @@ from src.common.initialize_trading_environment import (
     determine_start_position,
     prepare_producers,
 )
-from src.common.orders import order_quantity_list_prepare
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
@@ -29,6 +27,7 @@ from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
 from src.strategies.rsi_extended import RsiExtended
+
 from src.strategies.rsi_special import RsiSpecial
 
 # logger = logging.getLogger("trading_system")
@@ -48,6 +47,7 @@ class TradingSystem:
         symbol: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        budget: float,
         strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
@@ -58,7 +58,7 @@ class TradingSystem:
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
-        self.position = Position()
+        self.budget = budget
         self.balance = None
         self.raw_data = None
         self.df = None
@@ -81,9 +81,6 @@ class TradingSystem:
         self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
             balance=self.balance,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=self.number_of_orders
-            ),
             df=self.df,
             raw_data=self.raw_data,
             symbol=self.symbol,
@@ -91,6 +88,7 @@ class TradingSystem:
             number_of_orders=self.number_of_orders,
             main_ui_queue=self.main_ui_queue,
             logger=self.strategy_logger,
+            budget=budget,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
@@ -107,7 +105,7 @@ class TradingSystem:
         await asyncio.sleep(5)
         await determine_start_position(df=self.df, queue=self.strategy.queue)
 
-    async def prepare_worker(self, logger: logging.Logger):
+    async def prepare_worker(self, logger: StrategyLogger):
         await asyncio.sleep(5)
         if self.state_machine:
             await worker.worker(state_machine=self.state_machine, logger=logger)

@@ -95,6 +95,7 @@ class AsyncApp(App):
         strategy_name = self.root.ids.strategy_spinner.text
         symbol = self.root.ids.symbol_spinner.text
         number_of_orders = 2
+        budget = 20
         strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
         if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
             for strategy in self.active_strategies:
@@ -119,6 +120,7 @@ class AsyncApp(App):
                 number_of_orders=number_of_orders,
                 main_ui_queue=self.main_ui_queue,
                 strategy_logger=strategy_logger,
+                budget=budget,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
