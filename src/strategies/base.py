@@ -552,7 +552,7 @@ class BaseStrategy:
             open_time=order.open_time,
             symbol=symbol,
             order_type=order.order_type,
-            side=side,
+            side=side.value,
             price=order.price,
             quantity=order.quantity,
             realized_quantity=order.realized_quantity,

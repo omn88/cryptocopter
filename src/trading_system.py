@@ -28,14 +28,14 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 from src.strategies.rsi_extended import RsiExtended
 
-# from src.strategies.rsi_special import RsiSpecial
+from src.strategies.rsi_special import RsiSpecial
 
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
-    # "RSI Special": RsiSpecial,
+    "RSI Special": RsiSpecial,
 }
 
 
@@ -47,6 +47,7 @@ class TradingSystem:
         symbol: str,
         number_of_orders: int,
         main_ui_queue: asyncio.Queue,
+        budget: float,
         strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
@@ -57,6 +58,7 @@ class TradingSystem:
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
+        self.budget = budget
         self.balance = None
         self.raw_data = None
         self.df = None
@@ -79,9 +81,6 @@ class TradingSystem:
         self.strategy = STRATEGY_MAP[self.strategy_name](
             client=self.client,
             balance=self.balance,
-            order_quantity_list=order_quantity_list_prepare(
-                number_of_orders=self.number_of_orders
-            ),
             df=self.df,
             raw_data=self.raw_data,
             symbol=self.symbol,
@@ -89,6 +88,7 @@ class TradingSystem:
             number_of_orders=self.number_of_orders,
             main_ui_queue=self.main_ui_queue,
             logger=self.strategy_logger,
+            budget=budget,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)

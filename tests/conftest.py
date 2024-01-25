@@ -9,6 +9,7 @@ from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
 from src.common.initialize_trading_environment import determine_start_position
 from src.strategies.base import BaseStrategy
+from src.strategies.rsi_special import RsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
@@ -124,31 +125,32 @@ async def extended_rsi(mock_AsyncClient):
     await state_machine.strategy.client.close_connection()
 
 
-# @pytest.fixture
-# async def special_rsi(mock_AsyncClient):
-#     raw_data = raw_data_generate(desired_signal=Signal.NULL)
-#     df = insert_to_pandas(data=raw_data)
-#     df = rsi_indicator_apply(df=df)
-#     number_of_orders = 4
+@pytest.fixture
+async def special_rsi(mock_AsyncClient):
+    raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df = insert_to_pandas(data=raw_data)
+    df = rsi_indicator_apply(df=df)
+    number_of_orders = 4
 
-#     state_machine = TradingStateMachine(
-#         strategy=RsiSpecial(
-#             client=mock_AsyncClient,
-#             balance=1000,
-#             df=df,
-#             raw_data=raw_data,
-#             symbol="BTCUSDT",
-#             strategy_name="RS_BTCUSDT",
-#             number_of_orders=number_of_orders,
-#             main_ui_queue=asyncio.Queue(),
-#             logger=logging.getLogger(name="RB_BTCUSDT"),
-#         )
-#     )
+    state_machine = TradingStateMachine(
+        strategy=RsiSpecial(
+            client=mock_AsyncClient,
+            balance=1000,
+            df=df,
+            raw_data=raw_data,
+            symbol="BTCUSDT",
+            strategy_name="RS_BTCUSDT",
+            number_of_orders=number_of_orders,
+            main_ui_queue=asyncio.Queue(),
+            budget=400,
+            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
+        )
+    )
 
-#     await determine_start_position(
-#         df=state_machine.strategy.df, queue=state_machine.strategy.queue
-#     )
+    await determine_start_position(
+        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+    )
 
-#     yield state_machine
+    yield state_machine
 
-#     await state_machine.strategy.client.close_connection()
+    await state_machine.strategy.client.close_connection()

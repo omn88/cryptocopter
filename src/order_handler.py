@@ -46,10 +46,6 @@ class OrderHandler:
     ) -> List[Order]:
         self.strategy_logger.info("Entering prepare orders")
 
-        # So this has to be somehow bypassed in tests otherwise I will have to change it always to value provided
-        # order quantity of 50 solves the first test, but obviously it has to be separated from normal code,
-        # so this has to be a variable.
-
         orders = [
             Order(
                 price=self.get_order_price(
