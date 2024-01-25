@@ -8,6 +8,7 @@ from logging_config import StrategyLogger
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
 from src.common.initialize_trading_environment import determine_start_position
+from src.gui.gui_handler import GuiHandler
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_special import RsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
@@ -45,7 +46,7 @@ async def base(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=4,
-            main_ui_queue=asyncio.Queue(),
+            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
             budget=400,
             logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
@@ -80,7 +81,7 @@ async def basic_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
-            main_ui_queue=asyncio.Queue(),
+            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
             budget=400,
             logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
@@ -111,7 +112,7 @@ async def extended_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RE_BTCUSDT",
             number_of_orders=number_of_orders,
-            main_ui_queue=asyncio.Queue(),
+            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
             budget=400,
             logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )
@@ -141,7 +142,7 @@ async def special_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RS_BTCUSDT",
             number_of_orders=number_of_orders,
-            main_ui_queue=asyncio.Queue(),
+            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
             budget=400,
             logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
         )

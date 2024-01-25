@@ -586,7 +586,7 @@ class BaseStrategy:
         )
 
         await self.ui_update_orders(
-            ui_queue=self.ui_queue,
+            ui_queue=self.gui_handler.ui_queue,
             orders=self.position_handler.position.orders,
             symbol=self.symbol,
             side=self.position_handler.position.side,
@@ -607,7 +607,7 @@ class BaseStrategy:
         )
 
         await self.ui_update_orders(
-            ui_queue=self.ui_queue,
+            ui_queue=self.gui_handler.ui_queue,
             orders=self.position_handler.position.orders,
             symbol=self.symbol,
             side=self.position_handler.position.side,
@@ -620,8 +620,8 @@ class BaseStrategy:
         self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = await self.position_handler.close_position()
 
-        await self.ui_queue.put(position_data)
-        await self.main_ui_queue.put(
+        await self.gui_handler.ui_queue.put(position_data)
+        await self.gui_handler.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
         # self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -630,8 +630,8 @@ class BaseStrategy:
         self.logger.info("Closing %s", self.position_handler.position.state)
         position_data = await self.position_handler.close_position()
 
-        await self.ui_queue.put(position_data)
-        await self.main_ui_queue.put(
+        await self.gui_handler.ui_queue.put(position_data)
+        await self.gui_handler.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
@@ -648,8 +648,8 @@ class BaseStrategy:
     #         status=PositionStatus.CLOSED,
     #         state=self.position.state,
     #     )
-    #     await self.ui_queue.put(data)
-    #     await self.main_ui_queue.put(
+    #     await self.gui_handler.ui_queue.put(data)
+    #     await self.gui_handler.main_ui_queue.put(
     #         StrategyData(strategy_name=self.strategy_name, position_data=data)
     #     )
 
@@ -666,7 +666,7 @@ class BaseStrategy:
     #         open_time=open_time,
     #     )
 
-    #     await self.ui_queue.put(order_data)
+    #     await self.gui_handler.ui_queue.put(order_data)
 
     async def log_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
@@ -760,11 +760,11 @@ class BaseStrategy:
             order_update=self.order_update
         )
 
-        await self.ui_queue.put(position_data)
-        await self.ui_queue.put(filled_order_data)
-        await self.ui_queue.put(take_profit_order_data)
+        await self.gui_handler.ui_queue.put(position_data)
+        await self.gui_handler.ui_queue.put(filled_order_data)
+        await self.gui_handler.ui_queue.put(take_profit_order_data)
 
-        await self.main_ui_queue.put(
+        await self.gui_handler.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
@@ -778,10 +778,10 @@ class BaseStrategy:
             order_update=self.order_update
         )
 
-        await self.ui_queue.put(position_data)
-        await self.ui_queue.put(part_filled_order_data)
-        await self.ui_queue.put(take_profit_order_data)
-        await self.main_ui_queue.put(
+        await self.gui_handler.ui_queue.put(position_data)
+        await self.gui_handler.ui_queue.put(part_filled_order_data)
+        await self.gui_handler.ui_queue.put(take_profit_order_data)
+        await self.gui_handler.main_ui_queue.put(
             StrategyData(strategy_name=self.strategy_name, position_data=position_data)
         )
 
