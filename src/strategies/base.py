@@ -552,6 +552,10 @@ class BaseStrategy:
             signal_update=self.signal_update,
         )
 
+        await self.gui_handler.update_strategy(
+            strategy_name=self.strategy_name, position=self.position_handler.position
+        )
+
         await self.gui_handler.create_orders(
             orders=self.position_handler.position.orders, symbol=self.symbol, side=side
         )

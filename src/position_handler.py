@@ -63,6 +63,8 @@ class PositionHandler:
             number_of_orders=number_of_orders,
         )
 
+        self.position.entry_price = signal_update.price
+
         self.position.orders = await self.order_handler.create_orders(
             side=side, orders=self.position.orders, symbol=symbol
         )
