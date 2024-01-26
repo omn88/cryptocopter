@@ -16,7 +16,7 @@ from kivy.properties import (
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.constants import LEVERAGE
-from src.common.identifiers import EventName, Event, State
+from src.common.identifiers import EventName, Event, Position, State
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import (
     AccountData,
@@ -58,23 +58,8 @@ class StrategyTab(BoxLayout):
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
-        initial_strategy_data = StrategyData(
-            strategy_name=self.strategy_name,
-            position_data=PositionData(
-                symbol=self.trading_system.symbol,
-                quantity=0,
-                entry_price=0,
-                mark_price=0,
-                liquidation_price=0,
-                pnl=0,
-                status=PositionStatus.OPEN.value,
-                state=State.FLAT.value,
-            ),
-        )
-        await self.gui_handler.update_strategy(initial_strategy_data)
-        self.strategy_logger.info(
-            "Put initial strategy data to main ui queue: %s", initial_strategy_data
-        )
+
+        await self.gui_handler.update_strategy(strategy_name=self.strategy_name, position=Position())
 
         while True:
             self.strategy_logger.debug(

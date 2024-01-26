@@ -14,6 +14,7 @@ from src.common.identifiers import (
     SignalUpdate,
     State,
 )
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import OrderData, PositionData
 from src.order_handler import OrderHandler
 
@@ -25,6 +26,7 @@ class PositionHandler:
         strategy_logger: StrategyLogger,
         budget: float,
         number_of_orders: int,
+        gui_handler: GuiHandler,
     ):
         self.client = client
         self.budget = budget
@@ -35,6 +37,7 @@ class PositionHandler:
             client=client,
             strategy_logger=strategy_logger,
             order_quantity_stable=(self.budget / (2 * self.number_of_orders)),
+            gui_handler=gui_handler,
         )
         self.strategy_logger = strategy_logger
 
@@ -67,7 +70,7 @@ class PositionHandler:
 
         self.position.state = signal_to_state(signal_update.signal)
 
-    async def close_position(self) -> PositionData:
+    async def close_position(self) -> None:
         self.strategy_logger.info(
             "Enter close position, quant: %s", self.position.quantity
         )
@@ -95,25 +98,12 @@ class PositionHandler:
             symbol=self.position.symbol, orders=self.position.orders
         )
 
-        position_data = PositionData(
-            symbol=self.position.symbol,
-            quantity=self.position.quantity,
-            entry_price=self.position.entry_price,
-            mark_price=0,
-            liquidation_price=self.position.liquidation_price,
-            pnl=0,
-            state=self.position.state,
-            status=self.position.status,
-        )
-
         self.closed_positions.append(self.position)
 
         self.strategy_logger.debug(
             "Number of closed positions: %s", len(self.closed_positions)
         )
         self.position = Position()
-
-        return position_data
 
     async def update_take_profit_order(self) -> OrderData:
         take_profit_side = (

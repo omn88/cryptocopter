@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from kivy.properties import NumericProperty, ListProperty, StringProperty
 from kivy.uix.label import Label
-from src.common.identifiers import PositionStatus, State
+from src.common.identifiers import Position, PositionStatus, State
 
 from src.gui.constants import GREEN_COLOR, RED_COLOR, WHITE_COLOR
 

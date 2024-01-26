@@ -57,6 +57,7 @@ class BaseStrategy:
             strategy_logger=logger,
             budget=budget,
             number_of_orders=number_of_orders,
+            gui_handler=gui_handler,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
 
@@ -552,10 +553,9 @@ class BaseStrategy:
             signal_update=self.signal_update,
         )
 
-        for order in self.position_handler.position.orders:
-            await self.gui_handler.update_order(
-                order=order, symbol=self.symbol, side=side
-            )
+        await self.gui_handler.create_orders(
+            orders=self.position_handler.position.orders, symbol=self.symbol, side=side
+        )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
@@ -573,29 +573,34 @@ class BaseStrategy:
             signal_update=self.signal_update,
         )
 
-        for order in self.position_handler.position.orders:
-            await self.gui_handler.update_order(
-                order=order, symbol=self.symbol, side=side
-            )
+        await self.gui_handler.create_orders(
+            orders=self.position_handler.position.orders, symbol=self.symbol, side=side
+        )
         self.update_position_in_df(update=self.position_handler.position.state)
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
-        position_data = await self.position_handler.close_position()
+        await self.position_handler.close_position()
 
-        await self.gui_handler.update_position(position=self.position_handler.position)
+        await self.gui_handler.update_position(
+            position=self.position_handler.closed_positions[-1]
+        )
         await self.gui_handler.update_strategy(
-            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
+            strategy_name=self.strategy_name,
+            position=self.position_handler.closed_positions[-1],
         )
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
     async def close_short(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
-        position_data = await self.position_handler.close_position()
+        await self.position_handler.close_position()
 
-        await self.gui_handler.update_position(position=self.position_handler.position)
+        await self.gui_handler.update_position(
+            position=self.position_handler.closed_positions[-1]
+        )
         await self.gui_handler.update_strategy(
-            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
+            strategy_name=self.strategy_name,
+            position=self.position_handler.closed_positions[-1],
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -727,9 +732,7 @@ class BaseStrategy:
         await self.gui_handler.ui_queue.put(filled_order_data)
         await self.gui_handler.ui_queue.put(take_profit_order_data)
 
-        await self.gui_handler.update_strategy(
-            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
-        )
+        await self.gui_handler.update_strategy(strategy_name=self.strategy_name, position=self.position_handler.position)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
@@ -744,9 +747,7 @@ class BaseStrategy:
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.ui_queue.put(part_filled_order_data)
         await self.gui_handler.ui_queue.put(take_profit_order_data)
-        await self.gui_handler.update_strategy(
-            StrategyData(strategy_name=self.strategy_name, position_data=position_data)
-        )
+        await self.gui_handler.update_strategy(strategy_name=self.strategy_name, position=self.position_handler.position)
 
     async def cancel_order(self, order: Order, symbol: str):
         order.status = await self.position_handler.order_handler.cancel_order(

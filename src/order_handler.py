@@ -22,6 +22,7 @@ from src.common.identifiers import (
     PositionMode,
     PositionSide,
 )
+from src.gui.gui_handler import GuiHandler
 
 
 class OrderHandler:
@@ -32,10 +33,12 @@ class OrderHandler:
         strategy_logger: StrategyLogger,
         client: BinanceClient,
         order_quantity_stable: float,
+        gui_handler: GuiHandler,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
         self.order_quantity_stable = order_quantity_stable
+        self.gui_handler = gui_handler
 
     def prepare_orders(
         self,

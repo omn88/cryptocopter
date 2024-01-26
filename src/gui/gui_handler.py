@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 from logging_config import StrategyLogger
 from src.common.identifiers import Order, Position, PositionSide
 
@@ -26,13 +27,17 @@ class GuiHandler:
         await self.ui_queue.put(position_data)
         self.logger.info("PositionData added to UI queue: %s", position_data)
 
-    async def update_strategy(self, strategy_data: StrategyData):
+    async def update_strategy(self, position: Position, strategy_name: str):
         strategy_data = self._prepare_strategy_data(
-            position_data=strategy_data.position_data,
-            strategy_name=strategy_data.strategy_name,
+            position_data=self._prepare_position_data(position=position),
+            strategy_name=strategy_name,
         )
         await self.main_ui_queue.put(strategy_data)
         self.logger.info("StrategyData added to UI queue: %s", strategy_data)
+
+    async def create_orders(self, orders: List[Order], symbol: str, side: PositionSide):
+        for order in orders:
+            await self.update_order(order=order, symbol=symbol, side=side)
 
     def _prepare_order_data(
         self, order: Order, symbol: str, side: PositionSide
