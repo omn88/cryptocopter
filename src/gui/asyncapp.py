@@ -114,7 +114,9 @@ class AsyncApp(App):
             )
 
             gui_handler = GuiHandler(
-                main_ui_queue=self.main_ui_queue, ui_queue=asyncio.Queue()
+                main_ui_queue=self.main_ui_queue,
+                ui_queue=asyncio.Queue(),
+                logger=strategy_logger,
             )
 
             trading_system = TradingSystem(
