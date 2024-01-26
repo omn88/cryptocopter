@@ -15,7 +15,6 @@ from src.common.identifiers import (
     State,
 )
 from src.gui.gui_handler import GuiHandler
-from src.gui.identifiers import OrderData, PositionData
 from src.order_handler import OrderHandler
 
 

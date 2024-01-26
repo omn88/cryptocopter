@@ -15,7 +15,7 @@ from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.constants import LEVERAGE
-from src.common.identifiers import BinanceClient
+from src.common.identifiers import BinanceClient, Position
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
@@ -147,6 +147,10 @@ class AsyncApp(App):
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
+
+            await gui_handler.update_strategy(
+                strategy_name=strategy_name, position=Position(symbol=symbol)
+            )
 
             # Set up a logging handler for the strategy
             setup_logging_handler(

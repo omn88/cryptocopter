@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from typing import List, Tuple
 
 from binance.enums import (
@@ -24,7 +23,6 @@ from src.gui.identifiers import (
     OrderData,
     PriceData,
     PositionStatus,
-    StrategyData,
 )
 
 from src.trading_system import TradingSystem
@@ -58,10 +56,6 @@ class StrategyTab(BoxLayout):
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
-        await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name, position=Position()
-        )
-
         while True:
             self.strategy_logger.debug(
                 "Events in UI queue: %s", self.gui_handler.ui_queue.qsize()
