@@ -278,9 +278,7 @@ class PositionHandler:
 
         return balance
 
-    async def handle_order_partially_filled(
-        self, order_update: OrderUpdate, gui_handler: GuiHandler
-    ) -> None:
+    async def handle_order_partially_filled(self, order_update: OrderUpdate) -> Order:
         self.strategy_logger.info("Enter order update handle")
 
         for order in self.position.orders:
@@ -291,10 +289,6 @@ class PositionHandler:
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
 
-                await gui_handler.update_order(
-                    order=order, side=self.position.side, symbol=self.position.symbol
-                )
-
                 (
                     self.position.liquidation_price,
                     self.position.entry_price,
@@ -303,8 +297,11 @@ class PositionHandler:
 
                 await self.update_take_profit_order()
                 self.strategy_logger.info("Exiting update position")
+                part_fill_order = order
 
         self.strategy_logger.info("Exit order update handle")
+
+        return part_fill_order
 
     async def futures_get_position_info(self) -> Tuple[float, float, float]:
         self.strategy_logger.info("Enter position information")
@@ -321,9 +318,7 @@ class PositionHandler:
 
         return liquidation_price, entry_price, position_amt
 
-    async def handle_order_filled(
-        self, order_update: OrderUpdate, gui_handler: GuiHandler
-    ) -> None:
+    async def handle_order_filled(self, order_update: OrderUpdate) -> Order:
         self.strategy_logger.info("Enter order update handle")
         for order in self.position.orders:
             if order_update.order_id == order.order_id:
@@ -338,12 +333,6 @@ class PositionHandler:
                     order.realized_quantity = order_update.realized_quantity
                     self.strategy_logger.info("Order: %s filled", order.order_id)
 
-                    await gui_handler.update_order(
-                        order=order,
-                        symbol=self.position.symbol,
-                        side=self.position.side,
-                    )
-
                 (
                     self.position.liquidation_price,
                     self.position.entry_price,
@@ -354,8 +343,11 @@ class PositionHandler:
                 self.strategy_logger.info(
                     "Exiting update position: %s", self.position.quantity
                 )
+                filled_order = order
 
         self.strategy_logger.info("Exit order update handle")
+
+        return filled_order
 
     async def market_order_filled(self, order_update: OrderUpdate):
         self.strategy_logger.info("MARKET order filled!")

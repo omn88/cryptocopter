@@ -707,10 +707,15 @@ class BaseStrategy:
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")
 
-        await self.position_handler.handle_order_filled(
-            order_update=self.order_update, gui_handler=self.gui_handler
+        order = await self.position_handler.handle_order_filled(
+            order_update=self.order_update
         )
 
+        await self.gui_handler.update_order(
+            order=order,
+            symbol=self.position_handler.position.symbol,
+            side=self.position_handler.position.side,
+        )
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.update_order(
             self.position_handler.position.take_profit_order,
@@ -725,10 +730,14 @@ class BaseStrategy:
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
 
-        await self.position_handler.handle_order_partially_filled(
-            order_update=self.order_update, gui_handler=self.gui_handler
+        order = await self.position_handler.handle_order_partially_filled(
+            order_update=self.order_update
         )
-
+        await self.gui_handler.update_order(
+            order=order,
+            symbol=self.position_handler.position.symbol,
+            side=self.position_handler.position.side,
+        )
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.update_order(
             self.position_handler.position.take_profit_order,
