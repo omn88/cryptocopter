@@ -37,6 +37,8 @@ async def base(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
 
+    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+
     state_machine = TradingStateMachine(
         strategy=BaseStrategy(
             client=mock_AsyncClient,
@@ -46,9 +48,11 @@ async def base(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=4,
-            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
+            gui_handler=GuiHandler(
+                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            ),
             budget=400,
-            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
+            logger=logger,
         )
     )
 
@@ -72,6 +76,8 @@ async def basic_rsi(mock_AsyncClient):
 
     number_of_orders = 4
 
+    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+
     state_machine = TradingStateMachine(
         strategy=RsiBasic(
             client=mock_AsyncClient,
@@ -81,9 +87,11 @@ async def basic_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RB_BTCUSDT",
             number_of_orders=number_of_orders,
-            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
+            gui_handler=GuiHandler(
+                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            ),
             budget=400,
-            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
+            logger=logger,
         )
     )
 
@@ -103,6 +111,8 @@ async def extended_rsi(mock_AsyncClient):
     df = rsi_indicator_apply(df=df)
     number_of_orders = 4
 
+    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+
     state_machine = TradingStateMachine(
         strategy=RsiExtended(
             client=mock_AsyncClient,
@@ -112,9 +122,11 @@ async def extended_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RE_BTCUSDT",
             number_of_orders=number_of_orders,
-            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
+            gui_handler=GuiHandler(
+                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            ),
             budget=400,
-            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
+            logger=logger,
         )
     )
 
@@ -133,6 +145,7 @@ async def special_rsi(mock_AsyncClient):
     df = rsi_indicator_apply(df=df)
     number_of_orders = 4
 
+    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
     state_machine = TradingStateMachine(
         strategy=RsiSpecial(
             client=mock_AsyncClient,
@@ -142,9 +155,11 @@ async def special_rsi(mock_AsyncClient):
             symbol="BTCUSDT",
             strategy_name="RS_BTCUSDT",
             number_of_orders=number_of_orders,
-            gui_handler=GuiHandler(main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()),
+            gui_handler=GuiHandler(
+                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            ),
             budget=400,
-            logger=StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT"),
+            logger=logger,
         )
     )
 
