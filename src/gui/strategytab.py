@@ -58,8 +58,9 @@ class StrategyTab(BoxLayout):
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
-
-        await self.gui_handler.update_strategy(strategy_name=self.strategy_name, position=Position())
+        await self.gui_handler.update_strategy(
+            strategy_name=self.strategy_name, position=Position()
+        )
 
         while True:
             self.strategy_logger.debug(

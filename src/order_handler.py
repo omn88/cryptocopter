@@ -197,7 +197,7 @@ class OrderHandler:
         self,
         order: Order,
         symbol: str,
-    ) -> str:
+    ) -> Order:
         self.strategy_logger.info(
             "Enter cancel order: %s, symbol: %s", order.order_id, symbol
         )
@@ -211,19 +211,6 @@ class OrderHandler:
                     timestamp=int(await self.client.get_adjusted_time() * 1000),
                 )
                 order.status = resp["status"]
-                # await ui_queue.put(
-                #     OrderData(
-                #         order_id=order.order_id,
-                #         open_time=order.open_time,
-                #         symbol=symbol,
-                #         order_type=order.order_type,
-                #         side=side,
-                #         price=order.price,
-                #         quantity=order.quantity,
-                #         realized_quantity=order.realized_quantity,
-                #         status=order.status,
-                #     )
-                # )
             except (
                 BinanceAPIException,
                 BinanceOrderException,
@@ -238,12 +225,12 @@ class OrderHandler:
                 await asyncio.sleep(1)  # wait for a second before retrying
             else:
                 self.strategy_logger.info("Exit cancel order")
-                return resp["status"]
+                return order
 
         # if we've exhausted all retries and still have an exception, raise it
         if last_exception is not None:
             raise last_exception
-        return ""
+        return Order(price=0, quantity=0)
 
     async def create_market_order(
         self, side: str, symbol: str, quantity: float
@@ -295,18 +282,22 @@ class OrderHandler:
         raise last_exception
 
     async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str
+        self, orders: List[Order], symbol: str, side: PositionSide
     ) -> List[Order]:
         self.strategy_logger.info("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
-                order.status = await self.cancel_order(order=order, symbol=symbol)
+                order = await self.cancel_order(order=order, symbol=symbol)
+                await self.gui_handler.update_order(
+                    order=order, symbol=symbol, side=side
+                )
+
                 self.strategy_logger.info(
                     "Cancelled partially filled order_id: %s", order.order_id
                 )
             elif order.status == ORDER_STATUS_NEW:
-                order.status = await self.cancel_order(order=order, symbol=symbol)
+                order = await self.cancel_order(order=order, symbol=symbol)
                 self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
 
         return orders
