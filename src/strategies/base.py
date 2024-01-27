@@ -276,14 +276,14 @@ class BaseStrategy:
                 "source": State.FLAT,
                 "dest": State.LONG,
                 "conditions": "conditions_for_opening_basic_long",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
                 "source": State.FLAT,
                 "dest": State.SHORT,
                 "conditions": "conditions_for_opening_basic_short",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -291,7 +291,7 @@ class BaseStrategy:
                 "dest": State.SHORT,
                 "conditions": "conditions_for_switch_to_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -299,7 +299,7 @@ class BaseStrategy:
                 "dest": State.LONG,
                 "conditions": "conditions_for_switch_to_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
         ]
 
@@ -538,7 +538,7 @@ class BaseStrategy:
             self.df.index[-2], "Position"
         ]
 
-    async def open_dca_long(self, *args, **kwargs):
+    async def open_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)
 
         side = PositionSide.LONG
@@ -562,7 +562,7 @@ class BaseStrategy:
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
 
-    async def open_dca_short(self, *args, **kwargs):
+    async def open_short(self, *args, **kwargs):
         self.logger.info("Opening %s", self.signal_update.signal)
 
         side = PositionSide.SHORT

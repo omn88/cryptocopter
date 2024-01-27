@@ -248,14 +248,11 @@ class AsyncApp(App):
         return copied_strategies
 
     def update_strategies(self, data: StrategyData):
-        if len(self.active_strategies):
-            if any(
-                strategy["symbol"] == data.position_data.symbol
-                for strategy in self.active_strategies
-            ):
-                self.update_active_strategies_tab(data=data)
-            else:
-                self.add_position_to_active_strategies_tab(data=data)
+        if any(
+            strategy["symbol"] == data.position_data.symbol
+            for strategy in self.active_strategies
+        ):
+            self.update_active_strategies_tab(data=data)
         else:
             logger.info("Adding new strategy to active strategies tab")
             self.add_position_to_active_strategies_tab(data=data)
@@ -277,7 +274,10 @@ class AsyncApp(App):
                 strategy["state"] = str(data.position_data.state.value)
                 strategy["status"] = str(data.position_data.status)
 
-                if strategy["status"] == str(PositionStatus.CLOSED):
+                if strategy["status"] == [
+                    str(PositionStatus.CLOSED),
+                    str(PositionStatus.CLOSING),
+                ]:
                     logger.info("Position status: %s", data.position_data.status)
                     logger.info(
                         "Length of active strategies: %s", len(self.active_strategies)

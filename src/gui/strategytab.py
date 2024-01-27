@@ -224,7 +224,8 @@ class StrategyTab(BoxLayout):
                     ORDER_STATUS_CANCELED,
                     ORDER_STATUS_EXPIRED,
                 ]:
-                    self.strategy_logger.info("Order fil, can or exp: %s", data.status)
+                    self.strategy_logger.info("Order Status: %s", data.status)
+
                     self.strategy_logger.info(
                         "Length of open orders: %s", len(open_orders)
                     )
@@ -241,6 +242,7 @@ class StrategyTab(BoxLayout):
                         "Length of closed orders after appending: %s",
                         len(closed_orders),
                     )
+
                     self.order_count -= 1
 
                 self.strategy_logger.info("Updated Orders: %s", open_orders)
@@ -256,15 +258,11 @@ class StrategyTab(BoxLayout):
         )
         symbol = data.symbol
 
-        if len(self.open_positions) != 0:
-            if any(position["symbol"] == symbol for position in self.open_positions):
-                self.update_existing_position(data=data)
-            else:
-                self.add_new_position(data=data, symbol=symbol)
-        else:
-            # Without this if statement, the cancelled strategy was adding new position.
-            if data.status != PositionStatus.CLOSED:
-                self.add_new_position(data=data, symbol=symbol)
+        if any(position["symbol"] == symbol for position in self.open_positions):
+            self.update_existing_position(data=data)
+        elif data.status != [PositionStatus.CLOSED, PositionStatus.CLOSING]:
+            # Only add a new position if the status is not CLOSED.
+            self.add_new_position(data=data, symbol=symbol)
 
     def update_order(
         self, open_orders: List, closed_orders: List, data: OrderData

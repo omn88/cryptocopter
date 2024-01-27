@@ -57,14 +57,14 @@ class RsiExtended(RsiBasic):
                 "source": State.FLAT,
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_opening_extended_long",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
                 "source": State.FLAT,
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_opening_extended_short",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -72,7 +72,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_switch_from_extended_long_to_extended_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -80,7 +80,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_switch_from_extended_short_to_extended_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
@@ -88,7 +88,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT,
                 "conditions": "conditions_for_switch_from_extended_long_to_basic_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -96,7 +96,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_switch_from_basic_short_to_extended_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
@@ -104,7 +104,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_switch_from_basic_long_to_extended_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -112,7 +112,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG,
                 "conditions": "conditions_for_switch_from_extended_short_to_basic_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
