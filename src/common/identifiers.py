@@ -6,14 +6,12 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import NamedTuple, Dict, List, Optional
-
+from typing import NamedTuple, Dict, List
 from binance import AsyncClient
 from binance.enums import (
     ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_NEW,
-    FUTURE_ORDER_TYPE_MARKET,
 )
 
 
@@ -133,42 +131,10 @@ class Order:
         return (
             f"Order(price={self.price}, quantity={self.quantity}, "
             f"quantity_stable={self.quantity_stable}, order_id={self.order_id}, "
-            f"realized_quantity={self.realized_quantity}, "
-            f"time_in_force={self.time_in_force}, status={self.status})"
+            f"realized_quantity={self.realized_quantity}, open_time={self.open_time}, "
+            f"time_in_force={self.time_in_force}, status={self.status}, "
+            f"order_type={self.order_type})"
         )
-
-
-# @dataclass()
-# class Artifacts:
-#     start_balance: float = 0
-#     no_of_orders: int = 0
-#     leverage: int = 0
-#     order_quantity_stable: int = 0
-#     order_level: int = 0
-#     max_position: float = 0
-#     price: float = 0
-#     quantity: float = 0
-#     side: str = "NEW"
-#     mode: PositionMode = PositionMode.NEW
-#     close_price: float = 0
-#     orders: Optional[List[Order]] = None
-#     market_order = Order = Order(
-#         price=0, quantity=0, order_type=FUTURE_ORDER_TYPE_MARKET
-#     )
-#     per_cent_earned: float = 0
-#     stable_earned: float = 0
-#     end_balance: float = 0
-#     status: str = "NEW"
-
-#     def __repr__(self):
-#         return (
-#             f"Artifacts(start_balance={self.start_balance}, no_of_dca_orders={self.no_of_orders},"
-#             f" leverage={self.leverage}, order_quantity_stable={self.order_quantity_stable},"
-#             f" max_position={self.max_position}, price={self.price}, quantity={self.quantity},"
-#             f" side='{self.side}', mode='{self.mode}', close_price={self.close_price}, orders={self.orders},"
-#             f" per_cent_earned={self.per_cent_earned}, stable_earned={self.stable_earned},"
-#             f" end_balance={self.end_balance}, status='{self.status}')"
-#         )
 
 
 class PositionStatus(Enum):

@@ -47,8 +47,6 @@ class OrderHandler:
         entry_price: float,
         number_of_orders: int,
     ) -> List[Order]:
-        self.strategy_logger.info("Entering prepare orders")
-
         orders = [
             Order(
                 price=self.get_order_price(
@@ -70,7 +68,7 @@ class OrderHandler:
             for order in range(number_of_orders)
         ]
 
-        self.strategy_logger.info("Exiting prepare orders")
+        self.strategy_logger.info("Prepared orders: %s", orders)
         return orders
 
     async def create_orders(
@@ -89,15 +87,17 @@ class OrderHandler:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        tasks = []
-        for order in orders:
-            task = asyncio.create_task(
+        results = await asyncio.gather(
+            *[
                 self.create_order(side=side, order=order, symbol=symbol)
-            )
-            tasks.append(task)
-        results = await asyncio.gather(*tasks)
+                for order in orders
+            ]
+        )
+        self.strategy_logger.info(
+            "Orders created, ids: %s", [order.order_id for order in orders]
+        )
 
-        return list(results)
+        return results
 
     def get_order_price(self, side: PositionSide, entry_price: float, order: int):
         if side == PositionSide.LONG:
