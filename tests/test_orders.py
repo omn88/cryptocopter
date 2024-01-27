@@ -59,7 +59,6 @@ async def test_long_first_order_filled_partially(base):
         get_position_information_when_long_for_order_partially_filled()
     )
     base.strategy.client.futures_create_order.side_effect = get_orders_long()
-
     base.strategy.client.futures_get_order.side_effect = validation_orders()
 
     await start_long(base=base.strategy)

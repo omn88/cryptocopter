@@ -711,6 +711,27 @@ class BaseStrategy:
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")
 
+        await self.position_handler.futures_get_position_info()
+
+        # cancel take profit if exists
+        if self.position_handler.position.take_profit_order.order_id:
+            self.position_handler.position.take_profit_order = (
+                await self.position_handler.order_handler.cancel_order(
+                    order=self.position_handler.position.take_profit_order,
+                    symbol=self.position_handler.position.symbol,
+                )
+            )
+            self.logger.info(
+                "Cancelled take profit order with id: %s",
+                self.position_handler.position.take_profit_order.order_id,
+            )
+
+        self.position_handler.position.take_profit_order = (
+            await self.position_handler.order_handler.create_take_profit_order(
+                position=self.position_handler.position
+            )
+        )
+
         order = await self.position_handler.handle_order_filled(
             order_update=self.order_update
         )
@@ -721,12 +742,6 @@ class BaseStrategy:
             side=self.position_handler.position.side,
         )
         await self.gui_handler.update_position(position=self.position_handler.position)
-        await self.gui_handler.update_order(
-            self.position_handler.position.take_profit_order,
-            side=self.position_handler.position.side,
-            symbol=self.position_handler.position.symbol,
-        )
-
         await self.gui_handler.update_strategy(
             strategy_name=self.strategy_name, position=self.position_handler.position
         )
@@ -734,25 +749,47 @@ class BaseStrategy:
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
 
+        await self.position_handler.futures_get_position_info()
+
+        # cancel take profit if exists
+        if self.position_handler.position.take_profit_order.order_id:
+            self.position_handler.position.take_profit_order = await self.cancel_order(
+                order=self.position_handler.position.take_profit_order
+            )
+            self.logger.info(
+                "Cancelled take profit order with id: %s",
+                self.position_handler.position.take_profit_order.order_id,
+            )
+
+        self.position_handler.position.take_profit_order = (
+            await self.position_handler.order_handler.create_take_profit_order(
+                position=self.position_handler.position
+            )
+        )
+
         order = await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
         )
+
         await self.gui_handler.update_order(
             order=order,
             symbol=self.position_handler.position.symbol,
             side=self.position_handler.position.side,
         )
         await self.gui_handler.update_position(position=self.position_handler.position)
-        await self.gui_handler.update_order(
-            self.position_handler.position.take_profit_order,
-            side=self.position_handler.position.side,
-            symbol=self.position_handler.position.symbol,
-        )
         await self.gui_handler.update_strategy(
             strategy_name=self.strategy_name, position=self.position_handler.position
         )
 
-    async def cancel_order(self, order: Order, symbol: str):
+    async def cancel_order(self, order: Order) -> Order:
         order = await self.position_handler.order_handler.cancel_order(
-            order=order, symbol=symbol
+            order=order, symbol=self.position_handler.position.symbol
         )
+
+        await self.gui_handler.update_order(
+            order=order,
+            symbol=self.position_handler.position.symbol,
+            side=self.position_handler.position.side,
+        )
+
+        return order

@@ -303,7 +303,6 @@ class OrderHandler:
         return orders
 
     def target_price_calculate(self, side: PositionSide, price: float) -> float:
-        self.strategy_logger.info("Entering target price calculate")
         if side == PositionSide.LONG:
             target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)
         elif side == PositionSide.SHORT:
@@ -311,8 +310,28 @@ class OrderHandler:
         else:
             raise AssertionError(f"Wrong position side: {side}")
 
-        self.strategy_logger.info("position side: %s, target: %s", side, target_price)
         return target_price
+
+    async def create_take_profit_order(self, position) -> Order:
+        order = await self.create_order(
+            side=PositionSide.LONG
+            if position.side == PositionSide.SHORT
+            else PositionSide.SHORT,
+            order=Order(
+                price=self.target_price_calculate(
+                    side=position.side,
+                    price=position.entry_price,
+                ),
+                quantity=position.quantity,
+                quantity_stable=round(
+                    (abs(position.quantity) * position.entry_price / LEVERAGE),
+                    2,
+                ),
+            ),
+            symbol=position.symbol,
+        )
+
+        return order
 
     # async def update_order(self, symbol, order_id, new_quantity=None, new_price=None):
     #     # Binance does not support modifying an existing order. You must cancel and create a new order.
