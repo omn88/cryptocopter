@@ -46,7 +46,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     assert (
         len(special_rsi.strategy.position_handler.position.orders)
-        == special_rsi.strategy.position_handler.number_of_orders
+        == special_rsi.strategy.position_handler.config.number_of_orders
     )
     assert 1000 == special_rsi.strategy.balance
     assert special_rsi.strategy.position_handler.position.state == State.LONG_EXT
@@ -65,7 +65,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance
@@ -85,7 +85,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance
@@ -105,7 +105,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance
@@ -125,7 +125,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance
@@ -144,7 +144,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
 
     await special_rsi.strategy.process_kline()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance
@@ -164,7 +164,7 @@ async def test_rsi_basic_handle_kline_long_ext_long_null_short_ext_short_null_lo
     await special_rsi.strategy.process_kline()
     await special_rsi.strategy.process_signal()
 
-    assert special_rsi.strategy.position_handler.number_of_orders == len(
+    assert special_rsi.strategy.position_handler.config.number_of_orders == len(
         special_rsi.strategy.position_handler.position.orders
     )
     assert 1000 == special_rsi.strategy.balance

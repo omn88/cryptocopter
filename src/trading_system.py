@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from typing import Optional
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
@@ -9,7 +8,6 @@ from src.common.common import (
     insert_to_pandas,
     rsi_indicator_apply,
 )
-from src.common.constants import ASSET, INTERVAL
 from src.common.identifiers import (
     BinanceClient,
     EventName,
@@ -68,14 +66,16 @@ class TradingSystem:
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(
             client=self.client,
-            interval=INTERVAL,
+            interval=self.config.interval,
             lookback="4320",
             symbol=self.config.symbol,
         )
         self.df = insert_to_pandas(data=self.raw_data)
         self.df = rsi_indicator_apply(df=self.df)
 
-        self.balance = await futures_get_balance(client=self.client, asset=ASSET)
+        self.balance = await futures_get_balance(
+            client=self.client, asset=self.config.asset
+        )
 
         self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
@@ -111,7 +111,7 @@ class TradingSystem:
             *prepare_producers(
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
-                interval=INTERVAL,
+                interval=self.config.interval,
                 queue=self.strategy.queue,
                 gui_handler=self.gui_handler,
                 symbol=self.config.symbol,

@@ -15,10 +15,10 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.common import convert_time
-from src.common.constants import DCA_SPAN, LEVERAGE
 from src.common.identifiers import (
     BinanceClient,
     Order,
+    Position,
     PositionMode,
     PositionSide,
 )
@@ -46,6 +46,8 @@ class OrderHandler:
         mode: PositionMode,
         entry_price: float,
         number_of_orders: int,
+        dca_span: float,
+        leverage: int,
     ) -> List[Order]:
         orders = [
             Order(
@@ -53,6 +55,7 @@ class OrderHandler:
                     side=side,
                     entry_price=entry_price,
                     order=order,
+                    dca_span=dca_span,
                 ),
                 quantity=self.get_order_quantity(
                     side=side,
@@ -61,6 +64,8 @@ class OrderHandler:
                     entry_price=entry_price,
                     order=order,
                     number_of_orders=number_of_orders,
+                    dca_span=dca_span,
+                    leverage=leverage,
                 ),
                 order_id=0,
                 quantity_stable=self.order_quantity_stable,
@@ -99,12 +104,14 @@ class OrderHandler:
 
         return results
 
-    def get_order_price(self, side: PositionSide, entry_price: float, order: int):
+    def get_order_price(
+        self, side: PositionSide, entry_price: float, order: int, dca_span: float
+    ):
         if side == PositionSide.LONG:
-            return round((entry_price - (DCA_SPAN * order * entry_price)), 1)
+            return round((entry_price - (dca_span * order * entry_price)), 1)
 
         if side == PositionSide.SHORT:
-            return round((entry_price + (DCA_SPAN * order * entry_price)), 1)
+            return round((entry_price + (dca_span * order * entry_price)), 1)
 
     def get_order_quantity(
         self,
@@ -113,39 +120,41 @@ class OrderHandler:
         order_quantity: float,
         entry_price: float,
         number_of_orders: int,
+        dca_span: float,
+        leverage: int,
         order: int,
     ):
         if side == PositionSide.LONG and mode == PositionMode.DCA:
             return round(
-                LEVERAGE
+                leverage
                 * order_quantity
-                / (round((entry_price - (DCA_SPAN * order * entry_price)), 2)),
+                / (round((entry_price - (dca_span * order * entry_price)), 2)),
                 3,
             )
 
         if side == PositionSide.LONG and mode == PositionMode.FULL:
             return round(
-                LEVERAGE
+                leverage
                 * order_quantity
                 * number_of_orders
-                / (round((entry_price - (DCA_SPAN * order * entry_price)), 2)),
+                / (round((entry_price - (dca_span * order * entry_price)), 2)),
                 3,
             )
 
         if side == PositionSide.SHORT and mode == PositionMode.DCA:
             return round(
-                LEVERAGE
+                leverage
                 * order_quantity
-                / (round((entry_price + (DCA_SPAN * order * entry_price)), 2)),
+                / (round((entry_price + (dca_span * order * entry_price)), 2)),
                 3,
             )
 
         if side == PositionSide.SHORT and mode == PositionMode.FULL:
             return round(
-                LEVERAGE
+                leverage
                 * order_quantity
                 * number_of_orders
-                / (round((entry_price + (DCA_SPAN * order * entry_price)), 2)),
+                / (round((entry_price + (dca_span * order * entry_price)), 2)),
                 3,
             )
 
@@ -302,29 +311,32 @@ class OrderHandler:
 
         return orders
 
-    def target_price_calculate(self, side: PositionSide, price: float) -> float:
+    def target_price_calculate(
+        self, side: PositionSide, price: float, leverage: int
+    ) -> float:
         if side == PositionSide.LONG:
-            target_price = round((1 + (100 / LEVERAGE / 100)) * price, 1)
+            target_price = round((1 + (100 / leverage / 100)) * price, 1)
         elif side == PositionSide.SHORT:
-            target_price = round((1 - (100 / LEVERAGE / 100)) * price, 1)
+            target_price = round((1 - (100 / leverage / 100)) * price, 1)
         else:
             raise AssertionError(f"Wrong position side: {side}")
 
         return target_price
 
-    async def create_take_profit_order(self, position) -> Order:
+    async def create_take_profit_order(
+        self, position: Position, leverage: int
+    ) -> Order:
         order = await self.create_order(
             side=PositionSide.LONG
             if position.side == PositionSide.SHORT
             else PositionSide.SHORT,
             order=Order(
                 price=self.target_price_calculate(
-                    side=position.side,
-                    price=position.entry_price,
+                    side=position.side, price=position.entry_price, leverage=leverage
                 ),
                 quantity=position.quantity,
                 quantity_stable=round(
-                    (abs(position.quantity) * position.entry_price / LEVERAGE),
+                    (abs(position.quantity) * position.entry_price / leverage),
                     2,
                 ),
             ),

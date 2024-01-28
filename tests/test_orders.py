@@ -648,7 +648,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     base.strategy.order_update = OrderUpdate(

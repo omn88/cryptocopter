@@ -14,7 +14,6 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.constants import LEVERAGE
 from src.common.identifiers import EventName, Event, Position, State
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import (
@@ -91,16 +90,27 @@ class StrategyTab(BoxLayout):
                     ):
                         self.open_positions = self.update_price_data(data=data)
 
-    @staticmethod
-    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+    def calculate_pnl(
+        self, quantity: float, index_price: float, entry_price: float
+    ) -> float:
         pnl = 0.0
 
         if quantity > 0:
-            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round(
+                (index_price / entry_price - 1)
+                * 100
+                * self.trading_system.config.leverage,
+                2,
+            )
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round(
+                (entry_price / index_price - 1)
+                * 100
+                * self.trading_system.config.leverage,
+                2,
+            )
 
         return pnl
 

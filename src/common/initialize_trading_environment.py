@@ -4,7 +4,6 @@ from binance import BinanceSocketManager
 
 import logging
 
-from src.common.constants import MARGIN_TYPE
 from src.common.identifiers import BinanceClient, Event, EventName, Signal, SignalUpdate
 from src.gui.gui_handler import GuiHandler
 from src.producers.producers import (
@@ -16,9 +15,11 @@ from src.producers.producers import (
 logger = logging.getLogger("initialize_trading_environment")
 
 
-async def change_margin_type(client: BinanceClient, symbol: str) -> None:
+async def change_margin_type(
+    client: BinanceClient, symbol: str, margin_type: str
+) -> None:
     try:
-        await client.futures_change_margin_type(symbol=symbol, marginType=MARGIN_TYPE)
+        await client.futures_change_margin_type(symbol=symbol, marginType=margin_type)
     except binance.exceptions.BinanceAPIException as e:
         logger.debug("All: %s", e)
 

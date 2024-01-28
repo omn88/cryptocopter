@@ -29,7 +29,7 @@ async def test_signal_handle_long_when_flat(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -48,7 +48,7 @@ async def test_signal_handle_short_when_flat(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -83,7 +83,7 @@ async def test_signal_handle_long_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
     assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
 
@@ -95,7 +95,7 @@ async def test_signal_handle_long_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -117,7 +117,7 @@ async def test_signal_handle_short_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     assert df.at[df.index[-1], "Position"] != df.at[df.index[-2], "Position"]
@@ -134,7 +134,7 @@ async def test_signal_handle_short_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -152,7 +152,7 @@ async def test_signal_handle_null_when_long(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -161,7 +161,7 @@ async def test_signal_handle_null_when_long(base):
 
     await base.strategy.process_signal()
 
-    assert base.strategy.position_handler.number_of_orders == len(
+    assert base.strategy.position_handler.config.number_of_orders == len(
         base.strategy.position_handler.position.orders
     )
     assert 1000 == base.strategy.balance
@@ -189,7 +189,7 @@ async def test_signal_handle_long_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -204,7 +204,7 @@ async def test_signal_handle_long_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -223,7 +223,7 @@ async def test_signal_handle_short_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     await base.strategy.process_signal()
@@ -234,7 +234,7 @@ async def test_signal_handle_short_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
 
@@ -252,7 +252,7 @@ async def test_signal_handle_null_when_short(base):
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
         df=base.strategy.df,
-        number_of_orders=base.strategy.position_handler.number_of_orders,
+        number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
     base.strategy.signal_update = generate_signal(
@@ -261,7 +261,7 @@ async def test_signal_handle_null_when_short(base):
 
     await base.strategy.process_signal()
 
-    assert base.strategy.position_handler.number_of_orders == len(
+    assert base.strategy.position_handler.config.number_of_orders == len(
         base.strategy.position_handler.position.orders
     )
     assert 1000 == base.strategy.balance

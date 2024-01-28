@@ -155,7 +155,7 @@ class RsiSpecial(RsiExtended):
             signal_update=self.signal_update,
             mode=self.mode,
             symbol=self.config.symbol,
-            number_of_orders=self.position_handler.number_of_orders,
+            number_of_orders=self.position_handler.config.number_of_orders,
             strategy_name=self.config.name,
         )
 
@@ -169,7 +169,7 @@ class RsiSpecial(RsiExtended):
             signal_update=self.signal_update,
             mode=self.mode,
             symbol=self.config.symbol,
-            number_of_orders=self.position_handler.number_of_orders,
+            number_of_orders=self.position_handler.config.number_of_orders,
             strategy_name=self.config.name,
         )
 

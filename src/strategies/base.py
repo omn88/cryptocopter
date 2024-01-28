@@ -51,8 +51,7 @@ class BaseStrategy:
         self.position_handler: PositionHandler = PositionHandler(
             client=client,
             strategy_logger=logger,
-            budget=self.config.budget,
-            number_of_orders=self.config.number_of_orders,
+            config=config,
             gui_handler=gui_handler,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
@@ -543,7 +542,7 @@ class BaseStrategy:
         await self.position_handler.open_position(
             side=side,
             strategy_name=self.config.name,
-            number_of_orders=self.position_handler.number_of_orders,
+            number_of_orders=self.position_handler.config.number_of_orders,
             symbol=self.config.symbol,
             mode=self.mode,
             signal_update=self.signal_update,
@@ -569,7 +568,7 @@ class BaseStrategy:
         await self.position_handler.open_position(
             side=side,
             strategy_name=self.config.name,
-            number_of_orders=self.position_handler.number_of_orders,
+            number_of_orders=self.position_handler.config.number_of_orders,
             symbol=self.config.symbol,
             mode=self.mode,
             signal_update=self.signal_update,
@@ -729,7 +728,8 @@ class BaseStrategy:
 
         self.position_handler.position.take_profit_order = (
             await self.position_handler.order_handler.create_take_profit_order(
-                position=self.position_handler.position
+                position=self.position_handler.position,
+                leverage=self.position_handler.config.leverage,
             )
         )
 
@@ -764,7 +764,8 @@ class BaseStrategy:
 
         self.position_handler.position.take_profit_order = (
             await self.position_handler.order_handler.create_take_profit_order(
-                position=self.position_handler.position
+                position=self.position_handler.position,
+                leverage=self.position_handler.config.leverage,
             )
         )
 

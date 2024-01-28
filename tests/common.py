@@ -262,7 +262,7 @@ async def start_long(base) -> None:
         state=base.position_handler.position.state,
         signal_update=base.signal_update,
         df=base.df,
-        number_of_orders=base.position_handler.number_of_orders,
+        number_of_orders=base.position_handler.config.number_of_orders,
     )
 
 
@@ -277,7 +277,7 @@ async def start_short(base) -> None:
         state=base.position_handler.position.state,
         signal_update=base.signal_update,
         df=base.df,
-        number_of_orders=base.position_handler.number_of_orders,
+        number_of_orders=base.position_handler.config.number_of_orders,
     )
 
 

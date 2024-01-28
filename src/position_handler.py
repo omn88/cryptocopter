@@ -11,6 +11,7 @@ from src.common.identifiers import (
     PositionSide,
     PositionStatus,
     SignalUpdate,
+    StrategyConfig,
 )
 from src.gui.gui_handler import GuiHandler
 from src.order_handler import OrderHandler
@@ -21,19 +22,19 @@ class PositionHandler:
         self,
         client: BinanceClient,
         strategy_logger: StrategyLogger,
-        budget: float,
-        number_of_orders: int,
+        config: StrategyConfig,
         gui_handler: GuiHandler,
     ):
         self.client = client
-        self.budget = budget
-        self.number_of_orders = number_of_orders
+        self.config = config
         self.position: Position = Position()
         self.closed_positions: List[Position] = []
         self.order_handler = OrderHandler(
             client=client,
             strategy_logger=strategy_logger,
-            order_quantity_stable=(self.budget / (2 * self.number_of_orders)),
+            order_quantity_stable=(
+                self.config.budget / (2 * self.config.number_of_orders)
+            ),
             gui_handler=gui_handler,
         )
         self.strategy_logger = strategy_logger
@@ -59,6 +60,8 @@ class PositionHandler:
             mode=mode,
             entry_price=signal_update.price,
             number_of_orders=number_of_orders,
+            dca_span=self.config.dca_span,
+            leverage=self.config.leverage,
         )
 
         self.position.entry_price = signal_update.price

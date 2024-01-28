@@ -14,7 +14,6 @@ from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.constants import LEVERAGE
 from src.common.identifiers import BinanceClient, Position, StrategyConfig
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
@@ -216,16 +215,17 @@ class AsyncApp(App):
                     ):
                         self.active_strategies = self.update_price_data(data=data)
 
-    @staticmethod
-    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+    def calculate_pnl(
+        self, quantity: float, index_price: float, entry_price: float
+    ) -> float:
         pnl = 0.0
 
         if quantity > 0:
-            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round((index_price / entry_price - 1) * 100 * self.config.leverage, 2)
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round((entry_price / index_price - 1) * 100 * self.config.leverage, 2)
 
         return pnl
 
