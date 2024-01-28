@@ -12,6 +12,7 @@ from src.common.identifiers import (
     Event,
     EventName,
     State,
+    StrategyConfig,
 )
 from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_basic import RsiBasic
@@ -24,24 +25,18 @@ class RsiExtended(RsiBasic):
         df: pandas.DataFrame,
         balance: float,
         raw_data,
-        symbol: str,
-        strategy_name: str,
-        number_of_orders: int,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
-        budget: float,
+        config: StrategyConfig,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
             raw_data=raw_data,
-            symbol=symbol,
-            strategy_name=strategy_name,
-            number_of_orders=number_of_orders,
             gui_handler=gui_handler,
             logger=logger,
-            budget=budget,
+            config=config,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])

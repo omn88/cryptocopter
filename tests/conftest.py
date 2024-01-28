@@ -6,7 +6,13 @@ from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
 from src.common.common import insert_to_pandas, rsi_indicator_apply
-from src.common.identifiers import Event, EventName, Signal, SignalUpdate
+from src.common.identifiers import (
+    Event,
+    EventName,
+    Signal,
+    SignalUpdate,
+    StrategyConfig,
+)
 from src.common.initialize_trading_environment import determine_start_position
 from src.gui.asyncapp import AsyncApp
 from src.gui.gui_handler import GuiHandler
@@ -48,13 +54,15 @@ async def base(mock_AsyncClient):
             balance=1000,
             df=df,
             raw_data=raw_data,
-            symbol="BTCUSDT",
-            strategy_name="RB_BTCUSDT",
-            number_of_orders=4,
+            config=StrategyConfig(
+                symbol="BTCUSDT",
+                name="RB_BTCUSDT",
+                number_of_orders=4,
+                budget=400,
+            ),
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
-            budget=400,
             logger=logger,
         )
     )
@@ -77,8 +85,6 @@ async def basic_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    number_of_orders = 4
-
     logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
 
     state_machine = TradingStateMachine(
@@ -87,13 +93,15 @@ async def basic_rsi(mock_AsyncClient):
             balance=1000,
             df=df,
             raw_data=raw_data,
-            symbol="BTCUSDT",
-            strategy_name="RB_BTCUSDT",
-            number_of_orders=number_of_orders,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
-            budget=400,
+            config=StrategyConfig(
+                symbol="BTCUSDT",
+                name="RB_BTCUSDT",
+                number_of_orders=4,
+                budget=400,
+            ),
             logger=logger,
         )
     )
@@ -112,7 +120,6 @@ async def extended_rsi(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    number_of_orders = 4
 
     logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
 
@@ -122,13 +129,15 @@ async def extended_rsi(mock_AsyncClient):
             balance=1000,
             df=df,
             raw_data=raw_data,
-            symbol="BTCUSDT",
-            strategy_name="RE_BTCUSDT",
-            number_of_orders=number_of_orders,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
-            budget=400,
+            config=StrategyConfig(
+                symbol="BTCUSDT",
+                name="RE_BTCUSDT",
+                number_of_orders=4,
+                budget=400,
+            ),
             logger=logger,
         )
     )
@@ -146,7 +155,6 @@ async def special_rsi(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
-    number_of_orders = 4
 
     logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
     state_machine = TradingStateMachine(
@@ -155,14 +163,16 @@ async def special_rsi(mock_AsyncClient):
             balance=1000,
             df=df,
             raw_data=raw_data,
-            symbol="BTCUSDT",
-            strategy_name="RS_BTCUSDT",
-            number_of_orders=number_of_orders,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
-            budget=400,
             logger=logger,
+            config=StrategyConfig(
+                symbol="BTCUSDT",
+                name="RB_BTCUSDT",
+                number_of_orders=4,
+                budget=400,
+            ),
         )
     )
 

@@ -200,7 +200,7 @@ class BinanceClient(AsyncClient):
         return time.time() - self.time_difference
 
 
-class StrategyConfig(Enum):
+class StrategyConfig(NamedTuple):
     name: str
     symbol: str
     number_of_orders: int
