@@ -46,7 +46,7 @@ async def base(mock_AsyncClient):
     raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df = insert_to_pandas(data=raw_data)
 
-    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+    logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
 
     state_machine = TradingStateMachine(
         strategy=BaseStrategy(
@@ -56,7 +56,7 @@ async def base(mock_AsyncClient):
             raw_data=raw_data,
             config=StrategyConfig(
                 symbol="BTCUSDT",
-                name="RB_BTCUSDT",
+                name="RBASE_BTCUSDT",
                 number_of_orders=4,
                 budget=400,
             ),
@@ -121,7 +121,7 @@ async def extended_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+    logger = StrategyLogger(name="RE_BTCUSDT", strategy_info="RE_BTCUSDT")
 
     state_machine = TradingStateMachine(
         strategy=RsiExtended(
@@ -156,7 +156,7 @@ async def special_rsi(mock_AsyncClient):
     df = insert_to_pandas(data=raw_data)
     df = rsi_indicator_apply(df=df)
 
-    logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
+    logger = StrategyLogger(name="RS_BTCUSDT", strategy_info="RS_BTCUSDT")
     state_machine = TradingStateMachine(
         strategy=RsiSpecial(
             client=mock_AsyncClient,
@@ -169,7 +169,7 @@ async def special_rsi(mock_AsyncClient):
             logger=logger,
             config=StrategyConfig(
                 symbol="BTCUSDT",
-                name="RB_BTCUSDT",
+                name="RS_BTCUSDT",
                 number_of_orders=4,
                 budget=400,
             ),
