@@ -8,9 +8,12 @@ from logging_config import StrategyLogger
 from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import Event, EventName, Signal, SignalUpdate
 from src.common.initialize_trading_environment import determine_start_position
+from src.gui.asyncapp import AsyncApp
 from src.gui.gui_handler import GuiHandler
+from src.gui.strategytab import StrategyTab
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_special import RsiSpecial
+from src.trading_system import TradingSystem
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
@@ -170,3 +173,30 @@ async def special_rsi(mock_AsyncClient):
     yield state_machine
 
     await state_machine.strategy.client.close_connection()
+
+
+# @pytest.fixture
+# async def trading_system():
+#     return TradingSystem(
+#         client=mock_AsyncClient,
+#         strategy_name="TEST_NAME",
+#         symbol="TEST_SYMBOL",
+#         number_of_orders=4,
+#         budget=400,
+#         strategy_logger=StrategyLogger(name="TEST", strategy_info="TEST_INFO"),
+#         gui_handler=GuiHandler()
+#     )
+
+
+# @pytest.fixture
+# async def async_app(base):
+
+#     async_app = AsyncApp(client=mock_AsyncClient)
+
+
+#     return async_app
+
+
+# @pytest.fixture
+# def strategy_tab():
+#     return StrategyTab(trading_system=trading_system)

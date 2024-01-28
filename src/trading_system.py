@@ -15,6 +15,7 @@ from src.common.identifiers import (
     EventName,
     Event,
     SentinelUpdate,
+    StrategyConfig,
 )
 from src.common.initialize_trading_environment import (
     determine_start_position,
@@ -44,22 +45,16 @@ class TradingSystem:
     def __init__(
         self,
         client: BinanceClient,
-        strategy_name: str,
-        symbol: str,
-        number_of_orders: int,
         gui_handler: GuiHandler,
-        budget: float,
+        config: StrategyConfig,
         strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
-        self.strategy_name: str = strategy_name
-        self.symbol = symbol
-        self.number_of_orders = number_of_orders
+        self.config: StrategyConfig = config
         self.gui_handler: GuiHandler = gui_handler
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
-        self.budget = budget
         self.balance = None
         self.raw_data = None
         self.df = None
@@ -72,24 +67,24 @@ class TradingSystem:
 
         # Fetch and process historical data
         self.raw_data = await get_futures_historical_data(
-            client=self.client, interval=INTERVAL, lookback="4320", symbol=self.symbol
+            client=self.client,
+            interval=INTERVAL,
+            lookback="4320",
+            symbol=self.config.symbol,
         )
         self.df = insert_to_pandas(data=self.raw_data)
         self.df = rsi_indicator_apply(df=self.df)
 
         self.balance = await futures_get_balance(client=self.client, asset=ASSET)
 
-        self.strategy = STRATEGY_MAP[self.strategy_name](
+        self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
             balance=self.balance,
             df=self.df,
             raw_data=self.raw_data,
-            symbol=self.symbol,
-            strategy_name=self.strategy_name,
-            number_of_orders=self.number_of_orders,
+            config=self.config,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
-            budget=self.budget,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
@@ -119,7 +114,7 @@ class TradingSystem:
                 interval=INTERVAL,
                 queue=self.strategy.queue,
                 gui_handler=self.gui_handler,
-                symbol=self.symbol,
+                symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             asyncio.create_task(self.determine_start_position()),
@@ -136,7 +131,10 @@ class TradingSystem:
         await self.gui_handler.main_ui_queue.put(
             Event(
                 EventName.SENTINEL,
-                content={"strategy_name": self.strategy_name, "symbol": self.symbol},
+                content={
+                    "strategy_name": self.config.name,
+                    "symbol": self.config.symbol,
+                },
             )
         )
         await asyncio.sleep(5)

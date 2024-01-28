@@ -198,3 +198,10 @@ class BinanceClient(AsyncClient):
             self.time_difference = await self.get_server_time_difference()
             self.last_sync = time.time()
         return time.time() - self.time_difference
+
+
+class StrategyConfig(Enum):
+    name: str
+    symbol: str
+    number_of_orders: int
+    budget: float

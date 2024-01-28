@@ -15,7 +15,7 @@ from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.constants import LEVERAGE
-from src.common.identifiers import BinanceClient, Position
+from src.common.identifiers import BinanceClient, Position, StrategyConfig
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
@@ -90,27 +90,37 @@ class AsyncApp(App):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
+    def strategy_config_retrieve(self):
+        return StrategyConfig(
+            name=self.root.ids.strategy_spinner.text,
+            symbol=self.root.ids.symbol_spinner.text,
+            number_of_orders=2,
+            budget=20,
+        )
+
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
-        strategy_name = self.root.ids.strategy_spinner.text
-        symbol = self.root.ids.symbol_spinner.text
-        number_of_orders = 2
-        budget = 20
-        strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
-        if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
+        config = self.strategy_config_retrieve()
+        strategy_name_short = f"{self.strategy_mapping[config.name]}_{config.symbol}"
+        if config.name != "Choose Strategy" and config.symbol != "Choose Symbol":
             for strategy in self.active_strategies:
-                if strategy["name"] == strategy_name and strategy["symbol"] == symbol:
+                if (
+                    strategy["name"] == config.name
+                    and strategy["symbol"] == config.symbol
+                ):
                     logger.info(
                         "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
-                        strategy_name,
-                        symbol,
+                        config.name,
+                        config.symbol,
                     )
                     return  # Exit the method early
-            logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
+            logger.info(
+                "Starting new strategy: %s on pair %s", config.name, config.symbol
+            )
 
             strategy_logger = StrategyLogger(
-                name=strategy_name, strategy_info=strategy_name_short
+                name=config.name, strategy_info=strategy_name_short
             )
 
             gui_handler = GuiHandler(
@@ -121,12 +131,9 @@ class AsyncApp(App):
 
             trading_system = TradingSystem(
                 client=self.client,
-                strategy_name=strategy_name,
-                symbol=symbol,
-                number_of_orders=number_of_orders,
                 gui_handler=gui_handler,
                 strategy_logger=strategy_logger,
-                budget=budget,
+                config=config,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
@@ -135,8 +142,8 @@ class AsyncApp(App):
                 text=strategy_name_short,
                 content=StrategyTab(
                     trading_system=trading_system,
-                    strategy_name=strategy_name,
-                    symbol=symbol,
+                    strategy_name=config.name,
+                    symbol=config.symbol,
                     strategy_logger=strategy_logger,
                     gui_handler=gui_handler,
                 ),
@@ -149,7 +156,7 @@ class AsyncApp(App):
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
             await gui_handler.update_strategy(
-                strategy_name=strategy_name, position=Position(symbol=symbol)
+                strategy_name=config.name, position=Position(symbol=config.symbol)
             )
 
             # Set up a logging handler for the strategy

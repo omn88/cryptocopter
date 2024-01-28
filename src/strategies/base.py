@@ -24,6 +24,7 @@ from src.common.identifiers import (
     Signal,
     BinanceClient,
     State,
+    StrategyConfig,
 )
 from src.gui.gui_handler import GuiHandler
 from src.position_handler import PositionHandler
@@ -36,26 +37,22 @@ class BaseStrategy:
         df: pandas.DataFrame,
         balance: float,
         raw_data,
-        symbol: str,
-        budget: float,
-        strategy_name: str,
-        number_of_orders: int,
+        config: StrategyConfig,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
     ):
         self.client = client
+        self.config: StrategyConfig = config
         self.df = df
         self.balance = balance
         self.raw_data = raw_data
-        self.symbol = symbol
-        self.strategy_name = strategy_name
         self.gui_handler = gui_handler
         self.logger = logger
         self.position_handler: PositionHandler = PositionHandler(
             client=client,
             strategy_logger=logger,
-            budget=budget,
-            number_of_orders=number_of_orders,
+            budget=self.config.budget,
+            number_of_orders=self.config.number_of_orders,
             gui_handler=gui_handler,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
@@ -545,19 +542,21 @@ class BaseStrategy:
 
         await self.position_handler.open_position(
             side=side,
-            strategy_name=self.strategy_name,
+            strategy_name=self.config.name,
             number_of_orders=self.position_handler.number_of_orders,
-            symbol=self.symbol,
+            symbol=self.config.symbol,
             mode=self.mode,
             signal_update=self.signal_update,
         )
 
         await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name, position=self.position_handler.position
+            strategy_name=self.config.name, position=self.position_handler.position
         )
 
         await self.gui_handler.create_orders(
-            orders=self.position_handler.position.orders, symbol=self.symbol, side=side
+            orders=self.position_handler.position.orders,
+            symbol=self.config.symbol,
+            side=side,
         )
 
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -569,15 +568,17 @@ class BaseStrategy:
 
         await self.position_handler.open_position(
             side=side,
-            strategy_name=self.strategy_name,
+            strategy_name=self.config.name,
             number_of_orders=self.position_handler.number_of_orders,
-            symbol=self.symbol,
+            symbol=self.config.symbol,
             mode=self.mode,
             signal_update=self.signal_update,
         )
 
         await self.gui_handler.create_orders(
-            orders=self.position_handler.position.orders, symbol=self.symbol, side=side
+            orders=self.position_handler.position.orders,
+            symbol=self.config.symbol,
+            side=side,
         )
         self.update_position_in_df(update=self.position_handler.position.state)
 
@@ -589,7 +590,7 @@ class BaseStrategy:
             position=self.position_handler.closed_positions[-1]
         )
         await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name,
+            strategy_name=self.config.name,
             position=self.position_handler.closed_positions[-1],
         )
         self.update_position_in_df(update=State(self.signal_update.signal.value))
@@ -602,7 +603,7 @@ class BaseStrategy:
             position=self.position_handler.closed_positions[-1]
         )
         await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name,
+            strategy_name=self.config.name,
             position=self.position_handler.closed_positions[-1],
         )
 
@@ -671,7 +672,7 @@ class BaseStrategy:
         )
         await self.gui_handler.update_strategy(
             position=self.position_handler.closed_positions[-1],
-            strategy_name=self.strategy_name,
+            strategy_name=self.config.name,
         )
         await self.gui_handler.update_order(
             order=self.position_handler.closed_positions[-1].take_profit_order,
@@ -689,7 +690,7 @@ class BaseStrategy:
 
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.update_strategy(
-            position=self.position_handler.position, strategy_name=self.strategy_name
+            position=self.position_handler.position, strategy_name=self.config.name
         )
         await self.gui_handler.update_order(
             order=self.position_handler.position.take_profit_order,
@@ -743,7 +744,7 @@ class BaseStrategy:
         )
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name, position=self.position_handler.position
+            strategy_name=self.config.name, position=self.position_handler.position
         )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
@@ -778,7 +779,7 @@ class BaseStrategy:
         )
         await self.gui_handler.update_position(position=self.position_handler.position)
         await self.gui_handler.update_strategy(
-            strategy_name=self.strategy_name, position=self.position_handler.position
+            strategy_name=self.config.name, position=self.position_handler.position
         )
 
     async def cancel_order(self, order: Order) -> Order:
