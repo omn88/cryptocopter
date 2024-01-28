@@ -205,3 +205,8 @@ class StrategyConfig(NamedTuple):
     symbol: str
     number_of_orders: int
     budget: float
+    leverage: int = 25
+    dca_span: float = 0.005
+    asset: str = "USDT"
+    interval: str = "15m"
+    margin_type: str = "ISOLATED"
