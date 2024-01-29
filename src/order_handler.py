@@ -102,6 +102,12 @@ class OrderHandler:
             "Orders created, ids: %s", [order.order_id for order in orders]
         )
 
+        await self.gui_handler.create_orders(
+            orders=results,
+            symbol=symbol,
+            side=side,
+        )
+
         return results
 
     def get_order_price(
@@ -341,6 +347,10 @@ class OrderHandler:
                 ),
             ),
             symbol=position.symbol,
+        )
+
+        await self.gui_handler.update_order(
+            order=order, side=position.side, symbol=position.symbol
         )
 
         return order
