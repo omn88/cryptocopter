@@ -159,6 +159,7 @@ class Position:
     take_profit_order: Order = Order(price=0, quantity=0)
     market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     status: PositionStatus = PositionStatus.OPEN
+    leverage: int = 0
 
     def __repr__(self) -> str:
         return (

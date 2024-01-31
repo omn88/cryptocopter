@@ -209,7 +209,11 @@ class PositionHandler:
 
         self.strategy_logger.info("Earned: %s", round(realized_position, 2))
 
-        await self.gui_handler.update_order(order=self.position.take_profit_order, symbol=self.position.symbol, side=self.position.side)
+        await self.gui_handler.update_order(
+            order=self.position.take_profit_order,
+            symbol=self.position.symbol,
+            side=self.position.side,
+        )
         await self.gui_handler.update_position(position=self.position)
         await self.gui_handler.update_strategy(
             position=self.position, strategy_name=self.config.name
@@ -256,7 +260,11 @@ class PositionHandler:
             side=self.position.side,
         )
 
-        await self.gui_handler.update_order(order=self.position.take_profit_order, side=self.position.side, symbol=self.position.symbol)
+        await self.gui_handler.update_order(
+            order=self.position.take_profit_order,
+            side=self.position.side,
+            symbol=self.position.symbol,
+        )
 
         await self.gui_handler.update_position(position=self.position)
         await self.gui_handler.update_strategy(

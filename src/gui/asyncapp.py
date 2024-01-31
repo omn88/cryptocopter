@@ -155,7 +155,8 @@ class AsyncApp(App):
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
             await gui_handler.update_strategy(
-                strategy_name=config.name, position=Position(symbol=config.symbol)
+                strategy_name=config.name,
+                position=Position(symbol=config.symbol, leverage=config.leverage),
             )
 
             # Set up a logging handler for the strategy
