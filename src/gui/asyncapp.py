@@ -217,16 +217,16 @@ class AsyncApp(App):
                         self.active_strategies = self.update_price_data(data=data)
 
     def calculate_pnl(
-        self, quantity: float, index_price: float, entry_price: float
+        self, quantity: float, index_price: float, entry_price: float, leverage: int
     ) -> float:
         pnl = 0.0
 
         if quantity > 0:
-            pnl = round((index_price / entry_price - 1) * 100 * self.config.leverage, 2)
+            pnl = round((index_price / entry_price - 1) * 100 * leverage, 2)
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = round((entry_price / index_price - 1) * 100 * self.config.leverage, 2)
+            pnl = round((entry_price / index_price - 1) * 100 * leverage, 2)
 
         return pnl
 
@@ -246,12 +246,14 @@ class AsyncApp(App):
                                 quantity=round(float(strategy["quantity"]), 3),
                                 index_price=float(data.mark_price),
                                 entry_price=float(strategy["entry_price"]),
+                                leverage=int(strategy["leverage"]),
                             ),
                             3,
                         )
                     )
                     strategy["state"] = str(strategy["state"])
                     strategy["status"] = str(strategy["status"])
+                    strategy["leverage"] = str(strategy["leverage"])
 
         return copied_strategies
 
