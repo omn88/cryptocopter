@@ -9,7 +9,9 @@ from src.common.identifiers import (
     Event,
     EventName,
     BinanceClient,
+    StrategyConfig,
 )
+from src.gui.gui_handler import GuiHandler
 from src.strategies.base import BaseStrategy
 
 
@@ -20,23 +22,17 @@ class RsiBasic(BaseStrategy):
         df: pandas.DataFrame,
         balance: float,
         raw_data,
-        symbol: str,
-        strategy_name: str,
-        number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
-        budget: float,
+        config: StrategyConfig,
+        gui_handler: GuiHandler,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
             raw_data=raw_data,
-            symbol=symbol,
-            strategy_name=strategy_name,
-            number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
-            budget=budget,
+            config=config,
+            gui_handler=gui_handler,
             logger=logger,
         )
         self.df = self.add_columns_for_rsi_basic(df=self.df)

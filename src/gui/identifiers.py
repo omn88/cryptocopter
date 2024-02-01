@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from kivy.properties import NumericProperty, ListProperty, StringProperty
 from kivy.uix.label import Label
-from src.common.identifiers import PositionStatus, State
+from src.common.identifiers import Position, PositionStatus, State
 
 from src.gui.constants import GREEN_COLOR, RED_COLOR, WHITE_COLOR
 
@@ -69,6 +69,7 @@ class PositionData:
         pnl: float,
         status: PositionStatus,
         state: State,
+        leverage: int,
     ):
         self.symbol: str = symbol
         self.quantity: float = quantity
@@ -78,6 +79,7 @@ class PositionData:
         self.pnl: float = pnl
         self.status: PositionStatus = status
         self.state: State = state
+        self.leverage: int = leverage
 
     def __repr__(self) -> str:
         return (
@@ -89,7 +91,8 @@ class PositionData:
             f"liquidation_price={self.liquidation_price}, "
             f"pnl={self.pnl}, "
             f"status={self.status}, "
-            f"state={self.state})"
+            f"state={self.state}, "
+            f"leverage={self.leverage})"
         )
 
 

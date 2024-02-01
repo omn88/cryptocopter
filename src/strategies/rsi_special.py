@@ -13,10 +13,10 @@ from src.common.identifiers import (
     Signal,
     SignalUpdate,
     State,
+    StrategyConfig,
 )
-from src.order_handler import OrderHandler
+from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_extended import RsiExtended
-from src.workers import handle_order
 
 
 class RsiSpecial(RsiExtended):
@@ -26,24 +26,18 @@ class RsiSpecial(RsiExtended):
         df: pandas.DataFrame,
         balance: float,
         raw_data,
-        symbol: str,
-        strategy_name: str,
-        number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
-        budget: float,
+        config: StrategyConfig,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
             raw_data=raw_data,
-            symbol=symbol,
-            strategy_name=strategy_name,
-            number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
+            config=config,
+            gui_handler=gui_handler,
             logger=logger,
-            budget=budget,
         )
         self.df = self.add_columns_for_rsi_special(df=self.df)
         self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
@@ -160,9 +154,9 @@ class RsiSpecial(RsiExtended):
             side=PositionSide.LONG,
             signal_update=self.signal_update,
             mode=self.mode,
-            symbol=self.symbol,
-            number_of_orders=self.position_handler.number_of_orders,
-            strategy_name=self.strategy_name,
+            symbol=self.config.symbol,
+            number_of_orders=self.position_handler.config.number_of_orders,
+            strategy_name=self.config.name,
         )
 
     async def open_special_short(self, *args, **kwargs):
@@ -174,9 +168,9 @@ class RsiSpecial(RsiExtended):
             side=PositionSide.SHORT,
             signal_update=self.signal_update,
             mode=self.mode,
-            symbol=self.symbol,
-            number_of_orders=self.position_handler.number_of_orders,
-            strategy_name=self.strategy_name,
+            symbol=self.config.symbol,
+            number_of_orders=self.position_handler.config.number_of_orders,
+            strategy_name=self.config.name,
         )
 
     async def close_special_position(self, *args, **kwargs):

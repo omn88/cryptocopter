@@ -14,8 +14,8 @@ from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.constants import LEVERAGE
-from src.common.identifiers import BinanceClient
+from src.common.identifiers import BinanceClient, Position, StrategyConfig
+from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
@@ -89,69 +89,80 @@ class AsyncApp(App):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
+    def strategy_config_retrieve(self):
+        return StrategyConfig(
+            name=self.root.ids.strategy_spinner.text,
+            symbol=self.root.ids.symbol_spinner.text,
+            number_of_orders=2,
+            budget=20,
+        )
+
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
-        strategy_name = self.root.ids.strategy_spinner.text
-        symbol = self.root.ids.symbol_spinner.text
-        number_of_orders = 2
-        budget = 20
-        strategy_name_short = f"{self.strategy_mapping[strategy_name]}_{symbol}"
-        if strategy_name != "Choose Strategy" and symbol != "Choose Symbol":
+        config = self.strategy_config_retrieve()
+        strategy_name_short = f"{self.strategy_mapping[config.name]}_{config.symbol}"
+        if config.name != "Choose Strategy" and config.symbol != "Choose Symbol":
             for strategy in self.active_strategies:
-                if strategy["name"] == strategy_name and strategy["symbol"] == symbol:
+                if (
+                    strategy["name"] == config.name
+                    and strategy["symbol"] == config.symbol
+                ):
                     logger.info(
                         "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
-                        strategy_name,
-                        symbol,
+                        config.name,
+                        config.symbol,
                     )
                     return  # Exit the method early
-
-            logger.info("Starting new strategy: %s on pair %s", strategy_name, symbol)
+            logger.info(
+                "Starting new strategy: %s on pair %s", config.name, config.symbol
+            )
 
             strategy_logger = StrategyLogger(
-                name=strategy_name, strategy_info=strategy_name_short
+                name=config.name, strategy_info=strategy_name_short
+            )
+
+            gui_handler = GuiHandler(
+                main_ui_queue=self.main_ui_queue,
+                ui_queue=asyncio.Queue(),
+                logger=strategy_logger,
             )
 
             trading_system = TradingSystem(
                 client=self.client,
-                strategy_name=strategy_name,
-                symbol=symbol,
-                number_of_orders=number_of_orders,
-                main_ui_queue=self.main_ui_queue,
+                gui_handler=gui_handler,
                 strategy_logger=strategy_logger,
-                budget=budget,
+                config=config,
             )
             await trading_system.initialize()
             self.trading_systems.append(trading_system)
 
-            strategy_tab = StrategyTab(
-                trading_system=trading_system,
-                ui_queue=trading_system.strategy.ui_queue,
-                strategy_name=strategy_name,
-                symbol=symbol,
-                main_ui_queue=self.main_ui_queue,
-                strategy_logger=strategy_logger,
-            )
-            self.strategy_tabs.append(strategy_tab)
-
             tab = TabbedPanelItem(
                 text=strategy_name_short,
-                content=strategy_tab,
+                content=StrategyTab(
+                    trading_system=trading_system,
+                    strategy_name=config.name,
+                    symbol=config.symbol,
+                    strategy_logger=strategy_logger,
+                    gui_handler=gui_handler,
+                ),
             )
-
             # Store a reference to the tab
             self.tabs[strategy_name_short] = tab
-
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
             self.root.ids.symbol_spinner.text = "Choose Symbol"
 
+            await gui_handler.update_strategy(
+                strategy_name=config.name,
+                position=Position(symbol=config.symbol, leverage=config.leverage),
+            )
+
             # Set up a logging handler for the strategy
             setup_logging_handler(
                 strategy_logger=strategy_logger,
-                log_display_widget=strategy_tab.log_display,
+                log_display_widget=tab.content.log_display,
             )
 
             logger.info(
@@ -205,16 +216,17 @@ class AsyncApp(App):
                     ):
                         self.active_strategies = self.update_price_data(data=data)
 
-    @staticmethod
-    def calculate_pnl(quantity: float, index_price: float, entry_price: float) -> float:
+    def calculate_pnl(
+        self, quantity: float, index_price: float, entry_price: float, leverage: int
+    ) -> float:
         pnl = 0.0
 
         if quantity > 0:
-            pnl = round((index_price / entry_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round((index_price / entry_price - 1) * 100 * leverage, 2)
         if quantity == 0:
             pnl = 0
         if quantity < 0:
-            pnl = round((entry_price / index_price - 1) * 100 * LEVERAGE, 2)
+            pnl = round((entry_price / index_price - 1) * 100 * leverage, 2)
 
         return pnl
 
@@ -234,24 +246,23 @@ class AsyncApp(App):
                                 quantity=round(float(strategy["quantity"]), 3),
                                 index_price=float(data.mark_price),
                                 entry_price=float(strategy["entry_price"]),
+                                leverage=int(strategy["leverage"]),
                             ),
                             3,
                         )
                     )
                     strategy["state"] = str(strategy["state"])
                     strategy["status"] = str(strategy["status"])
+                    strategy["leverage"] = str(strategy["leverage"])
 
         return copied_strategies
 
     def update_strategies(self, data: StrategyData):
-        if len(self.active_strategies):
-            if any(
-                strategy["symbol"] == data.position_data.symbol
-                for strategy in self.active_strategies
-            ):
-                self.update_active_strategies_tab(data=data)
-            else:
-                self.add_position_to_active_strategies_tab(data=data)
+        if any(
+            strategy["symbol"] == data.position_data.symbol
+            for strategy in self.active_strategies
+        ):
+            self.update_active_strategies_tab(data=data)
         else:
             logger.info("Adding new strategy to active strategies tab")
             self.add_position_to_active_strategies_tab(data=data)
@@ -273,7 +284,10 @@ class AsyncApp(App):
                 strategy["state"] = str(data.position_data.state.value)
                 strategy["status"] = str(data.position_data.status)
 
-                if strategy["status"] == str(PositionStatus.CLOSED):
+                if strategy["status"] == [
+                    str(PositionStatus.CLOSED),
+                    str(PositionStatus.CLOSING),
+                ]:
                     logger.info("Position status: %s", data.position_data.status)
                     logger.info(
                         "Length of active strategies: %s", len(self.active_strategies)
@@ -307,6 +321,7 @@ class AsyncApp(App):
                 "pnl": str(data.position_data.pnl),
                 "state": str(data.position_data.state),
                 "status": str(data.position_data.status),
+                "leverage": str(data.position_data.leverage),
             }
         )
 

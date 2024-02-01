@@ -1,12 +1,11 @@
 import asyncio
 import binance
-import pandas
 from binance import BinanceSocketManager
 
 import logging
 
-from src.common.constants import MARGIN_TYPE
 from src.common.identifiers import BinanceClient, Event, EventName, Signal, SignalUpdate
+from src.gui.gui_handler import GuiHandler
 from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
@@ -16,9 +15,11 @@ from src.producers.producers import (
 logger = logging.getLogger("initialize_trading_environment")
 
 
-async def change_margin_type(client: BinanceClient, symbol: str) -> None:
+async def change_margin_type(
+    client: BinanceClient, symbol: str, margin_type: str
+) -> None:
     try:
-        await client.futures_change_margin_type(symbol=symbol, marginType=MARGIN_TYPE)
+        await client.futures_change_margin_type(symbol=symbol, marginType=margin_type)
     except binance.exceptions.BinanceAPIException as e:
         logger.debug("All: %s", e)
 
@@ -26,8 +27,7 @@ async def change_margin_type(client: BinanceClient, symbol: str) -> None:
 def prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    ui_queue: asyncio.Queue,
-    main_ui_queue: asyncio.Queue,
+    gui_handler: GuiHandler,
     interval: str,
     symbol: str,
     stop_event: asyncio.Event,
@@ -50,9 +50,9 @@ def prepare_producers(
         asyncio.create_task(
             futures_symbol_mark_price_socket(
                 socket_manager=socket_manager,
-                ui_queue=ui_queue,
+                ui_queue=gui_handler.ui_queue,
                 symbol=symbol,
-                main_ui_queue=main_ui_queue,
+                main_ui_queue=gui_handler.main_ui_queue,
                 stop_event=stop_event,
             )
         ),

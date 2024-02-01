@@ -12,7 +12,9 @@ from src.common.identifiers import (
     Event,
     EventName,
     State,
+    StrategyConfig,
 )
+from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_basic import RsiBasic
 
 
@@ -23,24 +25,18 @@ class RsiExtended(RsiBasic):
         df: pandas.DataFrame,
         balance: float,
         raw_data,
-        symbol: str,
-        strategy_name: str,
-        number_of_orders: int,
-        main_ui_queue: asyncio.Queue,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
-        budget: float,
+        config: StrategyConfig,
     ):
         super().__init__(
             client=client,
             df=df,
             balance=balance,
             raw_data=raw_data,
-            symbol=symbol,
-            strategy_name=strategy_name,
-            number_of_orders=number_of_orders,
-            main_ui_queue=main_ui_queue,
+            gui_handler=gui_handler,
             logger=logger,
-            budget=budget,
+            config=config,
         )
         self.df = self.add_columns_for_rsi_extended(df=self.df)
         self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
@@ -56,14 +52,14 @@ class RsiExtended(RsiBasic):
                 "source": State.FLAT,
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_opening_extended_long",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
                 "source": State.FLAT,
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_opening_extended_short",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -71,7 +67,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_switch_from_extended_long_to_extended_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -79,7 +75,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_switch_from_extended_short_to_extended_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
@@ -87,7 +83,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT,
                 "conditions": "conditions_for_switch_from_extended_long_to_basic_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -95,7 +91,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG_EXT,
                 "conditions": "conditions_for_switch_from_basic_short_to_extended_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
@@ -103,7 +99,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.SHORT_EXT,
                 "conditions": "conditions_for_switch_from_basic_long_to_extended_short",
                 "before": "close_long",
-                "after": "open_dca_short",
+                "after": "open_short",
             },
             {
                 "trigger": "process_signal",
@@ -111,7 +107,7 @@ class RsiExtended(RsiBasic):
                 "dest": State.LONG,
                 "conditions": "conditions_for_switch_from_extended_short_to_basic_long",
                 "before": "close_short",
-                "after": "open_dca_long",
+                "after": "open_long",
             },
             {
                 "trigger": "process_signal",
