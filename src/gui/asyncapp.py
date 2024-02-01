@@ -321,6 +321,7 @@ class AsyncApp(App):
                 "pnl": str(data.position_data.pnl),
                 "state": str(data.position_data.state),
                 "status": str(data.position_data.status),
+                "leverage": str(data.position_data.leverage)
             }
         )
 
