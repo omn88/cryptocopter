@@ -155,7 +155,6 @@ class Position:
     side: PositionSide = PositionSide.FLAT  # ToDo: create a function
     orders: List[Order] = field(default_factory=lambda: [])
     liquidation_price: float = 0
-    target_price: float = 0
     take_profit_order: Order = Order(price=0, quantity=0)
     market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     status: PositionStatus = PositionStatus.OPEN
@@ -165,7 +164,7 @@ class Position:
         return (
             f"Position(entry_price={self.entry_price}, quantity={self.quantity}, state={self.state}, "
             f"side={self.side}, orders={self.orders}, liquidation_price={self.liquidation_price}, "
-            f"target_price={self.target_price}, take_profit_order={self.take_profit_order}, "
+            f"take_profit_order={self.take_profit_order}, "
             f"market_order={self.market_order})"
         )
 

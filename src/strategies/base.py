@@ -15,7 +15,6 @@ from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.common.identifiers import (
     AccountUpdate,
-    Order,
     PositionMode,
     PositionSide,
     SignalUpdate,
