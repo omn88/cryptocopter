@@ -2,12 +2,7 @@ import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
-from src.common.common import (
-    futures_get_balance,
-    get_futures_historical_data,
-    insert_to_pandas,
-    rsi_indicator_apply,
-)
+from src.common.common import futures_get_balance
 from src.common.identifiers import (
     BinanceClient,
     EventName,
@@ -19,6 +14,7 @@ from src.common.initialize_trading_environment import (
     determine_start_position,
     prepare_producers,
 )
+from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import AccountData
 from src.strategies.base import BaseStrategy
@@ -50,12 +46,11 @@ class TradingSystem:
         self.client: BinanceClient = client
         self.config: StrategyConfig = config
         self.gui_handler: GuiHandler = gui_handler
+        self.df_handler: DfHandler = DfHandler(client=client, config=config)
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
-        self.raw_data = None
-        self.df = None
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[BaseStrategy] = None
 
@@ -63,15 +58,7 @@ class TradingSystem:
         # await change_margin_type(client=self.client, symbol=self.symbol)
         # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
 
-        # Fetch and process historical data
-        self.raw_data = await get_futures_historical_data(
-            client=self.client,
-            interval=self.config.interval,
-            lookback="4320",
-            symbol=self.config.symbol,
-        )
-        self.df = insert_to_pandas(data=self.raw_data)
-        self.df = rsi_indicator_apply(df=self.df)
+        await self.df_handler.initialize()
 
         self.balance = await futures_get_balance(
             client=self.client, asset=self.config.asset
@@ -80,8 +67,7 @@ class TradingSystem:
         self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
             balance=self.balance,
-            df=self.df,
-            raw_data=self.raw_data,
+            df_handler=self.df_handler,
             config=self.config,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
@@ -91,15 +77,15 @@ class TradingSystem:
 
         await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
 
-        self.df = self.strategy.signals_from_features_generate(
-            df=self.df,
+        self.df_handler.df = self.df_handler.signals_from_features_generate(
+            df=self.df_handler.df,
             conditions=self.strategy.conditions,
             signals=self.strategy.signals,
         )
 
     async def determine_start_position(self):
         await asyncio.sleep(5)
-        await determine_start_position(df=self.df, queue=self.strategy.queue)
+        await determine_start_position(df=self.df_handler.df, queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         await asyncio.sleep(5)

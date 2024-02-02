@@ -1,10 +1,7 @@
-import asyncio
 import numpy
 
-import pandas
 from logging_config import StrategyLogger
 
-from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     BinanceClient,
     Signal,
@@ -14,6 +11,7 @@ from src.common.identifiers import (
     State,
     StrategyConfig,
 )
+from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_basic import RsiBasic
 
@@ -22,29 +20,31 @@ class RsiExtended(RsiBasic):
     def __init__(
         self,
         client: BinanceClient,
-        df: pandas.DataFrame,
         balance: float,
-        raw_data,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
         config: StrategyConfig,
+        df_handler: DfHandler,
     ):
         super().__init__(
             client=client,
-            df=df,
             balance=balance,
-            raw_data=raw_data,
             gui_handler=gui_handler,
             logger=logger,
             config=config,
+            df_handler=df_handler,
         )
-        self.df = self.add_columns_for_rsi_extended(df=self.df)
-        self.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
-        self.conditions += self.get_conditions_for_rsi_extended(df=self.df)
+        self.df_handler.df = self.add_columns_for_rsi_extended(df=self.df_handler.df)
+        self.df_handler.signals.extend([Signal.LONG_EXT, Signal.SHORT_EXT])
+        self.df_handler.conditions += self.get_conditions_for_rsi_extended(
+            df=self.df_handler.df
+        )
 
         self.states += [State.LONG_EXT, State.SHORT_EXT]
-        self.df = self.signals_from_features_generate(
-            df=self.df, conditions=self.conditions, signals=self.signals
+        self.df = self.df_handler.signals_from_features_generate(
+            df=self.df_handler.df,
+            conditions=self.df_handler.conditions,
+            signals=self.df_handler.signals,
         )
         self.transitions += [
             {
@@ -165,21 +165,23 @@ class RsiExtended(RsiBasic):
     async def handle_kline(self, *args, **kwargs):
         self.logger.info("Entering handle kline")
 
-        expected_index = int(self.raw_data[-1][0]) + 900000
+        expected_index = int(self.df_handler.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
         assert expected_index == int(self.kline_update.start_time)
 
-        self.raw_data.append(list(self.kline_update))
+        self.df_handler.raw_data.append(list(self.kline_update))
 
-        temp_df = insert_to_pandas(data=self.raw_data)
-        temp_df = rsi_indicator_apply(df=temp_df)
+        temp_df = self.df_handler.insert_to_pandas()
+        temp_df = self.df_handler.rsi_indicator_apply(df=temp_df)
         temp_df = self.add_columns_for_rsi_basic(df=temp_df)
         temp_df = self.add_columns_for_rsi_extended(df=temp_df)
 
-        self.conditions = self.get_conditions_for_rsi_features(df=temp_df)
+        self.df_handler.conditions = self.get_conditions_for_rsi_features(df=temp_df)
 
-        temp_df = self.signals_from_features_generate(
-            df=temp_df, signals=self.signals, conditions=self.conditions
+        temp_df = self.df_handler.signals_from_features_generate(
+            df=temp_df,
+            signals=self.df_handler.signals,
+            conditions=self.df_handler.conditions,
         )
 
         self.df = self.df.append(temp_df.tail(1))

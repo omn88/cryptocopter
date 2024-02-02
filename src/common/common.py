@@ -27,27 +27,6 @@ def create_directory_with_timestamp():
     return mydir
 
 
-def insert_to_pandas(data: List) -> pandas.DataFrame:
-    # ToDo: Below Timedelta must react to time change (winter/summer)
-    pandas.Timedelta(hours=1)
-    df = pandas.DataFrame(data=data)
-    df = df.iloc[:, :7]
-    df.columns = ["Date", "Open", "High", "Low", "Close", "Volume", "OpenInterest"]
-    df = df.set_index("Date")
-    df.index = pandas.to_datetime(df.index, unit="ms") + numpy.timedelta64(1, "h")
-    df = df.astype(float)
-    return df
-
-
-async def get_futures_historical_data(
-    client: BinanceClient, interval: str, lookback: str, symbol: str
-) -> List:
-    historical_data = await client.futures_historical_klines(
-        symbol, interval, lookback + "min ago UTC"
-    )
-    return historical_data[:-1]
-
-
 async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
     logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())
 
@@ -70,14 +49,6 @@ async def log_signal_change(df, signal):
         signal,
         df.at[df.index[-1], "Position"],
     )
-
-
-def rsi_indicator_apply(df: pandas.DataFrame) -> pandas.DataFrame:
-    rsi = btalib.rsi(df, period=14)
-    df["RSI"] = rsi.df
-    df.dropna(inplace=True)
-
-    return df
 
 
 def signal_to_state(signal: Signal) -> State:

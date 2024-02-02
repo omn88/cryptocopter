@@ -209,4 +209,5 @@ class StrategyConfig(NamedTuple):
     dca_span: float = 0.005
     asset: str = "USDT"
     interval: str = "15m"
+    lookback: str = "4320"
     margin_type: str = "ISOLATED"

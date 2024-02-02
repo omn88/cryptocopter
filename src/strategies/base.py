@@ -25,6 +25,7 @@ from src.common.identifiers import (
     State,
     StrategyConfig,
 )
+from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.position_handler import PositionHandler
 
@@ -33,20 +34,18 @@ class BaseStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        df: pandas.DataFrame,
         balance: float,
-        raw_data,
         config: StrategyConfig,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
+        df_handler,
     ):
         self.client = client
         self.config: StrategyConfig = config
-        self.df = df
         self.balance = balance
-        self.raw_data = raw_data
         self.gui_handler = gui_handler
         self.logger = logger
+        self.df_handler: DfHandler = df_handler
         self.position_handler: PositionHandler = PositionHandler(
             client=client,
             strategy_logger=logger,
@@ -54,9 +53,6 @@ class BaseStrategy:
             gui_handler=gui_handler,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
-
-        self.signals: List = [Signal.LONG, Signal.SHORT]
-        self.conditions: List = []
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -298,12 +294,6 @@ class BaseStrategy:
             },
         ]
 
-    @staticmethod
-    def signals_from_features_generate(df, conditions, signals) -> pandas.DataFrame:
-        df["Signal"] = numpy.select(conditions, signals)
-        df["Position"] = State.FLAT.value
-        return df
-
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
 
@@ -527,9 +517,9 @@ class BaseStrategy:
 
     def skip_signal(self, *args, **kwargs) -> None:
         self.logger.info("Skipping signal: %s", self.signal_update.signal)
-        self.df.at[self.df.index[-1], "Position"] = self.df.at[
-            self.df.index[-2], "Position"
-        ]
+        self.df_handler.df.at[
+            self.df_handler.df.index[-1], "Position"
+        ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
 
     async def open_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)

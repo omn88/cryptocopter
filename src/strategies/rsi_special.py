@@ -1,9 +1,5 @@
-import asyncio
 import numpy
-
-import pandas
 from logging_config import StrategyLogger
-from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     BinanceClient,
     Event,
@@ -15,6 +11,7 @@ from src.common.identifiers import (
     State,
     StrategyConfig,
 )
+from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.strategies.rsi_extended import RsiExtended
 
@@ -23,33 +20,33 @@ class RsiSpecial(RsiExtended):
     def __init__(
         self,
         client: BinanceClient,
-        df: pandas.DataFrame,
         balance: float,
-        raw_data,
+        df_handler: DfHandler,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
         config: StrategyConfig,
     ):
         super().__init__(
             client=client,
-            df=df,
             balance=balance,
-            raw_data=raw_data,
+            df_handler=df_handler,
             config=config,
             gui_handler=gui_handler,
             logger=logger,
         )
-        self.df = self.add_columns_for_rsi_special(df=self.df)
-        self.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
-        self.conditions = (
-            self.get_conditions_for_rsi_basic(df=self.df)
-            + self.get_conditions_for_rsi_extended(df=self.df)
-            + self.get_conditions_for_rsi_special(df=self.df)
+        self.df_handler.df = self.add_columns_for_rsi_special(df=self.df_handler.df)
+        self.df_handler.signals += [Signal.LONG_SPECIAL, Signal.SHORT_SPECIAL]
+        self.df_handler.conditions = (
+            self.get_conditions_for_rsi_basic(df=self.df_handler.df)
+            + self.get_conditions_for_rsi_extended(df=self.df_handler.df)
+            + self.get_conditions_for_rsi_special(df=self.df_handler.df)
         )
 
         self.states += [State.LONG_SPECIAL, State.LONG_SPECIAL]
-        self.df = self.signals_from_features_generate(
-            df=self.df, conditions=self.conditions, signals=self.signals
+        self.df_handler.df = self.df_handler.signals_from_features_generate(
+            df=self.df_handler.df,
+            conditions=self.df_handler.conditions,
+            signals=self.df_handler.signals,
         )
         self.transitions += [
             {
