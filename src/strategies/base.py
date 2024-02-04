@@ -1,7 +1,5 @@
 import asyncio
-from typing import List, Union
-import numpy
-import pandas
+from typing import List
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,

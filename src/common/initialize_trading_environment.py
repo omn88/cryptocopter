@@ -4,7 +4,7 @@ from binance import BinanceSocketManager
 
 import logging
 
-from src.common.identifiers import BinanceClient, Event, EventName, Signal, SignalUpdate
+from src.common.identifiers import BinanceClient
 from src.gui.gui_handler import GuiHandler
 from src.producers.producers import (
     kline_futures_socket,
