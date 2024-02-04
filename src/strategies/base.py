@@ -511,7 +511,7 @@ class BaseStrategy:
         return condition
 
     def update_position_in_df(self, update: Union[Signal, State]):
-        self.df.at[self.df.index[-1], "Position"] = (
+        self.df_handler.df.at[self.df_handler.df.index[-1], "Position"] = (
             signal_to_state(update) if isinstance(update, Signal) else update
         )
 
