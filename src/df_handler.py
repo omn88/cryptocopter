@@ -71,9 +71,3 @@ class DfHandler:
         self.logger.info(
             "Last %s rows from main df: %s", rows, self.df.tail(rows).to_string()
         )
-
-    def log_signal_change(self):
-        self.logger.info(
-            "Position was %s, signal: %s, position now: %s",
-            self.df.at[self.df.index[-2], "Position"],
-        )

@@ -176,7 +176,6 @@ async def special_rsi(mock_AsyncClient):
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
-
     state_machine = TradingStateMachine(
         strategy=RsiSpecial(
             client=mock_AsyncClient,
