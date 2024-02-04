@@ -290,4 +290,4 @@ class RsiExtended(RsiBasic):
     async def change_position_state(self, *args, **kwargs):
         self.logger.info("Changing status to %s", self.signal_update.signal)
         self.position_handler.position.state = State(self.signal_update.signal.value)
-        self.update_position_in_df(self.position_handler.position.state)
+        self.df_handler.update_position_in_df(self.position_handler.position.state)

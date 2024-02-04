@@ -1,8 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 import numpy
 
 import btalib
 import pandas
+from src.common.common import signal_to_state
 from src.common.identifiers import BinanceClient, Signal, State, StrategyConfig
 
 
@@ -11,7 +12,7 @@ class DfHandler:
         self.client = client
         self.config: StrategyConfig = config
         self.raw_data: List = []
-        self.df: Optional[pandas.DataFrame] = None
+        self.df: pandas.DataFrame = pandas.DataFrame()
         self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []
 
@@ -56,3 +57,8 @@ class DfHandler:
         df["Signal"] = numpy.select(conditions, signals)
         df["Position"] = State.FLAT.value
         return df
+
+    def update_position_in_df(self, update: Union[Signal, State]):
+        self.df.at[self.df.index[-1], "Position"] = (
+            signal_to_state(update) if isinstance(update, Signal) else update
+        )

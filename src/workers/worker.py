@@ -10,7 +10,6 @@ from src.common.identifiers import (
     EventName,
     Event,
 )
-from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 
 

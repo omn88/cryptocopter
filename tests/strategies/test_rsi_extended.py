@@ -1,7 +1,7 @@
 from unittest.mock import patch
 import logging
 import pandas
-from src.common.common import rsi_indicator_apply
+
 
 from src.common.identifiers import KlineUpdate, Signal, State
 from src.strategies.rsi_extended import RsiExtended
@@ -63,19 +63,19 @@ def test_rsi_signal_extended_generate(extended_rsi: TradingStateMachine):
 
     assert isinstance(extended_rsi.strategy, RsiExtended)
 
-    test_df = rsi_indicator_apply(df=test_df)
+    test_df = extended_rsi.strategy.df_handler.rsi_indicator_apply(df=test_df)
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
     test_df = extended_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
     test_df = extended_rsi.strategy.add_columns_for_rsi_extended(df=test_df)
-    extended_rsi.strategy.conditions = (
+    extended_rsi.strategy.df_handler.conditions = (
         extended_rsi.strategy.get_conditions_for_rsi_basic(df=test_df)
         + extended_rsi.strategy.get_conditions_for_rsi_extended(df=test_df)
     )
-    test_df = extended_rsi.strategy.signals_from_features_generate(
+    test_df = extended_rsi.strategy.df_handler.signals_from_features_generate(
         test_df,
-        conditions=extended_rsi.strategy.conditions,
-        signals=extended_rsi.strategy.signals,
+        conditions=extended_rsi.strategy.df_handler.conditions,
+        signals=extended_rsi.strategy.df_handler.signals,
     )
 
     test_df_shortened = test_df[

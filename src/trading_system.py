@@ -79,8 +79,8 @@ class TradingSystem:
 
         self.df_handler.df = self.df_handler.signals_from_features_generate(
             df=self.df_handler.df,
-            conditions=self.strategy.conditions,
-            signals=self.strategy.signals,
+            conditions=self.df_handler.conditions,
+            signals=self.df_handler.signals,
         )
 
     async def determine_start_position(self):
@@ -88,6 +88,7 @@ class TradingSystem:
         await determine_start_position(df=self.df_handler.df, queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
+        # is this sleep needed?
         await asyncio.sleep(5)
         if self.state_machine:
             await worker.worker(state_machine=self.state_machine, logger=logger)

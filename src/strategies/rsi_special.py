@@ -177,7 +177,7 @@ class RsiSpecial(RsiExtended):
     async def handle_kline(self, *args, **kwargs):
         self.logger.info("Entering handle kline")
 
-        expected_index = int(self.raw_data[-1][0]) + 900000
+        expected_index = int(self.df_handler.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
         assert expected_index == int(self.kline_update.start_time)
 
@@ -191,20 +191,22 @@ class RsiSpecial(RsiExtended):
             signal = Signal.CLOSE_SPECIAL
 
         else:
-            self.raw_data.append(list(self.kline_update))
+            self.df_handler.raw_data.append(list(self.kline_update))
 
-            temp_df = insert_to_pandas(data=self.raw_data)
-            temp_df = rsi_indicator_apply(df=temp_df)
+            temp_df = self.df_handler.insert_to_pandas()
+            temp_df = self.df_handler.rsi_indicator_apply(df=temp_df)
             temp_df = self.add_columns_for_rsi_basic(df=temp_df)
             temp_df = self.add_columns_for_rsi_extended(df=temp_df)
             temp_df = self.add_columns_for_rsi_special(df=temp_df)
 
-            self.conditions = self.get_conditions_for_rsi_features(
+            self.df_handler.conditions = self.get_conditions_for_rsi_features(
                 df=temp_df
             ) + self.get_conditions_for_rsi_special(df=temp_df)
 
-            temp_df = self.signals_from_features_generate(
-                df=temp_df, signals=self.signals, conditions=self.conditions
+            temp_df = self.df_handler.signals_from_features_generate(
+                df=temp_df,
+                signals=self.df_handler.signals,
+                conditions=self.df_handler.conditions,
             )
 
             self.df = self.df.append(temp_df.tail(1))

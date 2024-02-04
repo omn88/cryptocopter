@@ -5,7 +5,6 @@ import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
-from src.common.common import insert_to_pandas, rsi_indicator_apply
 from src.common.identifiers import (
     Event,
     EventName,
@@ -14,6 +13,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.common.initialize_trading_environment import determine_start_position
+from src.df_handler import DfHandler
 from src.gui.asyncapp import AsyncApp
 from src.gui.gui_handler import GuiHandler
 from src.gui.strategytab import StrategyTab
@@ -43,8 +43,16 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 @pytest.fixture()
 async def base(mock_AsyncClient):
-    raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df = insert_to_pandas(data=raw_data)
+    config = StrategyConfig(
+        symbol="BTCUSDT",
+        name="RE_BTCUSDT",
+        number_of_orders=4,
+        budget=400,
+    )
+    df_handler = DfHandler(client=mock_AsyncClient, config=config)
+
+    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df_handler.df = df_handler.insert_to_pandas()
 
     logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
 
@@ -52,14 +60,8 @@ async def base(mock_AsyncClient):
         strategy=BaseStrategy(
             client=mock_AsyncClient,
             balance=1000,
-            df=df,
-            raw_data=raw_data,
-            config=StrategyConfig(
-                symbol="BTCUSDT",
-                name="RBASE_BTCUSDT",
-                number_of_orders=4,
-                budget=400,
-            ),
+            df_handler=df_handler,
+            config=config,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
@@ -67,8 +69,8 @@ async def base(mock_AsyncClient):
         )
     )
 
-    df["Signal"] = 0
-    df["Position"] = state_machine.strategy.state
+    state_machine.strategy.df_handler.df["Signal"] = 0
+    state_machine.strategy.df_handler.df["Position"] = state_machine.strategy.state
 
     await state_machine.strategy.queue.put(
         Event(name=EventName.SIGNAL, content=SignalUpdate(signal=Signal.NULL, price=0))
@@ -81,9 +83,16 @@ async def base(mock_AsyncClient):
 
 @pytest.fixture()
 async def basic_rsi(mock_AsyncClient):
-    raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df = insert_to_pandas(data=raw_data)
-    df = rsi_indicator_apply(df=df)
+    config = StrategyConfig(
+        symbol="BTCUSDT",
+        name="RE_BTCUSDT",
+        number_of_orders=4,
+        budget=400,
+    )
+    df_handler = DfHandler(client=mock_AsyncClient, config=config)
+    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df_handler.df = df_handler.insert_to_pandas()
+    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
     logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
 
@@ -91,8 +100,7 @@ async def basic_rsi(mock_AsyncClient):
         strategy=RsiBasic(
             client=mock_AsyncClient,
             balance=1000,
-            df=df,
-            raw_data=raw_data,
+            df_handler=df_handler,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
@@ -107,7 +115,7 @@ async def basic_rsi(mock_AsyncClient):
     )
 
     await determine_start_position(
-        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
     )
 
     yield state_machine
@@ -117,9 +125,16 @@ async def basic_rsi(mock_AsyncClient):
 
 @pytest.fixture
 async def extended_rsi(mock_AsyncClient):
-    raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df = insert_to_pandas(data=raw_data)
-    df = rsi_indicator_apply(df=df)
+    config = StrategyConfig(
+        symbol="BTCUSDT",
+        name="RE_BTCUSDT",
+        number_of_orders=4,
+        budget=400,
+    )
+    df_handler = DfHandler(client=mock_AsyncClient, config=config)
+    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df_handler.df = df_handler.insert_to_pandas()
+    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
     logger = StrategyLogger(name="RE_BTCUSDT", strategy_info="RE_BTCUSDT")
 
@@ -127,23 +142,17 @@ async def extended_rsi(mock_AsyncClient):
         strategy=RsiExtended(
             client=mock_AsyncClient,
             balance=1000,
-            df=df,
-            raw_data=raw_data,
+            df_handler=df_handler,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
-            config=StrategyConfig(
-                symbol="BTCUSDT",
-                name="RE_BTCUSDT",
-                number_of_orders=4,
-                budget=400,
-            ),
+            config=config,
             logger=logger,
         )
     )
 
     await determine_start_position(
-        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
     )
     yield state_machine
 
@@ -152,32 +161,33 @@ async def extended_rsi(mock_AsyncClient):
 
 @pytest.fixture
 async def special_rsi(mock_AsyncClient):
-    raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df = insert_to_pandas(data=raw_data)
-    df = rsi_indicator_apply(df=df)
+    config = StrategyConfig(
+        symbol="BTCUSDT",
+        name="RE_BTCUSDT",
+        number_of_orders=4,
+        budget=400,
+    )
+    df_handler = DfHandler(client=mock_AsyncClient, config=config)
+    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
+    df_handler.df = df_handler.insert_to_pandas()
+    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
     logger = StrategyLogger(name="RS_BTCUSDT", strategy_info="RS_BTCUSDT")
     state_machine = TradingStateMachine(
         strategy=RsiSpecial(
             client=mock_AsyncClient,
             balance=1000,
-            df=df,
-            raw_data=raw_data,
+            df_handler=df_handler,
             gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,
-            config=StrategyConfig(
-                symbol="BTCUSDT",
-                name="RS_BTCUSDT",
-                number_of_orders=4,
-                budget=400,
-            ),
+            config=config,
         )
     )
 
     await determine_start_position(
-        df=state_machine.strategy.df, queue=state_machine.strategy.queue
+        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
     )
 
     yield state_machine
