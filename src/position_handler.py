@@ -25,7 +25,6 @@ class PositionHandler:
         config: StrategyConfig,
         gui_handler: GuiHandler,
     ):
-        self.client = client
         self.config = config
         self.position: Position = Position()
         self.closed_positions: List[Position] = []
@@ -335,7 +334,7 @@ class PositionHandler:
                 part_filled_ord = order
 
     async def futures_get_position_info(self) -> None:
-        resp = await self.client.futures_position_information(
+        resp = await self.order_handler.client.futures_position_information(
             symbol=self.position.symbol
         )
         self.position.liquidation_price = round(float(resp[0]["liquidationPrice"]), 1)

@@ -1,7 +1,4 @@
-import logging
 from logging_config import StrategyLogger
-
-from src.common.common import print_last_n_rows
 from src.common.identifiers import (
     KlineUpdate,
     OrderUpdate,
@@ -10,7 +7,6 @@ from src.common.identifiers import (
     EventName,
     Event,
 )
-from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 
 
@@ -34,7 +30,9 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             # All process_* methods are created dynamically, MyPy does not know it exists.
             await state_machine.strategy.process_kline()  # type: ignore
 
-            await print_last_n_rows(df=state_machine.strategy.df)
+            await state_machine.strategy.df_handler.print_last_n_rows(
+                df=state_machine.strategy.df
+            )
 
         elif EventName.ORDER == event.name:
             logger.info(
@@ -66,7 +64,9 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             state_machine.strategy.signal_update = event.content
             await state_machine.strategy.process_signal()  # type: ignore
 
-            await print_last_n_rows(df=state_machine.strategy.df)
+            await state_machine.strategy.df_handler.print_last_n_rows(
+                df=state_machine.strategy.df
+            )
 
         elif EventName.SENTINEL == event.name:
             logger.info("Entering sentinel event -> Exiting worker")

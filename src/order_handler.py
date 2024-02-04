@@ -332,10 +332,13 @@ class OrderHandler:
     async def create_take_profit_order(
         self, position: Position, leverage: int
     ) -> Order:
-        order = await self.create_order(
-            side=PositionSide.LONG
+        side = (
+            PositionSide.LONG
             if position.side == PositionSide.SHORT
-            else PositionSide.SHORT,
+            else PositionSide.SHORT
+        )
+        order = await self.create_order(
+            side=side,
             order=Order(
                 price=self.target_price_calculate(
                     side=position.side, price=position.entry_price, leverage=leverage
@@ -350,7 +353,7 @@ class OrderHandler:
         )
 
         await self.gui_handler.update_order(
-            order=order, side=position.side, symbol=position.symbol
+            order=order, side=side, symbol=position.symbol
         )
 
         return order

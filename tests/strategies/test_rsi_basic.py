@@ -1,15 +1,15 @@
 import logging
 
 import pandas
-from src.common.common import rsi_indicator_apply
 
 from src.common.identifiers import KlineUpdate, Signal, State
+from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import get_cancel_order, get_orders_long
 
 logger = logging.getLogger("test_rsi_basic")
 
 
-def test_basic_rsi_signal_generate(basic_rsi):
+def test_basic_rsi_signal_generate(basic_rsi: TradingStateMachine):
     test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
     test_df = test_df.set_index("Date")
 
@@ -46,20 +46,20 @@ def test_basic_rsi_signal_generate(basic_rsi):
     ]
     expected_df = expected_df.set_index("Date")
 
-    test_df = rsi_indicator_apply(df=test_df)
+    test_df = basic_rsi.strategy.df_handler.rsi_indicator_apply(df=test_df)
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
     test_df = basic_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
-    basic_rsi.strategy.conditions = basic_rsi.strategy.get_conditions_for_rsi_basic(
-        df=test_df
+    basic_rsi.strategy.df_handler.conditions = (
+        basic_rsi.strategy.get_conditions_for_rsi_basic(df=test_df)
     )
 
     logger.info("Test DF with RSI: %s", test_df)
 
-    test_df = basic_rsi.strategy.signals_from_features_generate(
+    test_df = basic_rsi.strategy.df_handler.signals_from_features_generate(
         test_df,
-        conditions=basic_rsi.strategy.conditions,
-        signals=basic_rsi.strategy.signals,
+        conditions=basic_rsi.strategy.df_handler.conditions,
+        signals=basic_rsi.strategy.df_handler.signals,
     )
 
     logger.info("Test DF with signals: %s", test_df)

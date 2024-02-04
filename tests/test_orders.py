@@ -51,7 +51,7 @@ async def test_long_first_order_filled(base):
 
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_first_order_filled_partially(base):
@@ -99,7 +99,7 @@ async def test_long_first_order_filled_partially(base):
         == realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_first_order_filled_partially_twice(base):
@@ -148,7 +148,7 @@ async def test_long_first_order_filled_partially_twice(base):
         == realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     another_realized_quantity = round(float(quantity / 4), 3)
 
@@ -185,7 +185,7 @@ async def test_long_first_order_filled_partially_twice(base):
         == realized_quantity + another_realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_two_orders_filled(base):
@@ -199,7 +199,7 @@ async def test_long_two_orders_filled(base):
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -207,7 +207,7 @@ async def test_long_two_orders_filled(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_first_order_new(base):
@@ -235,7 +235,7 @@ async def test_long_first_order_new(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_first_order_expired(base):
@@ -265,7 +265,7 @@ async def test_long_first_order_expired(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_first_order_canceled(base):
@@ -296,7 +296,7 @@ async def test_long_first_order_canceled(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_two_orders_filled_then_target_reached(base):
@@ -322,7 +322,7 @@ async def test_long_two_orders_filled_then_target_reached(base):
         type(base.strategy.balance),
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -330,7 +330,7 @@ async def test_long_two_orders_filled_then_target_reached(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     logger.info(
         "Second order Balance: %s, type: %s",
@@ -343,7 +343,7 @@ async def test_long_two_orders_filled_then_target_reached(base):
         "Balance: %s, type: %s", base.strategy.balance, type(base.strategy.balance)
     )
     assert base.strategy.balance == 1099.75
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_long_all_orders_filled_then_target_reached(
@@ -359,7 +359,7 @@ async def test_long_all_orders_filled_then_target_reached(
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -367,7 +367,7 @@ async def test_long_all_orders_filled_then_target_reached(
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20644.0
@@ -380,7 +380,7 @@ async def test_long_all_orders_filled_then_target_reached(
         price=0, quantity=0
     )
     assert base.strategy.balance == 1199.29
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_long_all_orders_filled_then_target_reached_partially(base):
@@ -394,7 +394,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(base):
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -402,7 +402,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20644.0
@@ -458,7 +458,7 @@ async def test_long_all_orders_filled_then_target_reached_partially(base):
         == partial_quantity
     )
     assert base.strategy.balance == 1100.04
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
 
 async def test_long_all_orders_filled_then_target_reached_partially_then_filled_completely(
@@ -474,7 +474,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -482,7 +482,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20644.0
@@ -535,7 +535,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         == partial_quantity
     )
     assert base.strategy.balance == 1100.04
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     status = ORDER_STATUS_FILLED
 
@@ -555,7 +555,7 @@ async def test_long_all_orders_filled_then_target_reached_partially_then_filled_
         price=0, quantity=0
     )
     assert base.strategy.balance == 1199.29
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_long_all_orders_filled_then_liquidation(base):
@@ -569,7 +569,7 @@ async def test_long_all_orders_filled_then_liquidation(base):
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -577,7 +577,7 @@ async def test_long_all_orders_filled_then_liquidation(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20644.0
@@ -604,7 +604,7 @@ async def test_long_all_orders_filled_then_liquidation(base):
         price=0, quantity=0
     )
     assert base.strategy.balance == 800.00
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_long_all_orders_filled_then_short_first_order_filled(base):
@@ -622,7 +622,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(base):
     await start_long(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     assert base.strategy.position_handler.position.take_profit_order.price == 20800.0
     assert base.strategy.position_handler.position.liquidation_price == 19200
@@ -630,14 +630,14 @@ async def test_long_all_orders_filled_then_short_first_order_filled(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20748.0
     assert base.strategy.position_handler.position.liquidation_price == 19152
-    assert base.strategy.df.iloc[-1]["Position"] == State.LONG
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.LONG
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 20644.0
     assert base.strategy.position_handler.position.liquidation_price == 19056
 
     base.strategy.signal_update = generate_signal(
-        signal=Signal.SHORT, df=base.strategy.df
+        signal=Signal.SHORT, df=base.strategy.df_handler.df
     )
 
     await base.strategy.process_signal()
@@ -647,7 +647,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(base):
         balance=base.strategy.balance,
         state=base.strategy.state,
         signal_update=base.strategy.signal_update,
-        df=base.strategy.df,
+        df=base.strategy.df_handler.df,
         number_of_orders=base.strategy.position_handler.config.number_of_orders,
     )
 
@@ -667,7 +667,7 @@ async def test_long_all_orders_filled_then_short_first_order_filled(base):
 
     await first_order_filled(base=base.strategy, order_id=10)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 # ------------------------------ SHORT -------------------------------------#
@@ -683,7 +683,7 @@ async def test_short_first_order_filled(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_first_order_filled_partially(base):
@@ -731,7 +731,7 @@ async def test_short_first_order_filled_partially(base):
         == realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_first_order_filled_partially_twice(base):
@@ -779,7 +779,7 @@ async def test_short_first_order_filled_partially_twice(base):
         == realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     another_realized_quantity = round(float(quantity / 4), 3)
 
@@ -816,7 +816,7 @@ async def test_short_first_order_filled_partially_twice(base):
         == realized_quantity + another_realized_quantity
     )
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_two_orders_filled(base):
@@ -830,7 +830,7 @@ async def test_short_two_orders_filled(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -838,7 +838,7 @@ async def test_short_two_orders_filled(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_first_order_new(base):
@@ -865,7 +865,7 @@ async def test_short_first_order_new(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_first_order_expired(base):
@@ -894,7 +894,7 @@ async def test_short_first_order_expired(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_first_order_canceled(base):
@@ -925,7 +925,7 @@ async def test_short_first_order_canceled(base):
     assert base.strategy.position_handler.position.orders[1].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[2].status == ORDER_STATUS_NEW
     assert base.strategy.position_handler.position.orders[3].status == ORDER_STATUS_NEW
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_two_orders_filled_then_target_reached(base):
@@ -939,7 +939,7 @@ async def test_short_two_orders_filled_then_target_reached(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -947,12 +947,12 @@ async def test_short_two_orders_filled_then_target_reached(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     await target_reached(base=base.strategy)
 
     assert base.strategy.balance == 1099.45
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_short_all_orders_filled_then_target_reached(base):
@@ -966,7 +966,7 @@ async def test_short_all_orders_filled_then_target_reached(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -974,7 +974,7 @@ async def test_short_all_orders_filled_then_target_reached(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19344.0
@@ -982,7 +982,7 @@ async def test_short_all_orders_filled_then_target_reached(base):
 
     await target_reached(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
     assert round(base.strategy.balance, 2) == 1199.89
 
 
@@ -997,7 +997,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -1005,7 +1005,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19344.0
@@ -1054,7 +1054,7 @@ async def test_short_all_orders_filled_then_target_reached_partially(base):
         == partial_quantity
     )
     assert base.strategy.balance == 1099.94
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
 
 async def test_short_all_orders_filled_then_target_reached_partially_then_filled_completely(
@@ -1070,7 +1070,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -1078,7 +1078,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19344.0
@@ -1127,7 +1127,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         == partial_quantity
     )
     assert base.strategy.balance == 1099.94
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     price = base.strategy.position_handler.position.take_profit_order.price
     status = ORDER_STATUS_FILLED
@@ -1148,7 +1148,7 @@ async def test_short_all_orders_filled_then_target_reached_partially_then_filled
         price=0, quantity=0
     )
     assert base.strategy.balance == 1199.88
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT
 
 
 async def test_short_all_orders_filled_then_liquidation(base):
@@ -1162,7 +1162,7 @@ async def test_short_all_orders_filled_then_liquidation(base):
     await start_short(base=base.strategy)
     await first_order_filled(base=base.strategy)
 
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     assert base.strategy.position_handler.position.take_profit_order.price == 19200.0
     assert base.strategy.position_handler.position.liquidation_price == 20800
@@ -1170,7 +1170,7 @@ async def test_short_all_orders_filled_then_liquidation(base):
     await second_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19248.0
     assert base.strategy.position_handler.position.liquidation_price == 20848.0
-    assert base.strategy.df.iloc[-1]["Position"] == State.SHORT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.SHORT
 
     await third_and_fourth_order_filled(base=base.strategy)
     assert base.strategy.position_handler.position.take_profit_order.price == 19344.0
@@ -1197,4 +1197,4 @@ async def test_short_all_orders_filled_then_liquidation(base):
         price=0, quantity=0
     )
     assert base.strategy.balance == 800.00
-    assert base.strategy.df.iloc[-1]["Position"] == State.FLAT
+    assert base.strategy.df_handler.df.iloc[-1]["Position"] == State.FLAT

@@ -15,7 +15,6 @@ from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.common.identifiers import (
     AccountUpdate,
-    Order,
     PositionMode,
     PositionSide,
     SignalUpdate,
@@ -26,6 +25,7 @@ from src.common.identifiers import (
     State,
     StrategyConfig,
 )
+from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.position_handler import PositionHandler
 
@@ -34,20 +34,18 @@ class BaseStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        df: pandas.DataFrame,
         balance: float,
-        raw_data,
         config: StrategyConfig,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
+        df_handler,
     ):
         self.client = client
         self.config: StrategyConfig = config
-        self.df = df
         self.balance = balance
-        self.raw_data = raw_data
         self.gui_handler = gui_handler
         self.logger = logger
+        self.df_handler: DfHandler = df_handler
         self.position_handler: PositionHandler = PositionHandler(
             client=client,
             strategy_logger=logger,
@@ -55,9 +53,6 @@ class BaseStrategy:
             gui_handler=gui_handler,
         )
         self.queue: asyncio.Queue = asyncio.Queue()
-
-        self.signals: List = [Signal.LONG, Signal.SHORT]
-        self.conditions: List = []
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -299,12 +294,6 @@ class BaseStrategy:
             },
         ]
 
-    @staticmethod
-    def signals_from_features_generate(df, conditions, signals) -> pandas.DataFrame:
-        df["Signal"] = numpy.select(conditions, signals)
-        df["Position"] = State.FLAT.value
-        return df
-
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
 
@@ -521,16 +510,11 @@ class BaseStrategy:
         )
         return condition
 
-    def update_position_in_df(self, update: Union[Signal, State]):
-        self.df.at[self.df.index[-1], "Position"] = (
-            signal_to_state(update) if isinstance(update, Signal) else update
-        )
-
     def skip_signal(self, *args, **kwargs) -> None:
         self.logger.info("Skipping signal: %s", self.signal_update.signal)
-        self.df.at[self.df.index[-1], "Position"] = self.df.at[
-            self.df.index[-2], "Position"
-        ]
+        self.df_handler.df.at[
+            self.df_handler.df.index[-1], "Position"
+        ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
 
     async def open_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)
@@ -546,7 +530,9 @@ class BaseStrategy:
             signal_update=self.signal_update,
         )
 
-        self.update_position_in_df(update=State(self.signal_update.signal.value))
+        self.df_handler.update_position_in_df(
+            update=State(self.signal_update.signal.value)
+        )
 
     async def open_short(self, *args, **kwargs):
         self.logger.info("Opening %s", self.signal_update.signal)
@@ -561,20 +547,26 @@ class BaseStrategy:
             mode=self.mode,
             signal_update=self.signal_update,
         )
-        self.update_position_in_df(update=self.position_handler.position.state)
+        self.df_handler.update_position_in_df(
+            update=self.position_handler.position.state
+        )
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
 
         await self.position_handler.close_position()
 
-        self.update_position_in_df(update=State(self.signal_update.signal.value))
+        self.df_handler.update_position_in_df(
+            update=State(self.signal_update.signal.value)
+        )
 
     async def close_short(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
         await self.position_handler.close_position()
 
-        self.update_position_in_df(update=State(self.signal_update.signal.value))
+        self.df_handler.update_position_in_df(
+            update=State(self.signal_update.signal.value)
+        )
 
     async def log_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
@@ -624,7 +616,7 @@ class BaseStrategy:
 
     async def enter_flat(self, *args, **kwargs):
         self.logger.info("Entering Flat")
-        self.update_position_in_df(update=State.FLAT)
+        self.df_handler.update_position_in_df(update=State.FLAT)
 
     async def handle_target_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order filled")

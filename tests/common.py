@@ -82,7 +82,8 @@ async def first_order_filled(base, order_id=1):
     await base.process_order()
 
     logger.info(
-        "DF position przed assertem: %s", base.df.at[base.df.index[-1], "Position"]
+        "DF position przed assertem: %s",
+        base.df_handler.df.at[base.df_handler.df.index[-1], "Position"],
     )
 
     assert base.position_handler.position.orders is not None
@@ -252,7 +253,7 @@ async def target_reached(base):
 
 
 async def start_long(base) -> None:
-    base.signal_update = generate_signal(signal=Signal.LONG, df=base.df)
+    base.signal_update = generate_signal(signal=Signal.LONG, df=base.df_handler.df)
 
     await base.process_signal()
 
@@ -261,13 +262,13 @@ async def start_long(base) -> None:
         balance=base.balance,
         state=base.position_handler.position.state,
         signal_update=base.signal_update,
-        df=base.df,
+        df=base.df_handler.df,
         number_of_orders=base.position_handler.config.number_of_orders,
     )
 
 
 async def start_short(base) -> None:
-    base.signal_update = generate_signal(signal=Signal.SHORT, df=base.df)
+    base.signal_update = generate_signal(signal=Signal.SHORT, df=base.df_handler.df)
 
     await base.process_signal()
 
@@ -276,7 +277,7 @@ async def start_short(base) -> None:
         balance=base.balance,
         state=base.position_handler.position.state,
         signal_update=base.signal_update,
-        df=base.df,
+        df=base.df_handler.df,
         number_of_orders=base.position_handler.config.number_of_orders,
     )
 
