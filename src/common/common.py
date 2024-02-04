@@ -1,11 +1,7 @@
 import errno
 import logging
 import os
-from typing import List
 from datetime import datetime
-import btalib
-import numpy
-import pandas
 import pytz
 import uuid
 from src.common.identifiers import Signal, State, BinanceClient
@@ -27,10 +23,6 @@ def create_directory_with_timestamp():
     return mydir
 
 
-async def print_last_n_rows(df: pandas.DataFrame, rows: int = 5):
-    logger.info("Last %s rows from main df: %s", rows, df.tail(rows).to_string())
-
-
 async def futures_get_balance(client: BinanceClient, asset: str) -> float:
     account_balance = await client.futures_account_balance(asset=asset)
     for account in account_balance:
@@ -40,15 +32,6 @@ async def futures_get_balance(client: BinanceClient, asset: str) -> float:
             return balance
 
     raise KeyError(f"Asset: {asset} not found in account balance")
-
-
-async def log_signal_change(df, signal):
-    logger.info(
-        "Position was %s, signal: %s, position now: %s",
-        df.at[df.index[-2], "Position"],
-        signal,
-        df.at[df.index[-1], "Position"],
-    )
 
 
 def signal_to_state(signal: Signal) -> State:

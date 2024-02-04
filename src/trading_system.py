@@ -46,7 +46,7 @@ class TradingSystem:
         self.client: BinanceClient = client
         self.config: StrategyConfig = config
         self.gui_handler: GuiHandler = gui_handler
-        self.df_handler: DfHandler = DfHandler(client=client, config=config)
+        self.df_handler: DfHandler = DfHandler(client=client, config=config, logger=strategy_logger)
         self.strategy_logger: StrategyLogger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()

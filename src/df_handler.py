@@ -1,20 +1,24 @@
-from typing import List, Optional, Union
+from typing import List, Union
 import numpy
 
 import btalib
 import pandas
+from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.common.identifiers import BinanceClient, Signal, State, StrategyConfig
 
 
 class DfHandler:
-    def __init__(self, client: BinanceClient, config: StrategyConfig):
+    def __init__(
+        self, client: BinanceClient, config: StrategyConfig, logger: StrategyLogger
+    ):
         self.client = client
         self.config: StrategyConfig = config
         self.raw_data: List = []
         self.df: pandas.DataFrame = pandas.DataFrame()
         self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []
+        self.logger: StrategyLogger = logger
 
     async def initialize(self):
         self.raw_data = await self.get_futures_historical_data(
@@ -61,4 +65,15 @@ class DfHandler:
     def update_position_in_df(self, update: Union[Signal, State]):
         self.df.at[self.df.index[-1], "Position"] = (
             signal_to_state(update) if isinstance(update, Signal) else update
+        )
+
+    def print_last_n_rows(self, rows: int = 5):
+        self.logger.info(
+            "Last %s rows from main df: %s", rows, self.df.tail(rows).to_string()
+        )
+
+    def log_signal_change(self):
+        self.logger.info(
+            "Position was %s, signal: %s, position now: %s",
+            self.df.at[self.df.index[-2], "Position"],
         )
