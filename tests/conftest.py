@@ -12,7 +12,6 @@ from src.common.identifiers import (
     SignalUpdate,
     StrategyConfig,
 )
-from src.common.initialize_trading_environment import determine_start_position
 from src.df_handler import DfHandler
 from src.gui.asyncapp import AsyncApp
 from src.gui.gui_handler import GuiHandler
@@ -116,8 +115,8 @@ async def basic_rsi(mock_AsyncClient):
         )
     )
 
-    await determine_start_position(
-        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
+    await state_machine.strategy.df_handler.determine_start_position(
+        queue=state_machine.strategy.queue
     )
 
     yield state_machine
@@ -154,8 +153,8 @@ async def extended_rsi(mock_AsyncClient):
         )
     )
 
-    await determine_start_position(
-        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
+    await state_machine.strategy.df_handler.determine_start_position(
+        queue=state_machine.strategy.queue
     )
     yield state_machine
 
@@ -189,8 +188,8 @@ async def special_rsi(mock_AsyncClient):
         )
     )
 
-    await determine_start_position(
-        df=state_machine.strategy.df_handler.df, queue=state_machine.strategy.queue
+    await state_machine.strategy.df_handler.determine_start_position(
+        queue=state_machine.strategy.queue
     )
 
     yield state_machine

@@ -10,10 +10,7 @@ from src.common.identifiers import (
     SentinelUpdate,
     StrategyConfig,
 )
-from src.common.initialize_trading_environment import (
-    determine_start_position,
-    prepare_producers,
-)
+from src.common.initialize_trading_environment import prepare_producers
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import AccountData
@@ -87,7 +84,7 @@ class TradingSystem:
 
     async def determine_start_position(self):
         await asyncio.sleep(5)
-        await determine_start_position(df=self.df_handler.df, queue=self.strategy.queue)
+        await self.df_handler.determine_start_position(queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         # is this sleep needed?
