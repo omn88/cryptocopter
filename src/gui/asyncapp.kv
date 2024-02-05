@@ -9,14 +9,14 @@ TabbedPanel:
 
             BoxLayout:
                 orientation: 'horizontal'
-                size_hint_y: 0.07
+                size_hint_y: 0.1
 
                 Spinner:
                     id: strategy_spinner
                     text: 'Choose Strategy'
                     values: ('RSI Basic', 'RSI Extended', 'RSI Special')
                     size_hint: (0.2, 1)
-                    on_text: app.log_spinner_change('strategy', self.text)
+                    on_text: app.on_strategy_change(self.text)
 
                 Spinner:
                     id: symbol_spinner
@@ -44,9 +44,16 @@ TabbedPanel:
                         size_hint: (0.5, 1)
                         on_press: app.cancel_all_strategies()
 
-            Label:
-                size_hint_y: 0.1
-                text: ''
+            BoxLayout:
+                size_hint_y: 0.02  # Spacer at the top
+
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: 0.07
+                id: dynamic_ui_container
+
+            BoxLayout:
+                size_hint_y: 0.08  # Spacer
 
             TabbedPanel:
                 size_hint_y: 0.67

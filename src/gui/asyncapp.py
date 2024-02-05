@@ -13,6 +13,9 @@ from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
+from kivy.uix.spinner import Spinner
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.identifiers import BinanceClient, Position, StrategyConfig
 from src.gui.gui_handler import GuiHandler
@@ -190,6 +193,61 @@ class AsyncApp(App):
     async def on_cancel(self):
         for trading_system in self.trading_systems:
             await trading_system.stop()
+
+    def on_strategy_change(self, strategy_name):
+        self.log_spinner_change("Strategy", strategy_name)
+        self.update_dynamic_ui(strategy_name)
+
+    def update_dynamic_ui(self, strategy_name):
+        # Clear existing widgets in the dynamic UI container
+        self.root.ids.dynamic_ui_container.clear_widgets()
+
+        # Check the strategy and add relevant UI elements
+        if strategy_name.startswith("RSI"):
+            # Container for Leverage
+            leverage_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            leverage_label = Label(text="Leverage", size_hint_y=None, height=20)
+            leverage_spinner = Spinner(
+                text="25",  # Default value
+                values=[str(x) for x in range(1, 101)],
+                size_hint_y=None,
+                height=30,
+            )
+            leverage_container.add_widget(leverage_label)
+            leverage_container.add_widget(leverage_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(leverage_container)
+
+            # Container for Number of DCA Orders
+            orders_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            orders_label = Label(text="DCA orders", size_hint_y=None, height=20)
+            orders_spinner = Spinner(
+                text="2",  # Default value
+                values=[str(x) for x in range(1, 9)],
+                size_hint_y=None,
+                height=30,
+            )
+            orders_container.add_widget(orders_label)
+            orders_container.add_widget(orders_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(orders_container)
+
+            # Container for the DCA Span
+            orders_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            orders_label = Label(text="DCA span", size_hint_y=None, height=20)
+            orders_spinner = Spinner(
+                text="0.005",  # Default value
+                values=[str(x / 1000) for x in range(1, 11)],
+                size_hint_y=None,
+                height=30,
+            )
+            orders_container.add_widget(orders_label)
+            orders_container.add_widget(orders_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(orders_container)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
