@@ -96,7 +96,9 @@ class AsyncApp(App):
         return StrategyConfig(
             name=self.root.ids.strategy_spinner.text,
             symbol=self.root.ids.symbol_spinner.text,
-            number_of_orders=2,
+            number_of_orders=self.root.ids.orders_spinner.text,
+            dca_span=self.root.ids.dca_span_spinner.text,
+            leverage=self.root.leverage_spinner.text,
             budget=20,
         )
 
@@ -235,19 +237,19 @@ class AsyncApp(App):
             self.root.ids.dynamic_ui_container.add_widget(orders_container)
 
             # Container for the DCA Span
-            orders_container = BoxLayout(
+            dca_span_container = BoxLayout(
                 orientation="vertical", size_hint_x=None, width=100
             )
-            orders_label = Label(text="DCA span", size_hint_y=None, height=20)
-            orders_spinner = Spinner(
+            dca_span_label = Label(text="DCA span", size_hint_y=None, height=20)
+            dca_span_spinner = Spinner(
                 text="0.005",  # Default value
                 values=[str(x / 1000) for x in range(1, 11)],
                 size_hint_y=None,
                 height=30,
             )
-            orders_container.add_widget(orders_label)
-            orders_container.add_widget(orders_spinner)
-            self.root.ids.dynamic_ui_container.add_widget(orders_container)
+            dca_span_container.add_widget(dca_span_label)
+            dca_span_container.add_widget(dca_span_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(dca_span_container)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
