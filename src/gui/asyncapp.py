@@ -64,6 +64,7 @@ class AsyncApp(App):
             "RSI Extended": "RE",
             "RSI Special": "RS",
         }
+        self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.update_ui())
 
     def __str__(self):
@@ -93,13 +94,27 @@ class AsyncApp(App):
         asyncio.create_task(self.on_start_strategy())
 
     def strategy_config_retrieve(self):
+        strategy_name = self.root.ids.strategy_spinner.text
+        symbol = self.root.ids.symbol_spinner.text
+
+        leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
+        orders_spinner = self.dynamic_spinners.get(strategy_name, {})
+        dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
+
+        if leverage_spinner:
+            leverage = int(leverage_spinner.get("leverage_spinner").text)
+        if orders_spinner:
+            number_of_orders = int(orders_spinner.get("orders_spinner").text)
+        if dca_span_spinner:
+            dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
+
         return StrategyConfig(
-            name=self.root.ids.strategy_spinner.text,
-            symbol=self.root.ids.symbol_spinner.text,
-            number_of_orders=self.root.ids.orders_spinner.text,
-            dca_span=self.root.ids.dca_span_spinner.text,
-            leverage=self.root.leverage_spinner.text,
-            budget=20,
+            name=strategy_name,
+            symbol=symbol,
+            number_of_orders=number_of_orders,
+            dca_span=dca_span,
+            leverage=leverage,
+            budget=20.0,
         )
 
     async def on_start_strategy(self):
@@ -217,9 +232,15 @@ class AsyncApp(App):
                 size_hint_y=None,
                 height=30,
             )
+            leverage_spinner.id = "leverage_spinner"
             leverage_container.add_widget(leverage_label)
             leverage_container.add_widget(leverage_spinner)
             self.root.ids.dynamic_ui_container.add_widget(leverage_container)
+
+            # Store reference to the leverage_spinner
+            self.dynamic_spinners[strategy_name] = {
+                "leverage_spinner": leverage_spinner
+            }
 
             # Container for Number of DCA Orders
             orders_container = BoxLayout(
@@ -232,9 +253,13 @@ class AsyncApp(App):
                 size_hint_y=None,
                 height=30,
             )
+            orders_spinner.id = "orders_spinner"
             orders_container.add_widget(orders_label)
             orders_container.add_widget(orders_spinner)
             self.root.ids.dynamic_ui_container.add_widget(orders_container)
+
+            # Store reference to the orders_spinner
+            self.dynamic_spinners[strategy_name]["orders_spinner"] = orders_spinner
 
             # Container for the DCA Span
             dca_span_container = BoxLayout(
@@ -247,9 +272,15 @@ class AsyncApp(App):
                 size_hint_y=None,
                 height=30,
             )
+            dca_span_spinner.id = "dca_span_spinner"
             dca_span_container.add_widget(dca_span_label)
             dca_span_container.add_widget(dca_span_spinner)
             self.root.ids.dynamic_ui_container.add_widget(dca_span_container)
+
+            # Store reference to the dca_span_spinner
+            self.dynamic_spinners[strategy_name]["dca_span_spinner"] = dca_span_spinner
+
+            logger.info("IDs AFTER ADDING: %s", self.root.ids)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")

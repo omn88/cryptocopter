@@ -43,28 +43,27 @@ class PositionHandler:
         self,
         side: PositionSide,
         signal_update: SignalUpdate,
-        number_of_orders: int,
-        symbol: str,
         mode: PositionMode,
-        strategy_name: str,
+        config: StrategyConfig,
     ) -> None:
         self.position = Position(
-            id=generate_position_id(strategy_name=strategy_name),
-            symbol=symbol,
+            id=generate_position_id(strategy_name=config.name),
+            symbol=config.symbol,
             side=side,
             entry_price=signal_update.price,
         )
+        self.strategy_logger.info("Position created: %s", self.position)
         self.position.orders = self.order_handler.prepare_orders(
             side=side,
             mode=mode,
             entry_price=signal_update.price,
-            number_of_orders=number_of_orders,
+            number_of_orders=config.number_of_orders,
             dca_span=self.config.dca_span,
             leverage=self.config.leverage,
         )
         self.position.entry_price = signal_update.price
         self.position.orders = await self.order_handler.create_orders(
-            side=side, orders=self.position.orders, symbol=symbol
+            side=side, orders=self.position.orders, symbol=config.symbol
         )
         self.position.state = signal_to_state(signal_update.signal)
 
