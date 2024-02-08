@@ -108,6 +108,8 @@ class AsyncApp(App):
         if dca_span_spinner:
             dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
 
+        logger.info("lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span)
+
         return StrategyConfig(
             name=strategy_name,
             symbol=symbol,
@@ -279,8 +281,6 @@ class AsyncApp(App):
 
             # Store reference to the dca_span_spinner
             self.dynamic_spinners[strategy_name]["dca_span_spinner"] = dca_span_spinner
-
-            logger.info("IDs AFTER ADDING: %s", self.root.ids)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")

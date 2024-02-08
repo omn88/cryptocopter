@@ -529,6 +529,7 @@ class BaseStrategy:
         self.df_handler.update_position_in_df(
             update=State(self.signal_update.signal.value)
         )
+        self.logger.info("LONG OPENED")
 
     async def open_short(self, *args, **kwargs):
         self.logger.info("Opening %s", self.signal_update.signal)
@@ -544,6 +545,7 @@ class BaseStrategy:
         self.df_handler.update_position_in_df(
             update=self.position_handler.position.state
         )
+        self.logger.info("SHORT OPENED")
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)

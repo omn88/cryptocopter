@@ -71,6 +71,7 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
+        self.strategy_logger.info("Position opened successfully.")
 
     async def close_position(self) -> None:
         self.strategy_logger.info(
@@ -355,6 +356,14 @@ class PositionHandler:
                 "Cancelled take profit order with id: %s",
                 self.position.take_profit_order.order_id,
             )
+            await self.gui_handler.update_order(
+                order=self.position.take_profit_order,
+                side=PositionSide.SHORT
+                if self.position.side == PositionSide.LONG
+                else PositionSide.LONG,
+                symbol=self.position.symbol,
+            )
+            self.strategy_logger.info("GUI order updated")
 
         # create new take profit
         self.position.take_profit_order = (

@@ -7,6 +7,7 @@ from src.common.identifiers import (
     EventName,
     Event,
 )
+from src.strategies.base import BaseStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 
 
@@ -64,8 +65,14 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             state_machine.strategy.signal_update = event.content
             await state_machine.strategy.process_signal()  # type: ignore
 
-            await state_machine.strategy.df_handler.print_last_n_rows(
-                df=state_machine.strategy.df
+            assert isinstance(state_machine.strategy, BaseStrategy)
+
+            # ToDo: FIGURE OUT why this methods halts the system and direct same code works.
+            # await state_machine.strategy.df_handler.print_last_n_rows()
+            logger.info(
+                "Last %s rows from main df: %s",
+                5,
+                state_machine.strategy.df_handler.df.tail(5).to_string(),
             )
 
         elif EventName.SENTINEL == event.name:
