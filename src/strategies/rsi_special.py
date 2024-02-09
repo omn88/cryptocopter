@@ -151,9 +151,7 @@ class RsiSpecial(RsiExtended):
             side=PositionSide.LONG,
             signal_update=self.signal_update,
             mode=self.mode,
-            symbol=self.config.symbol,
-            number_of_orders=self.position_handler.config.number_of_orders,
-            strategy_name=self.config.name,
+            config=self.config,
         )
 
     async def open_special_short(self, *args, **kwargs):
@@ -165,9 +163,7 @@ class RsiSpecial(RsiExtended):
             side=PositionSide.SHORT,
             signal_update=self.signal_update,
             mode=self.mode,
-            symbol=self.config.symbol,
-            number_of_orders=self.position_handler.config.number_of_orders,
-            strategy_name=self.config.name,
+            config=self.config,
         )
 
     async def close_special_position(self, *args, **kwargs):

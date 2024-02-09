@@ -110,14 +110,14 @@ class AsyncApp(App):
                 "lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span
             )
 
-            return StrategyConfig(
-                name=strategy_name,
-                symbol=symbol,
-                number_of_orders=number_of_orders,
-                dca_span=dca_span,
-                leverage=leverage,
-                budget=20.0,
-            )
+        return StrategyConfig(
+            name=strategy_name,
+            symbol=symbol,
+            number_of_orders=number_of_orders,
+            dca_span=dca_span,
+            leverage=leverage,
+            budget=20.0,
+        )
 
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""

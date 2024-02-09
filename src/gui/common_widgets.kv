@@ -1,7 +1,3 @@
-<PnL>:
-    pnl_percent: ''
-    pnl_usdt: ''
-
 <PositionListItem@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
@@ -13,8 +9,7 @@
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
-    pnl_percent: ''
-    pnl_usdt: ''
+    pnl: ''
     state: ''
 
     canvas.before:
@@ -38,8 +33,8 @@
     Label:
         text: root.liquidation_price
     PnL:
-        pnl_percent: root.pnl_percent
-        pnl_usdt: root.pnl_usdt
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
 
     Label:
         text: root.state
@@ -108,8 +103,7 @@
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
-    pnl_percent: ''
-    pnl_usdt: ''
+    pnl: ''
     state: ''
 
     canvas.before:
@@ -136,7 +130,7 @@
     Label:
         text: root.liquidation_price
     PnL:
-        pnl_percent: root.pnl_percent
-        pnl_usdt: root.pnl_usdt
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
     Label:
         text: root.state
