@@ -120,18 +120,23 @@ class StrategyTab(BoxLayout):
         if len(new_positions) != 0:
             for position in new_positions:
                 if position["symbol"] == data.symbol:
+                    pnl_percent = round(
+                        self.calculate_pnl(
+                            quantity=round(float(position["quantity"]), 3),
+                            index_price=float(data.mark_price),
+                            entry_price=float(position["entry_price"]),
+                        ),
+                        3,
+                    )
+
                     position["quantity"] = str(position["quantity"])
                     position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
-                    position["pnl"] = str(
+                    position["pnl_per_cent"] = str(pnl_percent)
+                    position["pnl_fiat"] = str(
                         round(
-                            self.calculate_pnl(
-                                quantity=round(float(position["quantity"]), 3),
-                                index_price=float(data.mark_price),
-                                entry_price=float(position["entry_price"]),
-                            ),
-                            3,
+                            pnl_percent * round(abs(float(position["quantity"])), 3), 2
                         )
                     )
                     position["state"] = str(position["state"])
@@ -139,7 +144,7 @@ class StrategyTab(BoxLayout):
 
         return new_positions
 
-    def add_new_position(self, symbol, data):
+    def add_new_position(self, symbol: str, data: PositionData):
         self.strategy_logger.info("Creating a new position: %s", symbol)
         # If the position does not exist, create it
         self.position_count += 1

@@ -51,6 +51,7 @@ class PositionHandler:
             symbol=config.symbol,
             side=side,
             entry_price=signal_update.price,
+            leverage=config.leverage,
         )
         self.strategy_logger.info("Position created: %s", self.position)
         self.position.orders = self.order_handler.prepare_orders(

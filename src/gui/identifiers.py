@@ -14,6 +14,14 @@ class SymbolMarkPrice(Label):
 
 class PnL(Label):
     pnl = NumericProperty(0)
+    pnl_percent = StringProperty("")
+    pnl_fiat = StringProperty("")
+
+    def __init__(self, **kwargs):
+        super(PnL, self).__init__(**kwargs)
+        self.bind(
+            pnl=self.on_pnl, pnl_percent=self._update_text, pnl_fiat=self._update_text
+        )
 
     def on_pnl(self, instance, value):
         pnl = float(value)
@@ -23,6 +31,9 @@ class PnL(Label):
             self.color = RED_COLOR
         else:
             self.color = WHITE_COLOR
+
+    def _update_text(self, *args):
+        self.text = "{} % ({}) USDT".format(self.pnl_percent, self.pnl_fiat)
 
 
 class ColorChangingQuantity(Label):

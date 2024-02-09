@@ -327,19 +327,23 @@ class AsyncApp(App):
         if len(copied_strategies) != 0:
             for strategy in copied_strategies:
                 if strategy["symbol"] == data.symbol:
+                    pnl_percent = round(
+                        self.calculate_pnl(
+                            quantity=round(float(strategy["quantity"]), 3),
+                            index_price=float(data.mark_price),
+                            entry_price=float(strategy["entry_price"]),
+                            leverage=int(strategy["leverage"]),
+                        ),
+                        3,
+                    )
                     strategy["quantity"] = str(strategy["quantity"])
                     strategy["entry_price"] = str(strategy["entry_price"])
                     strategy["mark_price"] = str(data.mark_price)
                     strategy["liquidation_price"] = str(strategy["liquidation_price"])
-                    strategy["pnl"] = str(
+                    strategy["pnl_per_cent"] = str(pnl_percent)
+                    strategy["pnl_fiat"] = str(
                         round(
-                            self.calculate_pnl(
-                                quantity=round(float(strategy["quantity"]), 3),
-                                index_price=float(data.mark_price),
-                                entry_price=float(strategy["entry_price"]),
-                                leverage=int(strategy["leverage"]),
-                            ),
-                            3,
+                            pnl_percent * round(abs(float(strategy["quantity"])), 3), 2
                         )
                     )
                     strategy["state"] = str(strategy["state"])
