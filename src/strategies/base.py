@@ -509,10 +509,11 @@ class BaseStrategy:
         return condition
 
     def skip_signal(self, *args, **kwargs) -> None:
-        self.logger.info("Skipping signal: %s", self.signal_update.signal)
+        # self.logger.info("Skipping signal: %s", self.signal_update.signal)
         self.df_handler.df.at[
             self.df_handler.df.index[-1], "Position"
         ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
+        # self.logger.info("Skipping signal finished.")
 
     async def open_long(self, *args, **kwargs):
         self.logger.debug("Opening %s", self.signal_update.signal)

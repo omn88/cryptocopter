@@ -93,31 +93,29 @@ class AsyncApp(App):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
-    def strategy_config_retrieve(self):
-        strategy_name = self.root.ids.strategy_spinner.text
-        symbol = self.root.ids.symbol_spinner.text
+    def strategy_config_retrieve(self) -> StrategyConfig:
+        strategy_name: str = self.root.ids.strategy_spinner.text
+        symbol: str = self.root.ids.symbol_spinner.text
 
-        leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
-        orders_spinner = self.dynamic_spinners.get(strategy_name, {})
-        dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
+        if strategy_name.startswith("RSI"):
+            leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
+            orders_spinner = self.dynamic_spinners.get(strategy_name, {})
+            dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
 
-        if leverage_spinner:
             leverage = int(leverage_spinner.get("leverage_spinner").text)
-        if orders_spinner:
             number_of_orders = int(orders_spinner.get("orders_spinner").text)
-        if dca_span_spinner:
             dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
 
-        logger.info("lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span)
+            logger.info("lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span)
 
-        return StrategyConfig(
-            name=strategy_name,
-            symbol=symbol,
-            number_of_orders=number_of_orders,
-            dca_span=dca_span,
-            leverage=leverage,
-            budget=20.0,
-        )
+            return StrategyConfig(
+                name=strategy_name,
+                symbol=symbol,
+                number_of_orders=number_of_orders,
+                dca_span=dca_span,
+                leverage=leverage,
+                budget=20.0,
+            )
 
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""

@@ -12,8 +12,20 @@ class SymbolMarkPrice(Label):
     mark_price = NumericProperty(0)
 
 
+from kivy.uix.label import Label
+from kivy.properties import NumericProperty, StringProperty
+
+
 class PnL(Label):
     pnl = NumericProperty(0)
+    pnl_percent = StringProperty("")
+    pnl_usdt = StringProperty("")
+
+    def __init__(self, **kwargs):
+        super(PnL, self).__init__(**kwargs)
+        self.bind(
+            pnl=self.on_pnl, pnl_percent=self._update_text, pnl_usdt=self._update_text
+        )
 
     def on_pnl(self, instance, value):
         pnl = float(value)
@@ -23,6 +35,9 @@ class PnL(Label):
             self.color = RED_COLOR
         else:
             self.color = WHITE_COLOR
+
+    def _update_text(self, *args):
+        self.text = "{} % ({}) USDT".format(self.pnl_percent, self.pnl_usdt)
 
 
 class ColorChangingQuantity(Label):

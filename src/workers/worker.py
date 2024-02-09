@@ -31,8 +31,13 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             # All process_* methods are created dynamically, MyPy does not know it exists.
             await state_machine.strategy.process_kline()  # type: ignore
 
-            await state_machine.strategy.df_handler.print_last_n_rows(
-                df=state_machine.strategy.df
+            # await state_machine.strategy.df_handler.print_last_n_rows(
+            #     df=state_machine.strategy.df
+            # )
+            logger.info(
+                "Last %s rows from main df: %s",
+                5,
+                state_machine.strategy.df_handler.df.tail(5).to_string(),
             )
 
         elif EventName.ORDER == event.name:
