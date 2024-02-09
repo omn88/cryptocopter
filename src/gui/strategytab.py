@@ -153,6 +153,7 @@ class StrategyTab(BoxLayout):
                 "pnl": str(data.pnl),
                 "state": str(data.state.value),
                 "status": str(data.status),
+                "leverage": str(data.leverage),
             }
         )
 
@@ -171,6 +172,7 @@ class StrategyTab(BoxLayout):
                 position["pnl"] = str(data.pnl)
                 position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
+                position["leverage"] = str(data.leverage)
 
                 if position["status"] == PositionStatus.CLOSED:
                     self.strategy_logger.info("Position status: %s", data.status)

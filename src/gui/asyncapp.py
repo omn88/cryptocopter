@@ -106,7 +106,9 @@ class AsyncApp(App):
             number_of_orders = int(orders_spinner.get("orders_spinner").text)
             dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
 
-            logger.info("lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span)
+            logger.info(
+                "lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span
+            )
 
             return StrategyConfig(
                 name=strategy_name,
