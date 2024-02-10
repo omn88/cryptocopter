@@ -6,6 +6,7 @@
     symbol: ''
     leverage: ''
     quantity: ''
+    margin: ''
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
@@ -26,6 +27,8 @@
         quantity: 0 if root.quantity == '' else root.quantity
         text: str(root.quantity)
         color: self.color
+    Label:
+        text: root.margin
     Label:
         text: root.entry_price
     SymbolMarkPrice:
@@ -100,6 +103,7 @@
     symbol: ''
     leverage: ''
     quantity: ''
+    margin: ''
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
@@ -123,6 +127,8 @@
         quantity: 0 if root.quantity == '' else root.quantity
         text: str(root.quantity)
         color: self.color
+    Label:
+        text: root.margin
     Label:
         text: root.entry_price
     SymbolMarkPrice:

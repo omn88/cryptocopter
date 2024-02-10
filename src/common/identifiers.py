@@ -151,6 +151,7 @@ class Position:
     symbol: str = ""
     entry_price: float = 0
     quantity: float = 0
+    margin: float = 0
     state: State = State.FLAT
     side: PositionSide = PositionSide.FLAT  # ToDo: create a function
     orders: List[Order] = field(default_factory=lambda: [])
@@ -162,7 +163,8 @@ class Position:
 
     def __repr__(self) -> str:
         return (
-            f"Position(entry_price={self.entry_price}, quantity={self.quantity}, state={self.state}, "
+            f"Position(entry_price={self.entry_price}, quantity={self.quantity}, margin={self.margin}, "
+            f"state={self.state}, "
             f"side={self.side}, orders={self.orders}, liquidation_price={self.liquidation_price}, "
             f"take_profit_order={self.take_profit_order}, "
             f"market_order={self.market_order})"

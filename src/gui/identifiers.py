@@ -74,6 +74,7 @@ class PositionData:
         self,
         symbol: str,
         quantity: float,
+        margin: float,
         entry_price: float,
         mark_price: float,
         liquidation_price: float,
@@ -84,6 +85,7 @@ class PositionData:
     ):
         self.symbol: str = symbol
         self.quantity: float = quantity
+        self.margin: float = margin
         self.entry_price: float = entry_price
         self.mark_price: float = mark_price
         self.liquidation_price: float = liquidation_price
@@ -97,6 +99,7 @@ class PositionData:
             f"PositionData("
             f"symbol={self.symbol}, "
             f"quantity={self.quantity}, "
+            f"margin={self.margin}, "
             f"entry_price={self.entry_price}, "
             f"mark_price={self.mark_price}, "
             f"liquidation_price={self.liquidation_price}, "

@@ -130,6 +130,7 @@ class StrategyTab(BoxLayout):
                     )
 
                     position["quantity"] = str(position["quantity"])
+                    position["margin"] = str(position["margin"])
                     position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
@@ -159,6 +160,7 @@ class StrategyTab(BoxLayout):
                 "state": str(data.state.value),
                 "status": str(data.status),
                 "leverage": str(data.leverage),
+                "margin": str(data.margin)
             }
         )
 
@@ -166,7 +168,7 @@ class StrategyTab(BoxLayout):
             "Open Positions after adding position: %s", self.open_positions
         )
 
-    def update_existing_position(self, data):
+    def update_existing_position(self, data: PositionData):
         for position in self.open_positions:
             if position["symbol"] == data.symbol:
                 # If it exists, update the values
@@ -178,6 +180,7 @@ class StrategyTab(BoxLayout):
                 position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
                 position["leverage"] = str(data.leverage)
+                position["margin"] = str(data.margin)
 
                 if position["status"] == PositionStatus.CLOSED:
                     self.strategy_logger.info("Position status: %s", data.status)

@@ -378,6 +378,7 @@ class AsyncApp(App):
                 strategy["pnl"] = str(data.position_data.pnl)
                 strategy["state"] = str(data.position_data.state.value)
                 strategy["status"] = str(data.position_data.status)
+                strategy["margin"] = str(data.position_data.margin)
 
                 if strategy["status"] == [
                     str(PositionStatus.CLOSED),
@@ -417,6 +418,7 @@ class AsyncApp(App):
                 "state": str(data.position_data.state),
                 "status": str(data.position_data.status),
                 "leverage": str(data.position_data.leverage),
+                "margin": str(data.position_data.margin)
             }
         )
 
