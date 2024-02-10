@@ -418,7 +418,7 @@ class AsyncApp(App):
                 "state": str(data.position_data.state),
                 "status": str(data.position_data.status),
                 "leverage": str(data.position_data.leverage),
-                "margin": str(data.position_data.margin)
+                "margin": str(data.position_data.margin),
             }
         )
 

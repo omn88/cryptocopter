@@ -160,7 +160,7 @@ class StrategyTab(BoxLayout):
                 "state": str(data.state.value),
                 "status": str(data.status),
                 "leverage": str(data.leverage),
-                "margin": str(data.margin)
+                "margin": str(data.margin),
             }
         )
 

@@ -1,8 +1,8 @@
 import asyncio
+import logging
 import binance
 from binance import BinanceSocketManager
 
-import logging
 
 from src.common.identifiers import BinanceClient
 from src.gui.gui_handler import GuiHandler

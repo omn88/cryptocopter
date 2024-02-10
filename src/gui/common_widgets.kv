@@ -10,8 +10,7 @@
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
-    pnl_percent: ''
-    pnl_fiat: ''
+    pnl: ''
     state: ''
 
     canvas.before:
@@ -37,8 +36,8 @@
     Label:
         text: root.liquidation_price
     PnL:
-        pnl_percent: root.pnl_percent
-        pnl_fiat: root.pnl_fiat
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
     Label:
         text: root.state
 
@@ -107,8 +106,7 @@
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
-    pnl_percent: ''
-    pnl_fiat: ''
+    pnl: ''
     state: ''
 
     canvas.before:
@@ -137,7 +135,7 @@
     Label:
         text: root.liquidation_price
     PnL:
-        pnl_percent: root.pnl_percent
-        pnl_fiat: root.pnl_fiat
+        pnl: 0 if root.pnl == '' else root.pnl
+        text: '%s %%' % root.pnl
     Label:
         text: root.state

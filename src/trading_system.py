@@ -10,7 +10,10 @@ from src.common.identifiers import (
     SentinelUpdate,
     StrategyConfig,
 )
-from src.common.initialize_trading_environment import prepare_producers
+from src.common.initialize_trading_environment import (
+    change_margin_type,
+    prepare_producers,
+)
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandler
 from src.gui.identifiers import AccountData
@@ -54,8 +57,14 @@ class TradingSystem:
         self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
-        # await change_margin_type(client=self.client, symbol=self.symbol)
-        # await self.client.futures_change_leverage(symbol=self.symbol, leverage=LEVERAGE)
+        await change_margin_type(
+            client=self.client,
+            symbol=self.config.symbol,
+            margin_type=self.config.margin_type,
+        )
+        await self.client.futures_change_leverage(
+            symbol=self.config.leverage, leverage=self.config.leverage
+        )
 
         await self.df_handler.initialize()
 

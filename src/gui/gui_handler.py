@@ -65,7 +65,7 @@ class GuiHandler:
             state=position.state,
             status=position.status,
             leverage=position.leverage,
-            margin=position.margin
+            margin=position.margin,
         )
 
     def _prepare_strategy_data(self, position_data: PositionData, strategy_name: str):

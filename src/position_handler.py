@@ -386,7 +386,9 @@ class PositionHandler:
                     order.price = order_update.price
                     order.quantity = order_update.quantity
                     order.realized_quantity = order_update.realized_quantity
-                    self.position.margin += order_update.last_filled_quantity * order_update.price
+                    self.position.margin += (
+                        order_update.last_filled_quantity * order_update.price
+                    )
 
                 filled_order = order
 
