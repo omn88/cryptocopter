@@ -27,14 +27,14 @@
         text: str(root.quantity)
         color: self.color
     Label:
-        text: root.margin
-    Label:
         text: root.entry_price
     SymbolMarkPrice:
         mark_price: 0 if root.mark_price == '' else root.mark_price
         text: root.mark_price
     Label:
         text: root.liquidation_price
+    Label:
+        text: root.margin
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
         text: '%s %%' % root.pnl
@@ -126,14 +126,14 @@
         text: str(root.quantity)
         color: self.color
     Label:
-        text: root.margin
-    Label:
         text: root.entry_price
     SymbolMarkPrice:
         mark_price: 0 if root.mark_price == '' else root.mark_price
         text: root.mark_price
     Label:
         text: root.liquidation_price
+    Label:
+        text: root.margin
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
         text: '%s %%' % root.pnl

@@ -63,7 +63,7 @@ class TradingSystem:
             margin_type=self.config.margin_type,
         )
         await self.client.futures_change_leverage(
-            symbol=self.config.leverage, leverage=self.config.leverage
+            symbol=self.config.symbol, leverage=self.config.leverage
         )
 
         await self.df_handler.initialize()
