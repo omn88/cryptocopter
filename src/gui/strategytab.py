@@ -120,7 +120,7 @@ class StrategyTab(BoxLayout):
         if len(new_positions) != 0:
             for position in new_positions:
                 if position["symbol"] == data.symbol:
-                    pnl_percent = round(
+                    pnl = round(
                         self.calculate_pnl(
                             quantity=round(float(position["quantity"]), 3),
                             index_price=float(data.mark_price),
@@ -134,12 +134,12 @@ class StrategyTab(BoxLayout):
                     position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
-                    position["pnl_per_cent"] = str(pnl_percent)
-                    position["pnl_fiat"] = str(
-                        round(
-                            pnl_percent * round(abs(float(position["quantity"])), 3), 2
-                        )
-                    )
+                    position["pnl"] = str(pnl)
+                    # position["pnl_fiat"] = str(
+                    #     round(
+                    #         pnl_percent * round(abs(float(position["quantity"])), 3), 2
+                    #     )
+                    # )
                     position["state"] = str(position["state"])
                     position["status"] = str(position["status"])
 
