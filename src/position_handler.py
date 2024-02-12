@@ -311,6 +311,9 @@ class PositionHandler:
                 order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
+                self.position.margin += round((
+                        order_update.last_filled_quantity * order_update.price / self.config.leverage
+                    ), 2)
 
                 part_filled_ord = order
 
@@ -323,16 +326,6 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
-
-        for order in self.position.orders:
-            if order_update.order_id == order.order_id:
-                order.status = order_update.status
-                order.price = order_update.price
-                order.quantity = order_update.quantity
-                order.realized_quantity = order_update.realized_quantity
-                self.strategy_logger.info("Order: %s partially filled", order.order_id)
-
-                part_filled_ord = order
 
     async def futures_get_position_info(self) -> None:
         resp = await self.order_handler.client.futures_position_information(
@@ -386,9 +379,9 @@ class PositionHandler:
                     order.price = order_update.price
                     order.quantity = order_update.quantity
                     order.realized_quantity = order_update.realized_quantity
-                    self.position.margin += (
-                        order_update.last_filled_quantity * order_update.price
-                    )
+                    self.position.margin += round((
+                        order_update.last_filled_quantity * order_update.price / self.config.leverage
+                    ), 2)
 
                 filled_order = order
 
