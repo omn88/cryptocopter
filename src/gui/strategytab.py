@@ -160,7 +160,7 @@ class StrategyTab(BoxLayout):
                 "state": str(data.state.value),
                 "status": str(data.status),
                 "leverage": str(data.leverage),
-                "margin": str(data.margin),
+                "margin": str(round(data.margin), 2),
             }
         )
 
@@ -180,7 +180,7 @@ class StrategyTab(BoxLayout):
                 position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
                 position["leverage"] = str(data.leverage)
-                position["margin"] = str(data.margin)
+                position["margin"] = str(round(data.margin), 2)
 
                 if position["status"] == PositionStatus.CLOSED:
                     self.strategy_logger.info("Position status: %s", data.status)
