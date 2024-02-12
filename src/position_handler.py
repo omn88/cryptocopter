@@ -311,9 +311,14 @@ class PositionHandler:
                 order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
-                self.position.margin += round((
-                        order_update.last_filled_quantity * order_update.price / self.config.leverage
-                    ), 2)
+                self.position.margin += round(
+                    (
+                        order_update.last_filled_quantity
+                        * order_update.price
+                        / self.config.leverage
+                    ),
+                    2,
+                )
 
                 part_filled_ord = order
 
@@ -379,9 +384,14 @@ class PositionHandler:
                     order.price = order_update.price
                     order.quantity = order_update.quantity
                     order.realized_quantity = order_update.realized_quantity
-                    self.position.margin += round((
-                        order_update.last_filled_quantity * order_update.price / self.config.leverage
-                    ), 2)
+                    self.position.margin += round(
+                        (
+                            order_update.last_filled_quantity
+                            * order_update.price
+                            / self.config.leverage
+                        ),
+                        2,
+                    )
 
                 filled_order = order
 
