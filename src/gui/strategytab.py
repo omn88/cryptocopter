@@ -120,26 +120,32 @@ class StrategyTab(BoxLayout):
         if len(new_positions) != 0:
             for position in new_positions:
                 if position["symbol"] == data.symbol:
+                    pnl = round(
+                        self.calculate_pnl(
+                            quantity=round(float(position["quantity"]), 3),
+                            index_price=float(data.mark_price),
+                            entry_price=float(position["entry_price"]),
+                        ),
+                        3,
+                    )
+
                     position["quantity"] = str(position["quantity"])
+                    position["margin"] = str(position["margin"])
                     position["entry_price"] = str(position["entry_price"])
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
-                    position["pnl"] = str(
-                        round(
-                            self.calculate_pnl(
-                                quantity=round(float(position["quantity"]), 3),
-                                index_price=float(data.mark_price),
-                                entry_price=float(position["entry_price"]),
-                            ),
-                            3,
-                        )
-                    )
+                    position["pnl"] = str(pnl)
+                    # position["pnl_fiat"] = str(
+                    #     round(
+                    #         pnl_percent * round(abs(float(position["quantity"])), 3), 2
+                    #     )
+                    # )
                     position["state"] = str(position["state"])
                     position["status"] = str(position["status"])
 
         return new_positions
 
-    def add_new_position(self, symbol, data):
+    def add_new_position(self, symbol: str, data: PositionData):
         self.strategy_logger.info("Creating a new position: %s", symbol)
         # If the position does not exist, create it
         self.position_count += 1
@@ -153,6 +159,8 @@ class StrategyTab(BoxLayout):
                 "pnl": str(data.pnl),
                 "state": str(data.state.value),
                 "status": str(data.status),
+                "leverage": str(data.leverage),
+                "margin": str(round(data.margin, 2)),
             }
         )
 
@@ -160,7 +168,7 @@ class StrategyTab(BoxLayout):
             "Open Positions after adding position: %s", self.open_positions
         )
 
-    def update_existing_position(self, data):
+    def update_existing_position(self, data: PositionData):
         for position in self.open_positions:
             if position["symbol"] == data.symbol:
                 # If it exists, update the values
@@ -171,6 +179,8 @@ class StrategyTab(BoxLayout):
                 position["pnl"] = str(data.pnl)
                 position["state"] = str(data.state.value)
                 position["status"] = str(data.status)
+                position["leverage"] = str(data.leverage)
+                position["margin"] = str(round(data.margin, 2))
 
                 if position["status"] == PositionStatus.CLOSED:
                     self.strategy_logger.info("Position status: %s", data.status)

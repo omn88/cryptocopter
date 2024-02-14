@@ -4,7 +4,9 @@
     height: '30dp'
 
     symbol: ''
+    leverage: ''
     quantity: ''
+    margin: ''
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
@@ -18,6 +20,8 @@
             points: [self.x, self.y, self.x + self.width, self.y]
     Label:
         text: root.symbol
+    Label:
+        text: root.leverage
     ColorChangingQuantity:
         quantity: 0 if root.quantity == '' else root.quantity
         text: str(root.quantity)
@@ -29,6 +33,8 @@
         text: root.mark_price
     Label:
         text: root.liquidation_price
+    Label:
+        text: root.margin
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
         text: '%s %%' % root.pnl
@@ -94,7 +100,9 @@
 
     name: ''
     symbol: ''
+    leverage: ''
     quantity: ''
+    margin: ''
     entry_price: ''
     mark_price: ''
     liquidation_price: ''
@@ -111,6 +119,8 @@
         text: root.name
     Label:
         text: root.symbol
+    Label:
+        text: root.leverage
     ColorChangingQuantity:
         quantity: 0 if root.quantity == '' else root.quantity
         text: str(root.quantity)
@@ -122,6 +132,8 @@
         text: root.mark_price
     Label:
         text: root.liquidation_price
+    Label:
+        text: root.margin
     PnL:
         pnl: 0 if root.pnl == '' else root.pnl
         text: '%s %%' % root.pnl

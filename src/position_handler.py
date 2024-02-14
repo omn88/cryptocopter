@@ -43,28 +43,28 @@ class PositionHandler:
         self,
         side: PositionSide,
         signal_update: SignalUpdate,
-        number_of_orders: int,
-        symbol: str,
         mode: PositionMode,
-        strategy_name: str,
+        config: StrategyConfig,
     ) -> None:
         self.position = Position(
-            id=generate_position_id(strategy_name=strategy_name),
-            symbol=symbol,
+            id=generate_position_id(strategy_name=config.name),
+            symbol=config.symbol,
             side=side,
             entry_price=signal_update.price,
+            leverage=config.leverage,
         )
+        self.strategy_logger.info("Position created: %s", self.position)
         self.position.orders = self.order_handler.prepare_orders(
             side=side,
             mode=mode,
             entry_price=signal_update.price,
-            number_of_orders=number_of_orders,
+            number_of_orders=config.number_of_orders,
             dca_span=self.config.dca_span,
             leverage=self.config.leverage,
         )
         self.position.entry_price = signal_update.price
         self.position.orders = await self.order_handler.create_orders(
-            side=side, orders=self.position.orders, symbol=symbol
+            side=side, orders=self.position.orders, symbol=config.symbol
         )
         self.position.state = signal_to_state(signal_update.signal)
 
@@ -72,6 +72,7 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
+        self.strategy_logger.info("Position opened successfully.")
 
     async def close_position(self) -> None:
         self.strategy_logger.info(
@@ -310,6 +311,14 @@ class PositionHandler:
                 order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
+                self.position.margin += round(
+                    (
+                        order_update.last_filled_quantity
+                        * order_update.price
+                        / self.config.leverage
+                    ),
+                    2,
+                )
 
                 part_filled_ord = order
 
@@ -322,16 +331,6 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
-
-        for order in self.position.orders:
-            if order_update.order_id == order.order_id:
-                order.status = order_update.status
-                order.price = order_update.price
-                order.quantity = order_update.quantity
-                order.realized_quantity = order_update.realized_quantity
-                self.strategy_logger.info("Order: %s partially filled", order.order_id)
-
-                part_filled_ord = order
 
     async def futures_get_position_info(self) -> None:
         resp = await self.order_handler.client.futures_position_information(
@@ -356,6 +355,14 @@ class PositionHandler:
                 "Cancelled take profit order with id: %s",
                 self.position.take_profit_order.order_id,
             )
+            await self.gui_handler.update_order(
+                order=self.position.take_profit_order,
+                side=PositionSide.SHORT
+                if self.position.side == PositionSide.LONG
+                else PositionSide.LONG,
+                symbol=self.position.symbol,
+            )
+            self.strategy_logger.info("GUI order updated")
 
         # create new take profit
         self.position.take_profit_order = (
@@ -377,6 +384,14 @@ class PositionHandler:
                     order.price = order_update.price
                     order.quantity = order_update.quantity
                     order.realized_quantity = order_update.realized_quantity
+                    self.position.margin += round(
+                        (
+                            order_update.last_filled_quantity
+                            * order_update.price
+                            / self.config.leverage
+                        ),
+                        2,
+                    )
 
                 filled_order = order
 

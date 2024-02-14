@@ -1,7 +1,5 @@
 import asyncio
-from typing import List, Union
-import numpy
-import pandas
+from typing import List
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -523,9 +521,7 @@ class BaseStrategy:
 
         await self.position_handler.open_position(
             side=side,
-            strategy_name=self.config.name,
-            number_of_orders=self.position_handler.config.number_of_orders,
-            symbol=self.config.symbol,
+            config=self.config,
             mode=self.mode,
             signal_update=self.signal_update,
         )
@@ -541,9 +537,7 @@ class BaseStrategy:
 
         await self.position_handler.open_position(
             side=side,
-            strategy_name=self.config.name,
-            number_of_orders=self.position_handler.config.number_of_orders,
-            symbol=self.config.symbol,
+            config=self.config,
             mode=self.mode,
             signal_update=self.signal_update,
         )

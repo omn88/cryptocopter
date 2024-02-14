@@ -13,6 +13,9 @@ from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
+from kivy.uix.spinner import Spinner
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.identifiers import BinanceClient, Position, StrategyConfig
 from src.gui.gui_handler import GuiHandler
@@ -61,6 +64,7 @@ class AsyncApp(App):
             "RSI Extended": "RE",
             "RSI Special": "RS",
         }
+        self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.update_ui())
 
     def __str__(self):
@@ -89,12 +93,30 @@ class AsyncApp(App):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
-    def strategy_config_retrieve(self):
+    def strategy_config_retrieve(self) -> StrategyConfig:
+        strategy_name: str = self.root.ids.strategy_spinner.text
+        symbol: str = self.root.ids.symbol_spinner.text
+
+        if strategy_name.startswith("RSI"):
+            leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
+            orders_spinner = self.dynamic_spinners.get(strategy_name, {})
+            dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
+
+            leverage = int(leverage_spinner.get("leverage_spinner").text)
+            number_of_orders = int(orders_spinner.get("orders_spinner").text)
+            dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
+
+            logger.info(
+                "lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span
+            )
+
         return StrategyConfig(
-            name=self.root.ids.strategy_spinner.text,
-            symbol=self.root.ids.symbol_spinner.text,
-            number_of_orders=2,
-            budget=20,
+            name=strategy_name,
+            symbol=symbol,
+            number_of_orders=number_of_orders,
+            dca_span=dca_span,
+            leverage=leverage,
+            budget=20.0,
         )
 
     async def on_start_strategy(self):
@@ -191,6 +213,75 @@ class AsyncApp(App):
         for trading_system in self.trading_systems:
             await trading_system.stop()
 
+    def on_strategy_change(self, strategy_name):
+        self.log_spinner_change("Strategy", strategy_name)
+        self.update_dynamic_ui(strategy_name)
+
+    def update_dynamic_ui(self, strategy_name):
+        # Clear existing widgets in the dynamic UI container
+        self.root.ids.dynamic_ui_container.clear_widgets()
+
+        # Check the strategy and add relevant UI elements
+        if strategy_name.startswith("RSI"):
+            # Container for Leverage
+            leverage_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            leverage_label = Label(text="Leverage", size_hint_y=None, height=20)
+            leverage_spinner = Spinner(
+                text="25",  # Default value
+                values=[str(x) for x in range(1, 101)],
+                size_hint_y=None,
+                height=30,
+            )
+            leverage_spinner.id = "leverage_spinner"
+            leverage_container.add_widget(leverage_label)
+            leverage_container.add_widget(leverage_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(leverage_container)
+
+            # Store reference to the leverage_spinner
+            self.dynamic_spinners[strategy_name] = {
+                "leverage_spinner": leverage_spinner
+            }
+
+            # Container for Number of DCA Orders
+            orders_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            orders_label = Label(text="DCA orders", size_hint_y=None, height=20)
+            orders_spinner = Spinner(
+                text="2",  # Default value
+                values=[str(x) for x in range(1, 9)],
+                size_hint_y=None,
+                height=30,
+            )
+            orders_spinner.id = "orders_spinner"
+            orders_container.add_widget(orders_label)
+            orders_container.add_widget(orders_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(orders_container)
+
+            # Store reference to the orders_spinner
+            self.dynamic_spinners[strategy_name]["orders_spinner"] = orders_spinner
+
+            # Container for the DCA Span
+            dca_span_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            dca_span_label = Label(text="DCA span", size_hint_y=None, height=20)
+            dca_span_spinner = Spinner(
+                text="0.005",  # Default value
+                values=[str(x / 1000) for x in range(1, 11)],
+                size_hint_y=None,
+                height=30,
+            )
+            dca_span_spinner.id = "dca_span_spinner"
+            dca_span_container.add_widget(dca_span_label)
+            dca_span_container.add_widget(dca_span_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(dca_span_container)
+
+            # Store reference to the dca_span_spinner
+            self.dynamic_spinners[strategy_name]["dca_span_spinner"] = dca_span_spinner
+
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
         while True:
@@ -236,21 +327,25 @@ class AsyncApp(App):
         if len(copied_strategies) != 0:
             for strategy in copied_strategies:
                 if strategy["symbol"] == data.symbol:
+                    pnl = round(
+                        self.calculate_pnl(
+                            quantity=round(float(strategy["quantity"]), 3),
+                            index_price=float(data.mark_price),
+                            entry_price=float(strategy["entry_price"]),
+                            leverage=int(strategy["leverage"]),
+                        ),
+                        3,
+                    )
                     strategy["quantity"] = str(strategy["quantity"])
                     strategy["entry_price"] = str(strategy["entry_price"])
                     strategy["mark_price"] = str(data.mark_price)
                     strategy["liquidation_price"] = str(strategy["liquidation_price"])
-                    strategy["pnl"] = str(
-                        round(
-                            self.calculate_pnl(
-                                quantity=round(float(strategy["quantity"]), 3),
-                                index_price=float(data.mark_price),
-                                entry_price=float(strategy["entry_price"]),
-                                leverage=int(strategy["leverage"]),
-                            ),
-                            3,
-                        )
-                    )
+                    strategy["pnl"] = str(pnl)
+                    # strategy["pnl_fiat"] = str(
+                    #     round(
+                    #         pnl_percent * round(abs(float(strategy["quantity"])), 3), 2
+                    #     )
+                    # )
                     strategy["state"] = str(strategy["state"])
                     strategy["status"] = str(strategy["status"])
                     strategy["leverage"] = str(strategy["leverage"])
@@ -283,6 +378,7 @@ class AsyncApp(App):
                 strategy["pnl"] = str(data.position_data.pnl)
                 strategy["state"] = str(data.position_data.state.value)
                 strategy["status"] = str(data.position_data.status)
+                strategy["margin"] = str(round(data.position_data.margin, 2))
 
                 if strategy["status"] == [
                     str(PositionStatus.CLOSED),
@@ -322,6 +418,7 @@ class AsyncApp(App):
                 "state": str(data.position_data.state),
                 "status": str(data.position_data.status),
                 "leverage": str(data.position_data.leverage),
+                "margin": str(round(data.position_data.margin, 2)),
             }
         )
 
