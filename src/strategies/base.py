@@ -15,6 +15,7 @@ from src.common.identifiers import (
     AccountUpdate,
     PositionMode,
     PositionSide,
+    PositionStatus,
     SignalUpdate,
     OrderUpdate,
     KlineUpdate,
@@ -115,7 +116,7 @@ class BaseStrategy:
                 ],
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
-                "after": "log_new_order",
+                "after": "confirm_new_order",
             },
             {
                 "trigger": "process_order",
@@ -130,7 +131,7 @@ class BaseStrategy:
                 ],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
-                "after": "handle_cancelled_order",
+                "after": "confirm_cancelled_order",
             },
             {
                 "trigger": "process_order",
@@ -144,7 +145,7 @@ class BaseStrategy:
                 ],
                 "dest": "=",
                 "conditions": "conditions_for_order_expiration",
-                "after": "log_expired_order",
+                "after": "confirm_expired_order",
             },
             {
                 "trigger": "process_order",
@@ -216,7 +217,7 @@ class BaseStrategy:
                 ],
                 "dest": "=",
                 "conditions": "conditions_for_market_order_filled",
-                "before": "handle_market_order_filled",
+                "before": "confirm_market_order_filled",
             },
             {
                 "trigger": "process_order",
@@ -230,7 +231,7 @@ class BaseStrategy:
                 ],
                 "dest": "=",
                 "conditions": "conditions_for_market_order_filled_partially",
-                "before": "handle_market_order_filled_partially",
+                "before": "confirm_market_order_filled_partially",
             },
             {
                 "trigger": "process_order",
@@ -562,26 +563,32 @@ class BaseStrategy:
             update=State(self.signal_update.signal.value)
         )
 
-    async def log_new_order(self, *args, **kwargs) -> None:
+    async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                self.logger.info("New order: %s", self.order_update.order_id)
+                self.logger.info(
+                    "New order confirmation: %s", self.order_update.order_id
+                )
 
-    async def handle_cancelled_order(self, *args, **kwargs) -> None:
+    async def confirm_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                self.logger.info("Cancelled order: %s", self.order_update.order_id)
+                self.logger.info(
+                    "Cancelled order confirmation: %s", self.order_update.order_id
+                )
 
-    async def log_expired_order(self, *args, **kwargs) -> None:
+    async def confirm_expired_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
-                self.logger.info("Expired order: %s", self.order_update.order_id)
+                self.logger.info(
+                    "Expired order confirmation: %s", self.order_update.order_id
+                )
                 await self.gui_handler.update_order(
                     order=order,
                     symbol=self.position_handler.position.symbol,
@@ -628,15 +635,36 @@ class BaseStrategy:
             balance=self.balance,
         )
 
-    async def handle_market_order_filled(self, *args, **kwargs):
-        self.logger.info("Entering handle market order filled")
-        await self.position_handler.market_order_filled(order_update=self.order_update)
+    async def confirm_market_order_filled(self, *args, **kwargs):
+        self.logger.info("MARKET order filled!")
+        market_order = self.position_handler.closed_positions[-1].market_order
+
+        assert market_order is not None
+
+        market_order.status = self.order_update.status
+        market_order.price = self.order_update.price
+        market_order.quantity = self.order_update.quantity
+        market_order.realized_quantity = self.order_update.realized_quantity
+        self.position_handler.closed_positions[-1].status = PositionStatus.CLOSED
         self.position_handler.position.state = State.FLAT
 
-    async def handle_market_order_filled_partially(self, *args, **kwargs):
+        await self.gui_handler.update_position(position=self.position_handler.position)
+        await self.gui_handler.update_strategy(
+            position=self.position_handler.position, strategy_name=self.config.name
+        )
+
+    async def confirm_market_order_filled_partially(self, *args, **kwargs):
         self.logger.info("Entering handle market order partially filled")
-        await self.position_handler.market_order_filled_partially(
-            order_update=self.order_update
+
+        market_order = self.position_handler.closed_positions[-1].market_order
+
+        market_order.status = self.order_update.status
+        market_order.price = self.order_update.price
+        market_order.quantity = self.order_update.quantity
+        market_order.realized_quantity = self.order_update.realized_quantity
+        self.logger.info(
+            "Market order realization in progress: %s!",
+            self.position_handler.closed_positions[-1].market_order,
         )
 
     async def handle_order_filled(self, *args, **kwargs):

@@ -126,7 +126,7 @@ class PositionHandler:
     ) -> float:
         self.strategy_logger.info("Position liquidation")
 
-        self.position.status = PositionStatus.CLOSING
+        self.position.status = PositionStatus.CLOSED
 
         loss = 0.0
         assert self.position.orders is not None
@@ -260,6 +260,7 @@ class PositionHandler:
             side=self.position.side,
         )
 
+        self.position.status = PositionStatus.CLOSED
         await self.gui_handler.update_order(
             order=self.position.take_profit_order,
             side=self.position.side,
@@ -405,30 +406,6 @@ class PositionHandler:
         await self.gui_handler.update_position(position=self.position)
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
-        )
-
-    async def market_order_filled(self, order_update: OrderUpdate):
-        self.strategy_logger.info("MARKET order filled!")
-        assert self.position.market_order is not None
-
-        self.closed_positions[-1].market_order.status = order_update.status
-        self.closed_positions[-1].market_order.price = order_update.price
-        self.closed_positions[-1].market_order.quantity = order_update.quantity
-        self.closed_positions[
-            -1
-        ].market_order.realized_quantity = order_update.realized_quantity
-
-    async def market_order_filled_partially(self, order_update: OrderUpdate):
-        self.closed_positions[-1].market_order = Order(
-            price=order_update.price,
-            quantity=order_update.quantity,
-            order_id=order_update.order_id,
-            realized_quantity=order_update.realized_quantity,
-            status=order_update.status,
-        )
-        self.strategy_logger.info(
-            "Market order realization in progress: %s!",
-            self.closed_positions[-1].market_order,
         )
 
     # async def confirm_position(self, position_id):
