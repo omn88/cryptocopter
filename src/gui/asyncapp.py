@@ -24,6 +24,7 @@ from src.common.identifiers import (
     PositionSide,
     StrategyConfig,
 )
+from src.gui.coin_sniper import CoinSniperTab
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
@@ -228,7 +229,7 @@ class AsyncApp(App):
 
             tab = TabbedPanelItem(
                 text=strategy_name_short,
-                content=StrategyTab(
+                content=CoinSniperTab(
                     trading_system=trading_system,
                     strategy_name=config.name,
                     symbol=config.symbol,
