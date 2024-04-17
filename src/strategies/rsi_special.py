@@ -12,7 +12,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures
 from src.strategies.rsi_extended import RsiExtended
 
 
@@ -22,7 +22,7 @@ class RsiSpecial(RsiExtended):
         client: BinanceClient,
         balance: float,
         df_handler: DfHandler,
-        gui_handler: GuiHandler,
+        gui_handler: GuiHandlerFutures,
         logger: StrategyLogger,
         config: StrategyConfig,
     ):

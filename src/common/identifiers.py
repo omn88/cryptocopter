@@ -202,11 +202,20 @@ class BinanceClient(AsyncClient):
         return time.time() - self.time_difference
 
 
+class CoinTradeConfig(NamedTuple):
+    name: str
+    symbol: str
+    side: PositionSide
+    price: float
+    budget: float = 0
+    asset: str = "USDT"
+
+
 class StrategyConfig(NamedTuple):
     name: str
     symbol: str
-    number_of_orders: int
-    budget: float
+    number_of_orders: int = 2
+    budget: float = 0
     leverage: int = 25
     dca_span: float = 0.005
     asset: str = "USDT"

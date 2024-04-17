@@ -13,7 +13,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures
 from src.strategies.base import BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
@@ -58,7 +58,7 @@ async def base(mock_AsyncClient):
             balance=1000,
             df_handler=df_handler,
             config=config,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,
@@ -98,7 +98,7 @@ async def basic_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=StrategyConfig(
@@ -111,7 +111,7 @@ async def basic_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
+    await state_machine.strategy.df_handler.futures_determine_start_position(
         queue=state_machine.strategy.queue
     )
 
@@ -141,7 +141,7 @@ async def extended_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=config,
@@ -149,7 +149,7 @@ async def extended_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
+    await state_machine.strategy.df_handler.futures_determine_start_position(
         queue=state_machine.strategy.queue
     )
     yield state_machine
@@ -176,7 +176,7 @@ async def special_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,
@@ -184,7 +184,7 @@ async def special_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
+    await state_machine.strategy.df_handler.futures_determine_start_position(
         queue=state_machine.strategy.queue
     )
 

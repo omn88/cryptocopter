@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Union
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
@@ -22,7 +22,7 @@ from src.common.identifiers import (
     PositionMode,
     PositionSide,
 )
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 
 
 class OrderHandler:
@@ -33,7 +33,7 @@ class OrderHandler:
         strategy_logger: StrategyLogger,
         client: BinanceClient,
         order_quantity_stable: float,
-        gui_handler: GuiHandler,
+        gui_handler: Union[GuiHandlerFutures, GuiHandlerSpot],
     ):
         self.strategy_logger = strategy_logger
         self.client = client

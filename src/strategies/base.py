@@ -25,7 +25,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures
 from src.position_handler import PositionHandler
 
 
@@ -35,7 +35,7 @@ class BaseStrategy:
         client: BinanceClient,
         balance: float,
         config: StrategyConfig,
-        gui_handler: GuiHandler,
+        gui_handler: GuiHandlerFutures,
         logger: StrategyLogger,
         df_handler,
     ):

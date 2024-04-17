@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_position_id, signal_to_state
@@ -13,7 +13,7 @@ from src.common.identifiers import (
     SignalUpdate,
     StrategyConfig,
 )
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.order_handler import OrderHandler
 
 
@@ -23,7 +23,7 @@ class PositionHandler:
         client: BinanceClient,
         strategy_logger: StrategyLogger,
         config: StrategyConfig,
-        gui_handler: GuiHandler,
+        gui_handler: Union[GuiHandlerFutures, GuiHandlerSpot],
     ):
         self.config = config
         self.position: Position = Position()
@@ -37,7 +37,7 @@ class PositionHandler:
             gui_handler=gui_handler,
         )
         self.strategy_logger = strategy_logger
-        self.gui_handler: GuiHandler = gui_handler
+        self.gui_handler: Union[GuiHandlerFutures, GuiHandlerSpot] = gui_handler
 
     async def open_position(
         self,

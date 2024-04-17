@@ -5,7 +5,7 @@ from binance import BinanceSocketManager
 
 
 from src.common.identifiers import BinanceClient
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
@@ -24,10 +24,10 @@ async def change_margin_type(
         logger.debug("All: %s", e)
 
 
-def prepare_producers(
+def futures_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    gui_handler: GuiHandler,
+    gui_handler: GuiHandlerFutures,
     interval: str,
     symbol: str,
     stop_event: asyncio.Event,
@@ -56,4 +56,39 @@ def prepare_producers(
                 stop_event=stop_event,
             )
         ),
+    ]
+
+
+def spot_prepare_producers(
+    socket_manager: BinanceSocketManager,
+    queue: asyncio.Queue,
+    gui_handler: GuiHandlerSpot,
+    interval: str,
+    symbol: str,
+    stop_event: asyncio.Event,
+):
+    return [
+        # asyncio.create_task(
+        #     kline_futures_socket(
+        #         socket_manager=socket_manager,
+        #         queue=queue,
+        #         interval=interval,
+        #         symbol=symbol,
+        #         stop_event=stop_event,
+        #     )
+        # ),
+        asyncio.create_task(
+            futures_user_socket(
+                socket_manager=socket_manager, queue=queue, stop_event=stop_event
+            )
+        ),
+        # asyncio.create_task(
+        #     futures_symbol_mark_price_socket(
+        #         socket_manager=socket_manager,
+        #         ui_queue=gui_handler.ui_queue,
+        #         symbol=symbol,
+        #         main_ui_queue=gui_handler.main_ui_queue,
+        #         stop_event=stop_event,
+        #     )
+        # ),
     ]

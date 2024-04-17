@@ -9,7 +9,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler import GuiHandlerFutures
 from src.strategies.base import BaseStrategy
 
 
@@ -20,7 +20,7 @@ class RsiBasic(BaseStrategy):
         balance: float,
         logger: StrategyLogger,
         config: StrategyConfig,
-        gui_handler: GuiHandler,
+        gui_handler: GuiHandlerFutures,
         df_handler: DfHandler,
     ):
         super().__init__(

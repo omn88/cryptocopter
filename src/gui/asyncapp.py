@@ -7,7 +7,7 @@ for each strategy.
 
 import asyncio
 import logging
-from typing import Dict, List
+from typing import Dict, List, Union
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -15,10 +15,16 @@ from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.identifiers import BinanceClient, Position, StrategyConfig
-from src.gui.gui_handler import GuiHandler
+from src.common.identifiers import (
+    BinanceClient,
+    Position,
+    PositionSide,
+    StrategyConfig,
+)
+from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystem
@@ -93,58 +99,119 @@ class AsyncApp(App):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
-    def strategy_config_retrieve(self) -> StrategyConfig:
+    def futures_strategy_config_retrieve(self) -> StrategyConfig:
         strategy_name: str = self.root.ids.strategy_spinner.text
         symbol: str = self.root.ids.symbol_spinner.text
 
-        if strategy_name.startswith("RSI"):
-            leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
-            orders_spinner = self.dynamic_spinners.get(strategy_name, {})
-            dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
-
-            leverage = int(leverage_spinner.get("leverage_spinner").text)
-            number_of_orders = int(orders_spinner.get("orders_spinner").text)
-            dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
-
-            logger.info(
-                "lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span
-            )
+        widgets = self.dynamic_spinners.get(strategy_name, {})
 
         return StrategyConfig(
             name=strategy_name,
             symbol=symbol,
-            number_of_orders=number_of_orders,
-            dca_span=dca_span,
-            leverage=leverage,
+            number_of_orders=int(widgets.get("orders_spinner").text),
+            dca_span=float(widgets.get("dca_span_spinner").text),
+            leverage=int(widgets.get("leverage_spinner").text),
             budget=20.0,
         )
 
     async def on_start_strategy(self):
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
-        config = self.strategy_config_retrieve()
-        strategy_name_short = f"{self.strategy_mapping[config.name]}_{config.symbol}"
-        if config.name != "Choose Strategy" and config.symbol != "Choose Symbol":
-            for strategy in self.active_strategies:
-                if (
-                    strategy["name"] == config.name
-                    and strategy["symbol"] == config.symbol
-                ):
-                    logger.info(
-                        "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
-                        config.name,
-                        config.symbol,
-                    )
-                    return  # Exit the method early
-            logger.info(
-                "Starting new strategy: %s on pair %s", config.name, config.symbol
+        strategy_name: str = self.root.ids.strategy_spinner.text
+        if strategy_name.startswith("RSI"):
+            config = self.futures_strategy_config_retrieve()
+            strategy_name_short = (
+                f"{self.strategy_mapping[config.name]}_{config.symbol}"
             )
+            if config.symbol != "Choose Symbol":
+                for strategy in self.active_strategies:
+                    if (
+                        strategy["name"] == config.name
+                        and strategy["symbol"] == config.symbol
+                    ):
+                        logger.info(
+                            "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
+                            config.name,
+                            config.symbol,
+                        )
+                        return  # Exit the method early
+                logger.info(
+                    "Starting new strategy: %s on pair %s", config.name, config.symbol
+                )
+
+                strategy_logger = StrategyLogger(
+                    name=config.name, strategy_info=strategy_name_short
+                )
+
+                gui_handler = GuiHandlerFutures(
+                    main_ui_queue=self.main_ui_queue,
+                    ui_queue=asyncio.Queue(),
+                    logger=strategy_logger,
+                )
+
+                trading_system = TradingSystem(
+                    client=self.client,
+                    gui_handler=gui_handler,
+                    strategy_logger=strategy_logger,
+                    config=config,
+                )
+                await trading_system.initialize_futures()
+                self.trading_systems.append(trading_system)
+
+                tab = TabbedPanelItem(
+                    text=strategy_name_short,
+                    content=StrategyTab(
+                        trading_system=trading_system,
+                        strategy_name=config.name,
+                        symbol=config.symbol,
+                        strategy_logger=strategy_logger,
+                        gui_handler=gui_handler,
+                    ),
+                )
+                # Store a reference to the tab
+                self.tabs[strategy_name_short] = tab
+                # Add a new tab for the strategy
+                self.root.add_widget(tab)
+                self.root.ids.strategy_spinner.text = "Choose Strategy"
+                self.root.ids.symbol_spinner.text = "Choose Symbol"
+
+                await gui_handler.update_strategy(
+                    strategy_name=config.name,
+                    position=Position(symbol=config.symbol, leverage=config.leverage),
+                )
+
+                # Set up a logging handler for the strategy
+                setup_logging_handler(
+                    strategy_logger=strategy_logger,
+                    log_display_widget=tab.content.log_display,
+                )
+
+                logger.info(
+                    "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
+                    len(self.strategy_tabs),
+                    len(self.trading_systems),
+                )
+                await trading_system.start_trading_futures()
+            else:
+                logger.info("App: Please select a symbol.")
+
+        if strategy_name == "Coin Sniper":
+            for strategy in self.active_strategies:
+                if strategy["name"] == config.name:
+                    logger.info(
+                        "Strategy %s is already running. Please select a different strategy.",
+                        config.name,
+                    )
+                    return
+
+            logger.info("Starting Coin Sniper strategy")
 
             strategy_logger = StrategyLogger(
-                name=config.name, strategy_info=strategy_name_short
+                name=strategy_name, strategy_info=strategy_name
             )
 
-            gui_handler = GuiHandler(
+            # TODO: to be modified
+            gui_handler = GuiHandlerSpot(
                 main_ui_queue=self.main_ui_queue,
                 ui_queue=asyncio.Queue(),
                 logger=strategy_logger,
@@ -156,7 +223,7 @@ class AsyncApp(App):
                 strategy_logger=strategy_logger,
                 config=config,
             )
-            await trading_system.initialize()
+            await trading_system.initialize_spot()
             self.trading_systems.append(trading_system)
 
             tab = TabbedPanelItem(
@@ -192,9 +259,7 @@ class AsyncApp(App):
                 len(self.strategy_tabs),
                 len(self.trading_systems),
             )
-            await trading_system.start_trading()
-        else:
-            logger.info("App: Please select a strategy and a symbol.")
+            await trading_system.start_trading_spot()
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
@@ -281,6 +346,49 @@ class AsyncApp(App):
 
             # Store reference to the dca_span_spinner
             self.dynamic_spinners[strategy_name]["dca_span_spinner"] = dca_span_spinner
+
+        if strategy_name == "Coin Sniper":
+            # Container for choosing side
+            side_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            side_label = Label(text="Side", size_hint_y=None, height=20)
+            side_spinner = Spinner(
+                text="BUY",  # Default value
+                values=["BUY", "SELL"],
+                size_hint_y=None,
+                height=30,
+            )
+            side_spinner.id = "side_spinner"
+            side_container.add_widget(side_label)
+            side_container.add_widget(side_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(side_container)
+
+            # Container for the Price
+            price_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            price_label = Label(text="Price", size_hint_y=None, height=20)
+            price = TextInput(
+                text="0.0", input_filter="float", size_hint_y=None, height=30
+            )
+            price.id = "price"
+            price_container.add_widget(price_label)
+            price_container.add_widget(price)
+            self.root.ids.dynamic_ui_container.add_widget(price_container)
+
+            # Container for Budget
+            budget_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            budget_label = Label(text="Budget", size_hint_y=None, height=20)
+            budget = TextInput(
+                text="100.0", input_filter="float", size_hint_y=None, height=30
+            )
+            budget.id = "budget"
+            budget_container.add_widget(budget_label)
+            budget_container.add_widget(budget)
+            self.root.ids.dynamic_ui_container.add_widget(budget_container)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
