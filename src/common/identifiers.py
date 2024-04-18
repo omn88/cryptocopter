@@ -213,7 +213,7 @@ class CoinTradeConfig(NamedTuple):
 
 class StrategyConfig(NamedTuple):
     name: str
-    symbol: str
+    symbol: str = "BTCUSDT"
     number_of_orders: int = 2
     budget: float = 0
     leverage: int = 25

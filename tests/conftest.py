@@ -14,7 +14,7 @@ from src.common.identifiers import (
 )
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandlerFutures
-from src.strategies.base import BaseStrategy
+from src.strategies.base import BaseFuturesStrategy, BaseStrategy
 from src.strategies.rsi_basic import RsiBasic
 from src.strategies.rsi_extended import RsiExtended
 from src.strategies.rsi_special import RsiSpecial
@@ -53,7 +53,7 @@ async def base(mock_AsyncClient):
     logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
 
     state_machine = TradingStateMachine(
-        strategy=BaseStrategy(
+        strategy=BaseFuturesStrategy(
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,

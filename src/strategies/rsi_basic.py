@@ -10,10 +10,10 @@ from src.common.identifiers import (
 )
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandlerFutures
-from src.strategies.base import BaseStrategy
+from src.strategies.base import BaseFuturesStrategy
 
 
-class RsiBasic(BaseStrategy):
+class RsiBasic(BaseFuturesStrategy):
     def __init__(
         self,
         client: BinanceClient,

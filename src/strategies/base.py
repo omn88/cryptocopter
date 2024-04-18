@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Optional, Union
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -25,7 +25,7 @@ from src.common.identifiers import (
     StrategyConfig,
 )
 from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerFutures
+from src.gui.gui_handler import GuiHandler, GuiHandlerFutures, GuiHandlerSpot
 from src.position_handler import PositionHandler
 
 
@@ -33,24 +33,14 @@ class BaseStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        balance: float,
         config: StrategyConfig,
-        gui_handler: GuiHandlerFutures,
         logger: StrategyLogger,
-        df_handler,
+        df_handler: DfHandler,
     ):
         self.client = client
-        self.config: StrategyConfig = config
-        self.balance = balance
-        self.gui_handler = gui_handler
+        self.config = config
         self.logger = logger
-        self.df_handler: DfHandler = df_handler
-        self.position_handler: PositionHandler = PositionHandler(
-            client=client,
-            strategy_logger=logger,
-            config=config,
-            gui_handler=gui_handler,
-        )
+        self.df_handler = df_handler
         self.queue: asyncio.Queue = asyncio.Queue()
 
         # Initialize any other common attributes
@@ -58,9 +48,31 @@ class BaseStrategy:
         self.order_update: OrderUpdate = OrderUpdate()
         self.kline_update: KlineUpdate = KlineUpdate()
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
-        self.state: State = State.FLAT
+        self.transitions: List = []
+
+
+class BaseFuturesStrategy(BaseStrategy):
+    def __init__(
+        self,
+        client: BinanceClient,
+        balance: float,
+        config: StrategyConfig,
+        gui_handler: GuiHandlerFutures,
+        logger: StrategyLogger,
+        df_handler: DfHandler,
+    ):
+        super().__init__(client, config, logger, df_handler)
+        self.balance = balance
+        self.gui_handler: GuiHandlerFutures = gui_handler
+        self.position_handler = PositionHandler(
+            client=client,
+            strategy_logger=logger,
+            config=config,
+            gui_handler=gui_handler,
+        )
+        self.state = State.FLAT
         self.mode = PositionMode.DCA
-        self.states: List[State] = [State.LONG, State.SHORT]
+        self.states = [State.LONG, State.SHORT]
         self.transitions = [
             {
                 "trigger": "process_signal",
@@ -678,3 +690,7 @@ class BaseStrategy:
         await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
         )
+
+
+class BaseSpotStrategy(BaseStrategy):
+    pass

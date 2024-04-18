@@ -1,0 +1,99 @@
+<StrategyTab>:
+    orientation: 'vertical'
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint_y: None
+        height: '120dp'
+        GridLayout:
+            cols: 2
+            size_hint_x: 1
+            padding: 10
+            spacing: 10
+
+            # Input fields for Coin Sniper strategy
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Symbol'
+                TextInput:
+                    id: symbol_input
+                    multiline: False
+
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Side'
+                Spinner:
+                    id: side_input
+                    values: ['Buy', 'Sell']
+                    text: 'Choose Side'
+
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Price Low'
+                TextInput:
+                    id: price_low_input
+                    multiline: False
+                    input_filter: 'float'
+
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Price High'
+                TextInput:
+                    id: price_high_input
+                    multiline: False
+                    input_filter: 'float'
+
+            BoxLayout:
+                orientation: 'vertical'
+                Label:
+                    text: 'Budget'
+                TextInput:
+                    id: budget_input
+                    multiline: False
+                    input_filter: 'float'
+
+            Button:
+                text: 'Add Record'
+                size_hint: None, None
+                width: 200
+                height: 50
+                on_release: root.add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text)
+
+    BoxLayout:
+        id: bottom_section
+        orientation: 'horizontal'
+        TabbedPanel:
+            do_default_tab: False
+
+            TabbedPanelItem:
+                text: 'Active Records'
+                BoxLayout:
+                    orientation: "vertical"
+                    RecycleView:
+                        id: active_records_list
+                        data: root.active_records
+                        viewclass: 'RecordListItem'
+                        RecycleBoxLayout:
+                            default_size: None, dp(56)
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height
+                            orientation: 'vertical'
+
+            TabbedPanelItem:
+                text: 'Closed Records'
+                BoxLayout:
+                    orientation: "vertical"
+                    RecycleView:
+                        id: closed_records_list
+                        data: root.closed_records
+                        viewclass: 'RecordListItem'
+                        RecycleBoxLayout:
+                            default_size: None, dp(56)
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height
+                            orientation: 'vertical'

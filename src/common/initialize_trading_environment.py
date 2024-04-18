@@ -63,7 +63,6 @@ def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     gui_handler: GuiHandlerSpot,
-    interval: str,
     symbol: str,
     stop_event: asyncio.Event,
 ):

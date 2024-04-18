@@ -26,6 +26,7 @@ from src.gui.identifiers import (
 
 from src.trading_system import TradingSystem
 
+
 class CoinSniperTab(BoxLayout):
     strategy_name = StringProperty("")
     symbol = StringProperty("")

@@ -95,11 +95,10 @@ class TradingSystem:
         )
 
     async def initialize_spot(self):
-        self.balance = await get_balance(client=self.client, asset=self.config.asset)
+        # self.balance = await futures_get_balance(client=self.client, asset=self.config.asset)
 
         self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
-            balance=self.balance,
             df_handler=self.df_handler,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
@@ -145,13 +144,12 @@ class TradingSystem:
             *spot_prepare_producers(
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
-                interval=self.config.interval,
                 queue=self.strategy.queue,
                 gui_handler=self.gui_handler,
                 symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
-            asyncio.create_task(self.spot_determine_start_position()),
+            # asyncio.create_task(self.spot_determine_start_position()),
             return_exceptions=True,
         )
 
