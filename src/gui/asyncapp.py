@@ -211,42 +211,19 @@ class AsyncApp(App):
                 name=strategy_name, strategy_info=strategy_name
             )
 
-            # TODO: to be modified
             gui_handler = GuiHandlerSpot(
                 main_ui_queue=self.main_ui_queue,
                 ui_queue=asyncio.Queue(),
                 logger=strategy_logger,
             )
 
-            trading_system = TradingSystemSpot(
-                client=self.client,
-                gui_handler=gui_handler,
-                strategy_logger=strategy_logger,
-                config=config,
-            )
-            await trading_system.initialize()
-            self.trading_systems.append(trading_system)
-
             tab = TabbedPanelItem(
                 text=strategy_name_short,
                 content=CoinSniperTab(
-                    trading_system=trading_system,
-                    strategy_name=config.name,
-                    symbol=config.symbol,
                     strategy_logger=strategy_logger,
                     gui_handler=gui_handler,
+                    client=self.client,
                 ),
-            )
-            # Store a reference to the tab
-            self.tabs[strategy_name_short] = tab
-            # Add a new tab for the strategy
-            self.root.add_widget(tab)
-            self.root.ids.strategy_spinner.text = "Choose Strategy"
-            self.root.ids.symbol_spinner.text = "Choose Symbol"
-
-            await gui_handler.update_strategy(
-                strategy_name=config.name,
-                position=Position(symbol=config.symbol, leverage=config.leverage),
             )
 
             # Set up a logging handler for the strategy
@@ -255,12 +232,12 @@ class AsyncApp(App):
                 log_display_widget=tab.content.log_display,
             )
 
-            logger.info(
-                "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
-                len(self.strategy_tabs),
-                len(self.trading_systems),
-            )
-            await trading_system.start_trading()
+            # Store a reference to the tab
+            self.tabs[strategy_name_short] = tab
+            # Add a new tab for the strategy
+            self.root.add_widget(tab)
+            self.root.ids.strategy_spinner.text = "Choose Strategy"
+            self.root.ids.symbol_spinner.text = "Choose Symbol"
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy

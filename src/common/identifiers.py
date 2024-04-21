@@ -202,7 +202,7 @@ class BinanceClient(AsyncClient):
         return time.time() - self.time_difference
 
 
-class CoinTradeConfig(NamedTuple):
+class CoinSniperConfig(NamedTuple):
     name: str
     symbol: str
     side: PositionSide

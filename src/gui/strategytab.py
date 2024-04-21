@@ -49,9 +49,9 @@ class StrategyTab(BoxLayout):
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.trading_system: TradingSystemFutures = trading_system
-        self.gui_handler: GuiHandlerFutures = gui_handler
-        self.strategy_logger: StrategyLogger = strategy_logger
+        self.trading_system = trading_system
+        self.gui_handler = gui_handler
+        self.strategy_logger = strategy_logger
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):

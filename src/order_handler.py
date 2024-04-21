@@ -513,6 +513,40 @@ class OrderHandlerSpot:
         assert last_exception is not None
         raise last_exception
 
+    async def create_orders(
+        self,
+        side: PositionSide,
+        orders: List[Order],
+        symbol: str,
+    ) -> List[Order]:
+        """Send a list of orders concurrently.
+
+        Args:
+            client: A `BinanceClient` object.
+            side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
+            orders: A list of `Order` objects to send.
+
+        Returns:
+            A list of `Order` objects with updated order IDs and statuses.
+        """
+        results = await asyncio.gather(
+            *[
+                self.create_order(side=side, order=order, symbol=symbol)
+                for order in orders
+            ]
+        )
+        self.strategy_logger.info(
+            "Orders created, ids: %s", [order.order_id for order in orders]
+        )
+
+        await self.gui_handler.create_orders(
+            orders=results,
+            symbol=symbol,
+            side=side,
+        )
+
+        return results
+
     async def cancel_order(self, order_id: int, symbol: str) -> None:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
@@ -556,6 +590,27 @@ class OrderHandlerSpot:
                 exception,
             )
             raise exception
+
+    async def cancel_remaining_limit_orders(
+        self, orders: List[Order], symbol: str, side: PositionSide
+    ) -> List[Order]:
+        self.strategy_logger.info("Cancelling remaining limit orders")
+        assert orders
+        for order in orders:
+            if order.status == ORDER_STATUS_PARTIALLY_FILLED:
+                order = await self.cancel_order(order_id=order.order_id, symbol=symbol)
+                await self.gui_handler.update_order(
+                    order=order, symbol=symbol, side=side
+                )
+
+                self.strategy_logger.info(
+                    "Cancelled partially filled order_id: %s", order.order_id
+                )
+            elif order.status == ORDER_STATUS_NEW:
+                order = await self.cancel_order(order_id=order.order_id, symbol=symbol)
+                self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
+
+        return orders
 
     async def handle_order_updates(self, orders: List[Order], symbol: str) -> None:
         try:

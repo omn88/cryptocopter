@@ -10,7 +10,7 @@ import asyncio
 from typing import List
 
 
-class GuiHandler:
+class GuiHandlerFutures:
     def __init__(
         self,
         ui_queue: asyncio.Queue,
@@ -20,16 +20,6 @@ class GuiHandler:
         self.ui_queue = ui_queue
         self.main_ui_queue = main_ui_queue
         self.logger = logger
-
-
-class GuiHandlerFutures(GuiHandler):
-    def __init__(
-        self,
-        ui_queue: asyncio.Queue,
-        main_ui_queue: asyncio.Queue,
-        logger: StrategyLogger,
-    ):
-        super().__init__(ui_queue, main_ui_queue, logger)
 
     async def update_order(self, order: Order, symbol: str, side: PositionSide):
         order_data = self._prepare_order_data(order=order, symbol=symbol, side=side)
@@ -86,14 +76,16 @@ class GuiHandlerFutures(GuiHandler):
         return StrategyData(strategy_name=strategy_name, position_data=position_data)
 
 
-class GuiHandlerSpot(GuiHandler):
+class GuiHandlerSpot:
     def __init__(
         self,
         ui_queue: asyncio.Queue,
         main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
     ):
-        super().__init__(ui_queue, main_ui_queue, logger)
+        self.ui_queue = ui_queue
+        self.main_ui_queue = main_ui_queue
+        self.logger = logger
 
     async def update_order(self, order: Order, symbol: str, side: PositionSide):
         order_data = self._prepare_order_data(order=order, symbol=symbol, side=side)

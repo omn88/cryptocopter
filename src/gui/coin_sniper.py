@@ -9,12 +9,11 @@ from binance.enums import (
 from kivy.properties import (
     ListProperty,
     NumericProperty,
-    StringProperty,
     ObjectProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers import EventName, Event, Position, State
+from src.common.identifiers import BinanceClient, CoinSniperConfig, EventName, Event
 from src.gui.gui_handler import GuiHandlerSpot
 from src.gui.identifiers import (
     AccountData,
@@ -23,14 +22,13 @@ from src.gui.identifiers import (
     PriceData,
     PositionStatus,
 )
-
-from src.trading_system import TradingSystem
+from src.trading_system import TradingSystemSpot
 
 
 class CoinSniperTab(BoxLayout):
-    strategy_name = StringProperty("")
-    symbol = StringProperty("")
-    price_label = StringProperty("0")
+    trading_systems = ListProperty([])
+    active_strategies = ListProperty([])
+    closed_strategies = ListProperty([])
     open_positions = ListProperty([])
     open_orders = ListProperty([])
     closed_orders = ListProperty([])
@@ -43,16 +41,54 @@ class CoinSniperTab(BoxLayout):
 
     def __init__(
         self,
-        trading_system: TradingSystem,
+        client: BinanceClient,
         gui_handler: GuiHandlerSpot,
         strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.trading_system: TradingSystem = trading_system
         self.gui_handler: GuiHandlerSpot = gui_handler
         self.strategy_logger: StrategyLogger = strategy_logger
         asyncio.create_task(self.update_ui())
+
+    def strategy_config_retrieve(self) -> CoinSniperConfig:
+        strategy_name: str = self.root.ids.strategy_spinner.text
+        symbol: str = self.root.ids.symbol_spinner.text
+
+        widgets = self.dynamic_spinners.get(strategy_name, {})
+
+        return CoinSniperConfig(
+            name=strategy_name,
+            symbol=symbol,
+            number_of_orders=int(widgets.get("orders_spinner").text),
+            dca_span=float(widgets.get("dca_span_spinner").text),
+            leverage=int(widgets.get("leverage_spinner").text),
+            budget=20.0,
+        )
+
+    async def on_start_strategy(self) -> None:
+        """Creates and starts a new trading strategy."""
+
+        # CHECK THAT ALL MANDATORY FIELDS ARE SET
+        config = self.strategy_config_retrieve()
+
+        trading_system = TradingSystemSpot(
+            client=self.client,
+            gui_handler=self.gui_handler,
+            strategy_logger=self.strategy_logger,
+            config=config,
+        )
+        await trading_system.initialize()
+        self.trading_systems.append(trading_system)
+
+        self.strategy_logger.info(
+            "Strategy prepared, starting to initialize, total trading systems: %s",
+            len(self.trading_systems),
+        )
+        self.strategy_logger.info(
+            "So we are the point where trading will start, config: %s", config
+        )
+        # await trading_system.start_trading()
 
     async def update_ui(self):
         while True:

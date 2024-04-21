@@ -17,7 +17,6 @@ from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.order_handler import OrderHandlerFutures, OrderHandlerSpot
 
 
-
 class PositionHandlerFutures:
     def __init__(
         self,
@@ -85,19 +84,15 @@ class PositionHandlerFutures:
             self.strategy_logger.info(
                 "Entering position close, trying to market %s", close_side
             )
-            self.position.market_order = (
-                await self.order_handler.create_market_order(
-                    quantity=self.position.quantity,
-                    side=close_side,
-                    symbol=self.position.symbol,
-                )
+            self.position.market_order = await self.order_handler.create_market_order(
+                quantity=self.position.quantity,
+                side=close_side,
+                symbol=self.position.symbol,
             )
 
-            self.position.take_profit_order = (
-                await self.order_handler.cancel_order(
-                    order=self.position.take_profit_order,
-                    symbol=self.position.symbol,
-                )
+            self.position.take_profit_order = await self.order_handler.cancel_order(
+                order=self.position.take_profit_order,
+                symbol=self.position.symbol,
             )
             await self.gui_handler.update_order(
                 order=self.position.take_profit_order,
@@ -106,12 +101,10 @@ class PositionHandlerFutures:
             )
             self.strategy_logger.info("Cancelled take profit order")
 
-        self.position.orders = (
-            await self.order_handler.cancel_remaining_limit_orders(
-                symbol=self.position.symbol,
-                orders=self.position.orders,
-                side=self.position.side,
-            )
+        self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
+            symbol=self.position.symbol,
+            orders=self.position.orders,
+            side=self.position.side,
         )
 
         await self.gui_handler.update_position(position=self.position)
@@ -228,9 +221,7 @@ class PositionHandlerFutures:
 
         return balance
 
-    async def target_reached(
-        self, order_update: OrderUpdate, balance: float
-    ) -> float:
+    async def target_reached(self, order_update: OrderUpdate, balance: float) -> float:
         self.strategy_logger.info("Take profit order filled")
 
         self.position.status = PositionStatus.CLOSING
@@ -263,12 +254,10 @@ class PositionHandlerFutures:
 
         self.strategy_logger.info("Earned: %s", round(realized_position, 2))
 
-        self.position.orders = (
-            await self.order_handler.cancel_remaining_limit_orders(
-                orders=self.position.orders,
-                symbol=self.position.symbol,
-                side=self.position.side,
-            )
+        self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
+            orders=self.position.orders,
+            symbol=self.position.symbol,
+            side=self.position.side,
         )
 
         self.position.status = PositionStatus.CLOSED
@@ -289,18 +278,14 @@ class PositionHandlerFutures:
 
         return balance
 
-    async def handle_order_partially_filled(
-        self, order_update: OrderUpdate
-    ) -> None:
+    async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
         await self.get_position_info()
 
         # cancel take profit if exists
         if self.position.take_profit_order.order_id:
-            self.position.take_profit_order = (
-                await self.order_handler.cancel_order(
-                    order=self.position.take_profit_order,
-                    symbol=self.config.symbol,
-                )
+            self.position.take_profit_order = await self.order_handler.cancel_order(
+                order=self.position.take_profit_order,
+                symbol=self.config.symbol,
             )
             await self.gui_handler.update_order(
                 order=self.position.take_profit_order,
@@ -363,11 +348,9 @@ class PositionHandlerFutures:
 
         # cancel take profit if exists
         if self.position.take_profit_order.order_id:
-            self.position.take_profit_order = (
-                await self.order_handler.cancel_order(
-                    order=self.position.take_profit_order,
-                    symbol=self.position.symbol,
-                )
+            self.position.take_profit_order = await self.order_handler.cancel_order(
+                order=self.position.take_profit_order,
+                symbol=self.position.symbol,
             )
             self.strategy_logger.info(
                 "Cancelled take profit order with id: %s",
@@ -493,19 +476,15 @@ class PositionHandlerSpot:
             self.strategy_logger.info(
                 "Entering position close, trying to market %s", close_side
             )
-            self.position.market_order = (
-                await self.order_handler.create_market_order(
-                    quantity=self.position.quantity,
-                    side=close_side,
-                    symbol=self.position.symbol,
-                )
+            self.position.market_order = await self.order_handler.create_market_order(
+                quantity=self.position.quantity,
+                side=close_side,
+                symbol=self.position.symbol,
             )
 
-            self.position.take_profit_order = (
-                await self.order_handler.cancel_order(
-                    order=self.position.take_profit_order,
-                    symbol=self.position.symbol,
-                )
+            self.position.take_profit_order = await self.order_handler.cancel_order(
+                order_id=self.position.take_profit_order.order_id,
+                symbol=self.position.symbol,
             )
             await self.gui_handler.update_order(
                 order=self.position.take_profit_order,
@@ -514,12 +493,10 @@ class PositionHandlerSpot:
             )
             self.strategy_logger.info("Cancelled take profit order")
 
-        self.position.orders = (
-            await self.order_handler.cancel_remaining_limit_orders(
-                symbol=self.position.symbol,
-                orders=self.position.orders,
-                side=self.position.side,
-            )
+        self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
+            symbol=self.position.symbol,
+            orders=self.position.orders,
+            side=self.position.side,
         )
 
         await self.gui_handler.update_position(position=self.position)
@@ -583,9 +560,7 @@ class PositionHandlerSpot:
 
         return balance
 
-    async def target_reached(
-        self, order_update: OrderUpdate, balance: float
-    ) -> float:
+    async def target_reached(self, order_update: OrderUpdate, balance: float) -> float:
         self.strategy_logger.info("Take profit order filled")
 
         self.position.status = PositionStatus.CLOSING
@@ -618,12 +593,10 @@ class PositionHandlerSpot:
 
         self.strategy_logger.info("Earned: %s", round(realized_position, 2))
 
-        self.position.orders = (
-            await self.order_handler.cancel_remaining_limit_orders(
-                orders=self.position.orders,
-                symbol=self.position.symbol,
-                side=self.position.side,
-            )
+        self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
+            orders=self.position.orders,
+            symbol=self.position.symbol,
+            side=self.position.side,
         )
 
         self.position.status = PositionStatus.CLOSED
@@ -644,9 +617,7 @@ class PositionHandlerSpot:
 
         return balance
 
-    async def handle_order_partially_filled(
-        self, order_update: OrderUpdate
-    ) -> None:
+    async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
         for order in self.position.orders:
             if order_update.order_id == order.order_id:
                 order.status = order_update.status

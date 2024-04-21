@@ -703,8 +703,9 @@ class BaseSpotStrategy(BaseStrategy):
         gui_handler: GuiHandlerSpot,
         logger: StrategyLogger,
         df_handler: DfHandler,
+        balance: float,
     ):
-        super().__init__(client, config, logger, df_handler)
+        super().__init__(client, config, logger, df_handler, balance)
         self.gui_handler = gui_handler
         self.position_handler = PositionHandlerSpot(
             client=client,
