@@ -535,7 +535,7 @@ class BaseFuturesStrategy(BaseStrategy):
 
         side = PositionSide.LONG
 
-        await self.position_handler.open_position_futures(
+        await self.position_handler.open_position(
             side=side,
             config=self.config,
             mode=self.mode,
@@ -551,7 +551,7 @@ class BaseFuturesStrategy(BaseStrategy):
 
         side = PositionSide.SHORT
 
-        await self.position_handler.open_position_futures(
+        await self.position_handler.open_position(
             side=side,
             config=self.config,
             mode=self.mode,
