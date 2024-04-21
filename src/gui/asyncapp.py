@@ -28,7 +28,7 @@ from src.gui.coin_sniper import CoinSniperTab
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
-from src.trading_system import TradingSystem, TradingSystemFutures, TradingSystemSpot
+from src.trading_system import TradingSystemFutures, TradingSystemSpot
 from src.common.identifiers import EventName, Event
 
 logger = logging.getLogger("async_app")
@@ -192,7 +192,7 @@ class AsyncApp(App):
                     len(self.strategy_tabs),
                     len(self.trading_systems),
                 )
-                await trading_system.start_trading_futures()
+                await trading_system.start_trading()
             else:
                 logger.info("App: Please select a symbol.")
 

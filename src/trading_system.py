@@ -117,7 +117,7 @@ class TradingSystemFutures:
                 symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
-            asyncio.create_task(self.futures_determine_start_position()),
+            asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )
 
