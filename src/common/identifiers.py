@@ -117,8 +117,8 @@ class PositionMode(Enum):
 
 @dataclass
 class Order:
-    price: float
     quantity: float
+    price: float = 0
     quantity_stable: float = 0
     order_id: int = 0
     realized_quantity: float = 0
@@ -174,9 +174,9 @@ class Position:
 class BinanceClient(AsyncClient):
     def __init__(self, api_key, api_secret, sync_interval=60):
         super().__init__(api_key, api_secret)
-        self.time_difference = None
-        self.sync_interval = sync_interval
-        self.last_sync = 0
+        self.time_difference: float = 0.0
+        self.sync_interval: int = sync_interval
+        self.last_sync: float = 0.0
         self.logger = logging.getLogger(__name__)
         asyncio.create_task(self.time_sync_loop())
 

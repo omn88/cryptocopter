@@ -5,6 +5,8 @@ from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
+    ORDER_TYPE_LIMIT,
+    ORDER_TYPE_MARKET,
     FUTURE_ORDER_TYPE_MARKET,
 )
 from binance.exceptions import (
@@ -25,7 +27,7 @@ from src.common.identifiers import (
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 
 
-class OrderHandler:
+class OrderHandlerFutures:
     MAX_RETRIES = 10
 
     def __init__(
@@ -33,7 +35,7 @@ class OrderHandler:
         strategy_logger: StrategyLogger,
         client: BinanceClient,
         order_quantity_stable: float,
-        gui_handler: Union[GuiHandlerFutures, GuiHandlerSpot],
+        gui_handler: GuiHandlerFutures,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
@@ -358,17 +360,210 @@ class OrderHandler:
 
         return order
 
-    # async def update_order(self, symbol, order_id, new_quantity=None, new_price=None):
-    #     # Binance does not support modifying an existing order. You must cancel and create a new order.
-    #     try:
-    #         await self.cancel_order(symbol, order_id)
-    #         response = await self.create_order(
-    #             symbol, "LIMIT", "BUY", new_quantity, new_price
-    #         )  # Example for a limit buy order
-    #         self.strategy_logger.info(f"Order updated: {response}")
-    #         return response
-    #     except Exception as e:
-    #         self.strategy_logger.error(f"Error updating order: {e}")
-    #         raise
 
-    # # Add additional methods as needed for querying orders, etc.
+class OrderHandlerSpot:
+    MAX_RETRIES = 10
+
+    def __init__(
+        self,
+        strategy_logger: StrategyLogger,
+        client: BinanceClient,
+        order_quantity_stable: float,
+        gui_handler: GuiHandlerSpot,
+    ):
+        self.strategy_logger = strategy_logger
+        self.client = client
+        self.order_quantity_stable = order_quantity_stable
+        self.gui_handler = gui_handler
+
+    def prepare_orders(
+        self,
+        side: PositionSide,
+        mode: PositionMode,
+        entry_price: float,
+        number_of_orders: int,
+        dca_span: float,
+        leverage: int,
+    ) -> List[Order]:
+        orders = [
+            Order(
+                price=self.get_order_price(
+                    side=side,
+                    entry_price=entry_price,
+                    order=order,
+                    dca_span=dca_span,
+                ),
+                quantity=self.get_order_quantity(
+                    side=side,
+                    mode=mode,
+                    order_quantity=self.order_quantity_stable,
+                    entry_price=entry_price,
+                    order=order,
+                    number_of_orders=number_of_orders,
+                    dca_span=dca_span,
+                    leverage=leverage,
+                ),
+                order_id=0,
+                quantity_stable=self.order_quantity_stable,
+            )
+            for order in range(number_of_orders)
+        ]
+
+        self.strategy_logger.info("Prepared orders: %s", orders)
+        return orders
+
+    def get_order_price(
+        self, side: PositionSide, entry_price: float, order: int, dca_span: float
+    ):
+        if side == PositionSide.LONG:
+            return round((entry_price - (dca_span * order * entry_price)), 1)
+
+        if side == PositionSide.SHORT:
+            return round((entry_price + (dca_span * order * entry_price)), 1)
+
+    def get_order_quantity(
+        self,
+        side: PositionSide,
+        mode: PositionMode,
+        order_quantity: float,
+        entry_price: float,
+        number_of_orders: int,
+        dca_span: float,
+        leverage: int,
+        order: int,
+    ):
+        if side == PositionSide.LONG and mode == PositionMode.DCA:
+            return round(
+                leverage
+                * order_quantity
+                / (round((entry_price - (dca_span * order * entry_price)), 2)),
+                3,
+            )
+
+        if side == PositionSide.LONG and mode == PositionMode.FULL:
+            return round(
+                leverage
+                * order_quantity
+                * number_of_orders
+                / (round((entry_price - (dca_span * order * entry_price)), 2)),
+                3,
+            )
+
+        if side == PositionSide.SHORT and mode == PositionMode.DCA:
+            return round(
+                leverage
+                * order_quantity
+                / (round((entry_price + (dca_span * order * entry_price)), 2)),
+                3,
+            )
+
+        if side == PositionSide.SHORT and mode == PositionMode.FULL:
+            return round(
+                leverage
+                * order_quantity
+                * number_of_orders
+                / (round((entry_price + (dca_span * order * entry_price)), 2)),
+                3,
+            )
+
+    def target_price_calculate(
+        self, side: PositionSide, price: float, leverage: int
+    ) -> float:
+        if side == PositionSide.LONG:
+            target_price = round((1 + (100 / leverage / 100)) * price, 1)
+        elif side == PositionSide.SHORT:
+            target_price = round((1 - (100 / leverage / 100)) * price, 1)
+        else:
+            raise AssertionError(f"Wrong position side: {side}")
+
+        return target_price
+
+    async def create_order(
+        self, side: PositionSide, order: Order, symbol: str
+    ) -> Order:
+        last_exception = None
+        for _ in range(self.MAX_RETRIES):
+            try:
+                resp = await self.client.create_order(
+                    symbol=symbol,
+                    price=round(order.price, 2),
+                    quantity=round(abs(order.quantity), 3),
+                    side=side.value,
+                    type=ORDER_TYPE_LIMIT,
+                    timeInForce=TIME_IN_FORCE_GTC,
+                )
+            except (
+                BinanceAPIException,
+                BinanceOrderException,
+                BinanceRequestException,
+            ) as exception:
+                last_exception = exception
+                self.strategy_logger.error(
+                    "Failed to create spot order due to %s: %s",
+                    type(exception).__name__,
+                    exception,
+                )
+                await asyncio.sleep(1)  # wait for a second before retrying
+                continue
+            else:
+                order.order_id = int(resp["orderId"])
+                order.status = resp["status"]
+                return order
+
+        assert last_exception is not None
+        raise last_exception
+
+    async def cancel_order(self, order_id: int, symbol: str) -> None:
+        try:
+            resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
+            self.strategy_logger.info(f"Cancelled order {order_id}: {resp}")
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as exception:
+            self.strategy_logger.error(
+                "Failed to cancel order due to %s: %s",
+                type(exception).__name__,
+                exception,
+            )
+            raise exception
+
+    async def create_market_order(
+        self, side: PositionSide, symbol: str, quantity: float
+    ) -> Order:
+        try:
+            resp = await self.client.create_order(
+                symbol=symbol,
+                side=side.value,
+                quantity=round(abs(quantity), 3),
+                type=ORDER_TYPE_MARKET,
+            )
+            market_order = Order(
+                order_type=ORDER_TYPE_MARKET,
+                order_id=int(resp["orderId"]),
+                quantity=quantity,
+            )
+            return market_order
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as exception:
+            self.strategy_logger.error(
+                "Failed to send market order due to %s: %s",
+                type(exception).__name__,
+                exception,
+            )
+            raise exception
+
+    async def handle_order_updates(self, orders: List[Order], symbol: str) -> None:
+        try:
+            # In actual implementation, handle real-time updates
+            # This is a placeholder for the implementation of update handling
+            self.strategy_logger.info(f"Handling order updates for {symbol}")
+        except Exception as exception:
+            self.strategy_logger.error(
+                "Failed to handle order updates due to %s", exception
+            )
+            raise exception

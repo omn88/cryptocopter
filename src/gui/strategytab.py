@@ -24,7 +24,7 @@ from src.gui.identifiers import (
     PositionStatus,
 )
 
-from src.trading_system import TradingSystem
+from src.trading_system import TradingSystemFutures
 
 
 class StrategyTab(BoxLayout):
@@ -43,13 +43,13 @@ class StrategyTab(BoxLayout):
 
     def __init__(
         self,
-        trading_system: TradingSystem,
+        trading_system: TradingSystemFutures,
         gui_handler: GuiHandlerFutures,
         strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.trading_system: TradingSystem = trading_system
+        self.trading_system: TradingSystemFutures = trading_system
         self.gui_handler: GuiHandlerFutures = gui_handler
         self.strategy_logger: StrategyLogger = strategy_logger
         asyncio.create_task(self.update_ui())

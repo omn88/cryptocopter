@@ -1,4 +1,3 @@
-import asyncio
 from logging_config import StrategyLogger
 from src.common.identifiers import BinanceClient, StrategyConfig
 from src.df_handler import DfHandler
@@ -15,7 +14,4 @@ class CoinSniper(BaseSpotStrategy):
         logger: StrategyLogger,
         df_handler: DfHandler,
     ):
-        super().__init__(client, config, logger, df_handler)
-        self.gui_handler: GuiHandlerSpot = gui_handler
-        self.df_handler = df_handler
-        self.queue: asyncio.Queue = asyncio.Queue()
+        super().__init__(client, config, gui_handler, logger, df_handler)

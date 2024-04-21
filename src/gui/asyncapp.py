@@ -28,7 +28,7 @@ from src.gui.coin_sniper import CoinSniperTab
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
-from src.trading_system import TradingSystem
+from src.trading_system import TradingSystem, TradingSystemFutures, TradingSystemSpot
 from src.common.identifiers import EventName, Event
 
 logger = logging.getLogger("async_app")
@@ -115,7 +115,7 @@ class AsyncApp(App):
             budget=20.0,
         )
 
-    async def on_start_strategy(self):
+    async def on_start_strategy(self) -> None:
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
         strategy_name: str = self.root.ids.strategy_spinner.text
@@ -150,13 +150,13 @@ class AsyncApp(App):
                     logger=strategy_logger,
                 )
 
-                trading_system = TradingSystem(
+                trading_system = TradingSystemFutures(
                     client=self.client,
                     gui_handler=gui_handler,
                     strategy_logger=strategy_logger,
                     config=config,
                 )
-                await trading_system.initialize_futures()
+                await trading_system.initialize()
                 self.trading_systems.append(trading_system)
 
                 tab = TabbedPanelItem(
@@ -218,13 +218,13 @@ class AsyncApp(App):
                 logger=strategy_logger,
             )
 
-            trading_system = TradingSystem(
+            trading_system = TradingSystemSpot(
                 client=self.client,
                 gui_handler=gui_handler,
                 strategy_logger=strategy_logger,
                 config=config,
             )
-            await trading_system.initialize_spot()
+            await trading_system.initialize()
             self.trading_systems.append(trading_system)
 
             tab = TabbedPanelItem(
@@ -260,7 +260,7 @@ class AsyncApp(App):
                 len(self.strategy_tabs),
                 len(self.trading_systems),
             )
-            await trading_system.start_trading_spot()
+            await trading_system.start_trading()
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy

@@ -86,16 +86,14 @@ class GuiHandlerFutures(GuiHandler):
         return StrategyData(strategy_name=strategy_name, position_data=position_data)
 
 
-class GuiHandlerSpot:
+class GuiHandlerSpot(GuiHandler):
     def __init__(
         self,
         ui_queue: asyncio.Queue,
         main_ui_queue: asyncio.Queue,
         logger: StrategyLogger,
     ):
-        self.ui_queue = ui_queue
-        self.main_ui_queue = main_ui_queue
-        self.logger = logger
+        super().__init__(ui_queue, main_ui_queue, logger)
 
     async def update_order(self, order: Order, symbol: str, side: PositionSide):
         order_data = self._prepare_order_data(order=order, symbol=symbol, side=side)

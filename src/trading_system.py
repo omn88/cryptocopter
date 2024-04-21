@@ -38,17 +38,17 @@ STRATEGY_MAP = {
 }
 
 
-class TradingSystem:
+class TradingSystemFutures:
     def __init__(
         self,
         client: BinanceClient,
-        gui_handler: Union[GuiHandlerSpot, GuiHandlerFutures],
+        gui_handler: GuiHandlerFutures,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
         self.config: StrategyConfig = config
-        self.gui_handler: Union[GuiHandlerSpot, GuiHandlerFutures] = gui_handler
+        self.gui_handler: GuiHandlerFutures = gui_handler
         self.df_handler: DfHandler = DfHandler(
             client=client, config=config, logger=strategy_logger
         )
@@ -59,7 +59,7 @@ class TradingSystem:
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[BaseStrategy] = None
 
-    async def initialize_futures(self):
+    async def initialize(self):
         await change_margin_type(
             client=self.client,
             symbol=self.config.symbol,
@@ -94,29 +94,11 @@ class TradingSystem:
             signals=self.df_handler.signals,
         )
 
-    async def initialize_spot(self):
-        # self.balance = await futures_get_balance(client=self.client, asset=self.config.asset)
-
-        self.strategy = STRATEGY_MAP[self.config.name](
-            client=self.client,
-            df_handler=self.df_handler,
-            gui_handler=self.gui_handler,
-            logger=self.strategy_logger,
-        )
-
-        self.state_machine = TradingStateMachine(strategy=self.strategy)
-
-        await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
-
-    async def futures_determine_start_position(self):
+    async def determine_start_position(self):
         await asyncio.sleep(5)
         await self.df_handler.futures_determine_start_position(
             queue=self.strategy.queue
         )
-
-    async def spot_determine_start_position(self):
-        await asyncio.sleep(5)
-        await self.df_handler.spot_determine_start_position(queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         # is this sleep needed?
@@ -124,7 +106,7 @@ class TradingSystem:
         if self.state_machine:
             await worker.worker(state_machine=self.state_machine, logger=logger)
 
-    async def start_trading_futures(self):
+    async def start_trading(self):
         await asyncio.gather(
             *futures_prepare_producers(
                 socket_manager=self.binance_socket_manager,
@@ -139,7 +121,73 @@ class TradingSystem:
             return_exceptions=True,
         )
 
-    async def start_trading_spot(self):
+    async def stop(self):
+        # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
+        # It might involve cancelling the tasks that were started in `start`.
+        self.strategy_logger.info("Trading system STOP initiated properly")
+        await self.strategy.queue.put(
+            Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
+        )
+        await self.gui_handler.main_ui_queue.put(
+            Event(
+                EventName.SENTINEL,
+                content={
+                    "strategy_name": self.config.name,
+                    "symbol": self.config.symbol,
+                },
+            )
+        )
+        await asyncio.sleep(5)
+        self.stop_producers_event.set()
+        self.strategy_logger.info("Sentinel should be send.")
+
+
+class TradingSystemSpot:
+    def __init__(
+        self,
+        client: BinanceClient,
+        gui_handler: GuiHandlerSpot,
+        config: StrategyConfig,
+        strategy_logger: StrategyLogger,
+    ):
+        self.client = client
+        self.config = config
+        self.gui_handler = gui_handler
+        self.df_handler: DfHandler = DfHandler(
+            client=client, config=config, logger=strategy_logger
+        )
+        self.strategy_logger = strategy_logger
+        self.binance_socket_manager = BinanceSocketManager(client=client)
+        self.stop_producers_event = asyncio.Event()
+        self.balance = None
+        self.state_machine: Optional[TradingStateMachine] = None
+        self.strategy: Optional[BaseStrategy] = None
+
+    async def initialize(self):
+        # self.balance = await futures_get_balance(client=self.client, asset=self.config.asset)
+
+        self.strategy = STRATEGY_MAP[self.config.name](
+            client=self.client,
+            df_handler=self.df_handler,
+            gui_handler=self.gui_handler,
+            logger=self.strategy_logger,
+        )
+
+        self.state_machine = TradingStateMachine(strategy=self.strategy)
+
+        await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
+
+    async def determine_start_position(self):
+        await asyncio.sleep(5)
+        await self.df_handler.spot_determine_start_position(queue=self.strategy.queue)
+
+    async def prepare_worker(self, logger: StrategyLogger):
+        # is this sleep needed?
+        await asyncio.sleep(5)
+        if self.state_machine:
+            await worker.worker(state_machine=self.state_machine, logger=logger)
+
+    async def start_trading(self):
         await asyncio.gather(
             *spot_prepare_producers(
                 socket_manager=self.binance_socket_manager,
