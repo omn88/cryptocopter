@@ -3,74 +3,96 @@
     BoxLayout:
         orientation: 'vertical'
         size_hint_y: None
-        height: '120dp'
-        GridLayout:
-            cols: 2
-            size_hint_x: 1
-            padding: 10
-            spacing: 10
+        height: '150dp'  # Height for configuration controls
 
-            # Input fields for Coin Sniper strategy
-            # Searchable dropdown for Coin Symbol
+        BoxLayout:  # Main horizontal layout for configuration and buttons
+            # Configuration section (left side)
             BoxLayout:
                 orientation: 'vertical'
-                Label:
-                    text: 'Symbol'
-                #SearchableDropDown:
-                #    id: symbol_dropdown
-                Spinner:
-                    id: side_input
-                    values: ['BTCUSDT', 'ETHUSDT']  # Corrected typo and values
-                    text: 'Choose Symbol'  # Correct label text
+                size_hint_x: 0.75  # Give 75% of the space to configuration
 
+                BoxLayout:  # First line of configuration
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: '50dp'
+                    spacing: 5
+                    Label:
+                        text: 'I want to '
+                    Spinner:
+                        id: action_input
+                        values: ['BUY', 'SELL']
+                        text: 'Choose Action'
+                    Spinner:
+                        id: symbol_input
+                        values: ['BTCUSDT', 'ETHUSDT']
+                        text: 'Choose Symbol'
+                    Label:
+                        text: ' with budget: '
+                    TextInput:
+                        id: budget_input
+                        multiline: False
+                        input_filter: 'float'
+
+                BoxLayout:  # Second line: Pricing information
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: '50dp'
+                    spacing: 5
+                    Label:
+                        text: 'Price Low: '
+                    TextInput:
+                        id: price_low_input
+                        multiline: False
+                        input_filter: 'float'
+                    Label:
+                        text: 'Price High: '
+                    TextInput:
+                        id: price_high_input
+                        multiline: False
+                        input_filter: 'float'
+
+                BoxLayout:  # Third line: Advanced trading options
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: '50dp'
+                    spacing: 5
+                    Label:
+                        text: 'Trigger orders (in %): '
+                    TextInput:
+                        id: trigger_orders_input
+                        multiline: False
+                        input_filter: 'float'
+                    Label:
+                        text: 'Mode: '
+                    Spinner:
+                        id: mode_input
+                        values: ['DCA', 'SINGLE']
+                        text: 'Choose Mode'
+
+            # Right section for action buttons
             BoxLayout:
                 orientation: 'vertical'
-                Label:
-                    text: 'Side'
-                Spinner:
-                    id: side_input
-                    values: ['Buy', 'Sell']
-                    text: 'Choose Side'
+                size_hint_x: 0.25
+                Button:
+                    text: 'Add Record'
+                    size_hint_y: None
+                    height: '50dp'
+                    on_release: root.add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text)
+                Button:
+                    text: 'Remove Record'
+                    size_hint_y: None
+                    height: '50dp'
+                    on_release: root.remove_record()
 
-            BoxLayout:
-                orientation: 'vertical'
-                Label:
-                    text: 'Price Low'
-                TextInput:
-                    id: price_low_input
-                    multiline: False
-                    input_filter: 'float'
-
-            BoxLayout:
-                orientation: 'vertical'
-                Label:
-                    text: 'Price High'
-                TextInput:
-                    id: price_high_input
-                    multiline: False
-                    input_filter: 'float'
-
-            BoxLayout:
-                orientation: 'vertical'
-                Label:
-                    text: 'Budget'
-                TextInput:
-                    id: budget_input
-                    multiline: False
-                    input_filter: 'float'
-
-            Button:
-                text: 'Add Record'
-                size_hint: None, None
-                width: 200
-                height: 50
-                on_release: root.add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text)
-
+    # Bottom section with tabbed panels for records
     BoxLayout:
         id: bottom_section
-        orientation: 'horizontal'
+        orientation: 'vertical'
+        size_hint_y: 1  # Allow this to take the remaining space
+
         TabbedPanel:
             do_default_tab: False
+            size_hint_y: 1  # Ensure tabs take full vertical space available
 
             TabbedPanelItem:
                 text: 'Active Records'
@@ -80,12 +102,6 @@
                         id: active_records_list
                         data: root.active_records
                         viewclass: 'RecordListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
-                            size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
 
             TabbedPanelItem:
                 text: 'Closed Records'
@@ -95,9 +111,3 @@
                         id: closed_records_list
                         data: root.closed_records
                         viewclass: 'RecordListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)
-                            default_size_hint: 1, None
-                            size_hint_y: None
-                            height: self.minimum_height
-                            orientation: 'vertical'
