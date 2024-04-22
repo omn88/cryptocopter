@@ -1,3 +1,14 @@
+<SearchableDropDown>:
+    TextInput:
+        id: text_input
+        size_hint_y: None
+        height: 30
+        multiline: False
+        on_text: root.filter_symbols(self.text)
+    DropDown:
+        id: dropdown
+
+
 <StrategyTab>:
     orientation: 'vertical'
     BoxLayout:
@@ -11,13 +22,14 @@
             spacing: 10
 
             # Input fields for Coin Sniper strategy
+            # Searchable dropdown for Coin Symbol
             BoxLayout:
                 orientation: 'vertical'
                 Label:
                     text: 'Symbol'
-                TextInput:
-                    id: symbol_input
-                    multiline: False
+                SearchableDropDown:
+                    id: symbol_dropdown
+
 
             BoxLayout:
                 orientation: 'vertical'

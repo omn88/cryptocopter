@@ -13,5 +13,9 @@ class CoinSniper(BaseSpotStrategy):
         gui_handler: GuiHandlerSpot,
         logger: StrategyLogger,
         df_handler: DfHandler,
+        balance: float,
     ):
-        super().__init__(client, config, gui_handler, logger, df_handler)
+        super().__init__(client, config, gui_handler, logger, df_handler, balance)
+
+    async def handle_kline(self):
+        pass

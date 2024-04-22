@@ -102,13 +102,14 @@ class AsyncApp(App):
 
     def futures_strategy_config_retrieve(self) -> StrategyConfig:
         strategy_name: str = self.root.ids.strategy_spinner.text
-        symbol: str = self.root.ids.symbol_spinner.text
 
         widgets = self.dynamic_spinners.get(strategy_name, {})
 
+        logger.info("Co jest kuwa, SYMBOL: %s", widgets)
+
         return StrategyConfig(
             name=strategy_name,
-            symbol=symbol,
+            symbol=widgets.get("symbol_spinner").text,
             number_of_orders=int(widgets.get("orders_spinner").text),
             dca_span=float(widgets.get("dca_span_spinner").text),
             leverage=int(widgets.get("leverage_spinner").text),
@@ -174,7 +175,6 @@ class AsyncApp(App):
                 # Add a new tab for the strategy
                 self.root.add_widget(tab)
                 self.root.ids.strategy_spinner.text = "Choose Strategy"
-                self.root.ids.symbol_spinner.text = "Choose Symbol"
 
                 await gui_handler.update_strategy(
                     strategy_name=config.name,
@@ -237,7 +237,6 @@ class AsyncApp(App):
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
-            self.root.ids.symbol_spinner.text = "Choose Symbol"
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
@@ -266,6 +265,27 @@ class AsyncApp(App):
 
         # Check the strategy and add relevant UI elements
         if strategy_name.startswith("RSI"):
+            # Container for Symbol
+            symbol_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            symbol_label = Label(text="Symbol", size_hint_y=None, height=20)
+            symbol_spinner = Spinner(
+                text="BTCUSDT",  # Default value
+                values=["BTCUSDT", "ETHUSDT", "ETHBTC"],
+                size_hint_y=None,
+                height=30,
+            )
+            symbol_spinner.id = "symbol_spinner"
+            symbol_container.add_widget(symbol_label)
+            symbol_container.add_widget(symbol_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(symbol_container)
+
+            # Store reference to the symbol_spinner
+            self.dynamic_spinners[strategy_name] = {"symbol_spinner": symbol_spinner}
+
+            logger.info("dynaic spinners: %s", self.dynamic_spinners[strategy_name])
+
             # Container for Leverage
             leverage_container = BoxLayout(
                 orientation="vertical", size_hint_x=None, width=100
@@ -283,9 +303,7 @@ class AsyncApp(App):
             self.root.ids.dynamic_ui_container.add_widget(leverage_container)
 
             # Store reference to the leverage_spinner
-            self.dynamic_spinners[strategy_name] = {
-                "leverage_spinner": leverage_spinner
-            }
+            self.dynamic_spinners[strategy_name]["leverage_spinner"] = leverage_spinner
 
             # Container for Number of DCA Orders
             orders_container = BoxLayout(
