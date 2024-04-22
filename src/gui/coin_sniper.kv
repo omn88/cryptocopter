@@ -5,13 +5,17 @@
         size_hint_y: None
         height: '150dp'  # Height for configuration controls
 
-        BoxLayout:  # Main horizontal layout for configuration and buttons
-            # Configuration section (left side)
+        # Main horizontal layout for configuration, empty space, and buttons
+        BoxLayout:
+            orientation: 'horizontal'
+
+            # Configuration section (left side) - now using only 50% of the width
             BoxLayout:
                 orientation: 'vertical'
-                size_hint_x: 0.75  # Give 75% of the space to configuration
+                size_hint_x: 0.6  # Reduced to 50% of the horizontal space
 
-                BoxLayout:  # First line of configuration
+                # First line: Basic trading options
+                BoxLayout:
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
@@ -33,11 +37,11 @@
                         multiline: False
                         input_filter: 'float'
 
-                BoxLayout:  # Second line: Pricing information
+                # Second line: Pricing information
+                BoxLayout:
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
-                    spacing: 5
                     Label:
                         text: 'Price Low: '
                     TextInput:
@@ -51,11 +55,11 @@
                         multiline: False
                         input_filter: 'float'
 
-                BoxLayout:  # Third line: Advanced trading options
+                # Third line: Advanced trading options
+                BoxLayout:
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
-                    spacing: 5
                     Label:
                         text: 'Trigger orders (in %): '
                     TextInput:
@@ -69,10 +73,14 @@
                         values: ['DCA', 'SINGLE']
                         text: 'Choose Mode'
 
-            # Right section for action buttons
+            # Empty space to fill 25% of the width
+            BoxLayout:
+                size_hint_x: 0.2
+
+            # Right section for action buttons - maintains 25% width
             BoxLayout:
                 orientation: 'vertical'
-                size_hint_x: 0.25
+                size_hint_x: 0.2
                 Button:
                     text: 'Add Record'
                     size_hint_y: None
