@@ -1,15 +1,4 @@
-<SearchableDropDown>:
-    TextInput:
-        id: text_input
-        size_hint_y: None
-        height: 30
-        multiline: False
-        on_text: root.filter_symbols(self.text)
-    DropDown:
-        id: dropdown
-
-
-<StrategyTab>:
+<CoinSniper>:
     orientation: 'vertical'
     BoxLayout:
         orientation: 'vertical'
@@ -27,9 +16,12 @@
                 orientation: 'vertical'
                 Label:
                     text: 'Symbol'
-                SearchableDropDown:
-                    id: symbol_dropdown
-
+                #SearchableDropDown:
+                #    id: symbol_dropdown
+                Spinner:
+                    id: side_input
+                    values: ['BTCUSDT', 'ETHUSDT']  # Corrected typo and values
+                    text: 'Choose Symbol'  # Correct label text
 
             BoxLayout:
                 orientation: 'vertical'

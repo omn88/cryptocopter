@@ -25,7 +25,7 @@ from src.gui.identifiers import (
 from src.trading_system import TradingSystemSpot
 
 
-class CoinSniperTab(BoxLayout):
+class CoinSniper(BoxLayout):
     trading_systems = ListProperty([])
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
@@ -33,6 +33,8 @@ class CoinSniperTab(BoxLayout):
     open_orders = ListProperty([])
     closed_orders = ListProperty([])
     closed_positions = ListProperty([])
+    active_records = ListProperty([])
+    closed_records = ListProperty([])
 
     order_count = NumericProperty(0)
     position_count = NumericProperty(0)
@@ -65,6 +67,49 @@ class CoinSniperTab(BoxLayout):
             leverage=int(widgets.get("leverage_spinner").text),
             budget=20.0,
         )
+
+    # if strategy_name == "Coin Sniper":
+    #     # Container for choosing side
+    #     side_container = BoxLayout(
+    #         orientation="vertical", size_hint_x=None, width=100
+    #     )
+    #     side_label = Label(text="Side", size_hint_y=None, height=20)
+    #     side_spinner = Spinner(
+    #         text="BUY",  # Default value
+    #         values=["BUY", "SELL"],
+    #         size_hint_y=None,
+    #         height=30,
+    #     )
+    #     side_spinner.id = "side_spinner"
+    #     side_container.add_widget(side_label)
+    #     side_container.add_widget(side_spinner)
+    #     self.root.ids.dynamic_ui_container.add_widget(side_container)
+
+    #     # Container for the Price
+    #     price_container = BoxLayout(
+    #         orientation="vertical", size_hint_x=None, width=100
+    #     )
+    #     price_label = Label(text="Price", size_hint_y=None, height=20)
+    #     price = TextInput(
+    #         text="0.0", input_filter="float", size_hint_y=None, height=30
+    #     )
+    #     price.id = "price"
+    #     price_container.add_widget(price_label)
+    #     price_container.add_widget(price)
+    #     self.root.ids.dynamic_ui_container.add_widget(price_container)
+
+    #     # Container for Budget
+    #     budget_container = BoxLayout(
+    #         orientation="vertical", size_hint_x=None, width=100
+    #     )
+    #     budget_label = Label(text="Budget", size_hint_y=None, height=20)
+    #     budget = TextInput(
+    #         text="100.0", input_filter="float", size_hint_y=None, height=30
+    #     )
+    #     budget.id = "budget"
+    #     budget_container.add_widget(budget_label)
+    #     budget_container.add_widget(budget)
+    #     self.root.ids.dynamic_ui_container.add_widget(budget_container)
 
     async def on_start_strategy(self) -> None:
         """Creates and starts a new trading strategy."""

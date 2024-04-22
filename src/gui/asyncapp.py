@@ -24,7 +24,7 @@ from src.common.identifiers import (
     PositionSide,
     StrategyConfig,
 )
-from src.gui.coin_sniper import CoinSniperTab
+from src.gui.coin_sniper import CoinSniper
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
@@ -207,21 +207,21 @@ class AsyncApp(App):
 
             logger.info("Starting Coin Sniper strategy")
 
+            Builder.load_file("src/gui/coin_sniper.kv")
+
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name
             )
 
-            gui_handler = GuiHandlerSpot(
-                main_ui_queue=self.main_ui_queue,
-                ui_queue=asyncio.Queue(),
-                logger=strategy_logger,
-            )
-
             tab = TabbedPanelItem(
-                text=strategy_name_short,
-                content=CoinSniperTab(
+                text=strategy_name,
+                content=CoinSniper(
                     strategy_logger=strategy_logger,
-                    gui_handler=gui_handler,
+                    gui_handler=GuiHandlerSpot(
+                        main_ui_queue=self.main_ui_queue,
+                        ui_queue=asyncio.Queue(),
+                        logger=strategy_logger,
+                    ),
                     client=self.client,
                 ),
             )
@@ -233,7 +233,7 @@ class AsyncApp(App):
             )
 
             # Store a reference to the tab
-            self.tabs[strategy_name_short] = tab
+            self.tabs[strategy_name] = tab
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
@@ -283,8 +283,6 @@ class AsyncApp(App):
 
             # Store reference to the symbol_spinner
             self.dynamic_spinners[strategy_name] = {"symbol_spinner": symbol_spinner}
-
-            logger.info("dynaic spinners: %s", self.dynamic_spinners[strategy_name])
 
             # Container for Leverage
             leverage_container = BoxLayout(
@@ -342,49 +340,6 @@ class AsyncApp(App):
 
             # Store reference to the dca_span_spinner
             self.dynamic_spinners[strategy_name]["dca_span_spinner"] = dca_span_spinner
-
-        if strategy_name == "Coin Sniper":
-            # Container for choosing side
-            side_container = BoxLayout(
-                orientation="vertical", size_hint_x=None, width=100
-            )
-            side_label = Label(text="Side", size_hint_y=None, height=20)
-            side_spinner = Spinner(
-                text="BUY",  # Default value
-                values=["BUY", "SELL"],
-                size_hint_y=None,
-                height=30,
-            )
-            side_spinner.id = "side_spinner"
-            side_container.add_widget(side_label)
-            side_container.add_widget(side_spinner)
-            self.root.ids.dynamic_ui_container.add_widget(side_container)
-
-            # Container for the Price
-            price_container = BoxLayout(
-                orientation="vertical", size_hint_x=None, width=100
-            )
-            price_label = Label(text="Price", size_hint_y=None, height=20)
-            price = TextInput(
-                text="0.0", input_filter="float", size_hint_y=None, height=30
-            )
-            price.id = "price"
-            price_container.add_widget(price_label)
-            price_container.add_widget(price)
-            self.root.ids.dynamic_ui_container.add_widget(price_container)
-
-            # Container for Budget
-            budget_container = BoxLayout(
-                orientation="vertical", size_hint_x=None, width=100
-            )
-            budget_label = Label(text="Budget", size_hint_y=None, height=20)
-            budget = TextInput(
-                text="100.0", input_filter="float", size_hint_y=None, height=30
-            )
-            budget.id = "budget"
-            budget_container.add_widget(budget_label)
-            budget_container.add_widget(budget)
-            self.root.ids.dynamic_ui_container.add_widget(budget_container)
 
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")

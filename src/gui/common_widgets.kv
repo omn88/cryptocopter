@@ -139,3 +139,41 @@
         text: '%s %%' % root.pnl
     Label:
         text: root.state
+
+
+<RecordListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    symbol: ''
+    side: ''
+    price: ''
+    levels: ''
+    status: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Light gray line
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
+
+    Label:
+        text: root.symbol
+        size_hint_x: 0.2
+
+    Label:
+        text: root.side
+        size_hint_x: 0.2
+
+    Label:
+        text: root.price
+        size_hint_x: 0.2
+
+    Label:
+        text: root.levels
+        size_hint_x: 0.2
+
+    Label:
+        text: root.status
+        size_hint_x: 0.2

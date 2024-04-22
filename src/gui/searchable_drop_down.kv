@@ -1,0 +1,9 @@
+<SearchableDropDown>:
+    TextInput:
+        id: text_input
+        size_hint_y: None
+        height: 30
+        multiline: False
+        on_text: root.filter_symbols(self.text)
+    DropDown:
+        id: dropdown
