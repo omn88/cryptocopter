@@ -5,73 +5,102 @@
         size_hint_y: None
         height: '150dp'  # Height for configuration controls
 
-        # Main horizontal layout for configuration, empty space, and buttons
-        BoxLayout:
+        BoxLayout:  # Main horizontal layout for configuration and buttons
             orientation: 'horizontal'
 
-            # Configuration section (left side) - now using only 50% of the width
-            BoxLayout:
+            BoxLayout:  # Configuration section (left side)
                 orientation: 'vertical'
-                size_hint_x: 0.6  # Reduced to 50% of the horizontal space
+                size_hint_x: 0.6  # Using 60% of the horizontal space
+                padding: [16, 0, 0, 0]
 
-                # First line: Basic trading options
-                BoxLayout:
+                BoxLayout:  # First line: Basic trading options
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
                     spacing: 5
                     Label:
                         text: 'I want to '
+                        size_hint_x: 0.1
+                        size_hint_y: 0.7  # Full height within the line
                     Spinner:
                         id: action_input
                         values: ['BUY', 'SELL']
-                        text: 'Choose Action'
+                        text: 'BUY'
+                        size_hint_x: 0.15
+                        size_hint_y: 0.7  # Full height within the line
                     Spinner:
                         id: symbol_input
                         values: ['BTCUSDT', 'ETHUSDT']
                         text: 'Choose Symbol'
+                        size_hint_x: 0.25
+                        size_hint_y: 0.7  # Full height within the line
                     Label:
                         text: ' with budget: '
+                        size_hint_x: 0.15
+                        size_hint_y: 0.7  # Full height within the line
                     TextInput:
                         id: budget_input
                         multiline: False
                         input_filter: 'float'
+                        size_hint_x: 0.15
+                        size_hint_y: 0.6  # Full height within the line
+                    BoxLayout:
+                        size_hint_x: 0.2
 
-                # Second line: Pricing information
-                BoxLayout:
+                BoxLayout:  # Second line: Pricing information
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
+                    spacing: 5
                     Label:
-                        text: 'Price Low: '
+                        text: 'Price Range Low:'
+                        size_hint_x: 0.2
+                        size_hint_y: 0.7  # Full height within the line  # Full height within the line
                     TextInput:
                         id: price_low_input
                         multiline: False
                         input_filter: 'float'
+                        size_hint_x: 0.15
+                        size_hint_y: 0.6  # Full height within the line
                     Label:
-                        text: 'Price High: '
+                        text: 'Price High:'
+                        size_hint_x: 0.15
+                        size_hint_y: 0.7  # Full height within the line
                     TextInput:
                         id: price_high_input
                         multiline: False
                         input_filter: 'float'
+                        size_hint_x: 0.15
+                        size_hint_y: 0.6  # Full height within the line
+                    BoxLayout:
+                        size_hint_x: 0.25
 
-                # Third line: Advanced trading options
-                BoxLayout:
+                BoxLayout:  # Third line: Advanced trading options
                     orientation: 'horizontal'
                     size_hint_y: None
                     height: '50dp'
                     Label:
-                        text: 'Trigger orders (in %): '
+                        text: 'Trigger orders(%): '
+                        size_hint_x: 0.2
+                        size_hint_y: 0.7  # Full height within the line
                     TextInput:
                         id: trigger_orders_input
                         multiline: False
                         input_filter: 'float'
+                        size_hint_x: 0.2
+                        size_hint_y: 0.7  # Full height within the line
                     Label:
                         text: 'Mode: '
+                        size_hint_x: 0.2
+                        size_hint_y: 0.7  # Full height within the line
                     Spinner:
                         id: mode_input
                         values: ['DCA', 'SINGLE']
                         text: 'Choose Mode'
+                        size_hint_x: 0.2
+                        size_hint_y: 0.7  # Full height within the line
+                    BoxLayout:
+                        size_hint_x: 0.2
 
             # Empty space to fill 25% of the width
             BoxLayout:
