@@ -2,7 +2,7 @@
     orientation: 'vertical'
     BoxLayout:
         orientation: 'vertical'
-        size_hint_y: None
+        size_hint_y: 0.3
         height: '150dp'  # Height for configuration controls
 
         BoxLayout:  # Main horizontal layout for configuration and buttons
@@ -15,7 +15,7 @@
 
                 BoxLayout:  # First line: Basic trading options
                     orientation: 'horizontal'
-                    size_hint_y: None
+                    size_hint_y: 0.3
                     height: '50dp'
                     spacing: 5
                     Label:
@@ -49,12 +49,12 @@
 
                 BoxLayout:  # Second line: Pricing information
                     orientation: 'horizontal'
-                    size_hint_y: None
+                    size_hint_y: 0.3
                     height: '50dp'
                     spacing: 5
                     Label:
                         text: 'Price Range Low:'
-                        size_hint_x: 0.2
+                        size_hint_x: 0.22
                         size_hint_y: 0.7  # Full height within the line  # Full height within the line
                     TextInput:
                         id: price_low_input
@@ -73,35 +73,38 @@
                         size_hint_x: 0.15
                         size_hint_y: 0.6  # Full height within the line
                     BoxLayout:
-                        size_hint_x: 0.25
+                        size_hint_x: 0.33
 
                 BoxLayout:  # Third line: Advanced trading options
                     orientation: 'horizontal'
-                    size_hint_y: None
+                    size_hint_y: 0.3
                     height: '50dp'
                     Label:
-                        text: 'Trigger orders(%): '
+                        text: 'Order Trigger(%):'
                         size_hint_x: 0.2
                         size_hint_y: 0.7  # Full height within the line
-                    TextInput:
+                    Spinner:
                         id: trigger_orders_input
-                        multiline: False
-                        input_filter: 'float'
-                        size_hint_x: 0.2
-                        size_hint_y: 0.7  # Full height within the line
+                        values: [str(round(x * 0.1, 1)) for x in range(0, 51)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
+                        text: '1.0'
+                        size_hint_x: 0.1
+                        size_hint_y: 0.6
                     Label:
                         text: 'Mode: '
-                        size_hint_x: 0.2
+                        size_hint_x: 0.1
                         size_hint_y: 0.7  # Full height within the line
                     Spinner:
                         id: mode_input
                         values: ['DCA', 'SINGLE']
                         text: 'Choose Mode'
                         size_hint_x: 0.2
-                        size_hint_y: 0.7  # Full height within the line
+                        size_hint_y: 0.6  # Full height within the line
                     BoxLayout:
-                        size_hint_x: 0.2
+                        size_hint_x: 0.4
 
+                #Empty space
+                BoxLayout:
+                    size_hint_y: 0.1
             # Empty space to fill 25% of the width
             BoxLayout:
                 size_hint_x: 0.2
@@ -125,14 +128,14 @@
     BoxLayout:
         id: bottom_section
         orientation: 'vertical'
-        size_hint_y: 1  # Allow this to take the remaining space
+        size_hint_y: 0.7  # Allow this to take the remaining space
 
         TabbedPanel:
             do_default_tab: False
             size_hint_y: 1  # Ensure tabs take full vertical space available
 
             TabbedPanelItem:
-                text: 'Active Records'
+                text: 'Active'
                 BoxLayout:
                     orientation: "vertical"
                     RecycleView:
@@ -141,7 +144,7 @@
                         viewclass: 'RecordListItem'
 
             TabbedPanelItem:
-                text: 'Closed Records'
+                text: 'Closed'
                 BoxLayout:
                     orientation: "vertical"
                     RecycleView:

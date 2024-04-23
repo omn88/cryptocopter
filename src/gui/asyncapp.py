@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Dict, List, Union
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
@@ -83,6 +84,9 @@ class AsyncApp(App):
         Returns:
             Widget: The root widget of the application.
         """
+        # Set the minimum size of the application window
+        Window.minimum_width = 920  # Minimum width in pixels
+        Window.minimum_height = 600  # Minimum height in pixels
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
