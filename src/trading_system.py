@@ -164,8 +164,6 @@ class TradingSystemSpot:
         self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
-        # self.balance = await futures_get_balance(client=self.client, asset=self.config.asset)
-
         self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
             df_handler=self.df_handler,
@@ -176,10 +174,6 @@ class TradingSystemSpot:
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
-
-    async def determine_start_position(self):
-        await asyncio.sleep(5)
-        await self.df_handler.spot_determine_start_position(queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         # is this sleep needed?
@@ -193,11 +187,10 @@ class TradingSystemSpot:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
-                gui_handler=self.gui_handler,
                 symbol=self.config.symbol,
+                interval="15m",
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
-            # asyncio.create_task(self.spot_determine_start_position()),
             return_exceptions=True,
         )
 

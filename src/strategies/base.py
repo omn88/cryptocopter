@@ -25,6 +25,7 @@ from src.common.identifiers import (
     BinanceClient,
     State,
     StrategyConfig,
+    TickerUpdate,
 )
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
@@ -51,6 +52,7 @@ class BaseStrategy:
         self.signal_update: SignalUpdate = SignalUpdate()
         self.order_update: OrderUpdate = OrderUpdate()
         self.kline_update: KlineUpdate = KlineUpdate()
+        self.ticker_update: TickerUpdate = TickerUpdate()
         self.account_update: AccountUpdate = AccountUpdate(account_update={})
         self.transitions: List = []
 

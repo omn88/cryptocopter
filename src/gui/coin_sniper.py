@@ -106,7 +106,7 @@ class CoinSniper(BoxLayout):
         self.strategy_logger.info(
             "So we are the point where trading will start, config: %s", config
         )
-        # await trading_system.start_trading()
+        await trading_system.start_trading()
 
     async def update_ui(self):
         while True:

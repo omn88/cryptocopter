@@ -9,6 +9,7 @@ from src.common.identifiers import (
     Position,
     PositionMode,
     PositionSide,
+    PositionSpot,
     PositionStatus,
     SignalUpdate,
     StrategyConfig,
@@ -418,8 +419,7 @@ class PositionHandlerSpot:
         gui_handler: GuiHandlerSpot,
     ):
         self.config = config
-        self.position: Position = Position()
-        self.closed_positions: List[Position] = []
+        self.position: PositionSpot = PositionSpot()
         self.order_handler = OrderHandlerSpot(
             client=client,
             strategy_logger=strategy_logger,
@@ -500,12 +500,6 @@ class PositionHandlerSpot:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name,
             position=self.position,
-        )
-
-        self.closed_positions.append(self.position)
-
-        self.strategy_logger.debug(
-            "Number of closed positions: %s", len(self.closed_positions)
         )
         self.position = Position()
 

@@ -45,9 +45,10 @@ class OrderUpdate(NamedTuple):
     order_id: int = 0
     average_price: float = 0
     order_type: str = ORDER_TYPE_LIMIT
+    symbol: str = ""
 
     def __repr__(self) -> str:
-        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type})"
+        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type}, symbol={self.symbol})"
 
 
 class AccountUpdate(NamedTuple):
@@ -83,6 +84,22 @@ class SignalUpdate(NamedTuple):
         return f"SignalUpdate(signal={self.signal}, price={self.price})"
 
 
+class TickerUpdate(NamedTuple):
+    last_price: float
+    best_bid_price: float
+    best_ask_price: float
+    high_price: float
+    low_price: float
+    volume: float
+
+    def __repr__(self):
+        return (
+            f"TickerUpdate(last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
+            f"best_ask_price={self.best_ask_price}, high_price={self.high_price}, "
+            f"low_price={self.low_price}, volume={self.volume})"
+        )
+
+
 class SentinelUpdate(NamedTuple):
     sentinel: str
 
@@ -93,6 +110,7 @@ class EventName(Enum):
     ORDER = "Order"
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
+    TICKER = "Ticker"
 
 
 class Event(NamedTuple):
@@ -143,6 +161,18 @@ class PositionStatus(Enum):
     CONFIRMED = "CONFIRMED"
     CLOSING = "CLOSING"
     CLOSED = "CLOSED"
+
+
+@dataclass()
+class PositionSpot:
+    id: str = ""
+    symbol: str = ""
+    quantity: float = 0
+    state: State = State.FLAT
+    side: PositionSide = PositionSide.FLAT  # ToDo: create a function
+    orders: List[Order] = field(default_factory=lambda: [])
+    status: PositionStatus = PositionStatus.OPEN
+    opened: bool = False
 
 
 @dataclass()

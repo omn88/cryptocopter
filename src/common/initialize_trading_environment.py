@@ -10,6 +10,9 @@ from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
+    spot_kline_socket,
+    spot_ticker_socket,
+    spot_user_socket,
 )
 
 logger = logging.getLogger("initialize_trading_environment")
@@ -62,32 +65,21 @@ def futures_prepare_producers(
 def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    gui_handler: GuiHandlerSpot,
     symbol: str,
     stop_event: asyncio.Event,
 ):
     return [
-        # asyncio.create_task(
-        #     kline_futures_socket(
-        #         socket_manager=socket_manager,
-        #         queue=queue,
-        #         interval=interval,
-        #         symbol=symbol,
-        #         stop_event=stop_event,
-        #     )
-        # ),
         asyncio.create_task(
-            futures_user_socket(
+            spot_ticker_socket(
+                socket_manager=socket_manager,
+                queue=queue,
+                symbol=symbol,
+                stop_event=stop_event,
+            )
+        ),
+        asyncio.create_task(
+            spot_user_socket(
                 socket_manager=socket_manager, queue=queue, stop_event=stop_event
             )
         ),
-        # asyncio.create_task(
-        #     futures_symbol_mark_price_socket(
-        #         socket_manager=socket_manager,
-        #         ui_queue=gui_handler.ui_queue,
-        #         symbol=symbol,
-        #         main_ui_queue=gui_handler.main_ui_queue,
-        #         stop_event=stop_event,
-        #     )
-        # ),
     ]
