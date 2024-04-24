@@ -28,6 +28,7 @@ from src.common.identifiers import (
 from src.gui.coin_sniper import CoinSniper
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
+from src.gui.searchable_drop_down import SearchableDropDown
 from src.gui.strategytab import StrategyTab
 from src.trading_system import TradingSystemFutures, TradingSystemSpot
 from src.common.identifiers import EventName, Event
@@ -211,6 +212,7 @@ class AsyncApp(App):
 
             logger.info("Starting Coin Sniper strategy")
 
+            # Builder.load_file("src/gui/searchable_drop_down.kv")
             Builder.load_file("src/gui/coin_sniper.kv")
 
             strategy_logger = StrategyLogger(

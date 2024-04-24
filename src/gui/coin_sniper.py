@@ -49,73 +49,46 @@ class CoinSniper(BoxLayout):
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.gui_handler: GuiHandlerSpot = gui_handler
-        self.strategy_logger: StrategyLogger = strategy_logger
+        self.client = client
+        self.gui_handler = gui_handler
+        self.strategy_logger = strategy_logger
         asyncio.create_task(self.update_ui())
 
-    def strategy_config_retrieve(self) -> CoinSniperConfig:
-        strategy_name: str = self.root.ids.strategy_spinner.text
-        symbol: str = self.root.ids.symbol_spinner.text
+    def trigger_add_record(self, *args):
+        asyncio.create_task(self.add_record(*args))
 
-        widgets = self.dynamic_spinners.get(strategy_name, {})
-
-        return CoinSniperConfig(
-            name=strategy_name,
-            symbol=symbol,
-            number_of_orders=int(widgets.get("orders_spinner").text),
-            dca_span=float(widgets.get("dca_span_spinner").text),
-            leverage=int(widgets.get("leverage_spinner").text),
-            budget=20.0,
-        )
-
-    # if strategy_name == "Coin Sniper":
-    #     # Container for choosing side
-    #     side_container = BoxLayout(
-    #         orientation="vertical", size_hint_x=None, width=100
-    #     )
-    #     side_label = Label(text="Side", size_hint_y=None, height=20)
-    #     side_spinner = Spinner(
-    #         text="BUY",  # Default value
-    #         values=["BUY", "SELL"],
-    #         size_hint_y=None,
-    #         height=30,
-    #     )
-    #     side_spinner.id = "side_spinner"
-    #     side_container.add_widget(side_label)
-    #     side_container.add_widget(side_spinner)
-    #     self.root.ids.dynamic_ui_container.add_widget(side_container)
-
-    #     # Container for the Price
-    #     price_container = BoxLayout(
-    #         orientation="vertical", size_hint_x=None, width=100
-    #     )
-    #     price_label = Label(text="Price", size_hint_y=None, height=20)
-    #     price = TextInput(
-    #         text="0.0", input_filter="float", size_hint_y=None, height=30
-    #     )
-    #     price.id = "price"
-    #     price_container.add_widget(price_label)
-    #     price_container.add_widget(price)
-    #     self.root.ids.dynamic_ui_container.add_widget(price_container)
-
-    #     # Container for Budget
-    #     budget_container = BoxLayout(
-    #         orientation="vertical", size_hint_x=None, width=100
-    #     )
-    #     budget_label = Label(text="Budget", size_hint_y=None, height=20)
-    #     budget = TextInput(
-    #         text="100.0", input_filter="float", size_hint_y=None, height=30
-    #     )
-    #     budget.id = "budget"
-    #     budget_container.add_widget(budget_label)
-    #     budget_container.add_widget(budget)
-    #     self.root.ids.dynamic_ui_container.add_widget(budget_container)
-
-    async def on_start_strategy(self) -> None:
+    async def add_record(
+        self,
+        symbol: str,
+        side: str,
+        price_low: str,
+        price_high: str,
+        budget: str,
+        order_trigger_buffer: str,
+        mode: str,
+    ) -> None:
         """Creates and starts a new trading strategy."""
 
-        # CHECK THAT ALL MANDATORY FIELDS ARE SET
-        config = self.strategy_config_retrieve()
+        self.strategy_logger.info(
+            "Symbol: %s, side: %s, price_low: %s, price_high: %s, budget: %s, order trigger buffer: %s, mode: %s",
+            symbol,
+            side,
+            price_low,
+            price_high,
+            budget,
+            order_trigger_buffer,
+            mode,
+        )
+
+        config = CoinSniperConfig(
+            symbol=symbol,
+            side=side,
+            price_low=price_low,
+            price_high=price_high,
+            budget=budget,
+            order_trigger_buffer=order_trigger_buffer,
+            mode=mode,
+        )
 
         trading_system = TradingSystemSpot(
             client=self.client,

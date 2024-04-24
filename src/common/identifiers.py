@@ -203,12 +203,14 @@ class BinanceClient(AsyncClient):
 
 
 class CoinSniperConfig(NamedTuple):
-    name: str
     symbol: str
     side: PositionSide
-    price: float
+    price_low: float
+    price_high: float
+    mode: PositionMode
+    order_trigger_buffer: float
+    name: str = "Coin Sniper"
     budget: float = 0
-    asset: str = "USDT"
 
 
 class StrategyConfig(NamedTuple):

@@ -171,11 +171,11 @@ class TradingSystemSpot:
             df_handler=self.df_handler,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
+            config=self.config,
+            balance=self.balance,
         )
 
         self.state_machine = TradingStateMachine(strategy=self.strategy)
-
-        await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
 
     async def determine_start_position(self):
         await asyncio.sleep(5)

@@ -423,9 +423,6 @@ class PositionHandlerSpot:
         self.order_handler = OrderHandlerSpot(
             client=client,
             strategy_logger=strategy_logger,
-            order_quantity_stable=(
-                self.config.budget / (2 * self.config.number_of_orders)
-            ),
             gui_handler=gui_handler,
         )
         self.strategy_logger = strategy_logger

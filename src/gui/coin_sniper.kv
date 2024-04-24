@@ -1,3 +1,4 @@
+
 <CoinSniper>:
     orientation: 'vertical'
     BoxLayout:
@@ -23,7 +24,7 @@
                         size_hint_x: 0.1
                         size_hint_y: 0.7  # Full height within the line
                     Spinner:
-                        id: action_input
+                        id: side_input
                         values: ['BUY', 'SELL']
                         text: 'BUY'
                         size_hint_x: 0.15
@@ -31,9 +32,9 @@
                     Spinner:
                         id: symbol_input
                         values: ['BTCUSDT', 'ETHUSDT']
-                        text: 'Choose Symbol'
+                        text: 'BTCUSDT'
                         size_hint_x: 0.25
-                        size_hint_y: 0.7  # Full height within the line
+                        size_hint_y: 0.7  # Ensure this aligns with other elements
                     Label:
                         text: ' with budget: '
                         size_hint_x: 0.15
@@ -84,7 +85,7 @@
                         size_hint_x: 0.2
                         size_hint_y: 0.7  # Full height within the line
                     Spinner:
-                        id: trigger_orders_input
+                        id: order_trigger_buffer_input
                         values: [str(round(x * 0.1, 1)) for x in range(0, 51)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
                         text: '1.0'
                         size_hint_x: 0.1
@@ -117,7 +118,7 @@
                     text: 'Add Record'
                     size_hint_y: None
                     height: '50dp'
-                    on_release: root.add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text)
+                    on_release: root.trigger_add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_buffer_input.text, mode_input.text)
                 Button:
                     text: 'Remove Record'
                     size_hint_y: None

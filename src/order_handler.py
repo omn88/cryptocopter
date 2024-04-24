@@ -368,12 +368,10 @@ class OrderHandlerSpot:
         self,
         strategy_logger: StrategyLogger,
         client: BinanceClient,
-        order_quantity_stable: float,
         gui_handler: GuiHandlerSpot,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
-        self.order_quantity_stable = order_quantity_stable
         self.gui_handler = gui_handler
 
     def prepare_orders(
