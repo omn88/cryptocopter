@@ -108,6 +108,9 @@ class CoinSniper(BoxLayout):
         )
         await trading_system.start_trading()
 
+    async def delete_record(self):
+        pass
+
     async def update_ui(self):
         while True:
             self.strategy_logger.debug(

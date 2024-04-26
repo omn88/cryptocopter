@@ -999,53 +999,66 @@ class BaseSpotStrategy(BaseStrategy):
             self.df_handler.df.index[-1], "Position"
         ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
 
-    async def open_long(self, *args, **kwargs):
+    async def open_long(
+        self,
+        symbol: str,
+        side: str,
+        price_high: float,
+        price_low: float,
+        budget: float,
+        mode: PositionMode,
+        name: str,
+        *args,
+        **kwargs
+    ):
         self.logger.debug("Opening %s", self.signal_update.signal)
 
         side = PositionSide.LONG
 
-        await self.position_handler.open_position_spot(
+        await self.position_handler.open_position(
             side=side,
-            config=self.config,
-            mode=self.mode,
-            signal_update=self.signal_update,
+            mode=mode,
+            budget=budget,
+            price_high=price_high,
+            price_low=price_low,
+            name=name,
+            symbol=symbol,
         )
 
-        # self.df_handler.update_position_in_df(
-        #     update=State(self.signal_update.signal.value)
-        # )
-
-    async def open_short(self, *args, **kwargs):
+    async def open_short(
+        self,
+        symbol: str,
+        side: str,
+        price_high: float,
+        price_low: float,
+        budget: float,
+        mode: PositionMode,
+        name: str,
+        *args,
+        **kwargs
+    ):
         self.logger.info("Opening %s", self.signal_update.signal)
 
         side = PositionSide.SHORT
 
-        await self.position_handler.open_position_spot(
+        await self.position_handler.open_position(
             side=side,
-            config=self.config,
-            mode=self.mode,
-            signal_update=self.signal_update,
+            mode=mode,
+            budget=budget,
+            price_high=price_high,
+            price_low=price_low,
+            name=name,
+            symbol=symbol,
         )
-        # self.df_handler.update_position_in_df(
-        #     update=self.position_handler.position.state
-        # )
 
     async def close_long(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
 
-        await self.position_handler.close_position_spot()
-
-        # self.df_handler.update_position_in_df(
-        #     update=State(self.signal_update.signal.value)
-        # )
+        await self.position_handler.close_position()
 
     async def close_short(self, *args, **kwargs):
         self.logger.info("Closing %s", self.position_handler.position.state)
-        await self.position_handler.close_position_spot()
-
-        # self.df_handler.update_position_in_df(
-        #     update=State(self.signal_update.signal.value)
-        # )
+        await self.position_handler.close_position()
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
@@ -1088,7 +1101,7 @@ class BaseSpotStrategy(BaseStrategy):
 
     async def handle_target_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order filled")
-        self.balance = await self.position_handler.target_reached_spot(
+        self.balance = await self.position_handler.target_reached(
             order_update=self.order_update, balance=self.balance
         )
 
@@ -1097,41 +1110,9 @@ class BaseSpotStrategy(BaseStrategy):
     async def handle_target_partially_reached(self, *args, **kwargs):
         self.logger.info("Entering handle target order partially filled")
 
-        self.balance = await self.position_handler.target_partially_reached_spot(
+        self.balance = await self.position_handler.target_partially_reached(
             order_update=self.order_update,
             balance=self.balance,
-        )
-
-    async def confirm_market_order_filled(self, *args, **kwargs):
-        self.logger.info("MARKET order filled!")
-        market_order = self.position_handler.closed_positions[-1].market_order
-
-        assert market_order is not None
-
-        market_order.status = self.order_update.status
-        market_order.price = self.order_update.price
-        market_order.quantity = self.order_update.quantity
-        market_order.realized_quantity = self.order_update.realized_quantity
-        self.position_handler.closed_positions[-1].status = PositionStatus.CLOSED
-        self.position_handler.position.state = State.FLAT
-
-        await self.gui_handler.update_position(position=self.position_handler.position)
-        await self.gui_handler.update_strategy(
-            position=self.position_handler.position, strategy_name=self.config.name
-        )
-
-    async def confirm_market_order_filled_partially(self, *args, **kwargs):
-        self.logger.info("Entering handle market order partially filled")
-
-        market_order = self.position_handler.closed_positions[-1].market_order
-
-        market_order.status = self.order_update.status
-        market_order.price = self.order_update.price
-        market_order.quantity = self.order_update.quantity
-        market_order.realized_quantity = self.order_update.realized_quantity
-        self.logger.info(
-            "Market order realization in progress: %s!",
-            self.position_handler.closed_positions[-1].market_order,
         )
 
     async def handle_order_filled(self, *args, **kwargs):
@@ -1142,6 +1123,6 @@ class BaseSpotStrategy(BaseStrategy):
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
 
-        await self.position_handler.handle_order_partially_filled_spot(
+        await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
         )

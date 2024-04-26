@@ -164,6 +164,7 @@ class TradingSystemSpot:
         self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
+        # Strategy initialization
         self.strategy = STRATEGY_MAP[self.config.name](
             client=self.client,
             df_handler=self.df_handler,
@@ -173,6 +174,7 @@ class TradingSystemSpot:
             balance=self.balance,
         )
 
+        # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)
 
     async def prepare_worker(self, logger: StrategyLogger):
@@ -188,7 +190,6 @@ class TradingSystemSpot:
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
                 symbol=self.config.symbol,
-                interval="15m",
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             return_exceptions=True,

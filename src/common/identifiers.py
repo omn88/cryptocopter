@@ -156,6 +156,7 @@ class Order:
 
 
 class PositionStatus(Enum):
+    NEW = "NEW"
     OPEN = "OPEN"
     PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
     CONFIRMED = "CONFIRMED"
@@ -171,7 +172,7 @@ class PositionSpot:
     state: State = State.FLAT
     side: PositionSide = PositionSide.FLAT  # ToDo: create a function
     orders: List[Order] = field(default_factory=lambda: [])
-    status: PositionStatus = PositionStatus.OPEN
+    status: PositionStatus = PositionStatus.NEW
     opened: bool = False
 
 

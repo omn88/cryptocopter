@@ -5,12 +5,11 @@ from binance import BinanceSocketManager
 
 
 from src.common.identifiers import BinanceClient
-from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
+from src.gui.gui_handler import GuiHandlerFutures
 from src.producers.producers import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
-    spot_kline_socket,
     spot_ticker_socket,
     spot_user_socket,
 )
