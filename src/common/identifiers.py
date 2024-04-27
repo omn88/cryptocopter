@@ -85,12 +85,12 @@ class SignalUpdate(NamedTuple):
 
 
 class TickerUpdate(NamedTuple):
-    last_price: float
-    best_bid_price: float
-    best_ask_price: float
-    high_price: float
-    low_price: float
-    volume: float
+    last_price: float = 0
+    best_bid_price: float = 0
+    best_ask_price: float = 0
+    high_price: float = 0
+    low_price: float = 0
+    volume: float = 0
 
     def __repr__(self):
         return (

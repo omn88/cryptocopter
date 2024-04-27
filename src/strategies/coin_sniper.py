@@ -26,10 +26,14 @@ class CoinSniper(BaseSpotStrategy):
         super().__init__(client, config, gui_handler, logger, df_handler, balance)
         self.config = config
         self.trigger_orders_price = (
-            round(self.config.price_low * (1 - self.config.order_trigger_buffer), 2)
+            round(
+                self.config.price_low * (1 - (self.config.order_trigger_buffer / 100)),
+                2,
+            )
             if self.config.side == PositionSide.SHORT
             else round(
-                self.config.price_high * (1 + self.config.order_trigger_buffer), 2
+                self.config.price_high * (1 + (self.config.order_trigger_buffer / 100)),
+                2,
             )
         )
         self.min_order_values = asyncio.create_task(self._get_minimum_order_values())
@@ -87,6 +91,13 @@ class CoinSniper(BaseSpotStrategy):
                     )
 
     async def handle_ticker(self, *args):
+        self.logger.info(
+            "Handle ticker, ticker last price: %s, trigger order price: %s, side: %s",
+            self.ticker_update.last_price,
+            self.trigger_orders_price,
+            self.config.side,
+        )
+
         if self.position_handler.position.status == PositionStatus.NEW:
             if (
                 self.config.side == PositionSide.LONG

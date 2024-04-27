@@ -44,9 +44,7 @@ async def main():
     """
 
     app = AsyncApp(
-        client=BinanceClient(
-            api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
-        )
+        client=BinanceClient(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
     )
     logger.info("Created %s", app)
     await app.async_run()

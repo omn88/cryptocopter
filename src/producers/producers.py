@@ -111,7 +111,6 @@ async def kline_futures_socket(
         while not stop_event.is_set():
             try:
                 msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-
                 kline_start_time = int(msg["k"]["t"]) - 900000
                 index = pandas.to_datetime(
                     kline_start_time, unit="ms"
@@ -226,32 +225,29 @@ async def spot_ticker_socket(
     symbol: str,
     stop_event: asyncio.Event,
 ):
-    socket = socket_manager.ticker_socket(symbol=symbol)
+    logger.info("Entering spot ticker socket")
+    socket = socket_manager.symbol_ticker_socket(symbol=symbol)
     async with socket:
         logger.info("Spot ticker socket connected.")
         while not stop_event.is_set():
             try:
                 msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-                ticker = msg["data"]
-                logger.info("From spot ticker: %s", msg)
                 await queue.put(
                     Event(
                         name=EventName.TICKER,
                         content=TickerUpdate(
-                            last_price=round(float(ticker["c"]), 1),  # Last price
+                            last_price=round(float(msg["c"]), 1),  # Last price
                             best_bid_price=round(
-                                float(ticker["b"]), 1
-                            ),  # Best bid price
+                                float(msg.get("b", "0")), 1
+                            ),  # Best bid price, with safe default if 'b' is absent
                             best_ask_price=round(
-                                float(ticker["a"]), 1
-                            ),  # Best ask price
+                                float(msg.get("a", "0")), 1
+                            ),  # Best ask price, with safe default if 'a' is absent
                             high_price=round(
-                                float(ticker["h"]), 1
+                                float(msg["h"]), 1
                             ),  # High price of the day
-                            low_price=round(
-                                float(ticker["l"]), 1
-                            ),  # Low price of the day
-                            volume=float(ticker["v"]),  # Total traded base asset volume
+                            low_price=round(float(msg["l"]), 1),  # Low price of the day
+                            volume=float(msg["v"]),  # Total traded base asset volume
                         ),
                     )
                 )

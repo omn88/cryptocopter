@@ -490,7 +490,7 @@ class PositionHandlerSpot:
             strategy_name=self.config.name,
             position=self.position,
         )
-        self.position = Position()
+        self.position.status = PositionStatus.CLOSING
 
     async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
         for order in self.position.orders:

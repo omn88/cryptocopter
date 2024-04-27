@@ -83,10 +83,10 @@ class CoinSniper(BoxLayout):
         config = CoinSniperConfig(
             symbol=symbol,
             side=side,
-            price_low=price_low,
-            price_high=price_high,
-            budget=budget,
-            order_trigger_buffer=order_trigger_buffer,
+            price_low=float(price_low),
+            price_high=float(price_high),
+            budget=float(budget),
+            order_trigger_buffer=float(order_trigger_buffer),
             mode=mode,
         )
 
