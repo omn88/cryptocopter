@@ -142,6 +142,45 @@
                 text: 'Active'
                 BoxLayout:
                     orientation: "vertical"
+                    BoxLayout:
+                        size_hint_y: None
+                        height: '30dp'
+                        Label:
+                            text: 'Symbol'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Side'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Price Low'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Price High'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Budget'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Order Trigger'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Opened'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Total'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Filled'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
                     RecycleView:
                         id: active_records_list
                         data: root.active_records
@@ -151,6 +190,45 @@
                 text: 'Closed'
                 BoxLayout:
                     orientation: "vertical"
+                    BoxLayout:
+                        size_hint_y: None
+                        height: '30dp'
+                        Label:
+                            text: 'Symbol'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Side'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Price Low'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Price High'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Budget'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Order Trigger'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Opened'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Total'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
+                        Label:
+                            text: 'Orders Filled'
+                            size_hint_x: 0.1
+                            font_size: '14sp'
                     RecycleView:
                         id: closed_records_list
                         data: root.closed_records

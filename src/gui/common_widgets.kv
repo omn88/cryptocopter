@@ -145,35 +145,59 @@
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
-
-    symbol: ''
-    side: ''
-    price: ''
-    levels: ''
-    status: ''
+    padding: [10, 5]
 
     canvas.before:
         Color:
-            rgba: 1, 1, 1, 0.1  # Light gray line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
+            rgba: 0.8, 0.8, 0.8, 1  # Light gray background color
+        Rectangle:
+            pos: self.pos
+            size: self.size
 
     Label:
-        text: root.symbol
-        size_hint_x: 0.2
+        text: "Symbol"
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
-        text: root.side
-        size_hint_x: 0.2
+        text: "Side"
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
-        text: root.price
-        size_hint_x: 0.2
+        text: "Price Low"
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
-        text: root.levels
-        size_hint_x: 0.2
+        text: "Price High"
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
-        text: root.status
-        size_hint_x: 0.2
+        text: "Budget"
+        size_hint_x: 0.1
+        font_size: '14sp'
+
+    Label:
+        text: "Order Trigger"
+        size_hint_x: 0.1
+        font_size: '14sp'
+
+    Label:
+        text: "Orders Opened"
+        size_hint_x: 0.1
+        font_size: '14sp'
+
+    Label:
+        text: "Orders Total"
+        size_hint_x: 0.1
+        font_size: '14sp'
+
+    Label:
+        text: "Orders Filled"
+        size_hint_x: 0.1
+        font_size: '14sp'
+
+
+

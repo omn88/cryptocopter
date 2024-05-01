@@ -15,13 +15,6 @@ from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.identifiers import BinanceClient, CoinSniperConfig, EventName, Event
 from src.gui.gui_handler import GuiHandlerSpot
-from src.gui.identifiers import (
-    AccountData,
-    PositionData,
-    OrderData,
-    PriceData,
-    PositionStatus,
-)
 from src.trading_system import TradingSystemSpot
 from src.workers.strategy_executor import StrategyExecutor
 
@@ -85,21 +78,39 @@ class CoinSniper(BoxLayout):
             mode,
         )
 
-        await self.strategy_executor.config_queue.put(
-            CoinSniperConfig(
-                symbol=symbol,
-                side=side,
-                price_low=float(price_low),
-                price_high=float(price_high),
-                budget=float(budget),
-                order_trigger_buffer=float(order_trigger_buffer),
-                mode=mode,
-            )
+        config = CoinSniperConfig(
+            symbol=symbol,
+            side=side,
+            price_low=float(price_low),
+            price_high=float(price_high),
+            budget=float(budget),
+            order_trigger_buffer=float(order_trigger_buffer),
+            mode=mode,
         )
-        self.strategy_logger.info("Configuration added to the worker queue.")
 
-    async def delete_record(self):
-        pass
+        await self.strategy_executor.config_queue.put(config)
+        self.strategy_logger.info("New config added to the Strategy Executor queue.")
+        record_data = {
+            "symbol": config.symbol,
+            "side": str(config.side),
+            "price_low": str(config.price_low),
+            "price_high": str(config.price_high),
+            "budget": str(config.budget),
+            "order_trigger_buffer": str(config.order_trigger_buffer),
+            "orders_opened": str(0),
+            "orders_total": str(0),
+            "orders_filled": str(0),
+        }
+
+        self.active_records.append(record_data)
+        # self.ids.active_records_list.refresh_from_data()
+
+
+    def remove_record_from_active(self, index):
+        record_data = self.active_records.pop(index)
+        self.closed_records.append(record_data)
+        self.ids.active_records_list.refresh_from_data()
+        self.ids.closed_records_list.refresh_from_data()
 
     async def update_ui(self):
         while True:
@@ -109,30 +120,30 @@ class CoinSniper(BoxLayout):
             if self.gui_handler.ui_queue.qsize() == 0:
                 self.strategy_logger.debug("Awaiting new Event")
             data = await self.gui_handler.ui_queue.get()
-            # Update the UI based on data
-            if isinstance(data, Event):
-                if data.name == EventName.SENTINEL:
-                    self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
-                    await asyncio.sleep(3)
-                    return
-            if isinstance(data, AccountData):
-                self.strategy_logger.info("PANU  DYS IS update account")
-                # self.balance_label = f"{str(data.balance)} USDT"
-            if isinstance(data, PositionData):
-                self.update_position(data=data)
+            # # Update the UI based on data
+            # if isinstance(data, Event):
+            #     if data.name == EventName.SENTINEL:
+            #         self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
+            #         await asyncio.sleep(3)
+            #         return
+            # if isinstance(data, AccountData):
+            #     self.strategy_logger.info("PANU  DYS IS update account")
+            #     # self.balance_label = f"{str(data.balance)} USDT"
+            # if isinstance(data, PositionData):
+            #     self.update_position(data=data)
 
-            if isinstance(data, OrderData):
-                self.open_orders, self.closed_orders = self.update_order(
-                    data=data,
-                    open_orders=self.open_orders,
-                    closed_orders=self.closed_orders,
-                )
+            # if isinstance(data, OrderData):
+            #     self.open_orders, self.closed_orders = self.update_order(
+            #         data=data,
+            #         open_orders=self.open_orders,
+            #         closed_orders=self.closed_orders,
+            #     )
 
-            if isinstance(data, PriceData):
-                self.price_label = str(data.mark_price)
-                for position in self.open_positions:
-                    if (
-                        position["symbol"] == data.symbol
-                        and position["status"] != PositionStatus.CLOSED.value
-                    ):
-                        self.open_positions = self.update_price_data(data=data)
+            # if isinstance(data, PriceData):
+            #     self.price_label = str(data.mark_price)
+            #     for position in self.open_positions:
+            #         if (
+            #             position["symbol"] == data.symbol
+            #             and position["status"] != PositionStatus.CLOSED.value
+            #         ):
+            #             self.open_positions = self.update_price_data(data=data)
