@@ -23,6 +23,7 @@ from src.gui.identifiers import (
     PositionStatus,
 )
 from src.trading_system import TradingSystemSpot
+from src.workers.strategy_executor import StrategyExecutor
 
 
 class CoinSniper(BoxLayout):
@@ -52,6 +53,10 @@ class CoinSniper(BoxLayout):
         self.client = client
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
+        self.strategy_executor: StrategyExecutor = StrategyExecutor(
+            client=client, logger=strategy_logger, gui_handler=gui_handler
+        )
+        asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
 
     def trigger_add_record(self, *args):
@@ -80,33 +85,18 @@ class CoinSniper(BoxLayout):
             mode,
         )
 
-        config = CoinSniperConfig(
-            symbol=symbol,
-            side=side,
-            price_low=float(price_low),
-            price_high=float(price_high),
-            budget=float(budget),
-            order_trigger_buffer=float(order_trigger_buffer),
-            mode=mode,
+        await self.strategy_executor.config_queue.put(
+            CoinSniperConfig(
+                symbol=symbol,
+                side=side,
+                price_low=float(price_low),
+                price_high=float(price_high),
+                budget=float(budget),
+                order_trigger_buffer=float(order_trigger_buffer),
+                mode=mode,
+            )
         )
-
-        trading_system = TradingSystemSpot(
-            client=self.client,
-            gui_handler=self.gui_handler,
-            strategy_logger=self.strategy_logger,
-            config=config,
-        )
-        await trading_system.initialize()
-        self.trading_systems.append(trading_system)
-
-        self.strategy_logger.info(
-            "Strategy prepared, starting to initialize, total trading systems: %s",
-            len(self.trading_systems),
-        )
-        self.strategy_logger.info(
-            "So we are the point where trading will start, config: %s", config
-        )
-        await trading_system.start_trading()
+        self.strategy_logger.info("Configuration added to the worker queue.")
 
     async def delete_record(self):
         pass
