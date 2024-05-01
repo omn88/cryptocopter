@@ -33,6 +33,7 @@ class StrategyExecutor:
             gui_handler=self.gui_handler,
             strategy_logger=self.logger,
             config=config,
+            system_id=system_id
         )
         await trading_system.initialize()
         self.id_to_system[system_id] = trading_system
@@ -43,9 +44,9 @@ class StrategyExecutor:
         )
         await trading_system.start_trading()
 
+
     async def remove_record(self, system_id):
         if system_id in self.id_to_system:
-            trading_system = self.id_to_system.pop(system_id)
-            symbol = trading_system.config.symbol
-            await trading_system.stop_trading()  # Ensure there's a method to cleanly stop trading
-            self.logger.info(f"Removed trading system {system_id} for {symbol}.")
+            trading_system: TradingSystemSpot = self.id_to_system.pop(system_id)
+            await trading_system.stop()
+            self.logger.info(f"Removed trading system with {system_id}.")

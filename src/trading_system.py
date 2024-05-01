@@ -145,11 +145,13 @@ class TradingSystemFutures:
 class TradingSystemSpot:
     def __init__(
         self,
+        system_id: str,
         client: BinanceClient,
         gui_handler: GuiHandlerSpot,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
     ):
+        self.system_id = system_id
         self.client = client
         self.config = config
         self.gui_handler = gui_handler
