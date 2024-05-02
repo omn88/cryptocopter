@@ -191,7 +191,6 @@ class TradingSystemSpot:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
-                symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             return_exceptions=True,

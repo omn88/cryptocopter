@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 from logging_config import StrategyLogger
 from src.common.identifiers import (
@@ -6,7 +5,9 @@ from src.common.identifiers import (
     CoinSniperConfig,
     PositionSide,
     PositionStatus,
-    State,
+    Signal,
+    StateSpot,
+    TickerUpdate,
 )
 from src.df_handler import DfHandler
 from src.gui.gui_handler import GuiHandlerSpot
@@ -36,29 +37,53 @@ class CoinSniper(BaseSpotStrategy):
                 2,
             )
         )
-        self.min_order_values = asyncio.create_task(self._get_minimum_order_values())
 
         self.transitions += [
             {
                 "trigger": "process_ticker",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": [StateSpot.NEW, StateSpot.OPEN],
                 "dest": "=",
                 "after": "handle_ticker",
             },
+            {
+                "trigger": "process_signal",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_skipping_same_signal",
+                "after": "skip_signal",
+            },
         ]
 
-    async def _get_minimum_order_values(self):
-        exchange_info = await self.client.get_exchange_info()
-        min_values = {}
+    def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            and self.config.side == PositionSide.LONG
+            and self.ticker_update.last_price < self.trigger_orders_price
+        )
 
-        for symbol_info in exchange_info["symbols"]:
-            filters = {f["filterType"]: f for f in symbol_info["filters"]}
-            if "MIN_NOTIONAL" in filters:
-                min_values[symbol_info["symbol"]] = {
-                    "minNotional": filters["MIN_NOTIONAL"]["minNotional"]
-                }
+        self.logger.info(
+            "Open basic long: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
 
-        return min_values
+        return condition
+
+    def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            and self.config.side == PositionSide.SHORT
+            and self.ticker_update.last_price > self.trigger_orders_price
+        )
+        self.logger.info(
+            "Open basic short: %s, state: %s signal: %s",
+            condition,
+            self.state,
+            self.signal_update.signal,
+        )
+
+        return condition
 
     async def monitor_position(self):
         stagnation_limit = 4
@@ -90,7 +115,9 @@ class CoinSniper(BaseSpotStrategy):
                         self.position_handler.position.orders
                     )
 
-    async def handle_ticker(self, *args):
+    async def notify(self, event: TickerUpdate):
+        self.ticker_update = event
+
         self.logger.info(
             "Handle ticker, ticker last price: %s, trigger order price: %s, side: %s",
             self.ticker_update.last_price,
@@ -98,25 +125,40 @@ class CoinSniper(BaseSpotStrategy):
             self.config.side,
         )
 
-        if self.position_handler.position.status == PositionStatus.NEW:
-            if (
-                self.config.side == PositionSide.LONG
-                and self.ticker_update.last_price < self.trigger_orders_price
-            ) or (
-                self.config.side == PositionSide.SHORT
-                and self.ticker_update.last_price > self.trigger_orders_price
-            ):
-                await self.position_handler.open_position(
-                    side=self.config.side,
-                    symbol=self.config.symbol,
-                    name=self.config.name,
-                    budget=self.config.budget,
-                    price_low=self.config.price_low,
-                    price_high=self.config.price_high,
-                    min_notional=float(
-                        self.min_order_values[self.config.symbol]["minNotional"]
-                    ),
-                )
+        # if self.position_handler.position.status == PositionStatus.NEW:
+        #     if (
+        #         self.config.side == PositionSide.LONG
+        #         and self.ticker_update.last_price < self.trigger_orders_price
+        #     ):
+        #         await self.position_handler.open_position(
+        #             side=self.config.side,
+        #             symbol=self.config.symbol,
+        #             name=self.config.name,
+        #             budget=self.config.budget,
+        #             price_low=self.config.price_low,
+        #             price_high=self.config.price_high,
+        #             min_notional=float(
+        #                 self.min_order_values[self.config.symbol]["minNotional"]
+        #             ),
+        #         )
+
+        # if self.position_handler.position.status == PositionStatus.NEW:
+        #     if (
+        #         self.config.side == PositionSide.SHORT
+        #         and self.ticker_update.last_price > self.trigger_orders_price
+        #     ):
+        #         await self.position_handler.open_position(
+        #             side=self.config.side,
+        #             symbol=self.config.symbol,
+        #             name=self.config.name,
+        #             budget=self.config.budget,
+        #             price_low=self.config.price_low,
+        #             price_high=self.config.price_high,
+        #             min_notional=float(
+        #                 self.min_order_values[self.config.symbol]["minNotional"]
+        #             ),
+        #         )
+
         else:
             # To Close it if the target is not reached and the price is again far from threshold
             all_orders_filled = all(
@@ -143,3 +185,6 @@ class CoinSniper(BaseSpotStrategy):
                         datetime.timedelta(hours=1)
                     )
                     await self.monitor_position()
+
+    async def handle_ticker(self):
+        pass

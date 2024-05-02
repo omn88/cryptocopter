@@ -25,6 +25,13 @@ class State(Enum):
     SHORT_SPECIAL = "SHORT_SPECIAL"
 
 
+class StateSpot(Enum):
+    NEW = "NEW"
+    OPEN = "OPEN"
+    STAGNATED = "STAGNATED"
+    CLOSED = "CLOSED"
+
+
 class Signal(Enum):
     LONG = "LONG"
     LONG_EXT = "LONG_EXT"

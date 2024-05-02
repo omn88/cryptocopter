@@ -1,6 +1,6 @@
 import asyncio
 from typing import List, Tuple
-
+from binance import BinanceSocketManager
 from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_EXPIRED,
@@ -15,6 +15,7 @@ from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.identifiers import BinanceClient, CoinSniperConfig, EventName, Event
 from src.gui.gui_handler import GuiHandlerSpot
+from src.producers.spot import TickerDataPublisher, UserDataPublisher
 from src.trading_system import TradingSystemSpot
 from src.workers.strategy_executor import StrategyExecutor
 
@@ -38,17 +39,21 @@ class CoinSniper(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
+        socket_manager: BinanceSocketManager,
         gui_handler: GuiHandlerSpot,
         strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.client = client
+        self.socket_manager = socket_manager
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
         self.strategy_executor: StrategyExecutor = StrategyExecutor(
             client=client, logger=strategy_logger, gui_handler=gui_handler
         )
+        self.ticker_publisher = TickerDataPublisher(socket_manager=self.socket_manager)
+        asyncio.create_task(self.ticker_publisher.run())
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
 
@@ -90,21 +95,26 @@ class CoinSniper(BoxLayout):
 
         await self.strategy_executor.config_queue.put(config)
         self.strategy_logger.info("New config added to the Strategy Executor queue.")
-        record_data = {
-            "symbol": config.symbol,
-            "side": str(config.side),
-            "price_low": str(config.price_low),
-            "price_high": str(config.price_high),
-            "budget": str(config.budget),
-            "order_trigger_buffer": str(config.order_trigger_buffer),
-            "orders_opened": str(0),
-            "orders_total": str(0),
-            "orders_filled": str(0),
-        }
+        # record_data = {
+        #     "symbol": config.symbol,
+        #     "side": str(config.side),
+        #     "price_low": str(config.price_low),
+        #     "price_high": str(config.price_high),
+        #     "budget": str(config.budget),
+        #     "order_trigger_buffer": str(config.order_trigger_buffer),
+        #     "orders_opened": str(0),
+        #     "orders_total": str(0),
+        #     "orders_filled": str(0),
+        # }
 
-        self.active_records.append(record_data)
+        # self.strategy_logger.info("Adding to active records: %s", record_data)
+
+        # self.active_records.append(record_data)
+
+        # self.strategy_logger.info(
+        #     "Active records after adding a record: %s", self.active_records
+        # )
         # self.ids.active_records_list.refresh_from_data()
-
 
     def remove_record_from_active(self, index):
         record_data = self.active_records.pop(index)

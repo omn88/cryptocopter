@@ -24,6 +24,7 @@ from src.common.identifiers import (
     Signal,
     BinanceClient,
     State,
+    StateSpot,
     StrategyConfig,
     TickerUpdate,
 )
@@ -715,9 +716,15 @@ class BaseSpotStrategy(BaseStrategy):
             config=config,
             gui_handler=gui_handler,
         )
-        self.state = State.FLAT
-        self.mode = PositionMode.DCA
-        self.states = [State.LONG, State.SHORT]
+        self.state = StateSpot.NEW
+        self.states = [
+            StateSpot.NEW,
+            StateSpot.OPEN,
+            StateSpot.STAGNATED,
+            StateSpot.CLOSED,
+        ]
+
+        self.min_order_values = asyncio.create_task(self._get_minimum_order_values())
 
         self.transitions = [
             {
@@ -735,77 +742,48 @@ class BaseSpotStrategy(BaseStrategy):
                 "after": "skip_signal",
             },
             {
-                "trigger": "process_kline",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "trigger": "process_ticker",
+                "source": [StateSpot.NEW, StateSpot.OPEN, StateSpot.STAGNATED],
                 "dest": "=",
-                "after": "handle_kline",
+                "after": "handle_ticker",
             },
             {
                 "trigger": "process_account",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": [StateSpot.NEW, StateSpot.OPEN, StateSpot.STAGNATED],
                 "dest": "=",
                 "after": "handle_account",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": [StateSpot.OPEN, StateSpot.STAGNATED],
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
                 "after": "confirm_new_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": [StateSpot.OPEN, StateSpot.STAGNATED],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
                 "after": "confirm_cancelled_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": StateSpot.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_expiration",
                 "after": "confirm_expired_order",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
-                "dest": "=",
-                "conditions": "conditions_for_target_partially_reached",
-                "before": "handle_target_partially_reached",
-            },
-            {
-                "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
-                "dest": State.FLAT,
-                "conditions": "conditions_for_target_reached",
-                "before": "handle_target_reached",
-                "after": "enter_flat",
-            },
-            {
-                "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
-                "dest": "=",
-                "conditions": "conditions_for_market_order_filled",
-                "before": "confirm_market_order_filled",
-            },
-            {
-                "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
-                "dest": "=",
-                "conditions": "conditions_for_market_order_filled_partially",
-                "before": "confirm_market_order_filled_partially",
-            },
-            {
-                "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": StateSpot.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
             },
             {
                 "trigger": "process_order",
-                "source": [State.LONG, State.SHORT, State.FLAT],
+                "source": StateSpot.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled",
                 "before": "handle_order_partially_filled",
@@ -825,6 +803,19 @@ class BaseSpotStrategy(BaseStrategy):
                 "after": "open_short",
             },
         ]
+
+    async def _get_minimum_order_values(self):
+        exchange_info = await self.client.get_exchange_info()
+        min_values = {}
+
+        for symbol_info in exchange_info["symbols"]:
+            filters = {f["filterType"]: f for f in symbol_info["filters"]}
+            if "MIN_NOTIONAL" in filters:
+                min_values[symbol_info["symbol"]] = {
+                    "minNotional": filters["MIN_NOTIONAL"]["minNotional"]
+                }
+
+        return min_values
 
     def conditions_for_no_signal(self, *args, **kwargs) -> bool:
         condition = self.signal_update.signal == Signal.NULL
@@ -888,60 +879,6 @@ class BaseSpotStrategy(BaseStrategy):
         )
         return condition
 
-    def conditions_for_target_reached(self, *args, **kwargs) -> bool:
-        condition = (
-            self.position_handler.position.take_profit_order.price
-            == self.order_update.price
-            and self.order_update.status == ORDER_STATUS_FILLED
-            and self.order_update.order_type == ORDER_TYPE_LIMIT
-        )
-        self.logger.info(
-            "Target reached: %s, order update status: %s",
-            condition,
-            self.order_update.status,
-        )
-        return condition
-
-    def conditions_for_target_partially_reached(self, *args, **kwargs) -> bool:
-        condition = (
-            self.position_handler.position.take_profit_order.price
-            == self.order_update.price
-            and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
-            and self.order_update.order_type == ORDER_TYPE_LIMIT
-        )
-        self.logger.info(
-            "Target partially reached: %s, order update status: %s",
-            condition,
-            self.order_update.status,
-        )
-        return condition
-
-    def conditions_for_market_order_filled(self, *args, **kwargs) -> bool:
-        condition = (
-            self.order_update.order_type == ORDER_TYPE_MARKET
-            and self.order_update.status == ORDER_STATUS_FILLED
-        )
-        self.logger.info(
-            "Market order filled: %s, state: %s order update status: %s",
-            condition,
-            self.position_handler.position.state,
-            self.order_update.status,
-        )
-        return condition
-
-    def conditions_for_market_order_filled_partially(self, *args, **kwargs) -> bool:
-        condition = (
-            self.order_update.order_type == ORDER_TYPE_MARKET
-            and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
-        )
-        self.logger.info(
-            "Market order partially filled: %s, state: %s order update status: %s",
-            condition,
-            self.position_handler.position.state,
-            self.order_update.status,
-        )
-        return condition
-
     def conditions_for_order_filled(self, *args, **kwargs):
         condition = (
             self.order_update.order_type == ORDER_TYPE_LIMIT
@@ -969,7 +906,8 @@ class BaseSpotStrategy(BaseStrategy):
 
     def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
         condition = (
-            self.state == State.FLAT.value and self.signal_update.signal == Signal.LONG
+            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            and self.signal_update.signal == Signal.LONG
         )
         self.logger.info(
             "Open basic long: %s, state: %s signal: %s",
@@ -982,7 +920,8 @@ class BaseSpotStrategy(BaseStrategy):
 
     def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
         condition = (
-            self.state == State.FLAT.value and self.signal_update.signal == Signal.SHORT
+            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            and self.signal_update.signal == Signal.SHORT
         )
         self.logger.info(
             "Open basic short: %s, state: %s signal: %s",
@@ -1006,7 +945,6 @@ class BaseSpotStrategy(BaseStrategy):
         price_high: float,
         price_low: float,
         budget: float,
-        mode: PositionMode,
         name: str,
         *args,
         **kwargs
@@ -1017,12 +955,14 @@ class BaseSpotStrategy(BaseStrategy):
 
         await self.position_handler.open_position(
             side=side,
-            mode=mode,
             budget=budget,
             price_high=price_high,
             price_low=price_low,
             name=name,
             symbol=symbol,
+            min_notional=float(
+                self.min_order_values[self.config.symbol]["minNotional"]
+            ),
         )
 
     async def open_short(
@@ -1032,7 +972,6 @@ class BaseSpotStrategy(BaseStrategy):
         price_high: float,
         price_low: float,
         budget: float,
-        mode: PositionMode,
         name: str,
         *args,
         **kwargs
@@ -1043,7 +982,9 @@ class BaseSpotStrategy(BaseStrategy):
 
         await self.position_handler.open_position(
             side=side,
-            mode=mode,
+            min_notional=float(
+                self.min_order_values[self.config.symbol]["minNotional"]
+            ),
             budget=budget,
             price_high=price_high,
             price_low=price_low,
@@ -1098,22 +1039,6 @@ class BaseSpotStrategy(BaseStrategy):
     async def enter_flat(self, *args, **kwargs):
         self.logger.info("Entering Flat")
         # self.df_handler.update_position_in_df(update=State.FLAT)
-
-    async def handle_target_reached(self, *args, **kwargs):
-        self.logger.info("Entering handle target order filled")
-        self.balance = await self.position_handler.target_reached(
-            order_update=self.order_update, balance=self.balance
-        )
-
-        self.position_handler.position.state = State.FLAT
-
-    async def handle_target_partially_reached(self, *args, **kwargs):
-        self.logger.info("Entering handle target order partially filled")
-
-        self.balance = await self.position_handler.target_partially_reached(
-            order_update=self.order_update,
-            balance=self.balance,
-        )
 
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")

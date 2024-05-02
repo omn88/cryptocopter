@@ -14,6 +14,7 @@ from src.common.identifiers import (
     PositionSpot,
     PositionStatus,
     SignalUpdate,
+    State,
     StrategyConfig,
 )
 from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
@@ -464,7 +465,7 @@ class PositionHandlerSpot:
             hours=1
         )
 
-        # self.position.state = signal_to_state(signal_update.signal)
+        self.position.state = State.LONG if side == PositionSide.LONG else State.SHORT
 
         # Update GUI
         await self.gui_handler.update_strategy(

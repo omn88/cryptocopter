@@ -2,14 +2,22 @@ import asyncio
 import uuid
 from logging_config import StrategyLogger
 from src.common.identifiers import BinanceClient
+from src.producers.spot import TickerDataPublisher
 from src.trading_system import TradingSystemSpot
 
 
 class StrategyExecutor:
-    def __init__(self, client: BinanceClient, logger: StrategyLogger, gui_handler):
+    def __init__(
+        self,
+        client: BinanceClient,
+        logger: StrategyLogger,
+        gui_handler,
+        ticker_publisher: TickerDataPublisher,
+    ):
         self.client = client
         self.logger = logger
         self.gui_handler = gui_handler
+        self.ticker_publisher = ticker_publisher
         self.config_queue = asyncio.Queue()
         self.id_to_system = {}  # Maps unique IDs to trading systems
 
@@ -36,6 +44,10 @@ class StrategyExecutor:
             system_id=system_id,
         )
         await trading_system.initialize()
+
+        # Subscribe this system to relevant data feeds
+        self.ticker_publisher.subscribe(config.symbol, trading_system)
+
         self.id_to_system[system_id] = trading_system
         self.logger.info(
             "Starting trading system for %s with ID %s.",
@@ -47,5 +59,9 @@ class StrategyExecutor:
     async def remove_record(self, system_id):
         if system_id in self.id_to_system:
             trading_system: TradingSystemSpot = self.id_to_system.pop(system_id)
+            # Unsubscribe from publishers
+            self.ticker_publisher.unsubscribe(
+                trading_system.config.symbol, trading_system
+            )
             await trading_system.stop()
             self.logger.info(f"Removed trading system with {system_id}.")

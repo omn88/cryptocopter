@@ -6,13 +6,12 @@ from binance import BinanceSocketManager
 
 from src.common.identifiers import BinanceClient
 from src.gui.gui_handler import GuiHandlerFutures
-from src.producers.producers import (
+from src.producers.futures import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
-    spot_ticker_socket,
-    spot_user_socket,
 )
+from src.producers.spot import spot_user_socket
 
 logger = logging.getLogger("initialize_trading_environment")
 
@@ -64,18 +63,9 @@ def futures_prepare_producers(
 def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    symbol: str,
     stop_event: asyncio.Event,
 ):
     return [
-        asyncio.create_task(
-            spot_ticker_socket(
-                socket_manager=socket_manager,
-                queue=queue,
-                symbol=symbol,
-                stop_event=stop_event,
-            )
-        ),
         asyncio.create_task(
             spot_user_socket(
                 socket_manager=socket_manager, queue=queue, stop_event=stop_event
