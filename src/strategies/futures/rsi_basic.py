@@ -1,16 +1,14 @@
 import numpy
 from logging_config import StrategyLogger
+from src.common.identifiers.common import BinanceClient, Event, EventName
 from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
-    Event,
-    EventName,
-    BinanceClient,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerFutures
-from src.strategies.base import BaseFuturesStrategy
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.strategies.futures.base import BaseFuturesStrategy
 
 
 class RsiBasic(BaseFuturesStrategy):
@@ -20,7 +18,7 @@ class RsiBasic(BaseFuturesStrategy):
         balance: float,
         logger: StrategyLogger,
         config: StrategyConfig,
-        gui_handler: GuiHandlerFutures,
+        gui_handler: GuiHandler,
         df_handler: DfHandler,
     ):
         super().__init__(

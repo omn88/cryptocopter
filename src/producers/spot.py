@@ -1,13 +1,21 @@
 import asyncio
+import logging
+from typing import Dict
+
 from binance import BinanceSocketManager
 
-from src.common.identifiers.futures import AccountUpdate, OrderUpdate, TickerUpdate
+
+from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
+from src.common.identifiers.spot import TickerUpdate
+
+
+logger = logging.getLogger("spot_producers")
 
 
 class TickerDataPublisher:
     def __init__(self, socket_manager: BinanceSocketManager):
         self.socket_manager = socket_manager
-        self.subscribers = {}
+        self.subscribers: Dict = {}
         self.stop_event = asyncio.Event()
 
     def subscribe(self, symbol, subscriber):

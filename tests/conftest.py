@@ -5,19 +5,18 @@ import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
+from src.common.identifiers.common import Event, EventName
 from src.common.identifiers.futures import (
-    Event,
-    EventName,
     Signal,
     SignalUpdate,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerFutures
-from src.strategies.base import BaseFuturesStrategy, BaseStrategy
-from src.strategies.rsi_basic import RsiBasic
-from src.strategies.rsi_extended import RsiExtended
-from src.strategies.rsi_special import RsiSpecial
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.strategies.futures.base import BaseFuturesStrategy
+from src.strategies.futures.rsi_basic import RsiBasic
+from src.strategies.futures.rsi_extended import RsiExtended
+from src.strategies.futures.rsi_special import RsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
@@ -58,7 +57,7 @@ async def base(mock_AsyncClient):
             balance=1000,
             df_handler=df_handler,
             config=config,
-            gui_handler=GuiHandlerFutures(
+            gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,
@@ -98,7 +97,7 @@ async def basic_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
+            gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=StrategyConfig(
@@ -141,7 +140,7 @@ async def extended_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
+            gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=config,
@@ -176,7 +175,7 @@ async def special_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
+            gui_handler=GuiHandler(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,

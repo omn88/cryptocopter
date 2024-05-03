@@ -14,8 +14,8 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import EventName, Event, Position, State
-from src.gui.gui_handler import GuiHandlerFutures
+from src.common.identifiers.common import EventName, Event
+from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers import (
     AccountData,
     PositionData,
@@ -24,7 +24,7 @@ from src.gui.identifiers import (
     PositionStatus,
 )
 
-from src.trading_system import TradingSystemFutures
+from src.trading_system.futures import TradingSystem
 
 
 class StrategyTab(BoxLayout):
@@ -43,8 +43,8 @@ class StrategyTab(BoxLayout):
 
     def __init__(
         self,
-        trading_system: TradingSystemFutures,
-        gui_handler: GuiHandlerFutures,
+        trading_system: TradingSystem,
+        gui_handler: GuiHandler,
         strategy_logger: StrategyLogger,
         **kwargs
     ):

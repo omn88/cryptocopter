@@ -5,7 +5,6 @@ from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
-    ORDER_TYPE_LIMIT,
     FUTURE_ORDER_TYPE_MARKET,
 )
 from binance.exceptions import (
@@ -17,16 +16,14 @@ from binance.exceptions import (
 from logging_config import StrategyLogger
 from src.common.common import convert_time
 from src.common.identifiers.futures import (
-    BinanceClient,
-    Order,
     Position,
     PositionMode,
-    PositionSide,
 )
-from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
+from src.gui.gui_handler.futures import GuiHandler
+from src.common.identifiers.common import BinanceClient, Order, PositionSide
 
 
-class OrderHandlerFutures:
+class OrderHandler:
     MAX_RETRIES = 10
 
     def __init__(
@@ -34,7 +31,7 @@ class OrderHandlerFutures:
         strategy_logger: StrategyLogger,
         client: BinanceClient,
         order_quantity_stable: float,
-        gui_handler: GuiHandlerFutures,
+        gui_handler: GuiHandler,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
@@ -358,168 +355,3 @@ class OrderHandlerFutures:
         )
 
         return order
-
-
-class OrderHandlerSpot:
-    MAX_RETRIES = 10
-
-    def __init__(
-        self,
-        strategy_logger: StrategyLogger,
-        client: BinanceClient,
-        gui_handler: GuiHandlerSpot,
-    ):
-        self.strategy_logger = strategy_logger
-        self.client = client
-        self.gui_handler = gui_handler
-
-    def prepare_orders(
-        self,
-        side: str,
-        price_low: float,
-        price_high: float,
-        budget: float,
-        symbol: str,
-        min_notional: float,
-    ) -> List[dict]:
-        orders = []
-
-        # Define the number of orders
-        max_num_orders = 11  # Number of desired orders
-        min_budget_for_max_orders = max_num_orders * min_notional
-
-        if budget >= min_budget_for_max_orders:
-            number_of_orders = 11
-            order_quantity_stable = budget / max_num_orders
-        else:
-            order_quantity_stable = min_notional
-            number_of_orders = int(budget / min_notional)
-            number_of_orders = (
-                number_of_orders if number_of_orders % 2 == 1 else number_of_orders - 1
-            )
-
-        price_increment = (price_high - price_low) / (number_of_orders - 1)
-
-        for i in range(number_of_orders):
-            order_price = price_low + i * price_increment
-            order_quantity = order_quantity_stable / order_price
-
-            orders.append(
-                {
-                    "symbol": symbol,
-                    "side": side,
-                    "type": "LIMIT",
-                    "quantity": order_quantity,
-                    "price": order_price,
-                    "timeInForce": "GTC",
-                }
-            )
-
-        self.strategy_logger.info("Prepared orders: %s", orders)
-        return orders
-
-    async def create_order(
-        self, side: PositionSide, order: Order, symbol: str
-    ) -> Order:
-        last_exception = None
-        for _ in range(self.MAX_RETRIES):
-            try:
-                resp = await self.client.create_order(
-                    symbol=symbol,
-                    price=round(order.price, 2),
-                    quantity=round(abs(order.quantity), 3),
-                    side=side.value,
-                    type=ORDER_TYPE_LIMIT,
-                    timeInForce=TIME_IN_FORCE_GTC,
-                )
-            except (
-                BinanceAPIException,
-                BinanceOrderException,
-                BinanceRequestException,
-            ) as exception:
-                last_exception = exception
-                self.strategy_logger.error(
-                    "Failed to create spot order due to %s: %s",
-                    type(exception).__name__,
-                    exception,
-                )
-                await asyncio.sleep(1)  # wait for a second before retrying
-                continue
-            else:
-                order.order_id = int(resp["orderId"])
-                order.status = resp["status"]
-                return order
-
-        assert last_exception is not None
-        raise last_exception
-
-    async def create_orders(
-        self,
-        side: PositionSide,
-        orders: List[Order],
-        symbol: str,
-    ) -> List[Order]:
-        """Send a list of orders concurrently.
-
-        Args:
-            client: A `BinanceClient` object.
-            side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
-            orders: A list of `Order` objects to send.
-
-        Returns:
-            A list of `Order` objects with updated order IDs and statuses.
-        """
-        results = await asyncio.gather(
-            *[
-                self.create_order(side=side, order=order, symbol=symbol)
-                for order in orders
-            ]
-        )
-        self.strategy_logger.info(
-            "Orders created, ids: %s", [order.order_id for order in orders]
-        )
-
-        await self.gui_handler.create_orders(
-            orders=results,
-            symbol=symbol,
-            side=side,
-        )
-
-        return results
-
-    async def cancel_order(self, order_id: int, symbol: str) -> None:
-        try:
-            resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
-            self.strategy_logger.info(f"Cancelled order {order_id}: {resp}")
-        except (
-            BinanceAPIException,
-            BinanceOrderException,
-            BinanceRequestException,
-        ) as exception:
-            self.strategy_logger.error(
-                "Failed to cancel order due to %s: %s",
-                type(exception).__name__,
-                exception,
-            )
-            raise exception
-
-    async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str, side: PositionSide
-    ) -> List[Order]:
-        self.strategy_logger.info("Cancelling remaining limit orders")
-        assert orders
-        for order in orders:
-            if order.status == ORDER_STATUS_PARTIALLY_FILLED:
-                order = await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                await self.gui_handler.update_order(
-                    order=order, symbol=symbol, side=side
-                )
-
-                self.strategy_logger.info(
-                    "Cancelled partially filled order_id: %s", order.order_id
-                )
-            elif order.status == ORDER_STATUS_NEW:
-                order = await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
-
-        return orders

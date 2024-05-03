@@ -9,18 +9,11 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
-from src.common.common import signal_to_state
-from src.common.identifiers.futures import (
-    PositionSide,
-    Signal,
-    BinanceClient,
-    State,
-    StateSpot,
-    StrategyConfig,
-)
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerSpot
-from src.position_handler import PositionHandlerSpot
+from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.common import BinanceClient, PositionSide
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.spot import GuiHandler
+from src.position_handler.spot import PositionHandler
 from src.strategies.base import BaseStrategy
 
 
@@ -29,25 +22,26 @@ class BaseSpotStrategy(BaseStrategy):
         self,
         client: BinanceClient,
         config: StrategyConfig,
-        gui_handler: GuiHandlerSpot,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
         df_handler: DfHandler,
         balance: float,
     ):
         super().__init__(client, config, logger, df_handler, balance)
         self.gui_handler = gui_handler
-        self.position_handler = PositionHandlerSpot(
+        self.config = config
+        self.position_handler = PositionHandler(
             client=client,
             strategy_logger=logger,
             config=config,
             gui_handler=gui_handler,
         )
-        self.state = StateSpot.NEW
+        self.state = State.NEW
         self.states = [
-            StateSpot.NEW,
-            StateSpot.OPEN,
-            StateSpot.STAGNATED,
-            StateSpot.CLOSED,
+            State.NEW,
+            State.OPEN,
+            State.STAGNATED,
+            State.CLOSED,
         ]
 
         self.min_order_values = asyncio.create_task(self._get_minimum_order_values())
@@ -67,59 +61,59 @@ class BaseSpotStrategy(BaseStrategy):
             {
                 "trigger": "process_account",
                 "source": [
-                    StateSpot.NEW,
-                    StateSpot.OPEN,
-                    StateSpot.STAGNATED,
+                    State.NEW,
+                    State.OPEN,
+                    State.STAGNATED,
                 ],
                 "dest": "=",
                 "after": "handle_account",
             },
             {
                 "trigger": "process_order",
-                "source": [StateSpot.OPEN, StateSpot.STAGNATED],
+                "source": [State.OPEN, State.STAGNATED],
                 "dest": "=",
                 "conditions": "conditions_for_new_order_confirmation",
                 "after": "confirm_new_order",
             },
             {
                 "trigger": "process_order",
-                "source": [StateSpot.OPEN, StateSpot.STAGNATED],
+                "source": [State.OPEN, State.STAGNATED],
                 "dest": "=",
                 "conditions": "conditions_for_order_cancellation",
                 "after": "confirm_cancelled_order",
             },
             {
                 "trigger": "process_order",
-                "source": StateSpot.OPEN,
+                "source": State.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_expiration",
                 "after": "confirm_expired_order",
             },
             {
                 "trigger": "process_order",
-                "source": StateSpot.OPEN,
+                "source": State.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
             },
             {
                 "trigger": "process_order",
-                "source": StateSpot.OPEN,
+                "source": State.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled",
                 "before": "handle_order_partially_filled",
             },
             {
                 "trigger": "process_signal",
-                "source": State.FLAT,
-                "dest": State.LONG,
+                "source": [State.NEW, State.STAGNATED],
+                "dest": State.OPEN,
                 "conditions": "conditions_for_opening_basic_long",
                 "after": "open_long",
             },
             {
                 "trigger": "process_signal",
-                "source": State.FLAT,
-                "dest": State.SHORT,
+                "source": [State.NEW, State.STAGNATED],
+                "dest": State.OPEN,
                 "conditions": "conditions_for_opening_basic_short",
                 "after": "open_short",
             },
@@ -137,25 +131,6 @@ class BaseSpotStrategy(BaseStrategy):
                 }
 
         return min_values
-
-    def conditions_for_no_signal(self, *args, **kwargs) -> bool:
-        condition = self.signal_update.signal == Signal.NULL
-
-        self.logger.info(
-            "Skip no signal: %s, signal: %s", condition, self.signal_update.signal
-        )
-
-        return condition
-
-    def conditions_for_skipping_same_signal(self, *args, **kwargs) -> bool:
-        condition = self.state == signal_to_state(self.signal_update.signal).value
-        self.logger.info(
-            "Skip same signal: %s, state: %s signal: %s",
-            condition,
-            self.state,
-            self.signal_update.signal,
-        )
-        return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
@@ -227,7 +202,7 @@ class BaseSpotStrategy(BaseStrategy):
 
     def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
         condition = (
-            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price < self.trigger_orders_price
         )
@@ -243,7 +218,7 @@ class BaseSpotStrategy(BaseStrategy):
 
     def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
         condition = (
-            self.state in [StateSpot.NEW, StateSpot.STAGNATED]
+            self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price > self.trigger_orders_price
         )
@@ -265,7 +240,7 @@ class BaseSpotStrategy(BaseStrategy):
     async def open_long(
         self,
         symbol: str,
-        side: str,
+        side: PositionSide,
         price_high: float,
         price_low: float,
         budget: float,
@@ -292,7 +267,7 @@ class BaseSpotStrategy(BaseStrategy):
     async def open_short(
         self,
         symbol: str,
-        side: str,
+        side: PositionSide,
         price_high: float,
         price_low: float,
         budget: float,
@@ -301,8 +276,6 @@ class BaseSpotStrategy(BaseStrategy):
         **kwargs
     ):
         self.logger.info("Opening %s", self.signal_update.signal)
-
-        side = PositionSide.SHORT
 
         await self.position_handler.open_position(
             side=side,
@@ -375,3 +348,192 @@ class BaseSpotStrategy(BaseStrategy):
         await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
         )
+
+
+# import datetime
+# from logging_config import StrategyLogger
+# from src.common.identifiers.futures import (
+#     PositionSide,
+#     PositionStatus,
+# )
+# from src.common.identifiers.spot import CoinSniperConfig, State
+# from src.df_handler.futures import DfHandler
+# from src.gui.gui_handler import GuiHandlerSpot
+# from src.common.identifiers.common import BinanceClient
+# from src.strategies.spot.base import BaseSpotStrategy
+
+
+# class CoinSniper(BaseSpotStrategy):
+#     def __init__(
+#         self,
+#         client: BinanceClient,
+#         config: CoinSniperConfig,
+#         gui_handler: GuiHandlerSpot,
+#         logger: StrategyLogger,
+#         df_handler: DfHandler,
+#         balance: float,
+#     ):
+#         super().__init__(client, config, gui_handler, logger, df_handler, balance)
+#         self.config = config
+#         self.trigger_orders_price = (
+#             round(
+#                 self.config.price_low * (1 - (self.config.order_trigger_buffer / 100)),
+#                 2,
+#             )
+#             if self.config.side == PositionSide.SHORT
+#             else round(
+#                 self.config.price_high * (1 + (self.config.order_trigger_buffer / 100)),
+#                 2,
+#             )
+#         )
+
+#         self.transitions += [
+#             {
+#                 "trigger": "process_ticker",
+#                 "source": [State.NEW, State.OPEN],
+#                 "dest": "=",
+#                 "after": "handle_ticker",
+#             },
+#             {
+#                 "trigger": "process_signal",
+#                 "source": "*",
+#                 "dest": "=",
+#                 "conditions": "conditions_for_skipping_same_signal",
+#                 "after": "skip_signal",
+#             },
+#         ]
+
+#     def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
+#         condition = (
+#             self.state in [State.NEW, State.STAGNATED]
+#             and self.config.side == PositionSide.LONG
+#             and self.ticker_update.last_price < self.trigger_orders_price
+#         )
+
+#         self.logger.info(
+#             "Open basic long: %s, state: %s signal: %s",
+#             condition,
+#             self.state,
+#             self.signal_update.signal,
+#         )
+
+#         return condition
+
+#     def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
+#         condition = (
+#             self.state in [State.NEW, State.STAGNATED]
+#             and self.config.side == PositionSide.SHORT
+#             and self.ticker_update.last_price > self.trigger_orders_price
+#         )
+#         self.logger.info(
+#             "Open basic short: %s, state: %s signal: %s",
+#             condition,
+#             self.state,
+#             self.signal_update.signal,
+#         )
+
+#         return condition
+
+#     async def monitor_position(self):
+#         stagnation_limit = 4
+
+#         orders_not_filled = all(
+#             order.status == self.client.ORDER_STATUS_NEW
+#             for order in self.position_handler.position.orders
+#         )
+
+#         if self.position_handler.stagnation_counter == stagnation_limit:
+#             self.position_handler.close_position()
+#         else:
+#             # 1. check whether one hour from sending orders has passed or whether all opened orders are filled.
+#             if orders_not_filled:
+#                 self.position_handler.stagnation_counter += 1
+#             else:
+#                 if all(
+#                     any(
+#                         prev_order.order_id == order.order_id
+#                         and prev_order.realized_quantity == order.realized_quantity
+#                         for order in self.position_handler.position.orders
+#                     )
+#                     for prev_order in self.position_handler.prev_orders
+#                 ):
+#                     self.position_handler.stagnation_counter += 1
+#                 else:
+#                     self.position_handler.stagnation_counter = 0
+#                     self.position_handler.prev_orders = (
+#                         self.position_handler.position.orders
+#                     )
+
+#     async def notify(self, event: TickerUpdate):
+#         self.ticker_update = event
+
+#         self.logger.info(
+#             "Handle ticker, ticker last price: %s, trigger order price: %s, side: %s",
+#             self.ticker_update.last_price,
+#             self.trigger_orders_price,
+#             self.config.side,
+#         )
+
+#         if self.position_handler.position.status == PositionStatus.NEW:
+#             if (
+#                 self.config.side == PositionSide.LONG
+#                 and self.ticker_update.last_price < self.trigger_orders_price
+#             ):
+#                 await self.position_handler.open_position(
+#                     side=self.config.side,
+#                     symbol=self.config.symbol,
+#                     name=self.config.name,
+#                     budget=self.config.budget,
+#                     price_low=self.config.price_low,
+#                     price_high=self.config.price_high,
+#                     min_notional=float(
+#                         self.min_order_values[self.config.symbol]["minNotional"]
+#                     ),
+#                 )
+
+#         if self.position_handler.position.status == PositionStatus.NEW:
+#             if (
+#                 self.config.side == PositionSide.SHORT
+#                 and self.ticker_update.last_price > self.trigger_orders_price
+#             ):
+#                 await self.position_handler.open_position(
+#                     side=self.config.side,
+#                     symbol=self.config.symbol,
+#                     name=self.config.name,
+#                     budget=self.config.budget,
+#                     price_low=self.config.price_low,
+#                     price_high=self.config.price_high,
+#                     min_notional=float(
+#                         self.min_order_values[self.config.symbol]["minNotional"]
+#                     ),
+#                 )
+
+#         else:
+#             # To Close it if the target is not reached and the price is again far from threshold
+#             all_orders_filled = all(
+#                 order.status == self.client.ORDER_STATUS_FILLED
+#                 for order in self.position_handler.position.orders
+#             )
+#             if all_orders_filled:
+#                 await self.position_handler.close_position()
+#             else:
+#                 if (
+#                     datetime.datetime.now()
+#                     < self.position_handler.next_monitor_position_time
+#                 ):
+#                     time_left = (
+#                         self.position_handler.next_monitor_position_time
+#                         - datetime.datetime.now()
+#                     )
+#                     minutes_left = time_left.total_seconds() / 60
+#                     self.logger.info(
+#                         f"{minutes_left:.2f} minutes left until next position monitoring."
+#                     )
+#                 else:
+#                     self.position_handler.next_monitor_position_time += (
+#                         datetime.timedelta(hours=1)
+#                     )
+#                     await self.monitor_position()
+
+#     async def handle_ticker(self):
+#         pass

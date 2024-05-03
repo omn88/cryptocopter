@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import patch
+
 
 from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -8,10 +8,10 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
     ORDER_STATUS_CANCELED,
     ORDER_TYPE_MARKET,
-    ORDER_TYPE_LIMIT,
 )
 
-from src.common.identifiers.futures import State, OrderUpdate, Order, Signal
+from src.common.identifiers.common import OrderUpdate
+from src.common.identifiers.futures import State, Order, Signal
 from src.strategies.base import BaseStrategy
 from tests.common import (
     start_long,
@@ -28,7 +28,6 @@ from tests.common import (
     get_position_information_when_short,
     get_position_information_when_short_for_order_partially_filled,
     get_position_information_when_long_then_short,
-    get_orders_long_then_short,
     generate_signal,
     assert_dca_short_opened,
     get_orders_long_then_market_then_short,

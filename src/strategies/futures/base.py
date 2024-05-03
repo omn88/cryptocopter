@@ -9,18 +9,18 @@ from binance.enums import (
 )
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
+from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import (
     PositionMode,
     PositionSide,
     PositionStatus,
     Signal,
-    BinanceClient,
     State,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerFutures
-from src.position_handler import PositionHandlerFutures
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.position_handler.futures import PositionHandler
 from src.strategies.base import BaseStrategy
 
 
@@ -30,13 +30,13 @@ class BaseFuturesStrategy(BaseStrategy):
         client: BinanceClient,
         balance: float,
         config: StrategyConfig,
-        gui_handler: GuiHandlerFutures,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
         df_handler: DfHandler,
     ):
         super().__init__(client, config, logger, df_handler, balance)
-        self.gui_handler: GuiHandlerFutures = gui_handler
-        self.position_handler = PositionHandlerFutures(
+        self.gui_handler: GuiHandler = gui_handler
+        self.position_handler = PositionHandler(
             client=client,
             strategy_logger=logger,
             config=config,

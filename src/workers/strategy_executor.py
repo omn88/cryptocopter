@@ -1,9 +1,10 @@
 import asyncio
+from typing import Dict
 import uuid
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import BinanceClient
+from src.common.identifiers.common import BinanceClient
 from src.producers.spot import TickerDataPublisher
-from src.trading_system import TradingSystemSpot
+from src.trading_system.spot import TradingSystem
 
 
 class StrategyExecutor:
@@ -18,8 +19,8 @@ class StrategyExecutor:
         self.logger = logger
         self.gui_handler = gui_handler
         self.ticker_publisher = ticker_publisher
-        self.config_queue = asyncio.Queue()
-        self.id_to_system = {}  # Maps unique IDs to trading systems
+        self.config_queue: asyncio.Queue = asyncio.Queue()
+        self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
 
     async def run(self):
         self.logger.info("Strategy executor ready to retrieve the first config")
@@ -36,7 +37,7 @@ class StrategyExecutor:
 
     async def initialize_trading_system(self, config):
         system_id = str(uuid.uuid4())  # Generate a unique identifier for the system
-        trading_system = TradingSystemSpot(
+        trading_system = TradingSystem(
             client=self.client,
             gui_handler=self.gui_handler,
             strategy_logger=self.logger,
@@ -58,7 +59,7 @@ class StrategyExecutor:
 
     async def remove_record(self, system_id):
         if system_id in self.id_to_system:
-            trading_system: TradingSystemSpot = self.id_to_system.pop(system_id)
+            trading_system: TradingSystem = self.id_to_system.pop(system_id)
             # Unsubscribe from publishers
             self.ticker_publisher.unsubscribe(
                 trading_system.config.symbol, trading_system

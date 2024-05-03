@@ -19,19 +19,17 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.identifiers import (
-    BinanceClient,
+from src.common.identifiers.futures import (
     Position,
-    PositionSide,
     StrategyConfig,
 )
 from src.gui.coin_sniper import CoinSniper
-from src.gui.gui_handler import GuiHandlerFutures, GuiHandlerSpot
+from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
+from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.identifiers import PositionStatus, PriceData, StrategyData
-from src.gui.searchable_drop_down import SearchableDropDown
 from src.gui.strategytab import StrategyTab
-from src.trading_system import TradingSystemFutures, TradingSystemSpot
-from src.common.identifiers import EventName, Event
+from src.trading_system.futures import TradingSystem
+from src.common.identifiers.common import BinanceClient, EventName, Event
 
 logger = logging.getLogger("async_app")
 
@@ -156,7 +154,7 @@ class AsyncApp(App):
                     logger=strategy_logger,
                 )
 
-                trading_system = TradingSystemFutures(
+                trading_system = TradingSystem(
                     client=self.client,
                     gui_handler=gui_handler,
                     strategy_logger=strategy_logger,

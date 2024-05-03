@@ -4,8 +4,8 @@ import binance
 from binance import BinanceSocketManager
 
 
-from src.common.identifiers.futures import BinanceClient
-from src.gui.gui_handler import GuiHandlerFutures
+from src.common.identifiers.common import BinanceClient
+from src.gui.gui_handler.futures import GuiHandler
 from src.producers.futures import (
     kline_futures_socket,
     futures_user_socket,
@@ -28,7 +28,7 @@ async def change_margin_type(
 def futures_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    gui_handler: GuiHandlerFutures,
+    gui_handler: GuiHandler,
     interval: str,
     symbol: str,
     stop_event: asyncio.Event,

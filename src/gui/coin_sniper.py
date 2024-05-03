@@ -13,15 +13,11 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import (
-    BinanceClient,
-    CoinSniperConfig,
-    EventName,
-    Event,
-)
-from src.gui.gui_handler import GuiHandlerSpot
-from src.producers.spot import TickerDataPublisher, UserDataPublisher
-from src.trading_system import TradingSystemSpot
+from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.spot import StrategyConfig
+from src.gui.gui_handler.spot import GuiHandler
+from src.producers.spot import TickerDataPublisher
+from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
 
 
@@ -44,20 +40,22 @@ class CoinSniper(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
-        socket_manager: BinanceSocketManager,
-        gui_handler: GuiHandlerSpot,
+        gui_handler: GuiHandler,
         strategy_logger: StrategyLogger,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.client = client
-        self.socket_manager = socket_manager
+        self.socket_manager = BinanceSocketManager(client=client)
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
-        self.strategy_executor: StrategyExecutor = StrategyExecutor(
-            client=client, logger=strategy_logger, gui_handler=gui_handler
-        )
         self.ticker_publisher = TickerDataPublisher(socket_manager=self.socket_manager)
+        self.strategy_executor: StrategyExecutor = StrategyExecutor(
+            client=client,
+            logger=strategy_logger,
+            gui_handler=gui_handler,
+            ticker_publisher=self.ticker_publisher,
+        )
         asyncio.create_task(self.ticker_publisher.run())
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
@@ -88,7 +86,7 @@ class CoinSniper(BoxLayout):
             mode,
         )
 
-        config = CoinSniperConfig(
+        config = StrategyConfig(
             symbol=symbol,
             side=side,
             price_low=float(price_low),

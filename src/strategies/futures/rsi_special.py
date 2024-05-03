@@ -1,9 +1,7 @@
 import numpy
 from logging_config import StrategyLogger
+from src.common.identifiers.common import EventName, Event, BinanceClient
 from src.common.identifiers.futures import (
-    BinanceClient,
-    Event,
-    EventName,
     PositionMode,
     PositionSide,
     Signal,
@@ -11,9 +9,9 @@ from src.common.identifiers.futures import (
     State,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandlerFutures
-from src.strategies.rsi_extended import RsiExtended
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.strategies.futures.rsi_extended import RsiExtended
 
 
 class RsiSpecial(RsiExtended):
@@ -22,7 +20,7 @@ class RsiSpecial(RsiExtended):
         client: BinanceClient,
         balance: float,
         df_handler: DfHandler,
-        gui_handler: GuiHandlerFutures,
+        gui_handler: GuiHandler,
         logger: StrategyLogger,
         config: StrategyConfig,
     ):
