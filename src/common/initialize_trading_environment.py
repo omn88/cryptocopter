@@ -4,7 +4,7 @@ import binance
 from binance import BinanceSocketManager
 
 
-from src.common.identifiers import BinanceClient
+from src.common.identifiers.futures import BinanceClient
 from src.gui.gui_handler import GuiHandlerFutures
 from src.producers.futures import (
     kline_futures_socket,

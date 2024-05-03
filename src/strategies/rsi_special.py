@@ -1,6 +1,6 @@
 import numpy
 from logging_config import StrategyLogger
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     BinanceClient,
     Event,
     EventName,

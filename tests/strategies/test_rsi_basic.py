@@ -2,7 +2,7 @@ import logging
 
 import pandas
 
-from src.common.identifiers import KlineUpdate, Signal, State
+from src.common.identifiers.futures import KlineUpdate, Signal, State
 from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import get_cancel_order, get_orders_long
 

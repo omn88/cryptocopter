@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import pytz
 import uuid
-from src.common.identifiers import Signal, State, BinanceClient
+from src.common.identifiers.futures import Signal, State, BinanceClient
 
 logger = logging.getLogger("common")
 

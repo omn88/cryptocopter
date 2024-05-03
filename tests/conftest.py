@@ -5,7 +5,7 @@ import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     Event,
     EventName,
     Signal,

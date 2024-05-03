@@ -17,7 +17,7 @@ import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import config
-from src.common.identifiers import BinanceClient
+from src.common.identifiers.futures import BinanceClient
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 

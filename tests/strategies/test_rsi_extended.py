@@ -3,7 +3,7 @@ import logging
 import pandas
 
 
-from src.common.identifiers import KlineUpdate, Signal, State
+from src.common.identifiers.futures import KlineUpdate, Signal, State
 from src.strategies.rsi_extended import RsiExtended
 from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import (

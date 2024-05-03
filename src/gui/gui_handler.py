@@ -1,7 +1,7 @@
 import asyncio
 from typing import List
 from logging_config import StrategyLogger
-from src.common.identifiers import Order, Position, PositionSide
+from src.common.identifiers.futures import Order, Position, PositionSide
 
 from src.gui.identifiers import OrderData, PositionData, StrategyData
 

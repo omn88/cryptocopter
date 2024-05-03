@@ -13,7 +13,12 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers import BinanceClient, CoinSniperConfig, EventName, Event
+from src.common.identifiers.futures import (
+    BinanceClient,
+    CoinSniperConfig,
+    EventName,
+    Event,
+)
 from src.gui.gui_handler import GuiHandlerSpot
 from src.producers.spot import TickerDataPublisher, UserDataPublisher
 from src.trading_system import TradingSystemSpot

@@ -11,7 +11,7 @@ from binance.enums import (
     ORDER_TYPE_LIMIT,
 )
 
-from src.common.identifiers import State, OrderUpdate, Order, Signal
+from src.common.identifiers.futures import State, OrderUpdate, Order, Signal
 from src.strategies.base import BaseStrategy
 from tests.common import (
     start_long,

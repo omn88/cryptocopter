@@ -3,7 +3,7 @@ from typing import Optional, Union
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
 from src.common.common import futures_get_balance
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     BinanceClient,
     EventName,
     Event,

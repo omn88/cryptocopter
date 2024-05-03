@@ -1,7 +1,7 @@
 import asyncio
 from binance import BinanceSocketManager
 
-from src.common.identifiers import AccountUpdate, OrderUpdate, TickerUpdate
+from src.common.identifiers.futures import AccountUpdate, OrderUpdate, TickerUpdate
 
 
 class TickerDataPublisher:

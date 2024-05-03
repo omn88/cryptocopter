@@ -16,7 +16,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.common import convert_time
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     BinanceClient,
     Order,
     Position,

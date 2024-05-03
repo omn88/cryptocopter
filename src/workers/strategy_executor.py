@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from logging_config import StrategyLogger
-from src.common.identifiers import BinanceClient
+from src.common.identifiers.futures import BinanceClient
 from src.producers.spot import TickerDataPublisher
 from src.trading_system import TradingSystemSpot
 

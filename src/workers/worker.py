@@ -1,5 +1,5 @@
 from logging_config import StrategyLogger
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     KlineUpdate,
     OrderUpdate,
     SignalUpdate,

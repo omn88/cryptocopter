@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from src.common.identifiers import State
+from src.common.identifiers.futures import State
 from src.producers.producers import KlineUpdate
 from tests.common import get_orders_long, get_cancel_order, validation_orders
 import logging

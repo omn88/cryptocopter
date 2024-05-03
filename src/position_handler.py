@@ -3,7 +3,7 @@ from typing import List, Union
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_position_id, signal_to_state
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     BinanceClient,
     CoinSniperConfig,
     Order,

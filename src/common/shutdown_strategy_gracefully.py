@@ -2,8 +2,7 @@ import asyncio
 import logging
 import signal
 
-from src.common.identifiers import BinanceClient
-from src.position_handler import PositionHandler
+from src.common.identifiers.futures import BinanceClient
 
 
 logger = logging.getLogger("shutdown_strategy_gracefully")

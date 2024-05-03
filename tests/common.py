@@ -9,7 +9,7 @@ from binance.enums import (
 )
 from src.common.common import signal_to_state
 
-from src.common.identifiers import (
+from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
     Position,
