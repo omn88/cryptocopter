@@ -90,7 +90,7 @@ class Order:
 
 
 class BinanceClient(AsyncClient):
-    def __init__(self, api_key, api_secret, sync_interval=60):
+    def __init__(self, api_key: str, api_secret: str, sync_interval: int = 60):
         super().__init__(api_key, api_secret)
         self.time_difference: float = 0.0
         self.sync_interval: int = sync_interval

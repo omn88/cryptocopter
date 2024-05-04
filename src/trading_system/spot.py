@@ -13,8 +13,8 @@ from src.common.initialize_trading_environment import spot_prepare_producers
 from src.df_handler.spot import DfHandler
 from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.base import BaseStrategy
-from src.strategies.spot.coin_sniper import CoinSniper
 from src.strategies.futures.rsi_basic import RsiBasic
+from src.strategies.spot.base import BaseSpotStrategy
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
@@ -25,7 +25,7 @@ from src.strategies.futures.rsi_special import RsiSpecial
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "Coin Sniper": CoinSniper,
+    "Coin Sniper": BaseSpotStrategy,
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
     "RSI Special": RsiSpecial,
@@ -65,6 +65,9 @@ class TradingSystem:
             config=self.config,
             balance=self.balance,
         )
+
+        assert isinstance(self.strategy, BaseSpotStrategy)
+        await self.strategy.initialize()
 
         # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)

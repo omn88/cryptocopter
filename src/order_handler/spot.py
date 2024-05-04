@@ -62,14 +62,11 @@ class OrderHandler:
             order_quantity = order_quantity_stable / order_price
 
             orders.append(
-                {
-                    "symbol": symbol,
-                    "side": side,
-                    "type": "LIMIT",
-                    "quantity": order_quantity,
-                    "price": order_price,
-                    "timeInForce": "GTC",
-                }
+                Order(
+                    quantity=order_quantity,
+                    price=order_price,
+                    quantity_stable=order_quantity_stable,
+                )
             )
 
         self.strategy_logger.info("Prepared orders: %s", orders)

@@ -13,7 +13,7 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.common import BinanceClient, PositionSide
 from src.common.identifiers.spot import StrategyConfig
 from src.gui.gui_handler.spot import GuiHandler
 from src.producers.spot import TickerDataPublisher
@@ -88,12 +88,13 @@ class CoinSniper(BoxLayout):
 
         config = StrategyConfig(
             symbol=symbol,
-            side=side,
+            side=PositionSide.LONG
+            if side == PositionSide.LONG.value
+            else PositionSide.SHORT,
             price_low=float(price_low),
             price_high=float(price_high),
             budget=float(budget),
             order_trigger_buffer=float(order_trigger_buffer),
-            mode=mode,
         )
 
         await self.strategy_executor.config_queue.put(config)

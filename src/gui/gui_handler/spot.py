@@ -68,7 +68,7 @@ class GuiHandler:
         #     leverage=position.leverage,
         #     margin=position.margin,
         # )
-        pass
+        return True
 
     def _prepare_strategy_data(self, position_data: PositionData, strategy_name: str):
         return StrategyData(strategy_name=strategy_name, position_data=position_data)

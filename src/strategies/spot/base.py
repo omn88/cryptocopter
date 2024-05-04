@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -27,7 +28,7 @@ class BaseSpotStrategy(BaseStrategy):
         df_handler: DfHandler,
         balance: float,
     ):
-        super().__init__(client, config, logger, df_handler, balance)
+        super().__init__(client, logger, df_handler, balance)
         self.gui_handler = gui_handler
         self.config = config
         self.position_handler = PositionHandler(
@@ -44,7 +45,7 @@ class BaseSpotStrategy(BaseStrategy):
             State.CLOSED,
         ]
 
-        self.min_order_values = asyncio.create_task(self._get_minimum_order_values())
+        self.min_order_values = None
         self.trigger_orders_price = (
             round(
                 self.config.price_low * (1 - (self.config.order_trigger_buffer / 100)),
@@ -119,7 +120,12 @@ class BaseSpotStrategy(BaseStrategy):
             },
         ]
 
-    async def _get_minimum_order_values(self):
+    async def initialize(self):
+        # Now you can await the _get_minimum_order_values method
+        self.min_order_values = await self._get_minimum_order_values()
+        # Additional initialization code can go here
+
+    async def _get_minimum_order_values(self) -> Dict:
         exchange_info = await self.client.get_exchange_info()
         min_values = {}
 
@@ -248,9 +254,9 @@ class BaseSpotStrategy(BaseStrategy):
         *args,
         **kwargs
     ):
-        self.logger.debug("Opening %s", self.signal_update.signal)
+        self.logger.debug("Opening %s", side.value)
 
-        side = PositionSide.LONG
+        assert self.min_order_values
 
         await self.position_handler.open_position(
             side=side,
@@ -275,7 +281,9 @@ class BaseSpotStrategy(BaseStrategy):
         *args,
         **kwargs
     ):
-        self.logger.info("Opening %s", self.signal_update.signal)
+        self.logger.debug("Opening %s", side.value)
+
+        assert self.min_order_values
 
         await self.position_handler.open_position(
             side=side,

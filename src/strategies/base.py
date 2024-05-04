@@ -4,7 +4,6 @@ from logging_config import StrategyLogger
 from src.common.identifiers.futures import (
     SignalUpdate,
     KlineUpdate,
-    StrategyConfig,
 )
 from src.common.identifiers.common import BinanceClient, OrderUpdate, AccountUpdate
 from src.common.identifiers.spot import TickerUpdate
@@ -15,13 +14,11 @@ class BaseStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        config: StrategyConfig,
         logger: StrategyLogger,
         df_handler: DfHandler,
         balance: float,
     ):
         self.client = client
-        self.config = config
         self.logger = logger
         self.df_handler = df_handler
         self.balance = balance
