@@ -16,7 +16,6 @@ from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, PositionSide
 from src.common.identifiers.spot import StrategyConfig
 from src.gui.gui_handler.spot import GuiHandler
-from src.producers.spot import TickerDataPublisher
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
 
@@ -49,14 +48,11 @@ class CoinSniper(BoxLayout):
         self.socket_manager = BinanceSocketManager(client=client)
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
-        self.ticker_publisher = TickerDataPublisher(socket_manager=self.socket_manager)
         self.strategy_executor: StrategyExecutor = StrategyExecutor(
             client=client,
             logger=strategy_logger,
             gui_handler=gui_handler,
-            ticker_publisher=self.ticker_publisher,
         )
-        asyncio.create_task(self.ticker_publisher.run())
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
 
