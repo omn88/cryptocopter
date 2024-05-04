@@ -1,4 +1,3 @@
-import asyncio
 from typing import Dict
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -16,6 +15,8 @@ from src.df_handler.futures import DfHandler
 from src.gui.gui_handler.spot import GuiHandler
 from src.position_handler.spot import PositionHandler
 from src.strategies.base import BaseStrategy
+
+STAGNATION_LIMIT = 8
 
 
 class BaseSpotStrategy(BaseStrategy):
@@ -93,6 +94,13 @@ class BaseSpotStrategy(BaseStrategy):
             {
                 "trigger": "process_order",
                 "source": State.OPEN,
+                "dest": State.CLOSED,
+                "conditions": "conditions_for_all_orders_filled",
+                "before": "handle_position_closure",
+            },
+            {
+                "trigger": "process_order",
+                "source": State.OPEN,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
@@ -108,15 +116,29 @@ class BaseSpotStrategy(BaseStrategy):
                 "trigger": "process_signal",
                 "source": [State.NEW, State.STAGNATED],
                 "dest": State.OPEN,
-                "conditions": "conditions_for_opening_basic_long",
+                "conditions": "conditions_for_sending_long_orders",
                 "after": "open_long",
             },
             {
                 "trigger": "process_signal",
                 "source": [State.NEW, State.STAGNATED],
                 "dest": State.OPEN,
-                "conditions": "conditions_for_opening_basic_short",
+                "conditions": "conditions_for_sending_short_orders",
                 "after": "open_short",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.OPEN,
+                "dest": [State.NEW, State.STAGNATED],
+                "conditions": "conditions_for_cancelling_long_orders",
+                "after": "cancel_long",
+            },
+            {
+                "trigger": "process_signal",
+                "source": State.OPEN,
+                "dest": [State.NEW, State.STAGNATED],
+                "conditions": "conditions_for_cancelling_short_orders",
+                "after": "cancel_short",
             },
         ]
 
@@ -206,7 +228,13 @@ class BaseSpotStrategy(BaseStrategy):
         )
         return condition
 
-    def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
+    def conditions_for_all_orders_filled(self, *args, **kwargs):
+        condition = all(order.status == ORDER_STATUS_FILLED for order in self.position_handler.position.orders)
+
+        self.logger.info("All orders filled: %s, order update status: %s", condition)
+        return condition
+
+    def conditions_for_sending_long_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.LONG
@@ -222,7 +250,7 @@ class BaseSpotStrategy(BaseStrategy):
 
         return condition
 
-    def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
+    def conditions_for_sending_short_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.SHORT
@@ -237,11 +265,38 @@ class BaseSpotStrategy(BaseStrategy):
 
         return condition
 
-    def skip_signal(self, *args, **kwargs) -> None:
-        self.logger.info("Skipping signal: %s", self.signal_update.signal)
-        self.df_handler.df.at[
-            self.df_handler.df.index[-1], "Position"
-        ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
+    def conditions_for_cancelling_long_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.OPEN
+            and self.position_handler.position.side == PositionSide.LONG
+            and self.position_handler.stagnation_counter == STAGNATION_LIMIT
+            and self.ticker_update.last_price > self.trigger_orders_price
+        )
+        self.logger.info(
+            "Cancel %s orders due to stagnation: %s, last price: %s",
+            self.position_handler.position.side.value,
+            condition,
+            self.ticker_update.last_price
+        )
+
+        return condition
+
+    def conditions_for_cancelling_short_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.OPEN
+            and self.position_handler.position.side == PositionSide.SHORT
+            and self.position_handler.stagnation_counter == STAGNATION_LIMIT
+            and self.ticker_update.last_price < self.trigger_orders_price
+        )
+        self.logger.info(
+            "Cancel %s orders due to stagnation: %s, last price: %s",
+            self.position_handler.position.side.value,
+            condition,
+            self.ticker_update.last_price
+        )
+
+        return condition
+
 
     async def open_long(
         self,
@@ -253,7 +308,7 @@ class BaseSpotStrategy(BaseStrategy):
         name: str,
         *args,
         **kwargs
-    ):
+    ) -> None:
         self.logger.debug("Opening %s", side.value)
 
         assert self.min_order_values
@@ -280,7 +335,7 @@ class BaseSpotStrategy(BaseStrategy):
         name: str,
         *args,
         **kwargs
-    ):
+    ) -> None:
         self.logger.debug("Opening %s", side.value)
 
         assert self.min_order_values
@@ -297,14 +352,18 @@ class BaseSpotStrategy(BaseStrategy):
             symbol=symbol,
         )
 
-    async def close_long(self, *args, **kwargs):
-        self.logger.info("Closing %s", self.position_handler.position.state)
+    async def cancel_long(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.position_handler.position.side)
 
-        await self.position_handler.close_position()
+        await self.position_handler.cancel_position()
 
-    async def close_short(self, *args, **kwargs):
-        self.logger.info("Closing %s", self.position_handler.position.state)
-        await self.position_handler.close_position()
+    async def cancel_short(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.position_handler.position.side)
+        await self.position_handler.cancel_position()
+
+
+    async def handle_position_closure(self, *args, **kwargs) -> None:
+        self.logger.info("All order filled, archiving position")
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:

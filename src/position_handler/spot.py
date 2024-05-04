@@ -76,10 +76,9 @@ class PositionHandler:
         self.position.status = PositionStatus.OPEN
         self.strategy_logger.info("Position opened successfully.")
 
-    async def close_position(self) -> None:
+    async def cancel_position(self) -> None:
         self.strategy_logger.info(
-            "Enter close position, quant: %s", self.position.quantity
-        )
+            "Enter cancel position")
 
         self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.position.symbol,
@@ -92,7 +91,7 @@ class PositionHandler:
             strategy_name=self.config.name,
             position=self.position,
         )
-        self.position.status = PositionStatus.CLOSING
+        self.position.status = PositionStatus.STAGNATED
 
     async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
         for order in self.position.orders:
