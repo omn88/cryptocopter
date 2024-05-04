@@ -12,47 +12,6 @@ from src.common.identifiers.spot import TickerUpdate
 logger = logging.getLogger("spot_producers")
 
 
-class TickerDataPublisher:
-    def __init__(self, socket_manager: BinanceSocketManager):
-        self.socket_manager = socket_manager
-        self.subscribers: Dict = {}
-        self.stop_event = asyncio.Event()
-
-    def subscribe(self, symbol, subscriber):
-        if symbol not in self.subscribers:
-            self.subscribers[symbol] = []
-        self.subscribers[symbol].append(subscriber)
-
-    def unsubscribe(self, symbol, subscriber):
-        if symbol in self.subscribers:
-            self.subscribers[symbol].remove(subscriber)
-
-    async def run(self):
-        socket = self.socket_manager.symbol_ticker_socket(symbol="all")
-        async with socket:
-            while not self.stop_event.is_set():
-                try:
-                    msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-                    if msg.get("e") == "24hrTicker":
-                        symbol = msg["s"]
-                        ticker_event = TickerUpdate(
-                            symbol=symbol,
-                            last_price=round(float(msg["c"]), 1),
-                            best_bid_price=round(float(msg["b"]), 1),
-                            best_ask_price=round(float(msg["a"]), 1),
-                            high_price=round(float(msg["h"]), 1),
-                            low_price=round(float(msg["l"]), 1),
-                            volume=float(msg["v"]),
-                        )
-                        for subscriber in self.subscribers.get(symbol, []):
-                            asyncio.create_task(subscriber.notify(ticker_event))
-                except asyncio.TimeoutError:
-                    continue
-
-    def stop(self):
-        self.stop_event.set()
-
-
 async def spot_user_socket(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,

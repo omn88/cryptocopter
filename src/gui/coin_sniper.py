@@ -76,7 +76,7 @@ class CoinSniper(BoxLayout):
         """Creates and starts a new trading strategy."""
 
         self.strategy_logger.info(
-            "Symbol: %s, side: %s, price_low: %s, price_high: %s, budget: %s, order trigger buffer: %s, mode: %s",
+            "New record: symbol: %s, side: %s, price_low: %s, price_high: %s, budget: %s, order trigger buffer: %s, mode: %s",
             symbol,
             side,
             price_low,

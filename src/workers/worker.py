@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
 from logging_config import StrategyLogger
 from src.common.identifiers.futures import KlineUpdate, SignalUpdate
+from src.common.identifiers.spot import TickerUpdate
 from src.strategies.base import BaseStrategy
 from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
+from src.strategies.spot.base import BaseSpotStrategy
 from src.workers.trading_state_machine import TradingStateMachine
 
 
@@ -33,6 +36,23 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
                 5,
                 state_machine.strategy.df_handler.df.tail(5).to_string(),
             )
+
+        if EventName.TICKER == event.name:
+            logger.info("Entering ticker event")
+            assert isinstance(event.content, TickerUpdate)
+            assert isinstance(state_machine.strategy, BaseSpotStrategy)
+            state_machine.strategy.ticker_update = event.content
+
+            if (
+                datetime.now()
+                >= state_machine.strategy.position_handler.next_monitor_position_time
+            ):
+                state_machine.strategy.position_handler.stagnation_counter += 1
+                state_machine.strategy.position_handler.next_monitor_position_time += (
+                    timedelta(hours=1)
+                )
+
+            await state_machine.strategy.process_ticker()  # type: ignore
 
         elif EventName.ORDER == event.name:
             logger.info(

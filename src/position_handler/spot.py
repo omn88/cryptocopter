@@ -77,8 +77,7 @@ class PositionHandler:
         self.strategy_logger.info("Position opened successfully.")
 
     async def cancel_position(self) -> None:
-        self.strategy_logger.info(
-            "Enter cancel position")
+        self.strategy_logger.info("Enter cancel position")
 
         self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.position.symbol,

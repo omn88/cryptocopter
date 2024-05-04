@@ -11,7 +11,7 @@ from src.producers.futures import (
     futures_user_socket,
     futures_symbol_mark_price_socket,
 )
-from src.producers.spot import spot_user_socket
+from src.producers.spot import spot_ticker_socket, spot_user_socket
 
 logger = logging.getLogger("initialize_trading_environment")
 
@@ -64,11 +64,20 @@ def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     stop_event: asyncio.Event,
+    symbol: str,
 ):
     return [
         asyncio.create_task(
             spot_user_socket(
                 socket_manager=socket_manager, queue=queue, stop_event=stop_event
+            ),
+        ),
+        asyncio.create_task(
+            spot_ticker_socket(
+                socket_manager=socket_manager,
+                stop_event=stop_event,
+                symbol=symbol,
+                queue=queue,
             )
         ),
     ]

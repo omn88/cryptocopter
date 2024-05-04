@@ -57,7 +57,7 @@ class TradingSystem:
 
     async def initialize(self):
         # Strategy initialization
-        self.strategy = STRATEGY_MAP[self.config.name](
+        self.strategy = BaseSpotStrategy(
             client=self.client,
             df_handler=self.df_handler,
             gui_handler=self.gui_handler,
@@ -66,7 +66,6 @@ class TradingSystem:
             balance=self.balance,
         )
 
-        assert isinstance(self.strategy, BaseSpotStrategy)
         await self.strategy.initialize()
 
         # Trading State Machine initialization
@@ -84,6 +83,7 @@ class TradingSystem:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
+                symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             return_exceptions=True,

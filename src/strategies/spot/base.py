@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from typing import Dict
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -129,16 +130,30 @@ class BaseSpotStrategy(BaseStrategy):
             {
                 "trigger": "process_signal",
                 "source": State.OPEN,
-                "dest": [State.NEW, State.STAGNATED],
+                "dest": State.STAGNATED,
                 "conditions": "conditions_for_cancelling_long_orders",
                 "after": "cancel_long",
             },
             {
                 "trigger": "process_signal",
                 "source": State.OPEN,
-                "dest": [State.NEW, State.STAGNATED],
+                "dest": State.STAGNATED,
                 "conditions": "conditions_for_cancelling_short_orders",
                 "after": "cancel_short",
+            },
+            {
+                "trigger": "process_ticker",
+                "source": State.OPEN,
+                "dest": "=",
+                "conditions": "conditions_for_increasing_stagnation",
+                "after": "increase_stagnation",
+            },
+            {
+                "trigger": "process_ticker",
+                "source": State.OPEN,
+                "dest": "=",
+                "conditions": "conditions_for_zeroing_out_stagnation",
+                "after": "zero_out_stagnation",
             },
         ]
 
@@ -229,7 +244,10 @@ class BaseSpotStrategy(BaseStrategy):
         return condition
 
     def conditions_for_all_orders_filled(self, *args, **kwargs):
-        condition = all(order.status == ORDER_STATUS_FILLED for order in self.position_handler.position.orders)
+        condition = all(
+            order.status == ORDER_STATUS_FILLED
+            for order in self.position_handler.position.orders
+        )
 
         self.logger.info("All orders filled: %s, order update status: %s", condition)
         return condition
@@ -276,7 +294,7 @@ class BaseSpotStrategy(BaseStrategy):
             "Cancel %s orders due to stagnation: %s, last price: %s",
             self.position_handler.position.side.value,
             condition,
-            self.ticker_update.last_price
+            self.ticker_update.last_price,
         )
 
         return condition
@@ -292,11 +310,19 @@ class BaseSpotStrategy(BaseStrategy):
             "Cancel %s orders due to stagnation: %s, last price: %s",
             self.position_handler.position.side.value,
             condition,
-            self.ticker_update.last_price
+            self.ticker_update.last_price,
         )
 
         return condition
 
+    def conditions_for_increasing_stagnation(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.OPEN
+            and datetime.now() > self.position_handler.next_monitor_position_time
+        )
+        self.logger.info("Stagnation counter increase due to")
+
+        return condition
 
     async def open_long(
         self,
@@ -361,9 +387,12 @@ class BaseSpotStrategy(BaseStrategy):
         self.logger.info("Cancelling %s", self.position_handler.position.side)
         await self.position_handler.cancel_position()
 
-
     async def handle_position_closure(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
+
+    async def increase_stagnation(self, *args, **kwargs) -> None:
+        self.position_handler.stagnation_counter += 1
+        self.position_handler.next_monitor_position_time += timedelta(hours=1)
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
@@ -407,10 +436,20 @@ class BaseSpotStrategy(BaseStrategy):
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")
 
+        self.position_handler.stagnation_counter = 0
+        self.position_handler.next_monitor_position_time = datetime.now() + timedelta(
+            hours=1
+        )
+
         await self.position_handler.handle_order_filled(order_update=self.order_update)
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")
+
+        self.position_handler.stagnation_counter = 0
+        self.position_handler.next_monitor_position_time = datetime.now() + timedelta(
+            hours=1
+        )
 
         await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
@@ -470,37 +509,6 @@ class BaseSpotStrategy(BaseStrategy):
 #             },
 #         ]
 
-#     def conditions_for_opening_basic_long(self, *args, **kwargs) -> bool:
-#         condition = (
-#             self.state in [State.NEW, State.STAGNATED]
-#             and self.config.side == PositionSide.LONG
-#             and self.ticker_update.last_price < self.trigger_orders_price
-#         )
-
-#         self.logger.info(
-#             "Open basic long: %s, state: %s signal: %s",
-#             condition,
-#             self.state,
-#             self.signal_update.signal,
-#         )
-
-#         return condition
-
-#     def conditions_for_opening_basic_short(self, *args, **kwargs) -> bool:
-#         condition = (
-#             self.state in [State.NEW, State.STAGNATED]
-#             and self.config.side == PositionSide.SHORT
-#             and self.ticker_update.last_price > self.trigger_orders_price
-#         )
-#         self.logger.info(
-#             "Open basic short: %s, state: %s signal: %s",
-#             condition,
-#             self.state,
-#             self.signal_update.signal,
-#         )
-
-#         return condition
-
 #     async def monitor_position(self):
 #         stagnation_limit = 4
 
@@ -541,49 +549,6 @@ class BaseSpotStrategy(BaseStrategy):
 #             self.config.side,
 #         )
 
-#         if self.position_handler.position.status == PositionStatus.NEW:
-#             if (
-#                 self.config.side == PositionSide.LONG
-#                 and self.ticker_update.last_price < self.trigger_orders_price
-#             ):
-#                 await self.position_handler.open_position(
-#                     side=self.config.side,
-#                     symbol=self.config.symbol,
-#                     name=self.config.name,
-#                     budget=self.config.budget,
-#                     price_low=self.config.price_low,
-#                     price_high=self.config.price_high,
-#                     min_notional=float(
-#                         self.min_order_values[self.config.symbol]["minNotional"]
-#                     ),
-#                 )
-
-#         if self.position_handler.position.status == PositionStatus.NEW:
-#             if (
-#                 self.config.side == PositionSide.SHORT
-#                 and self.ticker_update.last_price > self.trigger_orders_price
-#             ):
-#                 await self.position_handler.open_position(
-#                     side=self.config.side,
-#                     symbol=self.config.symbol,
-#                     name=self.config.name,
-#                     budget=self.config.budget,
-#                     price_low=self.config.price_low,
-#                     price_high=self.config.price_high,
-#                     min_notional=float(
-#                         self.min_order_values[self.config.symbol]["minNotional"]
-#                     ),
-#                 )
-
-#         else:
-#             # To Close it if the target is not reached and the price is again far from threshold
-#             all_orders_filled = all(
-#                 order.status == self.client.ORDER_STATUS_FILLED
-#                 for order in self.position_handler.position.orders
-#             )
-#             if all_orders_filled:
-#                 await self.position_handler.close_position()
-#             else:
 #                 if (
 #                     datetime.datetime.now()
 #                     < self.position_handler.next_monitor_position_time
@@ -601,6 +566,3 @@ class BaseSpotStrategy(BaseStrategy):
 #                         datetime.timedelta(hours=1)
 #                     )
 #                     await self.monitor_position()
-
-#     async def handle_ticker(self):
-#         pass
