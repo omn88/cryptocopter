@@ -3,7 +3,7 @@ import logging
 import signal
 
 from src.common.identifiers.common import BinanceClient
-from src.position_handler.spot import PositionHandler
+from src.position_handler.futures import PositionHandler
 
 
 logger = logging.getLogger("shutdown_strategy_gracefully")
