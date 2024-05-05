@@ -56,19 +56,18 @@ class GuiHandler:
         )
 
     def _prepare_position_data(self, position: Position) -> PositionData:
-        # return PositionData(
-        #     symbol=position.symbol,
-        #     quantity=position.quantity,
-        #     entry_price=position.entry_price,
-        #     mark_price=0,
-        #     liquidation_price=position.liquidation_price,
-        #     pnl=0,
-        #     state=position.state,
-        #     status=position.status,
-        #     leverage=position.leverage,
-        #     margin=position.margin,
-        # )
-        return True
+        return PositionData(
+            symbol=position.symbol,
+            quantity=position.quantity,
+            entry_price=0,
+            mark_price=0,
+            liquidation_price=0,
+            pnl=0,
+            state=position.state,
+            status=position.status,
+            leverage=0,
+            margin=0,
+        )
 
     def _prepare_strategy_data(self, position_data: PositionData, strategy_name: str):
         return StrategyData(strategy_name=strategy_name, position_data=position_data)
