@@ -63,11 +63,7 @@ class BaseSpotStrategy(BaseStrategy):
         self.transitions = [
             {
                 "trigger": "process_account",
-                "source": [
-                    State.NEW,
-                    State.OPEN,
-                    State.STAGNATED,
-                ],
+                "source": [State.NEW, State.OPEN, State.STAGNATED, State.CLOSED],
                 "dest": "=",
                 "after": "handle_account",
             },
@@ -143,17 +139,9 @@ class BaseSpotStrategy(BaseStrategy):
             },
             {
                 "trigger": "process_ticker",
-                "source": State.OPEN,
+                "source": [State.NEW, State.OPEN, State.STAGNATED, State.CLOSED],
                 "dest": "=",
-                "conditions": "conditions_for_increasing_stagnation",
-                "after": "increase_stagnation",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.OPEN,
-                "dest": "=",
-                "conditions": "conditions_for_zeroing_out_stagnation",
-                "after": "zero_out_stagnation",
+                "after": "handle_ticker",
             },
         ]
 
@@ -315,15 +303,6 @@ class BaseSpotStrategy(BaseStrategy):
 
         return condition
 
-    def conditions_for_increasing_stagnation(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.OPEN
-            and datetime.now() > self.position_handler.next_monitor_position_time
-        )
-        self.logger.info("Stagnation counter increase due to")
-
-        return condition
-
     async def open_long(
         self,
         symbol: str,
@@ -390,9 +369,21 @@ class BaseSpotStrategy(BaseStrategy):
     async def handle_position_closure(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
 
-    async def increase_stagnation(self, *args, **kwargs) -> None:
-        self.position_handler.stagnation_counter += 1
-        self.position_handler.next_monitor_position_time += timedelta(hours=1)
+    async def handle_ticker(self, *args, **kwargs) -> None:
+        date_time_now = datetime.now()
+
+        if (
+            self.state == State.OPEN
+            and date_time_now > self.position_handler.next_monitor_position_time
+        ):
+            self.logger.info(
+                "Stagnation counter increase due to crossing stagnation timer: %s, time now: %s, stagnation counter: %s",
+                self.position_handler.next_monitor_position_time,
+                date_time_now,
+                self.position_handler.stagnation_counter,
+            )
+            self.position_handler.stagnation_counter += 1
+            self.position_handler.next_monitor_position_time += timedelta(hours=1)
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.position.orders:
@@ -454,115 +445,3 @@ class BaseSpotStrategy(BaseStrategy):
         await self.position_handler.handle_order_partially_filled(
             order_update=self.order_update
         )
-
-
-# import datetime
-# from logging_config import StrategyLogger
-# from src.common.identifiers.futures import (
-#     PositionSide,
-#     PositionStatus,
-# )
-# from src.common.identifiers.spot import CoinSniperConfig, State
-# from src.df_handler.futures import DfHandler
-# from src.gui.gui_handler import GuiHandlerSpot
-# from src.common.identifiers.common import BinanceClient
-# from src.strategies.spot.base import BaseSpotStrategy
-
-
-# class CoinSniper(BaseSpotStrategy):
-#     def __init__(
-#         self,
-#         client: BinanceClient,
-#         config: CoinSniperConfig,
-#         gui_handler: GuiHandlerSpot,
-#         logger: StrategyLogger,
-#         df_handler: DfHandler,
-#         balance: float,
-#     ):
-#         super().__init__(client, config, gui_handler, logger, df_handler, balance)
-#         self.config = config
-#         self.trigger_orders_price = (
-#             round(
-#                 self.config.price_low * (1 - (self.config.order_trigger_buffer / 100)),
-#                 2,
-#             )
-#             if self.config.side == PositionSide.SHORT
-#             else round(
-#                 self.config.price_high * (1 + (self.config.order_trigger_buffer / 100)),
-#                 2,
-#             )
-#         )
-
-#         self.transitions += [
-#             {
-#                 "trigger": "process_ticker",
-#                 "source": [State.NEW, State.OPEN],
-#                 "dest": "=",
-#                 "after": "handle_ticker",
-#             },
-#             {
-#                 "trigger": "process_signal",
-#                 "source": "*",
-#                 "dest": "=",
-#                 "conditions": "conditions_for_skipping_same_signal",
-#                 "after": "skip_signal",
-#             },
-#         ]
-
-#     async def monitor_position(self):
-#         stagnation_limit = 4
-
-#         orders_not_filled = all(
-#             order.status == self.client.ORDER_STATUS_NEW
-#             for order in self.position_handler.position.orders
-#         )
-
-#         if self.position_handler.stagnation_counter == stagnation_limit:
-#             self.position_handler.close_position()
-#         else:
-#             # 1. check whether one hour from sending orders has passed or whether all opened orders are filled.
-#             if orders_not_filled:
-#                 self.position_handler.stagnation_counter += 1
-#             else:
-#                 if all(
-#                     any(
-#                         prev_order.order_id == order.order_id
-#                         and prev_order.realized_quantity == order.realized_quantity
-#                         for order in self.position_handler.position.orders
-#                     )
-#                     for prev_order in self.position_handler.prev_orders
-#                 ):
-#                     self.position_handler.stagnation_counter += 1
-#                 else:
-#                     self.position_handler.stagnation_counter = 0
-#                     self.position_handler.prev_orders = (
-#                         self.position_handler.position.orders
-#                     )
-
-#     async def notify(self, event: TickerUpdate):
-#         self.ticker_update = event
-
-#         self.logger.info(
-#             "Handle ticker, ticker last price: %s, trigger order price: %s, side: %s",
-#             self.ticker_update.last_price,
-#             self.trigger_orders_price,
-#             self.config.side,
-#         )
-
-#                 if (
-#                     datetime.datetime.now()
-#                     < self.position_handler.next_monitor_position_time
-#                 ):
-#                     time_left = (
-#                         self.position_handler.next_monitor_position_time
-#                         - datetime.datetime.now()
-#                     )
-#                     minutes_left = time_left.total_seconds() / 60
-#                     self.logger.info(
-#                         f"{minutes_left:.2f} minutes left until next position monitoring."
-#                     )
-#                 else:
-#                     self.position_handler.next_monitor_position_time += (
-#                         datetime.timedelta(hours=1)
-#                     )
-#                     await self.monitor_position()

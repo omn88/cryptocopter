@@ -71,6 +71,7 @@ async def spot_ticker_socket(
                     Event(
                         name=EventName.TICKER,
                         content=TickerUpdate(
+                            symbol=str(msg["s"]),
                             last_price=round(float(msg["c"]), 1),  # Last price
                             best_bid_price=round(
                                 float(msg.get("b", "0")), 1

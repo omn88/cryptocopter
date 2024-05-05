@@ -25,6 +25,7 @@ class Position:
 
 
 class TickerUpdate(NamedTuple):
+    symbol: str = ""
     last_price: float = 0
     best_bid_price: float = 0
     best_ask_price: float = 0
@@ -34,7 +35,7 @@ class TickerUpdate(NamedTuple):
 
     def __repr__(self):
         return (
-            f"TickerUpdate(last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
+            f"TickerUpdate(symbol={self.symbol}, last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
             f"best_ask_price={self.best_ask_price}, high_price={self.high_price}, "
             f"low_price={self.low_price}, volume={self.volume})"
         )
