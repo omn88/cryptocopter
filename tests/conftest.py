@@ -110,7 +110,7 @@ async def basic_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.futures_determine_start_position(
+    await state_machine.strategy.df_handler.determine_start_position(
         queue=state_machine.strategy.queue
     )
 
@@ -148,7 +148,7 @@ async def extended_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.futures_determine_start_position(
+    await state_machine.strategy.df_handler.determine_start_position(
         queue=state_machine.strategy.queue
     )
     yield state_machine
@@ -183,7 +183,7 @@ async def special_rsi(mock_AsyncClient):
         )
     )
 
-    await state_machine.strategy.df_handler.futures_determine_start_position(
+    await state_machine.strategy.df_handler.determine_start_position(
         queue=state_machine.strategy.queue
     )
 

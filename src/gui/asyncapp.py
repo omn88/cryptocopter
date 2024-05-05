@@ -108,8 +108,6 @@ class AsyncApp(App):
 
         widgets = self.dynamic_spinners.get(strategy_name, {})
 
-        logger.info("Co jest kuwa, SYMBOL: %s", widgets)
-
         return StrategyConfig(
             name=strategy_name,
             symbol=widgets.get("symbol_spinner").text,

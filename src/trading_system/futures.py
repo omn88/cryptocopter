@@ -93,9 +93,7 @@ class TradingSystem:
 
     async def determine_start_position(self):
         await asyncio.sleep(5)
-        await self.df_handler.futures_determine_start_position(
-            queue=self.strategy.queue
-        )
+        await self.df_handler.determine_start_position(queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         # is this sleep needed?

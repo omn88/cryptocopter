@@ -79,7 +79,7 @@ class DfHandler:
             "Last %s rows from main df: %s", rows, self.df.tail(rows).to_string()
         )
 
-    async def futures_determine_start_position(self, queue: asyncio.Queue):
+    async def determine_start_position(self, queue: asyncio.Queue):
         self.logger.info("Start determining strategy start position.")
         signal = Signal.NULL
         price = 0
