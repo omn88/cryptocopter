@@ -3,6 +3,7 @@ from typing import List
 from logging_config import StrategyLogger
 
 from src.common.identifiers.common import Order, PositionSide
+from src.common.identifiers.futures import State
 from src.common.identifiers.spot import Position
 from src.gui.identifiers import OrderData, PositionData, StrategyData
 
@@ -63,7 +64,7 @@ class GuiHandler:
             mark_price=0,
             liquidation_price=0,
             pnl=0,
-            state=position.state,
+            state=State.LONG,
             status=position.status,
             leverage=0,
             margin=0,
