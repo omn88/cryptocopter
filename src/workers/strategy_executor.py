@@ -34,22 +34,17 @@ class StrategyExecutor:
                 await self.initialize_trading_system(config)
 
     async def initialize_trading_system(self, config: StrategyConfig) -> None:
-        system_id = str(uuid.uuid4())  # Generate a unique identifier for the system
         trading_system = TradingSystem(
             client=self.client,
             gui_handler=self.gui_handler,
             strategy_logger=self.logger,
             config=config,
-            system_id=system_id,
+            system_id=config.system_id,
         )
         await trading_system.initialize()
 
-        self.id_to_system[system_id] = trading_system
-        self.logger.info(
-            "Starting trading system for %s with ID %s.",
-            config,
-            system_id,
-        )
+        self.id_to_system[config.system_id] = trading_system
+        self.logger.info("Starting trading system for %s", config)
         await trading_system.start_trading()
 
     async def remove_record(self, system_id: str) -> None:

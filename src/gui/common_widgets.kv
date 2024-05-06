@@ -142,7 +142,10 @@
 
 
 <RecordListItem@BoxLayout>:
-    index: 0
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+    system_id: ''
     symbol: ''
     side: ''
     price_low: ''
@@ -152,18 +155,13 @@
     orders_opened: ''
     orders_total: ''
     orders_filled: ''
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
 
     canvas.before:
         Color:
-            rgba: 1, 1, 1, 0.1
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
         Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
 
-    Label:
-        text: str(root.index)
     Label:
         text: root.symbol
     Label:
@@ -184,9 +182,9 @@
         text: root.orders_filled
     Button:
         text: 'Remove'
-        size_hint_x: None
-        width: 100
-        on_release: app.remove_record(root.index)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id)
+
+
 
 
 

@@ -1,5 +1,6 @@
 import asyncio
 from typing import Dict, List
+import uuid
 from binance import BinanceSocketManager
 from kivy.properties import ListProperty, NumericProperty, ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -50,6 +51,7 @@ class CoinSniper(BoxLayout):
         self, symbol, side, price_low, price_high, budget, order_trigger_buffer, mode
     ):
         config = StrategyConfig(
+            system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
             symbol=symbol,
             side=PositionSide.LONG
             if side == PositionSide.LONG.value
@@ -61,8 +63,10 @@ class CoinSniper(BoxLayout):
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
+
         await self.gui_handler.ui_queue.put(
             PositionData(
+                system_id=config.system_id,
                 symbol=config.symbol,
                 side=config.side,
                 price_low=config.price_low,
@@ -76,13 +80,14 @@ class CoinSniper(BoxLayout):
             )
         )
 
-    def remove_record(self, index):
-        # Assuming the data list is part of the root widget or accessible via ids
-        active_records = self.root.ids.active_records_list.data
-        if index < len(active_records):
-            del active_records[index]
-            # Update the RecycleView
-            self.root.ids.active_records_list.refresh_from_data()
+    def trigger_remove_record(self, system_id, *args):
+        asyncio.create_task(self.remove_record(system_id=system_id))
+
+    async def remove_record(self, system_id):
+        # Send a command to the strategy executor to stop the trading process
+        await self.strategy_executor.remove_record(system_id=system_id)
+        # Update GUI asynchronously
+        await self.gui_handler.remove_from_ui(system_id=system_id)
 
     async def update_ui(self):
         while True:
@@ -111,6 +116,7 @@ class CoinSniper(BoxLayout):
     def add_new_position(self, data: PositionData):
         self.position_count += 1
         new_position = {
+            "system_id": data.system_id,
             "symbol": data.symbol,
             "side": str(data.side.value),
             "price_low": str(data.price_low),

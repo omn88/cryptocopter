@@ -42,6 +42,7 @@ class TickerUpdate(NamedTuple):
 
 
 class StrategyConfig(NamedTuple):
+    system_id: str
     symbol: str
     side: PositionSide
     price_low: float
