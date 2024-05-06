@@ -16,7 +16,7 @@ from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.identifiers.common import EventName, Event
 from src.gui.gui_handler.futures import GuiHandler
-from src.gui.identifiers import (
+from src.gui.identifiers.futures import (
     AccountData,
     PositionData,
     OrderData,
@@ -135,11 +135,6 @@ class StrategyTab(BoxLayout):
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = str(pnl)
-                    # position["pnl_fiat"] = str(
-                    #     round(
-                    #         pnl_percent * round(abs(float(position["quantity"])), 3), 2
-                    #     )
-                    # )
                     position["state"] = str(position["state"])
                     position["status"] = str(position["status"])
 

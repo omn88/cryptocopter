@@ -15,9 +15,9 @@ from src.common.initialize_trading_environment import (
     futures_prepare_producers,
 )
 from src.df_handler.futures import DfHandler
-from src.gui.coin_sniper import CoinSniper
+from src.gui.coinsniper import CoinSniper
 from src.gui.gui_handler.futures import GuiHandler
-from src.gui.identifiers import AccountData
+from src.gui.identifiers.futures import AccountData
 from src.strategies.base import BaseStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.workers import worker

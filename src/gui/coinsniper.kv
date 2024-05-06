@@ -129,8 +129,8 @@
 
     # Bottom section with tabbed panels for records
     BoxLayout:
-        id: bottom_section
-        orientation: 'vertical'
+        id: cs_bottom_section
+        orientation: 'horizontal'
         size_hint_y: 0.7  # Allow this to take the remaining space
 
         TabbedPanel:
@@ -146,44 +146,32 @@
                         height: '30dp'
                         Label:
                             text: 'Symbol'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Side'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Price Low'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Price High'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Budget'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Order Trigger'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Opened'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Total'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Filled'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                     RecycleView:
                         id: active_records_list
                         data: root.active_records
                         viewclass: 'RecordListItem'
+                        RecycleBoxLayout:
+                            default_size: None, dp(56)  # Adjust the height as necessary
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height  # This makes the layout as tall as its contents
+                            orientation: 'vertical'
 
             TabbedPanelItem:
                 text: 'Closed'
@@ -194,40 +182,22 @@
                         height: '30dp'
                         Label:
                             text: 'Symbol'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Side'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Price Low'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Price High'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Budget'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Order Trigger'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Opened'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Total'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                         Label:
                             text: 'Orders Filled'
-                            size_hint_x: 0.1
-                            font_size: '14sp'
                     RecycleView:
                         id: closed_records_list
                         data: root.closed_records

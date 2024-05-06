@@ -23,10 +23,10 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
-from src.gui.coin_sniper import CoinSniper
+from src.gui.coinsniper import CoinSniper
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
-from src.gui.identifiers import PositionStatus, PriceData, StrategyData
+from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient, EventName, Event
@@ -209,23 +209,25 @@ class AsyncApp(App):
             logger.info("Starting Coin Sniper strategy")
 
             # Builder.load_file("src/gui/searchable_drop_down.kv")
-            Builder.load_file("src/gui/coin_sniper.kv")
+            Builder.load_file("src/gui/coinsniper.kv")
 
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name
             )
 
+            coin_sniper = CoinSniper(
+                strategy_logger=strategy_logger,
+                gui_handler=GuiHandlerSpot(
+                    main_ui_queue=self.main_ui_queue,
+                    ui_queue=asyncio.Queue(),
+                    logger=strategy_logger,
+                ),
+                client=self.client,
+            )
+
             tab = TabbedPanelItem(
                 text=strategy_name,
-                content=CoinSniper(
-                    strategy_logger=strategy_logger,
-                    gui_handler=GuiHandlerSpot(
-                        main_ui_queue=self.main_ui_queue,
-                        ui_queue=asyncio.Queue(),
-                        logger=strategy_logger,
-                    ),
-                    client=self.client,
-                ),
+                content=coin_sniper,
             )
 
             # Set up a logging handler for the strategy

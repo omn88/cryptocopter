@@ -145,59 +145,42 @@
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
-    padding: [10, 5]
+
+    symbol: ''
+    side: ''
+    price_low: ''
+    price_high: ''
+    budget: ''
+    order_trigger: ''
+    orders_opened: ''
+    orders_total: ''
+    orders_filled: ''
 
     canvas.before:
         Color:
-            rgba: 0.8, 0.8, 0.8, 1  # Light gray background color
-        Rectangle:
-            pos: self.pos
-            size: self.size
+            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
+    Label:
+        text: root.symbol
 
     Label:
-        text: "Symbol"
-        size_hint_x: 0.1
-        font_size: '14sp'
+        text: root.side
 
     Label:
-        text: "Side"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.price_low
     Label:
-        text: "Price Low"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.price_high
     Label:
-        text: "Price High"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.budget
     Label:
-        text: "Budget"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.order_trigger
     Label:
-        text: "Order Trigger"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.orders_opened
     Label:
-        text: "Orders Opened"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
+        text: root.orders_total
     Label:
-        text: "Orders Total"
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: "Orders Filled"
-        size_hint_x: 0.1
-        font_size: '14sp'
+        text: root.orders_filled
 
 
 
