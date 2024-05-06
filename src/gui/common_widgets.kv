@@ -142,10 +142,7 @@
 
 
 <RecordListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
+    index: 0
     symbol: ''
     side: ''
     price_low: ''
@@ -155,18 +152,22 @@
     orders_opened: ''
     orders_total: ''
     orders_filled: ''
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
 
     canvas.before:
         Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
+            rgba: 1, 1, 1, 0.1
         Line:
             points: [self.x, self.y, self.x + self.width, self.y]
+
+    Label:
+        text: str(root.index)
     Label:
         text: root.symbol
-
     Label:
         text: root.side
-
     Label:
         text: root.price_low
     Label:
@@ -181,6 +182,11 @@
         text: root.orders_total
     Label:
         text: root.orders_filled
+    Button:
+        text: 'Remove'
+        size_hint_x: None
+        width: 100
+        on_release: app.remove_record(root.index)
 
 
 

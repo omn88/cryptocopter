@@ -202,3 +202,9 @@
                         id: closed_records_list
                         data: root.closed_records
                         viewclass: 'RecordListItem'
+                        RecycleBoxLayout:
+                            default_size: None, dp(56)  # Adjust the height as necessary
+                            default_size_hint: 1, None
+                            size_hint_y: None
+                            height: self.minimum_height  # This makes the layout as tall as its contents
+                            orientation: 'vertical'

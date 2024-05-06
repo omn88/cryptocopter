@@ -76,6 +76,14 @@ class CoinSniper(BoxLayout):
             )
         )
 
+    def remove_record(self, index):
+        # Assuming the data list is part of the root widget or accessible via ids
+        active_records = self.root.ids.active_records_list.data
+        if index < len(active_records):
+            del active_records[index]
+            # Update the RecycleView
+            self.root.ids.active_records_list.refresh_from_data()
+
     async def update_ui(self):
         while True:
             if self.gui_handler.ui_queue.qsize() == 0:

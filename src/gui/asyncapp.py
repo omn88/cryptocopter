@@ -99,6 +99,14 @@ class AsyncApp(App):
         if new_value not in ["Choose Strategy", "Choose Symbol"]:
             logger.info("%s spinner value changed to %s", spinner, new_value)
 
+    def remove_record(self, index):
+        # Assuming the data list is part of the root widget or accessible via ids
+        active_records = self.root.ids.active_records_list.data
+        if index < len(active_records):
+            del active_records[index]
+            # Update the RecycleView
+            self.root.ids.active_records_list.refresh_from_data()
+
     def start_strategy(self):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
