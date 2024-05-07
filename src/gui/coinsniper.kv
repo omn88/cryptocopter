@@ -146,22 +146,34 @@
                         height: '30dp'
                         Label:
                             text: 'Symbol'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Side'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Price Low'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Price High'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Budget'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Order Trigger'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Orders Opened'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Orders Total'
+                            size_hint_x: 0.1
                         Label:
                             text: 'Orders Filled'
+                            size_hint_x: 0.1
+                        Label:
+                            text: ''
+                            size_hint_x: 0.1
                     RecycleView:
                         id: active_records_list
                         data: root.active_records
@@ -198,6 +210,8 @@
                             text: 'Orders Total'
                         Label:
                             text: 'Orders Filled'
+                        Label:
+                            text: ''
                     RecycleView:
                         id: closed_records_list
                         data: root.closed_records
