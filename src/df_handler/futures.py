@@ -6,10 +6,8 @@ import btalib
 import pandas
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
-from src.common.identifiers import (
-    BinanceClient,
-    Event,
-    EventName,
+from src.common.identifiers.common import BinanceClient, EventName, Event
+from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
     State,
@@ -82,6 +80,47 @@ class DfHandler:
         )
 
     async def determine_start_position(self, queue: asyncio.Queue):
+        self.logger.info("Start determining strategy start position.")
+        signal = Signal.NULL
+        price = 0
+        signal_index = 0
+
+        for index, row in self.df[::-1].iterrows():
+            if row["Signal"] not in [
+                0,
+                Signal.LONG_SPECIAL,
+                Signal.SHORT_SPECIAL,
+                Signal.CLOSE_SPECIAL,
+            ]:
+                signal = row["Signal"]
+                price = row["Close"]
+                # Adding extra lines to see what happened before signal
+                signal_index += 4
+                break
+
+            price = row["Close"]
+            signal_index += 1
+
+        try:
+            assert signal_index <= len(self.df.index)
+            self.df = self.df.iloc[len(self.df.index) - signal_index : :]
+            self.logger.debug(
+                "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
+            )
+        except AssertionError:
+            self.logger.info(
+                "Last signal almost on top of df, leaving df as is: \n%s",
+                self.df.to_string(),
+            )
+
+        await queue.put(
+            Event(
+                name=EventName.SIGNAL,
+                content=SignalUpdate(signal=signal, price=round(float(price), 2)),
+            )
+        )
+
+    async def spot_determine_start_position(self, queue: asyncio.Queue):
         self.logger.info("Start determining strategy start position.")
         signal = Signal.NULL
         price = 0

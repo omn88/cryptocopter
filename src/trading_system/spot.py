@@ -2,33 +2,30 @@ import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
-from src.common.common import futures_get_balance
-from src.common.identifiers import (
+from src.common.identifiers.common import (
     BinanceClient,
-    EventName,
     Event,
+    EventName,
     SentinelUpdate,
-    StrategyConfig,
 )
-from src.common.initialize_trading_environment import (
-    change_margin_type,
-    prepare_producers,
-)
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
-from src.gui.identifiers import AccountData
+from src.common.identifiers.spot import StrategyConfig
+from src.common.initialize_trading_environment import spot_prepare_producers
+from src.df_handler.spot import DfHandler
+from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.base import BaseStrategy
-from src.strategies.rsi_basic import RsiBasic
+from src.strategies.futures.rsi_basic import RsiBasic
+from src.strategies.spot.base import BaseSpotStrategy
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
-from src.strategies.rsi_extended import RsiExtended
+from src.strategies.futures.rsi_extended import RsiExtended
 
-from src.strategies.rsi_special import RsiSpecial
+from src.strategies.futures.rsi_special import RsiSpecial
 
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
+    "Coin Sniper": BaseSpotStrategy,
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
     "RSI Special": RsiSpecial,
@@ -38,18 +35,20 @@ STRATEGY_MAP = {
 class TradingSystem:
     def __init__(
         self,
+        system_id: str,
         client: BinanceClient,
         gui_handler: GuiHandler,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
     ):
-        self.client: BinanceClient = client
-        self.config: StrategyConfig = config
-        self.gui_handler: GuiHandler = gui_handler
+        self.system_id = system_id
+        self.client = client
+        self.config = config
+        self.gui_handler = gui_handler
         self.df_handler: DfHandler = DfHandler(
             client=client, config=config, logger=strategy_logger
         )
-        self.strategy_logger: StrategyLogger = strategy_logger
+        self.strategy_logger = strategy_logger
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
@@ -57,43 +56,20 @@ class TradingSystem:
         self.strategy: Optional[BaseStrategy] = None
 
     async def initialize(self):
-        await change_margin_type(
+        # Strategy initialization
+        self.strategy = BaseSpotStrategy(
             client=self.client,
-            symbol=self.config.symbol,
-            margin_type=self.config.margin_type,
-        )
-        await self.client.futures_change_leverage(
-            symbol=self.config.symbol, leverage=self.config.leverage
-        )
-
-        await self.df_handler.initialize()
-
-        self.balance = await futures_get_balance(
-            client=self.client, asset=self.config.asset
-        )
-
-        self.strategy = STRATEGY_MAP[self.config.name](
-            client=self.client,
-            balance=self.balance,
             df_handler=self.df_handler,
-            config=self.config,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
+            config=self.config,
+            balance=self.balance,
         )
 
+        await self.strategy.initialize()
+
+        # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)
-
-        await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
-
-        self.df_handler.df = self.df_handler.signals_from_features_generate(
-            df=self.df_handler.df,
-            conditions=self.df_handler.conditions,
-            signals=self.df_handler.signals,
-        )
-
-    async def determine_start_position(self):
-        await asyncio.sleep(5)
-        await self.df_handler.determine_start_position(queue=self.strategy.queue)
 
     async def prepare_worker(self, logger: StrategyLogger):
         # is this sleep needed?
@@ -103,16 +79,13 @@ class TradingSystem:
 
     async def start_trading(self):
         await asyncio.gather(
-            *prepare_producers(
+            *spot_prepare_producers(
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
-                interval=self.config.interval,
                 queue=self.strategy.queue,
-                gui_handler=self.gui_handler,
                 symbol=self.config.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
-            asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )
 
@@ -122,15 +95,6 @@ class TradingSystem:
         self.strategy_logger.info("Trading system STOP initiated properly")
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
-        )
-        await self.gui_handler.main_ui_queue.put(
-            Event(
-                EventName.SENTINEL,
-                content={
-                    "strategy_name": self.config.name,
-                    "symbol": self.config.symbol,
-                },
-            )
         )
         await asyncio.sleep(5)
         self.stop_producers_event.set()

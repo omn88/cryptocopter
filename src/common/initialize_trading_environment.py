@@ -4,13 +4,14 @@ import binance
 from binance import BinanceSocketManager
 
 
-from src.common.identifiers import BinanceClient
-from src.gui.gui_handler import GuiHandler
-from src.producers.producers import (
+from src.common.identifiers.common import BinanceClient
+from src.gui.gui_handler.futures import GuiHandler
+from src.producers.futures import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
 )
+from src.producers.spot import spot_ticker_socket, spot_user_socket
 
 logger = logging.getLogger("initialize_trading_environment")
 
@@ -24,7 +25,7 @@ async def change_margin_type(
         logger.debug("All: %s", e)
 
 
-def prepare_producers(
+def futures_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     gui_handler: GuiHandler,
@@ -54,6 +55,29 @@ def prepare_producers(
                 symbol=symbol,
                 main_ui_queue=gui_handler.main_ui_queue,
                 stop_event=stop_event,
+            )
+        ),
+    ]
+
+
+def spot_prepare_producers(
+    socket_manager: BinanceSocketManager,
+    queue: asyncio.Queue,
+    stop_event: asyncio.Event,
+    symbol: str,
+):
+    return [
+        asyncio.create_task(
+            spot_user_socket(
+                socket_manager=socket_manager, queue=queue, stop_event=stop_event
+            ),
+        ),
+        asyncio.create_task(
+            spot_ticker_socket(
+                socket_manager=socket_manager,
+                stop_event=stop_event,
+                symbol=symbol,
+                queue=queue,
             )
         ),
     ]

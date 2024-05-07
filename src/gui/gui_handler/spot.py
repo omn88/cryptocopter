@@ -1,9 +1,11 @@
 import asyncio
 from typing import List
 from logging_config import StrategyLogger
-from src.common.identifiers import Order, Position, PositionSide
 
-from src.gui.identifiers import OrderData, PositionData, StrategyData
+from src.common.identifiers.common import Order, PositionSide
+from src.common.identifiers.futures import State
+from src.common.identifiers.spot import Position
+from src.gui.identifiers.futures import OrderData, PositionData, StrategyData
 
 
 class GuiHandler:
@@ -58,14 +60,14 @@ class GuiHandler:
         return PositionData(
             symbol=position.symbol,
             quantity=position.quantity,
-            entry_price=position.entry_price,
+            entry_price=0,
             mark_price=0,
-            liquidation_price=position.liquidation_price,
+            liquidation_price=0,
             pnl=0,
-            state=position.state,
+            state=State.LONG,
             status=position.status,
-            leverage=position.leverage,
-            margin=position.margin,
+            leverage=0,
+            margin=0,
         )
 
     def _prepare_strategy_data(self, position_data: PositionData, strategy_name: str):

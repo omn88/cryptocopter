@@ -4,7 +4,8 @@ import os
 from datetime import datetime
 import pytz
 import uuid
-from src.common.identifiers import Signal, State, BinanceClient
+from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.futures import Signal, State
 
 logger = logging.getLogger("common")
 
@@ -24,6 +25,17 @@ def create_directory_with_timestamp():
 
 
 async def futures_get_balance(client: BinanceClient, asset: str) -> float:
+    account_balance = await client.futures_account_balance(asset=asset)
+    for account in account_balance:
+        if account["asset"] == asset:
+            balance = round(float(account["balance"]), 2)
+            logger.info("Balance %s: %s", account["asset"], balance)
+            return balance
+
+    raise KeyError(f"Asset: {asset} not found in account balance")
+
+
+async def get_balance(client: BinanceClient, asset: str) -> float:
     account_balance = await client.futures_account_balance(asset=asset)
     for account in account_balance:
         if account["asset"] == asset:

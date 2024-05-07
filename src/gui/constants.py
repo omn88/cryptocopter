@@ -1,3 +1,3 @@
-GREEN_COLOR = [0, 0.5, 0, 1]
-RED_COLOR = [0.5, 0, 0, 1]
-WHITE_COLOR = [1, 1, 1, 1]
+GREEN_COLOR = [0.0, 0.5, 0.0, 1.0]
+RED_COLOR = [0.5, 0.0, 0.0, 1.0]
+WHITE_COLOR = [1.0, 1.0, 1.0, 1.0]

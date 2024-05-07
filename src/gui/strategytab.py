@@ -14,9 +14,9 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers import EventName, Event, Position, State
-from src.gui.gui_handler import GuiHandler
-from src.gui.identifiers import (
+from src.common.identifiers.common import EventName, Event
+from src.gui.gui_handler.futures import GuiHandler
+from src.gui.identifiers.futures import (
     AccountData,
     PositionData,
     OrderData,
@@ -24,7 +24,7 @@ from src.gui.identifiers import (
     PositionStatus,
 )
 
-from src.trading_system import TradingSystem
+from src.trading_system.futures import TradingSystem
 
 
 class StrategyTab(BoxLayout):
@@ -49,9 +49,9 @@ class StrategyTab(BoxLayout):
         **kwargs
     ):
         super().__init__(**kwargs)
-        self.trading_system: TradingSystem = trading_system
-        self.gui_handler: GuiHandler = gui_handler
-        self.strategy_logger: StrategyLogger = strategy_logger
+        self.trading_system = trading_system
+        self.gui_handler = gui_handler
+        self.strategy_logger = strategy_logger
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
@@ -135,11 +135,6 @@ class StrategyTab(BoxLayout):
                     position["mark_price"] = str(data.mark_price)
                     position["liquidation_price"] = str(position["liquidation_price"])
                     position["pnl"] = str(pnl)
-                    # position["pnl_fiat"] = str(
-                    #     round(
-                    #         pnl_percent * round(abs(float(position["quantity"])), 3), 2
-                    #     )
-                    # )
                     position["state"] = str(position["state"])
                     position["status"] = str(position["status"])
 

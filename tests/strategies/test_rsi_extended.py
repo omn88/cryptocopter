@@ -1,10 +1,7 @@
-from unittest.mock import patch
 import logging
 import pandas
-
-
-from src.common.identifiers import KlineUpdate, Signal, State
-from src.strategies.rsi_extended import RsiExtended
+from src.common.identifiers.futures import KlineUpdate, Signal, State
+from src.strategies.futures.rsi_extended import RsiExtended
 from src.workers.trading_state_machine import TradingStateMachine
 from tests.common import (
     generate_signal,
@@ -12,7 +9,6 @@ from tests.common import (
     assert_dca_short_opened,
     get_orders_long,
     get_orders_short,
-    get_orders_long_then_short,
     get_cancel_order,
     get_orders_short_then_long,
     validation_orders,

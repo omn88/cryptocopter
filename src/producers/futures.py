@@ -4,14 +4,9 @@ from typing import Dict
 from binance import BinanceSocketManager
 import pandas
 import numpy
-from src.common.identifiers import (
-    Event,
-    EventName,
-    AccountUpdate,
-    OrderUpdate,
-    KlineUpdate,
-)
-from src.gui.identifiers import PriceData
+from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
+from src.common.identifiers.futures import KlineUpdate
+from src.gui.identifiers.futures import PriceData
 
 logger = logging.getLogger("producer")
 
@@ -110,7 +105,6 @@ async def kline_futures_socket(
         while not stop_event.is_set():
             try:
                 msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-
                 kline_start_time = int(msg["k"]["t"]) - 900000
                 index = pandas.to_datetime(
                     kline_start_time, unit="ms"

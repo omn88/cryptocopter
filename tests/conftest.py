@@ -5,19 +5,18 @@ import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
-from src.common.identifiers import (
-    Event,
-    EventName,
+from src.common.identifiers.common import Event, EventName
+from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
-from src.strategies.base import BaseStrategy
-from src.strategies.rsi_basic import RsiBasic
-from src.strategies.rsi_extended import RsiExtended
-from src.strategies.rsi_special import RsiSpecial
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.strategies.futures.base import BaseFuturesStrategy
+from src.strategies.futures.rsi_basic import RsiBasic
+from src.strategies.futures.rsi_extended import RsiExtended
+from src.strategies.futures.rsi_special import RsiSpecial
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
@@ -53,7 +52,7 @@ async def base(mock_AsyncClient):
     logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
 
     state_machine = TradingStateMachine(
-        strategy=BaseStrategy(
+        strategy=BaseFuturesStrategy(
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,

@@ -14,16 +14,9 @@ TabbedPanel:
                 Spinner:
                     id: strategy_spinner
                     text: 'Choose Strategy'
-                    values: ('RSI Basic', 'RSI Extended', 'RSI Special')
+                    values: ('Coin Sniper', 'RSI Basic', 'RSI Extended', 'RSI Special')
                     size_hint: (0.2, 1)
                     on_text: app.on_strategy_change(self.text)
-
-                Spinner:
-                    id: symbol_spinner
-                    text: 'Choose Symbol'
-                    values: ('BTCUSDT', 'ETHUSDT', 'ETHBTC')
-                    size_hint: (0.2, 1)
-                    on_text: app.log_spinner_change('symbol', self.text)
 
                 BoxLayout:
                     size_hint_x: 0.25

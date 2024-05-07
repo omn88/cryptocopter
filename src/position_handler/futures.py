@@ -2,19 +2,21 @@ from typing import List
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_position_id, signal_to_state
-from src.common.identifiers import (
+from src.common.identifiers.common import (
     BinanceClient,
     Order,
     OrderUpdate,
-    Position,
-    PositionMode,
     PositionSide,
     PositionStatus,
+)
+from src.common.identifiers.futures import (
+    Position,
+    PositionMode,
     SignalUpdate,
     StrategyConfig,
 )
-from src.gui.gui_handler import GuiHandler
-from src.order_handler import OrderHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.order_handler.futures import OrderHandler
 
 
 class PositionHandler:
@@ -279,7 +281,7 @@ class PositionHandler:
         return balance
 
     async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
-        await self.futures_get_position_info()
+        await self.get_position_info()
 
         # cancel take profit if exists
         if self.position.take_profit_order.order_id:
@@ -333,7 +335,7 @@ class PositionHandler:
             strategy_name=self.config.name, position=self.position
         )
 
-    async def futures_get_position_info(self) -> None:
+    async def get_position_info(self) -> None:
         resp = await self.order_handler.client.futures_position_information(
             symbol=self.position.symbol
         )
@@ -344,7 +346,7 @@ class PositionHandler:
         self.strategy_logger.info("Position update: %s", resp)
 
     async def handle_order_filled(self, order_update: OrderUpdate) -> None:
-        await self.futures_get_position_info()
+        await self.get_position_info()
 
         # cancel take profit if exists
         if self.position.take_profit_order.order_id:
@@ -407,17 +409,3 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
-
-    # async def confirm_position(self, position_id):
-    #     # Logic to confirm that all actions related to the old position are completed
-    #     position = self.positions.get(position_id)
-    #     if position:
-    #         position.status = PositionStatus.CONFIRMED
-    #         # Perform any additional logic needed after confirmation
-    #         self.strategy_logger.info(f"Position {position_id} confirmed.")
-
-    # def archive_position(self, position_id):
-    #     if position_id in self.positions:
-    #         position = self.positions.pop(position_id)
-    #         self.archived_positions[position_id] = position
-    #         self.strategy_logger.info(f"Position {position_id} archived.")

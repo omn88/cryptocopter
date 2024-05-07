@@ -139,3 +139,52 @@
         text: '%s %%' % root.pnl
     Label:
         text: root.state
+
+
+<RecordListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+    system_id: ''
+    symbol: ''
+    side: ''
+    price_low: ''
+    price_high: ''
+    budget: ''
+    order_trigger: ''
+    orders_opened: ''
+    orders_total: ''
+    orders_filled: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
+
+    Label:
+        text: root.symbol
+    Label:
+        text: root.side
+    Label:
+        text: root.price_low
+    Label:
+        text: root.price_high
+    Label:
+        text: root.budget
+    Label:
+        text: root.order_trigger
+    Label:
+        text: root.orders_opened
+    Label:
+        text: root.orders_total
+    Label:
+        text: root.orders_filled
+    Button:
+        text: 'Remove'
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id)
+
+
+
+
+

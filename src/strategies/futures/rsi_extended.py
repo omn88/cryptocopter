@@ -2,18 +2,16 @@ import numpy
 
 from logging_config import StrategyLogger
 
-from src.common.identifiers import (
-    BinanceClient,
+from src.common.identifiers.common import BinanceClient, Event, EventName
+from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
-    Event,
-    EventName,
     State,
     StrategyConfig,
 )
-from src.df_handler import DfHandler
-from src.gui.gui_handler import GuiHandler
-from src.strategies.rsi_basic import RsiBasic
+from src.df_handler.futures import DfHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.strategies.futures.rsi_basic import RsiBasic
 
 
 class RsiExtended(RsiBasic):

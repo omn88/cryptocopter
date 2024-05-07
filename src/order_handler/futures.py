@@ -15,14 +15,12 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.common import convert_time
-from src.common.identifiers import (
-    BinanceClient,
-    Order,
+from src.common.identifiers.futures import (
     Position,
     PositionMode,
-    PositionSide,
 )
-from src.gui.gui_handler import GuiHandler
+from src.gui.gui_handler.futures import GuiHandler
+from src.common.identifiers.common import BinanceClient, Order, PositionSide
 
 
 class OrderHandler:
@@ -357,18 +355,3 @@ class OrderHandler:
         )
 
         return order
-
-    # async def update_order(self, symbol, order_id, new_quantity=None, new_price=None):
-    #     # Binance does not support modifying an existing order. You must cancel and create a new order.
-    #     try:
-    #         await self.cancel_order(symbol, order_id)
-    #         response = await self.create_order(
-    #             symbol, "LIMIT", "BUY", new_quantity, new_price
-    #         )  # Example for a limit buy order
-    #         self.strategy_logger.info(f"Order updated: {response}")
-    #         return response
-    #     except Exception as e:
-    #         self.strategy_logger.error(f"Error updating order: {e}")
-    #         raise
-
-    # # Add additional methods as needed for querying orders, etc.

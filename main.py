@@ -17,7 +17,7 @@ import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import config
-from src.common.identifiers import BinanceClient
+from src.common.identifiers.common import BinanceClient
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 
@@ -44,9 +44,7 @@ async def main():
     """
 
     app = AsyncApp(
-        client=BinanceClient(
-            api_key=config("FUTURES_API_KEY"), api_secret=config("FUTURES_API_SECRET")
-        )
+        client=BinanceClient(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
     )
     logger.info("Created %s", app)
     await app.async_run()

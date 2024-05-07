@@ -4,7 +4,7 @@ import pandas
 import logging
 import numpy
 
-from src.common.identifiers import Signal
+from src.common.identifiers.futures import Signal
 
 logger = logging.getLogger("sample_dataframes")
 

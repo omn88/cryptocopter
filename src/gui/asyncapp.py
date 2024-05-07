@@ -7,22 +7,29 @@ for each strategy.
 
 import asyncio
 import logging
-from typing import Dict, List
+from typing import Dict, List, Union
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.identifiers import BinanceClient, Position, StrategyConfig
-from src.gui.gui_handler import GuiHandler
-from src.gui.identifiers import PositionStatus, PriceData, StrategyData
+from src.common.identifiers.futures import (
+    Position,
+    StrategyConfig,
+)
+from src.gui.coinsniper import CoinSniper
+from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
+from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
+from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
-from src.trading_system import TradingSystem
-from src.common.identifiers import EventName, Event
+from src.trading_system.futures import TradingSystem
+from src.common.identifiers.common import BinanceClient, EventName, Event
 
 logger = logging.getLogger("async_app")
 
@@ -76,6 +83,9 @@ class AsyncApp(App):
         Returns:
             Widget: The root widget of the application.
         """
+        # Set the minimum size of the application window
+        Window.minimum_width = 920  # Minimum width in pixels
+        Window.minimum_height = 600  # Minimum height in pixels
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
@@ -89,96 +99,143 @@ class AsyncApp(App):
         if new_value not in ["Choose Strategy", "Choose Symbol"]:
             logger.info("%s spinner value changed to %s", spinner, new_value)
 
+    def remove_record(self, index):
+        # Assuming the data list is part of the root widget or accessible via ids
+        active_records = self.root.ids.active_records_list.data
+        if index < len(active_records):
+            del active_records[index]
+            # Update the RecycleView
+            self.root.ids.active_records_list.refresh_from_data()
+
     def start_strategy(self):
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
-    def strategy_config_retrieve(self) -> StrategyConfig:
+    def futures_strategy_config_retrieve(self) -> StrategyConfig:
         strategy_name: str = self.root.ids.strategy_spinner.text
-        symbol: str = self.root.ids.symbol_spinner.text
 
-        if strategy_name.startswith("RSI"):
-            leverage_spinner = self.dynamic_spinners.get(strategy_name, {})
-            orders_spinner = self.dynamic_spinners.get(strategy_name, {})
-            dca_span_spinner = self.dynamic_spinners.get(strategy_name, {})
-
-            leverage = int(leverage_spinner.get("leverage_spinner").text)
-            number_of_orders = int(orders_spinner.get("orders_spinner").text)
-            dca_span = float(dca_span_spinner.get("dca_span_spinner").text)
-
-            logger.info(
-                "lev: %s, ord: %s, dca: %s", leverage, number_of_orders, dca_span
-            )
+        widgets = self.dynamic_spinners.get(strategy_name, {})
 
         return StrategyConfig(
             name=strategy_name,
-            symbol=symbol,
-            number_of_orders=number_of_orders,
-            dca_span=dca_span,
-            leverage=leverage,
+            symbol=widgets.get("symbol_spinner").text,
+            number_of_orders=int(widgets.get("orders_spinner").text),
+            dca_span=float(widgets.get("dca_span_spinner").text),
+            leverage=int(widgets.get("leverage_spinner").text),
             budget=20.0,
         )
 
-    async def on_start_strategy(self):
+    async def on_start_strategy(self) -> None:
         """Creates and starts a new trading strategy."""
         # Check if a strategy and symbol are selected
-        config = self.strategy_config_retrieve()
-        strategy_name_short = f"{self.strategy_mapping[config.name]}_{config.symbol}"
-        if config.name != "Choose Strategy" and config.symbol != "Choose Symbol":
-            for strategy in self.active_strategies:
-                if (
-                    strategy["name"] == config.name
-                    and strategy["symbol"] == config.symbol
-                ):
-                    logger.info(
-                        "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
-                        config.name,
-                        config.symbol,
-                    )
-                    return  # Exit the method early
-            logger.info(
-                "Starting new strategy: %s on pair %s", config.name, config.symbol
+        strategy_name: str = self.root.ids.strategy_spinner.text
+        if strategy_name.startswith("RSI"):
+            config = self.futures_strategy_config_retrieve()
+            strategy_name_short = (
+                f"{self.strategy_mapping[config.name]}_{config.symbol}"
             )
+            if config.symbol != "Choose Symbol":
+                for strategy in self.active_strategies:
+                    if (
+                        strategy["name"] == config.name
+                        and strategy["symbol"] == config.symbol
+                    ):
+                        logger.info(
+                            "Strategy %s with symbol %s is already running. Please select a different strategy or symbol.",
+                            config.name,
+                            config.symbol,
+                        )
+                        return  # Exit the method early
+                logger.info(
+                    "Starting new strategy: %s on pair %s", config.name, config.symbol
+                )
+
+                strategy_logger = StrategyLogger(
+                    name=config.name, strategy_info=strategy_name_short
+                )
+
+                gui_handler = GuiHandlerFutures(
+                    main_ui_queue=self.main_ui_queue,
+                    ui_queue=asyncio.Queue(),
+                    logger=strategy_logger,
+                )
+
+                trading_system = TradingSystem(
+                    client=self.client,
+                    gui_handler=gui_handler,
+                    strategy_logger=strategy_logger,
+                    config=config,
+                )
+                await trading_system.initialize()
+                self.trading_systems.append(trading_system)
+
+                tab = TabbedPanelItem(
+                    text=strategy_name_short,
+                    content=StrategyTab(
+                        trading_system=trading_system,
+                        strategy_name=config.name,
+                        symbol=config.symbol,
+                        strategy_logger=strategy_logger,
+                        gui_handler=gui_handler,
+                    ),
+                )
+                # Store a reference to the tab
+                self.tabs[strategy_name_short] = tab
+                # Add a new tab for the strategy
+                self.root.add_widget(tab)
+                self.root.ids.strategy_spinner.text = "Choose Strategy"
+
+                await gui_handler.update_strategy(
+                    strategy_name=config.name,
+                    position=Position(symbol=config.symbol, leverage=config.leverage),
+                )
+
+                # Set up a logging handler for the strategy
+                setup_logging_handler(
+                    strategy_logger=strategy_logger,
+                    log_display_widget=tab.content.log_display,
+                )
+
+                logger.info(
+                    "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
+                    len(self.strategy_tabs),
+                    len(self.trading_systems),
+                )
+                await trading_system.start_trading()
+            else:
+                logger.info("App: Please select a symbol.")
+
+        if strategy_name == "Coin Sniper":
+            for strategy in self.active_strategies:
+                if strategy["name"] == config.name:
+                    logger.info(
+                        "Strategy %s is already running. Please select a different strategy.",
+                        config.name,
+                    )
+                    return
+
+            logger.info("Starting Coin Sniper strategy")
+
+            # Builder.load_file("src/gui/searchable_drop_down.kv")
+            Builder.load_file("src/gui/coinsniper.kv")
 
             strategy_logger = StrategyLogger(
-                name=config.name, strategy_info=strategy_name_short
+                name=strategy_name, strategy_info=strategy_name
             )
 
-            gui_handler = GuiHandler(
-                main_ui_queue=self.main_ui_queue,
-                ui_queue=asyncio.Queue(),
-                logger=strategy_logger,
-            )
-
-            trading_system = TradingSystem(
-                client=self.client,
-                gui_handler=gui_handler,
+            coin_sniper = CoinSniper(
                 strategy_logger=strategy_logger,
-                config=config,
+                gui_handler=GuiHandlerSpot(
+                    main_ui_queue=self.main_ui_queue,
+                    ui_queue=asyncio.Queue(),
+                    logger=strategy_logger,
+                ),
+                client=self.client,
             )
-            await trading_system.initialize()
-            self.trading_systems.append(trading_system)
 
             tab = TabbedPanelItem(
-                text=strategy_name_short,
-                content=StrategyTab(
-                    trading_system=trading_system,
-                    strategy_name=config.name,
-                    symbol=config.symbol,
-                    strategy_logger=strategy_logger,
-                    gui_handler=gui_handler,
-                ),
-            )
-            # Store a reference to the tab
-            self.tabs[strategy_name_short] = tab
-            # Add a new tab for the strategy
-            self.root.add_widget(tab)
-            self.root.ids.strategy_spinner.text = "Choose Strategy"
-            self.root.ids.symbol_spinner.text = "Choose Symbol"
-
-            await gui_handler.update_strategy(
-                strategy_name=config.name,
-                position=Position(symbol=config.symbol, leverage=config.leverage),
+                text=strategy_name,
+                content=coin_sniper,
             )
 
             # Set up a logging handler for the strategy
@@ -187,14 +244,11 @@ class AsyncApp(App):
                 log_display_widget=tab.content.log_display,
             )
 
-            logger.info(
-                "Strategy prepared, starting to initialize, total strategy tabs: %s, trading systems: %s",
-                len(self.strategy_tabs),
-                len(self.trading_systems),
-            )
-            await trading_system.start_trading()
-        else:
-            logger.info("App: Please select a strategy and a symbol.")
+            # Store a reference to the tab
+            self.tabs[strategy_name] = tab
+            # Add a new tab for the strategy
+            self.root.add_widget(tab)
+            self.root.ids.strategy_spinner.text = "Choose Strategy"
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
@@ -223,6 +277,25 @@ class AsyncApp(App):
 
         # Check the strategy and add relevant UI elements
         if strategy_name.startswith("RSI"):
+            # Container for Symbol
+            symbol_container = BoxLayout(
+                orientation="vertical", size_hint_x=None, width=100
+            )
+            symbol_label = Label(text="Symbol", size_hint_y=None, height=20)
+            symbol_spinner = Spinner(
+                text="BTCUSDT",  # Default value
+                values=["BTCUSDT", "ETHUSDT", "ETHBTC"],
+                size_hint_y=None,
+                height=30,
+            )
+            symbol_spinner.id = "symbol_spinner"
+            symbol_container.add_widget(symbol_label)
+            symbol_container.add_widget(symbol_spinner)
+            self.root.ids.dynamic_ui_container.add_widget(symbol_container)
+
+            # Store reference to the symbol_spinner
+            self.dynamic_spinners[strategy_name] = {"symbol_spinner": symbol_spinner}
+
             # Container for Leverage
             leverage_container = BoxLayout(
                 orientation="vertical", size_hint_x=None, width=100
@@ -240,9 +313,7 @@ class AsyncApp(App):
             self.root.ids.dynamic_ui_container.add_widget(leverage_container)
 
             # Store reference to the leverage_spinner
-            self.dynamic_spinners[strategy_name] = {
-                "leverage_spinner": leverage_spinner
-            }
+            self.dynamic_spinners[strategy_name]["leverage_spinner"] = leverage_spinner
 
             # Container for Number of DCA Orders
             orders_container = BoxLayout(
