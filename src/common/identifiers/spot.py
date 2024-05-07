@@ -47,6 +47,6 @@ class StrategyConfig(NamedTuple):
     side: PositionSide
     price_low: float
     price_high: float
-    order_trigger_buffer: float
+    order_trigger: float
     name: str = "Coin Sniper"
     budget: float = 0

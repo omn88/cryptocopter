@@ -50,12 +50,12 @@ class BaseSpotStrategy(BaseStrategy):
         self.min_order_values = None
         self.trigger_orders_price = (
             round(
-                self.config.price_low * (1 - (self.config.order_trigger_buffer / 100)),
+                self.config.price_low * (1 - (self.config.order_trigger / 100)),
                 2,
             )
             if self.config.side == PositionSide.SHORT
             else round(
-                self.config.price_high * (1 + (self.config.order_trigger_buffer / 100)),
+                self.config.price_high * (1 + (self.config.order_trigger / 100)),
                 2,
             )
         )

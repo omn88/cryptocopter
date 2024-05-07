@@ -48,7 +48,7 @@ class CoinSniper(BoxLayout):
         asyncio.create_task(self.add_record(*args))
 
     async def add_record(
-        self, symbol, side, price_low, price_high, budget, order_trigger_buffer
+        self, symbol, side, price_low, price_high, budget, order_trigger
     ):
         config = StrategyConfig(
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
@@ -59,7 +59,7 @@ class CoinSniper(BoxLayout):
             price_low=float(price_low),
             price_high=float(price_high),
             budget=float(budget),
-            order_trigger_buffer=float(order_trigger_buffer),
+            order_trigger=float(order_trigger),
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
@@ -72,7 +72,7 @@ class CoinSniper(BoxLayout):
                 price_low=config.price_low,
                 price_high=config.price_high,
                 budget=config.budget,
-                order_trigger=order_trigger_buffer,
+                order_trigger=config.order_trigger,
                 orders_opened=0,
                 orders_filled=0,
                 orders_total=0,
@@ -149,7 +149,7 @@ class CoinSniper(BoxLayout):
             "price_low": str(data.price_low),
             "price_high": str(data.price_high),
             "budget": str(data.budget),
-            "order_trigger_buffer": str(data.order_trigger),
+            "order_trigger": str(data.order_trigger),
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
