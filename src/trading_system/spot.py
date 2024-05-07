@@ -96,15 +96,6 @@ class TradingSystem:
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
-        await self.gui_handler.main_ui_queue.put(
-            Event(
-                EventName.SENTINEL,
-                content={
-                    "strategy_name": self.config.name,
-                    "symbol": self.config.symbol,
-                },
-            )
-        )
         await asyncio.sleep(5)
         self.stop_producers_event.set()
         self.strategy_logger.info("Sentinel should be send.")

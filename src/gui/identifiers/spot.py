@@ -10,43 +10,43 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.recycleview import RecycleView
 
 
-class RecordListItem(BoxLayout):
-    symbol = StringProperty()
-    side = StringProperty()
-    price_low = StringProperty()
-    price_high = StringProperty()
-    budget = StringProperty()
-    order_trigger = StringProperty()
-    orders_opened = StringProperty()
-    orders_total = StringProperty()
-    orders_filled = StringProperty()
+# class RecordListItem(BoxLayout):
+#     symbol = StringProperty()
+#     side = StringProperty()
+#     price_low = StringProperty()
+#     price_high = StringProperty()
+#     budget = StringProperty()
+#     order_trigger = StringProperty()
+#     orders_opened = StringProperty()
+#     orders_total = StringProperty()
+#     orders_filled = StringProperty()
 
-    def remove_self(self):
-        print("Parent:", type(self.parent))
-        print("Grandparent:", type(self.parent.parent))  # Should be RecycleView
-        # Access the parent RecycleView through the parent of the RecycleBoxLayout
-        recycle_view = self.parent.parent
-        print("Recycle view: ", recycle_view.data)
-        print("Self symbol, side, price_low ", self.symbol, self.side, self.price_low)
-        rv_data: List[Dict] = recycle_view.data
-        print("RV data: ", rv_data)
-        # To remove the item, we need to find which dictionary in the data list corresponds to this widget
-        for item in rv_data:
-            print("Item no", item)
-            condition = (
-                item["symbol"] == self.symbol
-                and item["side"] == self.side
-                and item["price_low"] == self.price_low
-            )
-            print("Condition", condition)
-            if (
-                item["symbol"] == self.symbol
-                and item["side"] == self.side
-                and item["price_low"] == self.price_low
-            ):
-                rv_data.remove(item)
-                break
-        recycle_view.refresh_from_data()
+#     def remove_self(self):
+#         print("Parent:", type(self.parent))
+#         print("Grandparent:", type(self.parent.parent))  # Should be RecycleView
+#         # Access the parent RecycleView through the parent of the RecycleBoxLayout
+#         recycle_view = self.parent.parent
+#         print("Recycle view: ", recycle_view.data)
+#         print("Self symbol, side, price_low ", self.symbol, self.side, self.price_low)
+#         rv_data: List[Dict] = recycle_view.data
+#         print("RV data: ", rv_data)
+#         # To remove the item, we need to find which dictionary in the data list corresponds to this widget
+#         for item in rv_data:
+#             print("Item no", item)
+#             condition = (
+#                 item["symbol"] == self.symbol
+#                 and item["side"] == self.side
+#                 and item["price_low"] == self.price_low
+#             )
+#             print("Condition", condition)
+#             if (
+#                 item["symbol"] == self.symbol
+#                 and item["side"] == self.side
+#                 and item["price_low"] == self.price_low
+#             ):
+#                 rv_data.remove(item)
+#                 break
+#         recycle_view.refresh_from_data()
 
 
 class PositionData:
@@ -79,7 +79,7 @@ class PositionData:
     def __repr__(self) -> str:
         return (
             f"PositionData(system_id={self.system_id}, symbol={self.symbol}, "
-            f"side={self.side}, "
+            f"side={self.side}, status={self.status}, "
             f"price_low={self.price_low}, "
             f"price_high={self.price_high}, "
             f"budget={self.budget}, "

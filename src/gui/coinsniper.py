@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import uuid
 from binance import BinanceSocketManager
 from kivy.properties import ListProperty, NumericProperty, ObjectProperty
@@ -88,10 +88,7 @@ class CoinSniper(BoxLayout):
         await self.strategy_executor.remove_record(system_id=system_id)
         # Update GUI asynchronously
         await self.gui_handler.ui_queue.put(
-            PositionData(
-                system_id=system_id,
-                status=PositionStatus.CLOSED,
-            )
+            PositionData(system_id=system_id, status=PositionStatus.CLOSED)
         )
 
     async def update_ui(self):
@@ -108,17 +105,42 @@ class CoinSniper(BoxLayout):
                 pass  # handle account update
             if isinstance(data, PositionData):
                 self.strategy_logger.info("Received position data: %s", data)
-                updated_records = self.update_position(data=data)
-                self.active_records = updated_records
+                updated_active_records, updated_closed_records = self.update_position(
+                    data=data
+                )
+                self.active_records, self.closed_records = (
+                    updated_active_records,
+                    updated_closed_records,
+                )
 
-    def update_position(self, data: PositionData):
-        if any(pos["symbol"] == data.symbol for pos in self.active_records):
-            return self.update_active_position(data)
+    def update_position(self, data: PositionData) -> Tuple[List[Dict], List[Dict]]:
+        active_records = [pos.copy() for pos in self.active_records]
+        closed_records = [pos.copy() for pos in self.closed_records]
+        self.strategy_logger.info(
+            "Data symbol: %s, Active records: %s", data.symbol, active_records
+        )
+        if any(record["system_id"] == data.system_id for record in active_records):
+            self.strategy_logger.info(
+                "Record %s found in active records", data.system_id
+            )
+            active_records, closed_records = self.update_active_position(
+                data=data, active_records=active_records, closed_records=closed_records
+            )
         elif data.status not in [PositionStatus.CLOSED, PositionStatus.CLOSING]:
-            return self.add_new_position(data)
-        return self.active_records
+            self.strategy_logger.info("New position to be created")
+            active_records = self.add_new_position(
+                data=data, active_records=active_records
+            )
 
-    def add_new_position(self, data: PositionData):
+        self.strategy_logger.info(
+            "Active records: %s\nclosed records after update: %s",
+            active_records,
+            closed_records,
+        )
+
+        return active_records, closed_records
+
+    def add_new_position(self, data: PositionData, active_records: List[Dict]):
         self.position_count += 1
         new_position = {
             "system_id": data.system_id,
@@ -133,13 +155,15 @@ class CoinSniper(BoxLayout):
             "orders_filled": str(data.orders_filled),
             "status": str(data.status.value),
         }
-        self.active_records.append(new_position)
-        self.strategy_logger.debug(f"Added new position: {new_position}")
-        return self.active_records
+        active_records.append(new_position)
+        self.strategy_logger.info(f"Added new position: {new_position}")
+        return active_records
 
-    def update_active_position(self, data: PositionData):
-        for position in self.active_records:
-            if position["symbol"] == data.symbol:
+    def update_active_position(
+        self, data: PositionData, active_records: List[Dict], closed_records: List[Dict]
+    ) -> Tuple[List[Dict], List[Dict]]:
+        for position in active_records:
+            if position["system_id"] == data.system_id:
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
@@ -149,8 +173,8 @@ class CoinSniper(BoxLayout):
                     }
                 )
                 if data.status == PositionStatus.CLOSED:
-                    self.active_records.remove(position)
-                    self.closed_records.append(position)
+                    active_records.remove(position)
+                    closed_records.append(position)
                     self.position_count -= 1
-                    self.strategy_logger.debug(f"Closed position moved: {position}")
-        return self.active_records
+                    self.strategy_logger.info(f"Closed position moved: {position}")
+        return active_records, closed_records
