@@ -1,6 +1,3 @@
-
-
-
 from src.common.identifiers.common import PositionSide, PositionStatus
 
 
