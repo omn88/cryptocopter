@@ -53,16 +53,16 @@ class PositionData:
     def __init__(
         self,
         system_id: str,
-        symbol: str,
-        side: PositionSide,
-        price_low: float,
-        price_high: float,
-        budget: float,
-        order_trigger: float,
-        orders_opened: int,
-        orders_total: int,
-        orders_filled: int,
         status: PositionStatus,
+        symbol: str = "",
+        side: PositionSide = PositionSide.FLAT,
+        price_low: float = 0,
+        price_high: float = 0,
+        budget: float = 0,
+        order_trigger: float = 0,
+        orders_opened: int = 0,
+        orders_total: int = 0,
+        orders_filled: int = 0,
     ):
         self.system_id = system_id
         self.symbol = symbol

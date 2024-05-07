@@ -87,7 +87,12 @@ class CoinSniper(BoxLayout):
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
         # Update GUI asynchronously
-        await self.gui_handler.remove_from_ui(system_id=system_id)
+        await self.gui_handler.ui_queue.put(
+            PositionData(
+                system_id=system_id,
+                status=PositionStatus.CLOSED,
+            )
+        )
 
     async def update_ui(self):
         while True:
@@ -108,7 +113,7 @@ class CoinSniper(BoxLayout):
 
     def update_position(self, data: PositionData):
         if any(pos["symbol"] == data.symbol for pos in self.active_records):
-            return self.update_existing_position(data)
+            return self.update_active_position(data)
         elif data.status not in [PositionStatus.CLOSED, PositionStatus.CLOSING]:
             return self.add_new_position(data)
         return self.active_records
@@ -132,7 +137,7 @@ class CoinSniper(BoxLayout):
         self.strategy_logger.debug(f"Added new position: {new_position}")
         return self.active_records
 
-    def update_existing_position(self, data: PositionData):
+    def update_active_position(self, data: PositionData):
         for position in self.active_records:
             if position["symbol"] == data.symbol:
                 position.update(
