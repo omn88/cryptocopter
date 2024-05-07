@@ -48,7 +48,7 @@ class CoinSniper(BoxLayout):
         asyncio.create_task(self.add_record(*args))
 
     async def add_record(
-        self, symbol, side, price_low, price_high, budget, order_trigger_buffer, mode
+        self, symbol, side, price_low, price_high, budget, order_trigger_buffer
     ):
         config = StrategyConfig(
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,

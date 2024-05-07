@@ -120,12 +120,7 @@
                     text: 'Add Record'
                     size_hint_y: None
                     height: '50dp'
-                    on_release: root.trigger_add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_buffer_input.text, mode_input.text)
-                Button:
-                    text: 'Remove Record'
-                    size_hint_y: None
-                    height: '50dp'
-                    on_release: root.remove_record()
+                    on_release: root.trigger_add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_buffer_input.text)
 
     # Bottom section with tabbed panels for records
     BoxLayout:

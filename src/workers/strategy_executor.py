@@ -31,7 +31,7 @@ class StrategyExecutor:
             if isinstance(config, str) and config.startswith("remove:"):
                 await self.remove_record(config.split(":")[1])
             else:
-                await self.initialize_trading_system(config)
+                asyncio.create_task(self.initialize_trading_system(config))
 
     async def initialize_trading_system(self, config: StrategyConfig) -> None:
         trading_system = TradingSystem(
