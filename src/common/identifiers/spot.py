@@ -24,29 +24,13 @@ class Position:
     opened: bool = False
 
 
-class TickerUpdate(NamedTuple):
+@dataclass()
+class StrategyConfig:
+    system_id: str = ""
     symbol: str = ""
-    last_price: float = 0
-    best_bid_price: float = 0
-    best_ask_price: float = 0
-    high_price: float = 0
-    low_price: float = 0
-    volume: float = 0
-
-    def __repr__(self):
-        return (
-            f"TickerUpdate(symbol={self.symbol}, last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
-            f"best_ask_price={self.best_ask_price}, high_price={self.high_price}, "
-            f"low_price={self.low_price}, volume={self.volume})"
-        )
-
-
-class StrategyConfig(NamedTuple):
-    system_id: str
-    symbol: str
-    side: PositionSide
-    price_low: float
-    price_high: float
-    order_trigger: float
+    side: PositionSide = PositionSide.FLAT
+    price_low: float = 0
+    price_high: float = 0
+    order_trigger: float = 0
     name: str = "Coin Sniper"
     budget: float = 0

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import time
-from typing import Dict, NamedTuple
+from typing import Dict, NamedTuple, Union
 
 from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from binance import AsyncClient
@@ -19,7 +19,8 @@ class PositionStatus(Enum):
     CLOSED = "CLOSED"
 
 
-class OrderUpdate(NamedTuple):
+@dataclass()
+class OrderUpdate:
     status: str = ORDER_STATUS_NEW
     price: float = 0
     quantity: float = 0
@@ -50,16 +51,77 @@ class EventName(Enum):
     TICKER = "Ticker"
 
 
+class SentinelUpdate(NamedTuple):
+    sentinel: str
+
+
+class TickerUpdate(NamedTuple):
+    symbol: str = ""
+    last_price: float = 0
+    best_bid_price: float = 0
+    best_ask_price: float = 0
+    high_price: float = 0
+    low_price: float = 0
+    volume: float = 0
+
+    def __repr__(self):
+        return (
+            f"TickerUpdate(symbol={self.symbol}, last_price={self.last_price}, best_bid_price={self.best_bid_price}, "
+            f"best_ask_price={self.best_ask_price}, high_price={self.high_price}, "
+            f"low_price={self.low_price}, volume={self.volume})"
+        )
+
+
+class Signal(Enum):
+    LONG = "LONG"
+    LONG_EXT = "LONG_EXT"
+    SHORT = "SHORT"
+    SHORT_EXT = "SHORT_EXT"
+    LONG_SPECIAL = "LONG_SPECIAL"
+    SHORT_SPECIAL = "SHORT_SPECIAL"
+    CLOSE_SPECIAL = "CLOSE_SPECIAL"
+    NULL = "NULL"
+
+
+class SignalUpdate(NamedTuple):
+    signal: Signal = Signal.NULL
+    price: float = 0
+
+    def __repr__(self) -> str:
+        return f"SignalUpdate(signal={self.signal}, price={self.price})"
+
+
+class KlineUpdate(NamedTuple):
+    start_time: int = 0
+    open_price: float = 0
+    high_price: float = 0
+    low_price: float = 0
+    close_price: float = 0
+    volume: float = 0
+    open_interest: float = 0
+
+    def __repr__(self) -> str:
+        return (
+            f"KlineUpdate(start_time={self.start_time}, open_price={self.open_price}, "
+            f"high_price={self.high_price}, low_price={self.low_price}, "
+            f"close_price={self.close_price}, volume={self.volume}, "
+            f"open_interest={self.open_interest})"
+        )
+
+
 class Event(NamedTuple):
     name: EventName
-    content: NamedTuple
+    content: Union[
+        OrderUpdate,
+        KlineUpdate,
+        AccountUpdate,
+        SignalUpdate,
+        TickerUpdate,
+        SentinelUpdate,
+    ]
 
     def __repr__(self) -> str:
         return f"Event(name={self.name}, content={self.content})"
-
-
-class SentinelUpdate(NamedTuple):
-    sentinel: str
 
 
 class PositionSide(Enum):

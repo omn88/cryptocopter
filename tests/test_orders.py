@@ -10,8 +10,8 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 
-from src.common.identifiers.common import OrderUpdate
-from src.common.identifiers.futures import State, Order, Signal
+from src.common.identifiers.common import OrderUpdate, Signal
+from src.common.identifiers.futures import State, Order
 from src.strategies.base import BaseStrategy
 from tests.common import (
     start_long,

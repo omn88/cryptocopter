@@ -19,43 +19,6 @@ class State(Enum):
     SHORT_SPECIAL = "SHORT_SPECIAL"
 
 
-class Signal(Enum):
-    LONG = "LONG"
-    LONG_EXT = "LONG_EXT"
-    SHORT = "SHORT"
-    SHORT_EXT = "SHORT_EXT"
-    LONG_SPECIAL = "LONG_SPECIAL"
-    SHORT_SPECIAL = "SHORT_SPECIAL"
-    CLOSE_SPECIAL = "CLOSE_SPECIAL"
-    NULL = "NULL"
-
-
-class SignalUpdate(NamedTuple):
-    signal: Signal = Signal.NULL
-    price: float = 0
-
-    def __repr__(self) -> str:
-        return f"SignalUpdate(signal={self.signal}, price={self.price})"
-
-
-class KlineUpdate(NamedTuple):
-    start_time: int = 0
-    open_price: float = 0
-    high_price: float = 0
-    low_price: float = 0
-    close_price: float = 0
-    volume: float = 0
-    open_interest: float = 0
-
-    def __repr__(self) -> str:
-        return (
-            f"KlineUpdate(start_time={self.start_time}, open_price={self.open_price}, "
-            f"high_price={self.high_price}, low_price={self.low_price}, "
-            f"close_price={self.close_price}, volume={self.volume}, "
-            f"open_interest={self.open_interest})"
-        )
-
-
 class PositionMode(Enum):
     DCA = "DCA"
     FULL = "FULL"

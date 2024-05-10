@@ -1,10 +1,7 @@
 from typing import List
-
-import pandas
 import logging
-import numpy
 
-from src.common.identifiers.futures import Signal
+from src.common.identifiers.common import Signal
 
 logger = logging.getLogger("sample_dataframes")
 

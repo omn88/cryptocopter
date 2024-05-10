@@ -11,11 +11,8 @@ from src.common.identifiers.spot import StrategyConfig
 
 
 class DfHandler:
-    def __init__(
-        self, client: BinanceClient, config: StrategyConfig, logger: StrategyLogger
-    ):
+    def __init__(self, client: BinanceClient, logger: StrategyLogger):
         self.client = client
-        self.config: StrategyConfig = config
         self.raw_data: List = []
         self.df: pandas.DataFrame = pandas.DataFrame()
         self.conditions: List = []

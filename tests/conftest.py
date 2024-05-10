@@ -1,19 +1,18 @@
 import asyncio
 import logging
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
-from src.common.identifiers.common import Event, EventName
+from src.common.identifiers.common import Event, EventName, PositionSide, Signal, SignalUpdate
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
-from src.common.identifiers.futures import (
-    Signal,
-    SignalUpdate,
-    StrategyConfig as ConfigFutures,
-)
-from src.df_handler.futures import DfHandler
-from src.gui.gui_handler.futures import GuiHandler
+from src.common.identifiers.futures import StrategyConfig as ConfigFutures
+from src.df_handler.spot import DfHandler as DfHandlerSpot
+from src.df_handler.futures import DfHandler as DfHandlerFutures
+from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
+from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
+from src.strategies.spot.base import BaseSpotStrategy
 from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
@@ -35,15 +34,69 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     mocked_AsyncClient.return_value.__aenter__.return_value = mocked_async_client
     return mocked_async_client
 
+
 @pytest.fixture
-async def spot(mock_AsyncClient):
+async def spot_long(mock_AsyncClient):
+    logger = MagicMock()  # Mocked logger
+    df_handler = MagicMock()  # Mocked DataFrame handler
 
-    logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
+    config = ConfigSpot(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.LONG,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
+
+    gui_handler = AsyncMock()
+
+    strategy = BaseSpotStrategy(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        config=config,
+        gui_handler=gui_handler,
+        logger=logger,
+    )
+    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
+
+    state_machine = TradingStateMachine(strategy=strategy)
+
+    yield state_machine
 
 
-    # config = ConfigSpot(
-    #     system_id="1234", symbol="BTCUSDT", side=
-    # )
+@pytest.fixture
+async def spot_short(mock_AsyncClient):
+    logger = MagicMock()  # Mocked logger
+    df_handler = MagicMock()  # Mocked DataFrame handler
+
+    config = ConfigSpot(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.SHORT,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
+
+    gui_handler = MagicMock()
+
+    strategy = BaseSpotStrategy(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        config=config,
+        gui_handler=gui_handler,
+        logger=logger,
+    )
+    await strategy.initialize()
+
+    state_machine = TradingStateMachine(strategy=strategy)
+
+    yield state_machine
 
 
 @pytest.fixture
@@ -55,7 +108,7 @@ async def base(mock_AsyncClient):
         budget=400,
     )
     logger = StrategyLogger(name="RBASE_BTCUSDT", strategy_info="RBASE_BTCUSDT")
-    df_handler = DfHandler(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
 
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
@@ -66,7 +119,7 @@ async def base(mock_AsyncClient):
             balance=1000,
             df_handler=df_handler,
             config=config,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,
@@ -88,13 +141,13 @@ async def base(mock_AsyncClient):
 @pytest.fixture
 async def basic_rsi(mock_AsyncClient):
     config = ConfigFutures(
-                symbol="BTCUSDT",
-                name="RB_BTCUSDT",
-                number_of_orders=4,
-                budget=400,
-            )
+        symbol="BTCUSDT",
+        name="RB_BTCUSDT",
+        number_of_orders=4,
+        budget=400,
+    )
     logger = StrategyLogger(name="RB_BTCUSDT", strategy_info="RB_BTCUSDT")
-    df_handler = DfHandler(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
@@ -104,7 +157,7 @@ async def basic_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=config,
@@ -130,7 +183,7 @@ async def extended_rsi(mock_AsyncClient):
         budget=400,
     )
     logger = StrategyLogger(name="RE_BTCUSDT", strategy_info="RE_BTCUSDT")
-    df_handler = DfHandler(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
@@ -142,7 +195,7 @@ async def extended_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             config=config,
@@ -167,7 +220,7 @@ async def special_rsi(mock_AsyncClient):
         budget=400,
     )
     logger = StrategyLogger(name="RS_BTCUSDT", strategy_info="RS_BTCUSDT")
-    df_handler = DfHandler(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
@@ -177,7 +230,7 @@ async def special_rsi(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=1000,
             df_handler=df_handler,
-            gui_handler=GuiHandler(
+            gui_handler=GuiHandlerFutures(
                 main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
             ),
             logger=logger,

@@ -4,8 +4,13 @@ import logging
 from binance import BinanceSocketManager
 
 
-from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
-from src.common.identifiers.spot import TickerUpdate
+from src.common.identifiers.common import (
+    AccountUpdate,
+    EventName,
+    Event,
+    OrderUpdate,
+    TickerUpdate,
+)
 
 
 logger = logging.getLogger("spot_producers")
