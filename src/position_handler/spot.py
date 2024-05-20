@@ -101,13 +101,11 @@ class PositionHandler:
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
 
-                part_filled_ord = order
-
-        await self.gui_handler.update_order(
-            order=part_filled_ord,
-            symbol=self.position.symbol,
-            side=self.position.side,
-        )
+                await self.gui_handler.update_order(
+                    order=order,
+                    symbol=self.position.symbol,
+                    side=self.position.side,
+                )
         await self.gui_handler.update_position(position=self.position)
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
@@ -122,11 +120,11 @@ class PositionHandler:
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s filled", order.order_id)
 
-        await self.gui_handler.update_order(
-            order=order,
-            symbol=self.position.symbol,
-            side=self.position.side,
-        )
+                await self.gui_handler.update_order(
+                    order=order,
+                    symbol=self.position.symbol,
+                    side=self.position.side,
+                )
         await self.gui_handler.update_position(position=self.position)
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position

@@ -8,9 +8,7 @@ from logging_config import StrategyLogger
 from src.common.identifiers.common import Event, EventName, PositionSide, Signal, SignalUpdate
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
-from src.df_handler.spot import DfHandler as DfHandlerSpot
 from src.df_handler.futures import DfHandler as DfHandlerFutures
-from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.strategies.spot.base import BaseSpotStrategy
 from src.strategies.futures.base import BaseFuturesStrategy
@@ -92,7 +90,7 @@ async def spot_short(mock_AsyncClient):
         gui_handler=gui_handler,
         logger=logger,
     )
-    await strategy.initialize()
+    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
 
     state_machine = TradingStateMachine(strategy=strategy)
 
