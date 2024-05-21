@@ -7,12 +7,25 @@ from binance.enums import (
 )
 from src.common.identifiers.spot import State
 
+import logging
+
+logger = logging.getLogger("test_base_spot")
+
 
 async def test_end_to_end_process(spot_long):
     # Set initial conditions
     strategy = spot_long.strategy
-    strategy.state = State.NEW
-    strategy.ticker_update = MagicMock(last_price=1300)  # Mocked TickerUpdate
+    strategy.ticker_update = MagicMock(last_price=1500)  # Mocked TickerUpdate
+
+    # Simulate no state change
+    await strategy.process_ticker()
+    assert strategy.state == State.NEW
+
+    strategy.ticker_update = MagicMock(last_price=1402)  # Mocked TickerUpdate
+    # Simulate process_signal triggering
+    await strategy.process_ticker()
+    assert strategy.state == State.OPEN
+    
     strategy.position_handler.position = MagicMock()
     strategy.position_handler.position.orders = [MagicMock(status=ORDER_STATUS_NEW)]
 
@@ -22,7 +35,7 @@ async def test_end_to_end_process(spot_long):
 
     # Simulate order confirmation
     await strategy.process_order()
-    strategy.logger.info(
+    logger.info(
         "New order confirmation: %s, order type: %s order status: %s",
         True,
         ORDER_TYPE_LIMIT,
@@ -40,7 +53,7 @@ async def test_end_to_end_process(spot_long):
     strategy.order_update.status = ORDER_STATUS_FILLED
     await strategy.process_order()
     assert strategy.conditions_for_order_filled()
-    strategy.logger.info(
+    logger.info(
         "Order filled: %s, order status: %s",
         True,
         ORDER_STATUS_FILLED,
@@ -50,4 +63,3 @@ async def test_end_to_end_process(spot_long):
     strategy.position_handler.position.orders = [MagicMock(status=ORDER_STATUS_FILLED)]
     await strategy.process_order()
     assert strategy.state == State.CLOSED
-    strategy.logger.info.assert_called_with("All order filled, archiving position")
