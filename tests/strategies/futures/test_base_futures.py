@@ -1,6 +1,6 @@
 from unittest.mock import patch
-
-from src.common.identifiers.futures import Signal, State
+from src.common.identifiers.common import Signal
+from src.common.identifiers.futures import State
 from tests.common import (
     generate_signal,
     assert_dca_long_opened,

@@ -1,11 +1,15 @@
 import numpy
 from logging_config import StrategyLogger
-from src.common.identifiers.common import EventName, Event, BinanceClient
+from src.common.identifiers.common import (
+    EventName,
+    Event,
+    BinanceClient,
+    SignalUpdate,
+    Signal,
+)
 from src.common.identifiers.futures import (
     PositionMode,
     PositionSide,
-    Signal,
-    SignalUpdate,
     State,
     StrategyConfig,
 )

@@ -8,8 +8,8 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.common import signal_to_state
-from src.common.identifiers.common import Order, OrderUpdate
-from src.common.identifiers.futures import Position, Signal, SignalUpdate, State
+from src.common.identifiers.common import Order, OrderUpdate, Signal, SignalUpdate
+from src.common.identifiers.futures import Position, State
 
 
 logger = logging.getLogger("common")

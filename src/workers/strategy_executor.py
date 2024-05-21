@@ -1,6 +1,5 @@
 import asyncio
 from typing import Dict
-import uuid
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import StrategyConfig

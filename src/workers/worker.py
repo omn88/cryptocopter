@@ -1,6 +1,5 @@
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import KlineUpdate, SignalUpdate
-from src.common.identifiers.spot import TickerUpdate
+from src.common.identifiers.common import KlineUpdate, SignalUpdate, TickerUpdate
 from src.strategies.base import BaseStrategy
 from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
 from src.strategies.spot.base import BaseSpotStrategy

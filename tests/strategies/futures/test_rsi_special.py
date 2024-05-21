@@ -1,4 +1,6 @@
-from src.common.identifiers.futures import KlineUpdate, State
+from src.common.identifiers.common import KlineUpdate
+from src.common.identifiers.futures import State
+
 from tests.common import get_orders_long, get_cancel_order, validation_orders
 import logging
 
