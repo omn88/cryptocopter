@@ -12,7 +12,7 @@ from src.common.identifiers.spot import State
 logger = logging.getLogger("test_base_spot")
 
 
-async def test_end_to_end_process(spot_long):
+async def test_end_to_end_long(spot_long):
     # Set initial conditions
     strategy = spot_long.strategy
     strategy.ticker_update = MagicMock(last_price=1500)  # Mocked TickerUpdate
@@ -45,6 +45,58 @@ async def test_end_to_end_process(spot_long):
     await strategy.process_order()
 
     assert strategy.state == State.CLOSED
+
+    # # Simulate ticker update handling
+    # strategy.position_handler.next_monitor_position_time = datetime.now() - timedelta(
+    #     hours=2
+    # )
+    # await strategy.process_ticker()
+    # assert strategy.position_handler.stagnation_counter == 1
+
+    # # Simulate order fill
+    # strategy.order_update.status = ORDER_STATUS_FILLED
+    # await strategy.process_order()
+    # assert strategy.conditions_for_order_filled()
+    # logger.info(
+    #     "Order filled: %s, order status: %s",
+    #     True,
+    #     ORDER_STATUS_FILLED,
+    # )
+
+
+async def test_end_to_end_short(spot_short):
+    # Set initial conditions
+    strategy = spot_short.strategy
+    strategy.ticker_update = MagicMock(last_price=900)  # Mocked TickerUpdate
+
+    # Simulate no state change
+    await strategy.process_ticker()
+    assert strategy.state == State.NEW
+
+    # Simulate no state change but on the price edge
+    strategy.ticker_update = MagicMock(last_price=989)
+    await strategy.process_ticker()
+    assert strategy.state == State.NEW
+
+    # Simulate process_signal triggering
+    strategy.ticker_update = MagicMock(last_price=990)
+    await strategy.process_ticker()
+    assert strategy.state == State.OPEN
+
+    # # Simulate order confirmation
+    # await strategy.process_order()
+
+    # # Simulate position closure
+    # for order in strategy.position_handler.position.orders:
+    #     order.status = ORDER_STATUS_FILLED
+    # strategy.order_update = MagicMock(
+    #     order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED
+    # )
+
+    # # Simulate order confirmation
+    # await strategy.process_order()
+
+    # assert strategy.state == State.CLOSED
 
     # # Simulate ticker update handling
     # strategy.position_handler.next_monitor_position_time = datetime.now() - timedelta(
