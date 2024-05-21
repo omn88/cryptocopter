@@ -5,7 +5,13 @@ import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
 
-from src.common.identifiers.common import Event, EventName, PositionSide, Signal, SignalUpdate
+from src.common.identifiers.common import (
+    Event,
+    EventName,
+    PositionSide,
+    Signal,
+    SignalUpdate,
+)
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
@@ -35,7 +41,6 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 @pytest.fixture
 async def spot_long(mock_AsyncClient):
-    logger = MagicMock()  # Mocked logger
     df_handler = MagicMock()  # Mocked DataFrame handler
 
     config = ConfigSpot(

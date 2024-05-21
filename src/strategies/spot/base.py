@@ -232,19 +232,29 @@ class BaseSpotStrategy(BaseStrategy):
         return condition
 
     def conditions_for_all_orders_filled(self, *args, **kwargs):
-        condition = self.state == State.OPEN and all(
-            order.status == ORDER_STATUS_FILLED
-            for order in self.position_handler.position.orders
+        self.logger.info("Entering conditions for all orders filled")
+        condition = (
+            self.state == State.OPEN
+            and all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.position_handler.position.orders
+            )
+            and self.order_update.order_type == ORDER_TYPE_LIMIT
+            and self.order_update.status == ORDER_STATUS_FILLED
         )
 
-        self.logger.info("All orders filled: %s, order update status: %s", condition)
+        self.logger.info(
+            "All orders filled: %s, order update status: %s",
+            condition,
+            self.order_update.status,
+        )
         return condition
 
     def conditions_for_sending_long_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.LONG
-            and self.ticker_update.last_price < self.trigger_orders_price
+            and self.ticker_update.last_price <= self.trigger_orders_price
         )
 
         self.logger.info(
@@ -260,7 +270,7 @@ class BaseSpotStrategy(BaseStrategy):
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.SHORT
-            and self.ticker_update.last_price > self.trigger_orders_price
+            and self.ticker_update.last_price >= self.trigger_orders_price
         )
         self.logger.info(
             "Open basic short: %s, state: %s signal: %s",
