@@ -62,3 +62,18 @@ class StrategyConfig(NamedTuple):
     interval: str = "15m"
     lookback: str = "4320"
     margin_type: str = "ISOLATED"
+
+    def __repr__(self):
+        return (
+            f"StrategyConfig(name={self.name!r}, symbol={self.symbol!r}, "
+            f"number_of_orders={self.number_of_orders}, budget={self.budget}, "
+            f"leverage={self.leverage}, dca_span={self.dca_span}, asset={self.asset!r}, "
+            f"interval={self.interval!r}, lookback={self.lookback!r}, margin_type={self.margin_type!r})"
+        )
+
+    def __str__(self):
+        return (
+            f"StrategyConfig: {self.name} for {self.symbol}, Orders: {self.number_of_orders}, "
+            f"Budget: {self.budget}, Leverage: {self.leverage}, DCA Span: {self.dca_span}, "
+            f"Asset: {self.asset}, Interval: {self.interval}, Lookback: {self.lookback}, Margin Type: {self.margin_type}"
+        )

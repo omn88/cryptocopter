@@ -23,6 +23,7 @@ os.environ["KIVY_LOG_MODE"] = "MIXED"
 
 from kivy.core.window import Window
 from src.gui.asyncapp import AsyncApp
+from src.common.database import Database
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -43,11 +44,29 @@ async def main():
         None
     """
 
+    db = Database(
+        host=config("DB_HOST"),
+        port=int(config("DB_PORT")),
+        user=config("DB_USER"),
+        password=config("DB_PASSWORD"),
+        db=config("DB_NAME"),
+    )
+
+    await db.create_pool()
+    await db.setup_tables()
+
     app = AsyncApp(
-        client=BinanceClient(api_key=config("API_KEY"), api_secret=config("API_SECRET"))
+        client=BinanceClient(
+            api_key=config("API_KEY"), api_secret=config("API_SECRET")
+        ),
+        db=db,
     )
     logger.info("Created %s", app)
-    await app.async_run()
+
+    try:
+        await app.async_run()
+    finally:
+        await db.close_pool()
 
 
 if __name__ == "__main__":

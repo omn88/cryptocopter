@@ -30,6 +30,7 @@ from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient, EventName, Event
+from src.common.database import Database
 
 logger = logging.getLogger("async_app")
 
@@ -55,15 +56,17 @@ class AsyncApp(App):
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
 
-    def __init__(self, client: BinanceClient, **kwargs):
+    def __init__(self, client: BinanceClient, db: Database, **kwargs):
         """Initializes the `AsyncApp` instance.
 
         Args:
             client (BinanceClient): The Binance client to use for trading.
+            db (Database): The database instance to use for database operations.
             **kwargs: Additional keyword arguments.
         """
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
+        self.db = db
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.tabs: Dict = {}
         self.strategy_mapping = {
@@ -72,7 +75,25 @@ class AsyncApp(App):
             "RSI Special": "RS",
         }
         self.dynamic_spinners: Dict = {}
-        asyncio.create_task(self.update_ui())
+        asyncio.create_task(self.initialize())
+
+    async def initialize(self):
+        await self.load_all_strategies()
+        await self.update_ui()
+        logger.info("Initialization finished!")
+
+    async def close_pool(self):
+        await self.db.close_pool()
+
+    async def load_all_strategies(self):
+        strategy_states = await self.db.fetch_all_strategy_states()
+        for state in strategy_states:
+            await self.restore_strategy(state["strategy_name"], state["state"])
+
+    async def restore_strategy(self, strategy_name: str, state: Dict):
+        # Logic to restore strategy from saved state
+        logger.info(f"Restoring strategy: {strategy_name}")
+        # Create and start the strategy using the state data
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -193,6 +214,22 @@ class AsyncApp(App):
                     len(self.strategy_tabs),
                     len(self.trading_systems),
                 )
+
+                # # Save the strategy state to the database
+                # await self.db.save_strategy_state(
+                #     strategy_name_short,
+                #     {
+                #         "name": config.name,
+                #         "symbol": config.symbol,
+                #         "number_of_orders": config.number_of_orders,
+                #         "dca_span": config.dca_span,
+                #         "leverage": config.leverage,
+                #         "budget": config.budget,
+                #     },
+                # )
+
+                await self.db.create_strategy(name=config.name, description=str(config))
+
                 await trading_system.start_trading()
             else:
                 logger.info("App: Please select a symbol.")
@@ -241,6 +278,15 @@ class AsyncApp(App):
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
+
+            # # Save the strategy state to the database
+            # await self.db.save_strategy_state(
+            #     strategy_name,
+            #     {
+            #         "name": strategy_name,
+            #         "config": config,  # Add any additional configuration for Coin Sniper strategy
+            #     },
+            # )
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
