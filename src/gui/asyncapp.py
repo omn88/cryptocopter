@@ -247,6 +247,7 @@ class AsyncApp(App):
                     logger=strategy_logger,
                 ),
                 client=self.client,
+                db=self.db,
             )
 
             tab = TabbedPanelItem(

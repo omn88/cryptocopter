@@ -5,6 +5,7 @@ from binance import BinanceSocketManager
 from kivy.properties import ListProperty, NumericProperty, ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
     Event,
@@ -29,12 +30,14 @@ class HpManager(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
+        db: Database,
         gui_handler: GuiHandler,
         strategy_logger: StrategyLogger,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.client = client
+        self.db = db
         self.socket_manager = BinanceSocketManager(client=client)
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
@@ -77,6 +80,18 @@ class HpManager(BoxLayout):
                 orders_filled=0,
                 orders_total=0,
                 status=PositionStatus.NEW,
+            )
+        )
+
+        await self.db.create_price_level(
+            config=StrategyConfig(
+                system_id=config.system_id,
+                symbol=config.symbol,
+                side=config.side.value,
+                price_low=config.price_low,
+                price_high=config.price_high,
+                order_trigger=config.order_trigger,
+                budget=config.budget,
             )
         )
 

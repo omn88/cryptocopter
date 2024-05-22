@@ -60,7 +60,6 @@ class Database:
         self.user = user
         self.password = password
         self.db = db
-        self.pool = None
 
     async def create_pool(self):
         self.pool = await aiomysql.create_pool(
@@ -174,12 +173,10 @@ class Database:
                 )
                 await conn.commit()
 
-    async def fetch_price_levels(self, system_id: str) -> List[Dict]:
+    async def fetch_all_price_levels(self, system_id: str) -> List[Dict]:
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT * FROM price_levels WHERE system_id=%s", (system_id,)
-                )
+                await cur.execute("SELECT * FROM price_levels")
                 result = await cur.fetchall()
                 return result
 
