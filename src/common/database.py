@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    price_level_id INT,
     strategy_id INT,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
@@ -31,42 +32,23 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(10) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strategy_id) REFERENCES strategies(id)
-);
-"""
-
-CREATE_STRATEGY_STATES_TABLE = """
-CREATE TABLE IF NOT EXISTS strategy_states (
-    strategy_id INT PRIMARY KEY,
-    state TEXT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (price_level_id) REFERENCES price_levels(id),
     FOREIGN KEY (strategy_id) REFERENCES strategies(id)
 );
 """
 
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
-    system_id VARCHAR(36) PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    system_id VARCHAR(36) NOT NULL,
     symbol VARCHAR(10) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
-    budget FLOAT NOT NULL
-);
-"""
-
-CREATE_POSITIONS_TABLE = """
-CREATE TABLE IF NOT EXISTS positions (
-    id VARCHAR(36) PRIMARY KEY,
-    symbol VARCHAR(10) NOT NULL,
-    quantity FLOAT NOT NULL,
-    state VARCHAR(10) NOT NULL,
-    side VARCHAR(10) NOT NULL,
-    status VARCHAR(10) NOT NULL,
-    opened BOOLEAN NOT NULL,
-    strategy_id INT,
-    FOREIGN KEY (strategy_id) REFERENCES strategies(id)
+    budget FLOAT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 """
 
@@ -99,9 +81,7 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(CREATE_STRATEGIES_TABLE)
                 await cur.execute(CREATE_ORDERS_TABLE)
-                await cur.execute(CREATE_STRATEGY_STATES_TABLE)
                 await cur.execute(CREATE_PRICE_LEVELS_TABLE)
-                await cur.execute(CREATE_POSITIONS_TABLE)
                 await conn.commit()
 
     async def fetch_strategy(self, strategy_id: int) -> Optional[Dict]:
@@ -122,12 +102,15 @@ class Database:
                 )
                 await conn.commit()
 
-    async def create_order(self, strategy_id: int, order: Order) -> None:
+    async def create_order(
+        self, strategy_id: int, price_level_id: int, order: Order
+    ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO orders (strategy_id, quantity, price, quantity_stable, order_id, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (price_level_id, strategy_id, quantity, price, quantity_stable, order_id, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
+                        price_level_id,
                         strategy_id,
                         order.quantity,
                         order.price,
@@ -173,6 +156,33 @@ class Database:
                     for row in result
                 ]
 
+    async def create_position(self, position: Position, strategy_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO positions (id, symbol, quantity, state, side, status, opened, strategy_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        position.id,
+                        position.symbol,
+                        position.quantity,
+                        position.state,
+                        position.side,
+                        position.status,
+                        position.opened,
+                        strategy_id,
+                    ),
+                )
+                await conn.commit()
+
+    async def fetch_price_levels(self, system_id: str) -> List[Dict]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM price_levels WHERE system_id=%s", (system_id,)
+                )
+                result = await cur.fetchall()
+                return result
+
     async def create_price_level(self, config: StrategyConfig) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -190,20 +200,11 @@ class Database:
                 )
                 await conn.commit()
 
-    async def create_position(self, position: Position, strategy_id: int) -> None:
+    async def update_price_level(self, system_id: str, updates: Dict) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO positions (id, symbol, quantity, state, side, status, opened, strategy_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        position.id,
-                        position.symbol,
-                        position.quantity,
-                        position.state,
-                        position.side,
-                        position.status,
-                        position.opened,
-                        strategy_id,
-                    ),
-                )
+                set_clause = ", ".join([f"{key}=%s" for key in updates.keys()])
+                sql = f"UPDATE price_levels SET {set_clause} WHERE system_id=%s"
+                params = list(updates.values()) + [system_id]
+                await cur.execute(sql, params)
                 await conn.commit()

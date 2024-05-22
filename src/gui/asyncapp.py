@@ -23,7 +23,7 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
-from src.gui.coinsniper import CoinSniper
+from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
@@ -215,26 +215,13 @@ class AsyncApp(App):
                     len(self.trading_systems),
                 )
 
-                # # Save the strategy state to the database
-                # await self.db.save_strategy_state(
-                #     strategy_name_short,
-                #     {
-                #         "name": config.name,
-                #         "symbol": config.symbol,
-                #         "number_of_orders": config.number_of_orders,
-                #         "dca_span": config.dca_span,
-                #         "leverage": config.leverage,
-                #         "budget": config.budget,
-                #     },
-                # )
-
                 await self.db.create_strategy(name=config.name, description=str(config))
 
                 await trading_system.start_trading()
             else:
                 logger.info("App: Please select a symbol.")
 
-        if strategy_name == "Coin Sniper":
+        if strategy_name == "HP Manager":
             for strategy in self.active_strategies:
                 if strategy["name"] == config.name:
                     logger.info(
@@ -243,16 +230,16 @@ class AsyncApp(App):
                     )
                     return
 
-            logger.info("Starting Coin Sniper strategy")
+            logger.info("Starting HP manager strategy")
 
             # Builder.load_file("src/gui/searchable_drop_down.kv")
-            Builder.load_file("src/gui/coinsniper.kv")
+            Builder.load_file("src/gui/hpmanager.kv")
 
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name
             )
 
-            coin_sniper = CoinSniper(
+            hp_manager = HpManager(
                 strategy_logger=strategy_logger,
                 gui_handler=GuiHandlerSpot(
                     main_ui_queue=self.main_ui_queue,
@@ -264,7 +251,7 @@ class AsyncApp(App):
 
             tab = TabbedPanelItem(
                 text=strategy_name,
-                content=coin_sniper,
+                content=hp_manager,
             )
 
             # Set up a logging handler for the strategy
@@ -278,15 +265,6 @@ class AsyncApp(App):
             # Add a new tab for the strategy
             self.root.add_widget(tab)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
-
-            # # Save the strategy state to the database
-            # await self.db.save_strategy_state(
-            #     strategy_name,
-            #     {
-            #         "name": strategy_name,
-            #         "config": config,  # Add any additional configuration for Coin Sniper strategy
-            #     },
-            # )
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy

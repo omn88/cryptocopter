@@ -19,7 +19,7 @@ from src.gui.identifiers.spot import PositionData
 from src.workers.strategy_executor import StrategyExecutor
 
 
-class CoinSniper(BoxLayout):
+class HpManager(BoxLayout):
     order_count = NumericProperty(0)
     position_count = NumericProperty(0)
     log_display = ObjectProperty(None)
