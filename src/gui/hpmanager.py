@@ -96,17 +96,21 @@ class HpManager(BoxLayout):
             )
         )
 
+        self.idle_records
+
         await self.db.create_price_level(
             config=StrategyConfig(
                 system_id=config.system_id,
                 symbol=config.symbol,
-                side=config.side.value,
+                side=config.side,
                 price_low=config.price_low,
                 price_high=config.price_high,
                 order_trigger=config.order_trigger,
                 budget=config.budget,
             )
         )
+
+        self.filter_records(tab="idle", symbol_filter="All")
 
     def trigger_remove_record(
         self,
@@ -183,40 +187,30 @@ class HpManager(BoxLayout):
                 pass  # handle account update
             if isinstance(data, PositionData):
                 self.strategy_logger.info("Received position data: %s", data)
-                (
-                    self.active_records,
-                    self.idle_records,
-                    self.archive_records,
-                ) = self.update_position(data=data)
+                self.update_position(data=data)
 
-    def update_position(self, data: PositionData) -> Tuple[List[Dict], List[Dict]]:
-        active_records = [pos.copy() for pos in self.active_records]
-        idle_records = [pos.copy() for pos in self.idle_records]
-        archive_records = [pos.copy() for pos in self.archive_records]
+                self.filter_records
 
-        if any(record["system_id"] == data.system_id for record in active_records):
+    def update_position(self, data: PositionData) -> None:
+        if any(record["system_id"] == data.system_id for record in self.active_records):
             self.strategy_logger.info(
                 "Record %s found in active records", data.system_id
             )
-            active_records, idle_records, archive_records = self.update_active_position(
-                data=data,
-                active_records=active_records,
-                idle_records=idle_records,
-                archive_records=archive_records,
-            )
+            self.update_active_position(data=data)
+        elif any(record["system_id"] == data.system_id for record in self.idle_records):
+            self.strategy_logger.info("Record %s found in idle records", data.system_id)
+            self.update_idle_position(data=data)
         else:
-            idle_records = self.add_new_position(data=data, idle_records=idle_records)
+            self.add_new_position(data=data)
 
         self.strategy_logger.info(
             "Records active:\n%s\nIdle\n%s\nArchive\n%s",
-            active_records,
-            idle_records,
-            archive_records,
+            self.active_records,
+            self.idle_records,
+            self.archive_records,
         )
 
-        return active_records, idle_records, archive_records
-
-    def add_new_position(self, data: PositionData, idle_records: List[Dict]):
+    def add_new_position(self, data: PositionData):
         self.position_count += 1
         new_position = {
             "system_id": data.system_id,
@@ -232,37 +226,58 @@ class HpManager(BoxLayout):
             "status": str(data.status),
         }
 
-        idle_records.append(new_position)
+        self.idle_records.append(new_position)
         self.filter_records("idle", "All")
-        return idle_records
 
     def update_active_position(
         self,
         data: PositionData,
-        active_records: List[Dict],
-        idle_records: List[Dict],
-        archive_records: List[Dict],
-    ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-        for position in active_records:
+    ) -> None:
+        for position in self.active_records:
             if position["system_id"] == data.system_id:
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.status.value),
+                        "status": str(data.status),
                     }
                 )
-                if data.status == PositionStatus.CLOSED:
-                    if not data.orders_opened:
-                        idle_records.remove(position)
-                    else:
-                        active_records.remove(position)
-                    archive_records.append(position)
+                if data.status == PositionStatus.CLOSED.value:
+                    self.active_records.remove(position)
+                    self.archive_records.append(position)
                     self.position_count -= 1
-                    self.strategy_logger.info(f"Closed position moved: {position}")
+                    self.strategy_logger.info("Archiving price level: %s", position)
 
-        return active_records, idle_records, archive_records
+        self.filter_records("active", "All")
+        self.filter_records("archive", "All")
+
+    def update_idle_position(
+        self,
+        data: PositionData,
+    ) -> None:
+        for position in self.idle_records:
+            if position["system_id"] == data.system_id:
+                self.strategy_logger.info("Will update position")
+                position.update(
+                    {
+                        "orders_opened": str(data.orders_opened),
+                        "orders_total": str(data.orders_total),
+                        "orders_filled": str(data.orders_filled),
+                        "status": str(data.status),
+                    }
+                )
+                if data.status == PositionStatus.CLOSED.value:
+                    self.strategy_logger.info(
+                        "Will remove from idle and add to archive as its closed"
+                    )
+                    self.idle_records.remove(position)
+                    self.archive_records.append(position)
+                    self.position_count -= 1
+                    self.strategy_logger.info("Archiving price level: %s", position)
+
+        self.filter_records("idle", "All")
+        self.filter_records("archive", "All")
 
     def filter_records(self, tab, symbol_filter):
         if tab == "active":
