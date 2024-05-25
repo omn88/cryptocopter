@@ -69,7 +69,7 @@ class HpManager(BoxLayout):
         config = StrategyConfig(
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
             symbol=symbol,
-            side=PositionSide.LONG
+            side=PositionSide.LONG.value
             if side == PositionSide.LONG.value
             else PositionSide.SHORT,
             price_low=float(price_low),
@@ -108,15 +108,65 @@ class HpManager(BoxLayout):
             )
         )
 
-    def trigger_remove_record(self, system_id, *args):
-        asyncio.create_task(self.remove_record(system_id=system_id))
+    def trigger_remove_record(
+        self,
+        system_id,
+        symbol,
+        side,
+        price_low,
+        price_high,
+        budget,
+        order_trigger,
+        orders_opened,
+        orders_total,
+        orders_filled,
+        *args,
+    ):
+        asyncio.create_task(
+            self.remove_record(
+                system_id=system_id,
+                symbol=symbol,
+                side=side,
+                price_high=price_high,
+                price_low=price_low,
+                budget=budget,
+                order_trigger=order_trigger,
+                orders_filled=orders_filled,
+                orders_total=orders_total,
+                orders_opened=orders_opened,
+            )
+        )
 
-    async def remove_record(self, system_id):
+    async def remove_record(
+        self,
+        system_id,
+        symbol,
+        side,
+        price_low,
+        price_high,
+        budget,
+        order_trigger,
+        orders_opened,
+        orders_total,
+        orders_filled,
+    ):
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
         # Update GUI asynchronously
         await self.gui_handler.ui_queue.put(
-            PositionData(system_id=system_id, status=PositionStatus.CLOSED)
+            PositionData(
+                system_id=system_id,
+                symbol=symbol,
+                side=side,
+                price_low=price_low,
+                price_high=price_high,
+                budget=budget,
+                order_trigger=order_trigger,
+                orders_opened=orders_opened,
+                orders_total=orders_total,
+                orders_filled=orders_filled,
+                status=PositionStatus.CLOSED.value,
+            )
         )
 
     async def update_ui(self):
@@ -148,9 +198,10 @@ class HpManager(BoxLayout):
             self.strategy_logger.info(
                 "Record %s found in active records", data.system_id
             )
-            active_records, archive_records = self.update_active_position(
+            active_records, idle_records, archive_records = self.update_active_position(
                 data=data,
                 active_records=active_records,
+                idle_records=idle_records,
                 archive_records=archive_records,
             )
         else:
@@ -170,7 +221,7 @@ class HpManager(BoxLayout):
         new_position = {
             "system_id": data.system_id,
             "symbol": data.symbol,
-            "side": str(data.side.value),
+            "side": str(data.side),
             "price_low": str(data.price_low),
             "price_high": str(data.price_high),
             "budget": str(data.budget),
@@ -178,7 +229,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.status.value),
+            "status": str(data.status),
         }
 
         idle_records.append(new_position)
@@ -189,8 +240,9 @@ class HpManager(BoxLayout):
         self,
         data: PositionData,
         active_records: List[Dict],
+        idle_records: List[Dict],
         archive_records: List[Dict],
-    ) -> Tuple[List[Dict], List[Dict]]:
+    ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
         for position in active_records:
             if position["system_id"] == data.system_id:
                 position.update(
@@ -202,12 +254,15 @@ class HpManager(BoxLayout):
                     }
                 )
                 if data.status == PositionStatus.CLOSED:
-                    active_records.remove(position)
+                    if not data.orders_opened:
+                        idle_records.remove(position)
+                    else:
+                        active_records.remove(position)
                     archive_records.append(position)
                     self.position_count -= 1
                     self.strategy_logger.info(f"Closed position moved: {position}")
 
-        return active_records, archive_records
+        return active_records, idle_records, archive_records
 
     def filter_records(self, tab, symbol_filter):
         if tab == "active":
