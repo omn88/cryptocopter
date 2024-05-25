@@ -123,87 +123,153 @@
                     on_release: root.trigger_add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_input.text)
 
     # Bottom section with tabbed panels for records
-    BoxLayout:
-        id: cs_bottom_section
-        orientation: 'horizontal'
+    TabbedPanel:
+        do_default_tab: False
         size_hint_y: 0.7  # Allow this to take the remaining space
 
-        TabbedPanel:
-            do_default_tab: False
-            size_hint_y: 1  # Ensure tabs take full vertical space available
-
-            TabbedPanelItem:
-                text: 'Active'
+        TabbedPanelItem:
+            text: 'Active'
+            BoxLayout:
+                orientation: 'vertical'
                 BoxLayout:
-                    orientation: "vertical"
+                    size_hint_y: None
+                    height: '40dp'
+                    Spinner:
+                        id: active_filter_input
+                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
+                        text: 'All'
+                        size_hint_x: 0.2
+                        on_text: root.filter_records('active', self.text)
                     BoxLayout:
-                        size_hint_y: None
-                        height: '30dp'
-                        Label:
-                            text: 'Symbol'
-                        Label:
-                            text: 'Side'
-                        Label:
-                            text: 'Price Low'
-                        Label:
-                            text: 'Price High'
-                        Label:
-                            text: 'Budget'
-                        Label:
-                            text: 'Order Trigger'
-                        Label:
-                            text: 'Orders Opened'
-                        Label:
-                            text: 'Orders Total'
-                        Label:
-                            text: 'Orders Filled'
-                        Label:
-                            text: ''
-                    RecycleView:
-                        id: active_records_list
-                        data: root.active_records
-                        viewclass: 'RecordListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)  # Adjust the height as necessary
-                            default_size_hint: 1, None
-                            size_hint_y: None
-                            height: self.minimum_height  # This makes the layout as tall as its contents
-                            orientation: 'vertical'
-
-            TabbedPanelItem:
-                text: 'Closed'
+                        size_hint_x: 0.8  # Empty space for alignment
                 BoxLayout:
-                    orientation: "vertical"
-                    BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Side'
+                    Label:
+                        text: 'Price Low'
+                    Label:
+                        text: 'Price High'
+                    Label:
+                        text: 'Budget'
+                    Label:
+                        text: 'Order Trigger'
+                    Label:
+                        text: 'Orders Opened'
+                    Label:
+                        text: 'Orders Total'
+                    Label:
+                        text: 'Orders Filled'
+                    Label:
+                        text: ''
+                RecycleView:
+                    id: active_records_list
+                    data: root.filtered_active_records
+                    viewclass: 'RecordListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)  # Adjust the height as necessary
+                        default_size_hint: 1, None
                         size_hint_y: None
-                        height: '30dp'
-                        Label:
-                            text: 'Symbol'
-                        Label:
-                            text: 'Side'
-                        Label:
-                            text: 'Price Low'
-                        Label:
-                            text: 'Price High'
-                        Label:
-                            text: 'Budget'
-                        Label:
-                            text: 'Order Trigger'
-                        Label:
-                            text: 'Orders Opened'
-                        Label:
-                            text: 'Orders Total'
-                        Label:
-                            text: 'Orders Filled'
-                        Label:
-                            text: ''
-                    RecycleView:
-                        id: closed_records_list
-                        data: root.closed_records
-                        viewclass: 'RecordListItem'
-                        RecycleBoxLayout:
-                            default_size: None, dp(56)  # Adjust the height as necessary
-                            default_size_hint: 1, None
-                            size_hint_y: None
-                            height: self.minimum_height  # This makes the layout as tall as its contents
-                            orientation: 'vertical'
+                        height: self.minimum_height  # This makes the layout as tall as its contents
+                        orientation: 'vertical'
+
+        TabbedPanelItem:
+            text: 'Idle'
+            BoxLayout:
+                orientation: 'vertical'
+                BoxLayout:
+                    size_hint_y: None
+                    height: '40dp'
+                    Spinner:
+                        id: idle_filter_input
+                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
+                        text: 'All'
+                        size_hint_x: 0.2
+                        on_text: root.filter_records('idle', self.text)
+                    BoxLayout:
+                        size_hint_x: 0.8  # Empty space for alignment
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Side'
+                    Label:
+                        text: 'Price Low'
+                    Label:
+                        text: 'Price High'
+                    Label:
+                        text: 'Budget'
+                    Label:
+                        text: 'Order Trigger'
+                    Label:
+                        text: 'Orders Opened'
+                    Label:
+                        text: 'Orders Total'
+                    Label:
+                        text: 'Orders Filled'
+                    Label:
+                        text: ''
+                RecycleView:
+                    id: idle_records_list
+                    data: root.filtered_idle_records
+                    viewclass: 'RecordListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)  # Adjust the height as necessary
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height  # This makes the layout as tall as its contents
+                        orientation: 'vertical'
+
+        TabbedPanelItem:
+            text: 'Archive'
+            BoxLayout:
+                orientation: 'vertical'
+                BoxLayout:
+                    size_hint_y: None
+                    height: '40dp'
+                    Spinner:
+                        id: archive_filter_input
+                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
+                        text: 'All'
+                        size_hint_x: 0.2
+                        on_text: root.filter_records('archive', self.text)
+                    BoxLayout:
+                        size_hint_x: 0.8  # Empty space for alignment
+                BoxLayout:
+                    size_hint_y: None
+                    height: '30dp'
+                    Label:
+                        text: 'Symbol'
+                    Label:
+                        text: 'Side'
+                    Label:
+                        text: 'Price Low'
+                    Label:
+                        text: 'Price High'
+                    Label:
+                        text: 'Budget'
+                    Label:
+                        text: 'Order Trigger'
+                    Label:
+                        text: 'Orders Opened'
+                    Label:
+                        text: 'Orders Total'
+                    Label:
+                        text: 'Orders Filled'
+                    Label:
+                        text: ''
+                RecycleView:
+                    id: archive_records_list
+                    data: root.filtered_archive_records
+                    viewclass: 'RecordListItem'
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)  # Adjust the height as necessary
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height  # This makes the layout as tall as its contents
+                        orientation: 'vertical'

@@ -2,7 +2,12 @@ import asyncio
 from typing import Dict, List, Tuple
 import uuid
 from binance import BinanceSocketManager
-from kivy.properties import ListProperty, NumericProperty, ObjectProperty
+from kivy.properties import (
+    ListProperty,
+    NumericProperty,
+    ObjectProperty,
+    StringProperty,
+)
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -21,11 +26,19 @@ from src.workers.strategy_executor import StrategyExecutor
 
 
 class HpManager(BoxLayout):
-    order_count = NumericProperty(0)
-    position_count = NumericProperty(0)
-    log_display = ObjectProperty(None)
     active_records: List[Dict] = ListProperty([])
-    closed_records: List[Dict] = ListProperty([])
+    idle_records: List[Dict] = ListProperty([])
+    archive_records: List[Dict] = ListProperty([])
+    filtered_active_records: List[Dict] = ListProperty([])
+    filtered_idle_records: List[Dict] = ListProperty([])
+    filtered_archive_records: List[Dict] = ListProperty([])
+    active_filter = StringProperty("All")
+    idle_filter = StringProperty("All")
+    archive_filter = StringProperty("All")
+
+    position_count = NumericProperty(0)
+
+    log_display = ObjectProperty(None)
 
     def __init__(
         self,
@@ -120,42 +133,39 @@ class HpManager(BoxLayout):
                 pass  # handle account update
             if isinstance(data, PositionData):
                 self.strategy_logger.info("Received position data: %s", data)
-                updated_active_records, updated_closed_records = self.update_position(
-                    data=data
-                )
-                self.active_records, self.closed_records = (
-                    updated_active_records,
-                    updated_closed_records,
-                )
+                (
+                    self.active_records,
+                    self.idle_records,
+                    self.archive_records,
+                ) = self.update_position(data=data)
 
     def update_position(self, data: PositionData) -> Tuple[List[Dict], List[Dict]]:
         active_records = [pos.copy() for pos in self.active_records]
-        closed_records = [pos.copy() for pos in self.closed_records]
-        self.strategy_logger.info(
-            "Data symbol: %s, Active records: %s", data.symbol, active_records
-        )
+        idle_records = [pos.copy() for pos in self.idle_records]
+        archive_records = [pos.copy() for pos in self.archive_records]
+
         if any(record["system_id"] == data.system_id for record in active_records):
             self.strategy_logger.info(
                 "Record %s found in active records", data.system_id
             )
-            active_records, closed_records = self.update_active_position(
-                data=data, active_records=active_records, closed_records=closed_records
+            active_records, archive_records = self.update_active_position(
+                data=data,
+                active_records=active_records,
+                archive_records=archive_records,
             )
-        elif data.status not in [PositionStatus.CLOSED, PositionStatus.CLOSING]:
-            self.strategy_logger.info("New position to be created")
-            active_records = self.add_new_position(
-                data=data, active_records=active_records
-            )
+        else:
+            idle_records = self.add_new_position(data=data, idle_records=idle_records)
 
         self.strategy_logger.info(
-            "Active records: %s\nclosed records after update: %s",
+            "Records active:\n%s\nIdle\n%s\nArchive\n%s",
             active_records,
-            closed_records,
+            idle_records,
+            archive_records,
         )
 
-        return active_records, closed_records
+        return active_records, idle_records, archive_records
 
-    def add_new_position(self, data: PositionData, active_records: List[Dict]):
+    def add_new_position(self, data: PositionData, idle_records: List[Dict]):
         self.position_count += 1
         new_position = {
             "system_id": data.system_id,
@@ -170,12 +180,16 @@ class HpManager(BoxLayout):
             "orders_filled": str(data.orders_filled),
             "status": str(data.status.value),
         }
-        active_records.append(new_position)
-        self.strategy_logger.info(f"Added new position: {new_position}")
-        return active_records
+
+        idle_records.append(new_position)
+        self.filter_records("idle", "All")
+        return idle_records
 
     def update_active_position(
-        self, data: PositionData, active_records: List[Dict], closed_records: List[Dict]
+        self,
+        data: PositionData,
+        active_records: List[Dict],
+        archive_records: List[Dict],
     ) -> Tuple[List[Dict], List[Dict]]:
         for position in active_records:
             if position["system_id"] == data.system_id:
@@ -189,7 +203,35 @@ class HpManager(BoxLayout):
                 )
                 if data.status == PositionStatus.CLOSED:
                     active_records.remove(position)
-                    closed_records.append(position)
+                    archive_records.append(position)
                     self.position_count -= 1
                     self.strategy_logger.info(f"Closed position moved: {position}")
-        return active_records, closed_records
+
+        return active_records, archive_records
+
+    def filter_records(self, tab, symbol_filter):
+        if tab == "active":
+            self.active_filter = symbol_filter
+            self.filtered_active_records = [
+                record
+                for record in self.active_records
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
+            ]
+        elif tab == "idle":
+            self.idle_filter = symbol_filter
+            self.filtered_idle_records = [
+                record
+                for record in self.idle_records
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
+            ]
+        elif tab == "archive":
+            self.archive_filter = symbol_filter
+            self.filtered_archive_records = [
+                record
+                for record in self.archive_records
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
+            ]
+
+        self.ids.active_records_list.refresh_from_data()
+        self.ids.idle_records_list.refresh_from_data()
+        self.ids.archive_records_list.refresh_from_data()
