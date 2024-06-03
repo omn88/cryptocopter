@@ -15,7 +15,7 @@ from src.common.initialize_trading_environment import (
     futures_prepare_producers,
 )
 from src.df_handler.futures import DfHandler
-from src.gui.coinsniper import CoinSniper
+from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import AccountData
 from src.strategies.base import BaseStrategy
@@ -28,7 +28,7 @@ from src.strategies.futures.rsi_special import RsiSpecial
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "Coin Sniper": CoinSniper,
+    "HP Manager": HpManager,
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
     "RSI Special": RsiSpecial,

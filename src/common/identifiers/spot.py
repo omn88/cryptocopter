@@ -32,5 +32,5 @@ class StrategyConfig:
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
-    name: str = "Coin Sniper"
+    name: str = "HP Manager"
     budget: float = 0

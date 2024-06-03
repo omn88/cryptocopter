@@ -23,13 +23,14 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
-from src.gui.coinsniper import CoinSniper
+from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient, EventName, Event
+from src.common.database import Database
 
 logger = logging.getLogger("async_app")
 
@@ -55,15 +56,17 @@ class AsyncApp(App):
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
 
-    def __init__(self, client: BinanceClient, **kwargs):
+    def __init__(self, client: BinanceClient, db: Database, **kwargs):
         """Initializes the `AsyncApp` instance.
 
         Args:
             client (BinanceClient): The Binance client to use for trading.
+            db (Database): The database instance to use for database operations.
             **kwargs: Additional keyword arguments.
         """
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
+        self.db = db
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.tabs: Dict = {}
         self.strategy_mapping = {
@@ -72,7 +75,25 @@ class AsyncApp(App):
             "RSI Special": "RS",
         }
         self.dynamic_spinners: Dict = {}
-        asyncio.create_task(self.update_ui())
+        asyncio.create_task(self.initialize())
+
+    async def initialize(self):
+        await self.load_all_strategies()
+        await self.update_ui()
+        logger.info("Initialization finished!")
+
+    async def close_pool(self):
+        await self.db.close_pool()
+
+    async def load_all_strategies(self):
+        strategy_states = await self.db.fetch_all_strategy_states()
+        for state in strategy_states:
+            await self.restore_strategy(state["strategy_name"], state["state"])
+
+    async def restore_strategy(self, strategy_name: str, state: Dict):
+        # Logic to restore strategy from saved state
+        logger.info(f"Restoring strategy: {strategy_name}")
+        # Create and start the strategy using the state data
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -193,11 +214,14 @@ class AsyncApp(App):
                     len(self.strategy_tabs),
                     len(self.trading_systems),
                 )
+
+                await self.db.create_strategy(name=config.name, description=str(config))
+
                 await trading_system.start_trading()
             else:
                 logger.info("App: Please select a symbol.")
 
-        if strategy_name == "Coin Sniper":
+        if strategy_name == "HP Manager":
             for strategy in self.active_strategies:
                 if strategy["name"] == config.name:
                     logger.info(
@@ -206,16 +230,16 @@ class AsyncApp(App):
                     )
                     return
 
-            logger.info("Starting Coin Sniper strategy")
+            logger.info("Starting HP manager strategy")
 
             # Builder.load_file("src/gui/searchable_drop_down.kv")
-            Builder.load_file("src/gui/coinsniper.kv")
+            Builder.load_file("src/gui/hpmanager.kv")
 
             strategy_logger = StrategyLogger(
                 name=strategy_name, strategy_info=strategy_name
             )
 
-            coin_sniper = CoinSniper(
+            hp_manager = HpManager(
                 strategy_logger=strategy_logger,
                 gui_handler=GuiHandlerSpot(
                     main_ui_queue=self.main_ui_queue,
@@ -223,11 +247,12 @@ class AsyncApp(App):
                     logger=strategy_logger,
                 ),
                 client=self.client,
+                db=self.db,
             )
 
             tab = TabbedPanelItem(
                 text=strategy_name,
-                content=coin_sniper,
+                content=hp_manager,
             )
 
             # Set up a logging handler for the strategy

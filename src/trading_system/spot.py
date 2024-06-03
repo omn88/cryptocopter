@@ -15,6 +15,7 @@ from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.base import BaseStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.spot.base import BaseSpotStrategy
+from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
@@ -25,7 +26,7 @@ from src.strategies.futures.rsi_special import RsiSpecial
 # logger = logging.getLogger("trading_system")
 
 STRATEGY_MAP = {
-    "Coin Sniper": BaseSpotStrategy,
+    "HP Manager": HpManager,
     "RSI Basic": RsiBasic,
     "RSI Extended": RsiExtended,
     "RSI Special": RsiSpecial,
