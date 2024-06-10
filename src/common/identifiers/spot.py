@@ -1,8 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, NamedTuple
 
-from src.common.identifiers.common import Order, PositionSide, PositionStatus
+from src.common.identifiers.common import PositionSide
 
 
 class State(Enum):

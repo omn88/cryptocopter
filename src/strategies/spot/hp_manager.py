@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from typing import Dict
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -164,16 +163,14 @@ class HpManager(BaseStrategy):
     async def _get_minimum_notional_for_symbol(self, symbol: str) -> float:
         exchange_info = await self.client.get_exchange_info()
 
-        self.logger.info("Exchange info: %s", exchange_info)
-
         for symbol_info in exchange_info["symbols"]:
             if symbol_info["symbol"] == symbol:
-                filters = {f["filterType"]: f for f in symbol_info["filters"]}
-                if "MIN_NOTIONAL" in filters:
-                    return float(filters["MIN_NOTIONAL"]["minNotional"])
-
-        # Raise an exception or return a default value if the symbol is not found
-        raise ValueError(f"Symbol {symbol} not found in exchange info")
+                # Iterate through filters to find minNotional filter
+                for symbol_filter in symbol_info["filters"]:
+                    if symbol_filter["filterType"] == "NOTIONAL":
+                        return float(symbol_filter["minNotional"])
+        safe_value = 10
+        return safe_value
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?

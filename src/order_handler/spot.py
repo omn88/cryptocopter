@@ -30,6 +30,17 @@ class OrderHandler:
         self.client = client
         self.gui_handler = gui_handler
 
+    def round_quantity(self, quantity: float) -> float:
+        if quantity >= 1:
+            return round(quantity, 2)
+
+        # Count the number of leading zeros after the decimal point
+        str_quantity = f"{quantity:.10f}"
+        zeros_after_decimal = len(str_quantity.split(".")[1]) - len(
+            str_quantity.split(".")[1].lstrip("0")
+        )
+        return round(quantity, zeros_after_decimal + 4)
+
     def prepare_orders(
         self,
         price_low: float,
@@ -57,13 +68,12 @@ class OrderHandler:
 
         for i in range(number_of_orders):
             order_price = price_low + i * price_increment
-            order_quantity = order_quantity_stable / order_price
 
             orders.append(
                 Order(
-                    quantity=order_quantity,
+                    quantity=self.round_quantity(order_quantity_stable / order_price),
                     price=order_price,
-                    quantity_stable=order_quantity_stable,
+                    quantity_stable=self.round_quantity(order_quantity_stable),
                 )
             )
 
