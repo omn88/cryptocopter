@@ -41,7 +41,6 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
-    df_handler = MagicMock()  # Mocked DataFrame handler
     gui_handler = AsyncMock()
 
     config = ConfigSpot(
@@ -57,7 +56,6 @@ async def spot_buy(mock_AsyncClient):
     strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
-        df_handler=df_handler,
         config=config,
         gui_handler=gui_handler,
         logger=logger,
@@ -71,8 +69,6 @@ async def spot_buy(mock_AsyncClient):
 
 @pytest.fixture
 async def spot_sell(mock_AsyncClient):
-    df_handler = MagicMock()  # Mocked DataFrame handler
-
     config = ConfigSpot(
         system_id="1234",
         symbol="BTCUSDT",
@@ -88,7 +84,6 @@ async def spot_sell(mock_AsyncClient):
     strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
-        df_handler=df_handler,
         config=config,
         gui_handler=gui_handler,
         logger=logger,

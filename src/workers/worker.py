@@ -1,5 +1,6 @@
 from logging_config import StrategyLogger
 from src.common.identifiers.common import KlineUpdate, SignalUpdate, TickerUpdate
+from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
 from src.workers.trading_state_machine import TradingStateMachine
@@ -61,7 +62,7 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             state_machine.strategy.signal_update = event.content
             await state_machine.strategy.process_signal()  # type: ignore
 
-            assert isinstance(state_machine.strategy, BaseStrategy)
+            assert isinstance(state_machine.strategy, BaseFuturesStrategy)
 
             logger.info(
                 "Last %s rows from main df: %s",

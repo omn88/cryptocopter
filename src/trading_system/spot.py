@@ -45,7 +45,6 @@ class TradingSystem:
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
-            df_handler=self.df_handler,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
             config=self.config,

@@ -12,7 +12,6 @@ from binance.enums import (
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import State, StrategyConfig
 from src.common.identifiers.common import BinanceClient, PositionSide
-from src.df_handler.futures import DfHandler
 from src.gui.gui_handler.spot import GuiHandler
 from src.position_handler.spot import PositionHandler
 from src.strategies.base import BaseStrategy
@@ -27,10 +26,9 @@ class HpManager(BaseStrategy):
         config: StrategyConfig,
         gui_handler: GuiHandler,
         logger: StrategyLogger,
-        df_handler: DfHandler,
         balance: float,
     ):
-        super().__init__(client, logger, df_handler, balance)
+        super().__init__(client, logger, balance)
         self.gui_handler = gui_handler
         self.config = config
         self.position_handler = PositionHandler(
@@ -48,17 +46,7 @@ class HpManager(BaseStrategy):
         ]
 
         self.min_order_values = None
-        self.trigger_orders_price = (
-            round(
-                self.config.price_low * (1 - (self.config.order_trigger / 100)),
-                2,
-            )
-            if self.config.side == PositionSide.SHORT
-            else round(
-                self.config.price_high * (1 + (self.config.order_trigger / 100)),
-                2,
-            )
-        )
+        self.trigger_orders_price = self.calculate_trigger_orders_price()
 
         self.transitions = [
             {
@@ -145,10 +133,32 @@ class HpManager(BaseStrategy):
             },
         ]
 
+    def __str__(self):
+        return (
+            f"HpManager(client={self.client}, config={self.config}, "
+            f"gui_handler={self.gui_handler}, logger={self.logger}, "
+            f"balance={self.balance}, state={self.state}, "
+            f"trigger_orders_price={self.trigger_orders_price}, "
+            f"min_order_values={self.min_order_values}, position_handler={self.position_handler})"
+        )
+
     async def initialize(self):
         # Now you can await the _get_minimum_order_values method
         self.min_order_values = await self._get_minimum_order_values()
         # Additional initialization code can go here
+
+    def calculate_trigger_orders_price(self):
+        return (
+            round(
+                self.config.price_low * (1 - (self.config.order_trigger / 100)),
+                2,
+            )
+            if self.config.side == PositionSide.SHORT
+            else round(
+                self.config.price_high * (1 + (self.config.order_trigger / 100)),
+                2,
+            )
+        )
 
     async def _get_minimum_order_values(self) -> Dict:
         exchange_info = await self.client.get_exchange_info()
@@ -401,11 +411,11 @@ class HpManager(BaseStrategy):
                 self.logger.info(
                     "Expired order confirmation: %s", self.order_update.order_id
                 )
-                await self.gui_handler.update_order(
-                    order=order,
-                    symbol=self.position_handler.position.symbol,
-                    side=self.position_handler.position.side,
-                )
+                # await self.gui_handler.update_order(
+                #     order=order,
+                #     symbol=self.position_handler.position.symbol,
+                #     side=self.position_handler.position.side,
+                # )
 
     async def handle_account(self, *args, **kwargs):
         self.logger.info("Account update: %s", self.account_update.account_update)
