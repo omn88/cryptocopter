@@ -12,81 +12,81 @@ from src.common.identifiers.spot import State
 from src.common.identifiers.common import PositionSide
 
 
-async def test_initialize_strategy(spot_short):
-    strategy = spot_short.strategy
+async def test_initialize_strategy(spot_sell):
+    strategy = spot_sell.strategy
     await strategy.initialize()
     assert strategy.min_order_values is not None
     assert strategy.state == State.NEW
 
 
-async def test_configuration_settings(spot_long):
-    strategy = spot_long.strategy
+async def test_configuration_settings(spot_buy):
+    strategy = spot_buy.strategy
     assert strategy.config.price_low == 1000
     assert strategy.config.price_high == 1400
     assert strategy.config.order_trigger == 1
     assert strategy.config.budget == 1000
 
 
-async def test_conditions_for_new_order_confirmation(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_new_order_confirmation(spot_sell):
+    strategy = spot_sell.strategy
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_NEW
     )
     assert strategy.conditions_for_new_order_confirmation()
 
 
-async def test_conditions_for_order_cancellation(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_order_cancellation(spot_sell):
+    strategy = spot_sell.strategy
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_CANCELED
     )
     assert strategy.conditions_for_order_cancellation()
 
 
-async def test_conditions_for_order_expiration(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_order_expiration(spot_sell):
+    strategy = spot_sell.strategy
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
 
 
-async def test_conditions_for_order_filled(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_order_filled(spot_sell):
+    strategy = spot_sell.strategy
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED
     )
     assert strategy.conditions_for_order_filled()
 
 
-async def test_conditions_for_order_partially_filled(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_order_partially_filled(spot_sell):
+    strategy = spot_sell.strategy
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_PARTIALLY_FILLED
     )
     assert strategy.conditions_for_order_partially_filled()
 
 
-async def test_conditions_for_sending_long_orders(spot_long):
-    strategy = spot_long.strategy
+async def test_conditions_for_sending_long_orders(spot_buy):
+    strategy = spot_buy.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.LONG
     strategy.ticker_update = MagicMock(last_price=1300)
     assert strategy.conditions_for_sending_long_orders()
 
 
-async def test_conditions_for_sending_short_orders(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_sending_short_orders(spot_sell):
+    strategy = spot_sell.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.SHORT
     strategy.ticker_update = MagicMock(last_price=1500)
     assert strategy.conditions_for_sending_short_orders()
 
 
-async def test_conditions_for_cancelling_long_orders(spot_long):
-    strategy = spot_long.strategy
+async def test_conditions_for_cancelling_long_orders(spot_buy):
+    strategy = spot_buy.strategy
     strategy.state = State.OPEN
-    strategy.position_handler.position.side = PositionSide.LONG
+    strategy.position_handler.side = PositionSide.LONG
     strategy.position_handler.stagnation_counter = 8
 
     # Condition met
@@ -98,11 +98,11 @@ async def test_conditions_for_cancelling_long_orders(spot_long):
     assert strategy.conditions_for_cancelling_long_orders() is False
 
 
-async def test_conditions_for_cancelling_short_orders(spot_short):
-    strategy = spot_short.strategy
+async def test_conditions_for_cancelling_short_orders(spot_sell):
+    strategy = spot_sell.strategy
     strategy.state = State.OPEN
     strategy.config.side = PositionSide.SHORT
-    strategy.position_handler.position.side = PositionSide.SHORT
+    strategy.position_handler.side = PositionSide.SHORT
     strategy.position_handler.stagnation_counter = 8
 
     print("order trigger ", strategy.trigger_orders_price)
@@ -120,17 +120,17 @@ async def test_conditions_for_cancelling_short_orders(spot_short):
     assert strategy.conditions_for_cancelling_short_orders() is False
 
 
-async def test_handle_ticker(spot_long):
-    strategy = spot_long.strategy
+async def test_handle_ticker(spot_buy):
+    strategy = spot_buy.strategy
     strategy.state = State.OPEN
     strategy.position_handler.next_monitor_position_time = datetime.now()
     await strategy.handle_ticker()
     assert strategy.position_handler.stagnation_counter == 1
 
 
-async def test_process_ticker_updates_state(spot_long):
+async def test_process_ticker_updates_state(spot_buy):
     # Set initial conditions
-    strategy = spot_long.strategy
+    strategy = spot_buy.strategy
     strategy.state = State.OPEN
     strategy.position_handler.next_monitor_position_time = datetime.now()
     strategy.ticker_update = MagicMock(last_price=1200)  # Mocked TickerUpdate

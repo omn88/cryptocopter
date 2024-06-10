@@ -19,12 +19,10 @@ class BaseStrategy:
         self,
         client: BinanceClient,
         logger: StrategyLogger,
-        df_handler: DfHandler,
         balance: float,
     ):
         self.client = client
         self.logger = logger
-        self.df_handler = df_handler
         self.balance = balance
         self.queue: asyncio.Queue = asyncio.Queue()
 

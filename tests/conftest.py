@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Dict
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
@@ -16,11 +17,11 @@ from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.strategies.spot.base import BaseSpotStrategy
 from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
+from src.strategies.spot.hp_manager import HpManager
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
@@ -34,14 +35,32 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     mocked_AsyncClient = mocker.patch("binance.AsyncClient")
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
+
+    # Mock exchange info data.
+    mock_exchange_info: Dict = {
+        "symbols": [
+            {
+                "symbol": "BTCUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
+            },
+            {
+                "symbol": "ETHUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
+            },
+        ]
+    }
+
+    # Mock the get_exchange_info method to return the mock data.
+    mocked_async_client.get_exchange_info.return_value = mock_exchange_info
+
     # Assign the instance to the mocked AsyncClient when used in a context manager.
     mocked_AsyncClient.return_value.__aenter__.return_value = mocked_async_client
     return mocked_async_client
 
 
 @pytest.fixture
-async def spot_long(mock_AsyncClient):
-    df_handler = MagicMock()  # Mocked DataFrame handler
+async def spot_buy(mock_AsyncClient):
+    gui_handler = AsyncMock()
 
     config = ConfigSpot(
         system_id="1234",
@@ -53,12 +72,9 @@ async def spot_long(mock_AsyncClient):
         budget=1000,
     )
 
-    gui_handler = AsyncMock()
-
-    strategy = BaseSpotStrategy(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
-        df_handler=df_handler,
         config=config,
         gui_handler=gui_handler,
         logger=logger,
@@ -71,9 +87,7 @@ async def spot_long(mock_AsyncClient):
 
 
 @pytest.fixture
-async def spot_short(mock_AsyncClient):
-    df_handler = MagicMock()  # Mocked DataFrame handler
-
+async def spot_sell(mock_AsyncClient):
     config = ConfigSpot(
         system_id="1234",
         symbol="BTCUSDT",
@@ -86,10 +100,9 @@ async def spot_short(mock_AsyncClient):
 
     gui_handler = AsyncMock()
 
-    strategy = BaseSpotStrategy(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
-        df_handler=df_handler,
         config=config,
         gui_handler=gui_handler,
         logger=logger,

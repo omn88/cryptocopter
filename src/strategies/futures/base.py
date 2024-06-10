@@ -33,15 +33,16 @@ class BaseFuturesStrategy(BaseStrategy):
         logger: StrategyLogger,
         df_handler: DfHandler,
     ):
-        super().__init__(client, logger, df_handler, balance)
-        self.gui_handler: GuiHandler = gui_handler
+        super().__init__(client, logger, balance)
+        self.gui_handler = gui_handler
+        self.df_handler = df_handler
+        self.config = config
         self.position_handler = PositionHandler(
             client=client,
             strategy_logger=logger,
             config=config,
             gui_handler=gui_handler,
         )
-        self.config = config
         self.state = State.FLAT
         self.mode = PositionMode.DCA
         self.states = [State.LONG, State.SHORT]

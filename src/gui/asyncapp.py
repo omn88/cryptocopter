@@ -78,7 +78,7 @@ class AsyncApp(App):
         asyncio.create_task(self.initialize())
 
     async def initialize(self):
-        await self.load_all_strategies()
+        # await self.load_all_strategies()
         await self.update_ui()
         logger.info("Initialization finished!")
 

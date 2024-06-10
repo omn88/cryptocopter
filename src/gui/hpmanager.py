@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (
@@ -76,6 +76,7 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
+            min_notional=0,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
@@ -95,8 +96,6 @@ class HpManager(BoxLayout):
                 status=PositionStatus.NEW,
             )
         )
-
-        self.idle_records
 
         await self.db.create_price_level(
             config=StrategyConfig(

@@ -30,13 +30,22 @@ class OrderHandler:
         self.client = client
         self.gui_handler = gui_handler
 
+    def round_quantity(self, quantity: float) -> float:
+        if quantity >= 1:
+            return round(quantity, 2)
+
+        # Count the number of leading zeros after the decimal point
+        str_quantity = f"{quantity:.10f}"
+        zeros_after_decimal = len(str_quantity.split(".")[1]) - len(
+            str_quantity.split(".")[1].lstrip("0")
+        )
+        return round(quantity, zeros_after_decimal + 4)
+
     def prepare_orders(
         self,
-        side: PositionSide,
         price_low: float,
         price_high: float,
         budget: float,
-        symbol: str,
         min_notional: float,
     ) -> List[Order]:
         orders = []
@@ -59,13 +68,12 @@ class OrderHandler:
 
         for i in range(number_of_orders):
             order_price = price_low + i * price_increment
-            order_quantity = order_quantity_stable / order_price
 
             orders.append(
                 Order(
-                    quantity=order_quantity,
+                    quantity=self.round_quantity(order_quantity_stable / order_price),
                     price=order_price,
-                    quantity_stable=order_quantity_stable,
+                    quantity_stable=self.round_quantity(order_quantity_stable),
                 )
             )
 
@@ -133,11 +141,11 @@ class OrderHandler:
             "Orders created, ids: %s", [order.order_id for order in orders]
         )
 
-        await self.gui_handler.create_orders(
-            orders=results,
-            symbol=symbol,
-            side=side,
-        )
+        # await self.gui_handler.create_orders(
+        #     orders=results,
+        #     symbol=symbol,
+        #     side=side,
+        # )
 
         return results
 
@@ -165,9 +173,9 @@ class OrderHandler:
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                await self.gui_handler.update_order(
-                    order=order, symbol=symbol, side=side
-                )
+                # await self.gui_handler.update_order(
+                #     order=order, symbol=symbol, side=side
+                # )
 
                 self.strategy_logger.info(
                     "Cancelled partially filled order_id: %s", order.order_id
