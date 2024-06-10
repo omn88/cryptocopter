@@ -16,11 +16,11 @@ from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.strategies.spot.base import BaseSpotStrategy
 from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
+from src.strategies.spot.hp_manager import HpManager
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
@@ -54,7 +54,7 @@ async def spot_buy(mock_AsyncClient):
         budget=1000,
     )
 
-    strategy = BaseSpotStrategy(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
         df_handler=df_handler,
@@ -85,7 +85,7 @@ async def spot_sell(mock_AsyncClient):
 
     gui_handler = AsyncMock()
 
-    strategy = BaseSpotStrategy(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=1000,
         df_handler=df_handler,

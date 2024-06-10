@@ -20,7 +20,7 @@ from src.strategies.base import BaseStrategy
 STAGNATION_LIMIT = 8
 
 
-class BaseSpotStrategy(BaseStrategy):
+class HpManager(BaseStrategy):
     def __init__(
         self,
         client: BinanceClient,

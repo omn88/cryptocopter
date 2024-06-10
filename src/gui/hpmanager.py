@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (

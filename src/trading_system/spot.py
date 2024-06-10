@@ -13,24 +13,11 @@ from src.common.initialize_trading_environment import spot_prepare_producers
 from src.df_handler.spot import DfHandler
 from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.base import BaseStrategy
-from src.strategies.futures.rsi_basic import RsiBasic
-from src.strategies.spot.hp_manager import BaseSpotStrategy
-from src.strategies.spot.hp_manager_to_be_removed import HpManager
+from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 
-from src.strategies.futures.rsi_extended import RsiExtended
-
-from src.strategies.futures.rsi_special import RsiSpecial
-
 # logger = logging.getLogger("trading_system")
-
-STRATEGY_MAP = {
-    "HP Manager": HpManager,
-    "RSI Basic": RsiBasic,
-    "RSI Extended": RsiExtended,
-    "RSI Special": RsiSpecial,
-}
 
 
 class TradingSystem:
@@ -56,7 +43,7 @@ class TradingSystem:
 
     async def initialize(self):
         # Strategy initialization
-        self.strategy = BaseSpotStrategy(
+        self.strategy = HpManager(
             client=self.client,
             df_handler=self.df_handler,
             gui_handler=self.gui_handler,
