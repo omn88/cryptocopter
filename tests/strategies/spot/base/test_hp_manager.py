@@ -52,7 +52,7 @@ async def test_default_lifecycle_long(spot_buy):
     await strategy.process_order()
 
     # Simulate position closure
-    for order in strategy.position_handler.position.orders:
+    for order in strategy.position_handler.orders:
         order.status = ORDER_STATUS_FILLED
     strategy.order_update = MagicMock(
         order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED

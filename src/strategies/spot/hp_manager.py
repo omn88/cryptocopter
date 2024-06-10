@@ -247,7 +247,7 @@ class HpManager(BaseStrategy):
             self.state == State.OPEN
             and all(
                 order.status == ORDER_STATUS_FILLED
-                for order in self.position_handler.position.orders
+                for order in self.position_handler.orders
             )
             and self.order_update.order_type == ORDER_TYPE_LIMIT
             and self.order_update.status == ORDER_STATUS_FILLED
@@ -294,13 +294,13 @@ class HpManager(BaseStrategy):
     def conditions_for_cancelling_long_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
-            and self.position_handler.position.side == PositionSide.LONG
+            and self.position_handler.side == PositionSide.LONG
             and self.position_handler.stagnation_counter == STAGNATION_LIMIT
             and self.ticker_update.last_price > self.trigger_orders_price
         )
         self.logger.info(
             "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.position.side.value,
+            self.position_handler.side.value,
             condition,
             self.ticker_update.last_price,
         )
@@ -310,13 +310,13 @@ class HpManager(BaseStrategy):
     def conditions_for_cancelling_short_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
-            and self.position_handler.position.side == PositionSide.SHORT
+            and self.position_handler.side == PositionSide.SHORT
             and self.position_handler.stagnation_counter == STAGNATION_LIMIT
             and self.ticker_update.last_price < self.trigger_orders_price
         )
         self.logger.info(
             "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.position.side.value,
+            self.position_handler.side.value,
             condition,
             self.ticker_update.last_price,
         )
@@ -333,7 +333,6 @@ class HpManager(BaseStrategy):
             budget=self.config.budget,
             price_high=self.config.price_high,
             price_low=self.config.price_low,
-            name=self.config.name,
             symbol=self.config.symbol,
             min_notional=float(
                 self.min_order_values[self.config.symbol]["minNotional"]
@@ -350,7 +349,6 @@ class HpManager(BaseStrategy):
             budget=self.config.budget,
             price_high=self.config.price_high,
             price_low=self.config.price_low,
-            name=self.config.name,
             symbol=self.config.symbol,
             min_notional=float(
                 self.min_order_values[self.config.symbol]["minNotional"]
@@ -358,12 +356,12 @@ class HpManager(BaseStrategy):
         )
 
     async def cancel_long(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.position_handler.position.side)
+        self.logger.info("Cancelling %s", self.position_handler.side)
 
         await self.position_handler.cancel_position()
 
     async def cancel_short(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.position_handler.position.side)
+        self.logger.info("Cancelling %s", self.position_handler.side)
         await self.position_handler.cancel_position()
 
     async def handle_position_closure(self, *args, **kwargs) -> None:
@@ -386,7 +384,7 @@ class HpManager(BaseStrategy):
             self.position_handler.next_monitor_position_time += timedelta(hours=1)
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
-        for order in self.position_handler.position.orders:
+        for order in self.position_handler.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
@@ -395,7 +393,7 @@ class HpManager(BaseStrategy):
                 )
 
     async def confirm_cancelled_order(self, *args, **kwargs) -> None:
-        for order in self.position_handler.position.orders:
+        for order in self.position_handler.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id
@@ -404,7 +402,7 @@ class HpManager(BaseStrategy):
                 )
 
     async def confirm_expired_order(self, *args, **kwargs) -> None:
-        for order in self.position_handler.position.orders:
+        for order in self.position_handler.orders:
             if order.order_id == self.order_update.order_id:
                 order.status = self.order_update.status
                 order.order_id = self.order_update.order_id

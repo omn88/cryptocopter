@@ -13,25 +13,6 @@ class State(Enum):
 
 
 @dataclass
-class Position:
-    id: str = ""
-    symbol: str = ""
-    quantity: float = 0
-    state: State = State.NEW
-    side: PositionSide = PositionSide.FLAT
-    orders: List[Order] = field(default_factory=lambda: [])
-    status: PositionStatus = PositionStatus.NEW
-    opened: bool = False
-
-    def __str__(self):
-        orders_str = ", ".join([str(order) for order in self.orders])
-        return (
-            f"Position(id={self.id}, symbol={self.symbol}, quantity={self.quantity}, state={self.state}, "
-            f"side={self.side}, orders=[{orders_str}], status={self.status}, opened={self.opened})"
-        )
-
-
-@dataclass
 class StrategyConfig:
     system_id: str = ""
     symbol: str = ""

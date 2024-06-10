@@ -5,7 +5,8 @@ from typing import Optional, Dict, List
 import aiomysql
 
 from src.common.identifiers.common import Order
-from src.common.identifiers.spot import Position, StrategyConfig
+from src.common.identifiers.spot import StrategyConfig
+from src.position_handler.spot import PositionHandler
 
 logger = logging.getLogger("database")
 
@@ -179,15 +180,16 @@ class Database:
                     for row in result
                 ]
 
-    async def create_position(self, position: Position, strategy_id: int) -> None:
+    async def create_position(
+        self, position: PositionHandler, strategy_id: int
+    ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO positions (id, symbol, quantity, state, side, status, opened, strategy_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO positions (id, symbol, state, side, status, opened, strategy_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (
-                        position.id,
-                        position.symbol,
-                        position.quantity,
+                        position.config.system_id,
+                        position.config.symbol,
                         position.state,
                         position.side,
                         position.status,

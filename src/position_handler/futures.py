@@ -1,13 +1,13 @@
 from typing import List
+import uuid
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
-from src.common.common import generate_position_id, signal_to_state
+from src.common.common import signal_to_state
 from src.common.identifiers.common import (
     BinanceClient,
     Order,
     OrderUpdate,
     PositionSide,
-    SentinelUpdate,
     PositionStatus,
     SignalUpdate,
 )
@@ -50,7 +50,7 @@ class PositionHandler:
         config: StrategyConfig,
     ) -> None:
         self.position = Position(
-            id=generate_position_id(strategy_name=config.name),
+            id=str(uuid.uuid4()),
             symbol=config.symbol,
             side=side,
             entry_price=signal_update.price,

@@ -1,7 +1,5 @@
 import asyncio
 from logging_config import StrategyLogger
-
-from src.common.identifiers.spot import Position
 from src.gui.identifiers.spot import PositionData
 
 
@@ -16,17 +14,9 @@ class GuiHandler:
         self.main_ui_queue = main_ui_queue
         self.logger = logger
 
-    async def update_position(self, position: Position):
-        position_data = self.prepare_position_data(position=position)
+    async def update_position(self, position_data: PositionData):
         await self.ui_queue.put(position_data)
         self.logger.info("PositionData added to UI queue: %s", position_data)
-
-    def prepare_position_data(self, position: Position) -> PositionData:
-        return PositionData(
-            system_id=position.id,
-            symbol=position.symbol,
-            status=position.status,
-        )
 
     # async def update_position(self, position: Position):
     #     position_data = self._prepare_position_data(position=position)
