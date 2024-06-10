@@ -96,8 +96,6 @@ class HpManager(BoxLayout):
             )
         )
 
-        self.idle_records
-
         await self.db.create_price_level(
             config=StrategyConfig(
                 system_id=config.system_id,

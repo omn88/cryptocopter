@@ -8,13 +8,15 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
 )
 from src.common.identifiers.spot import State
+from src.strategies.spot.hp_manager import HpManager
 
-logger = logging.getLogger("test_base_spot")
+logger = logging.getLogger("test_hp_manager")
 
 
-async def test_end_to_end_long(spot_long):
+async def test_end_to_end_long(spot_buy):
     # Set initial conditions
-    strategy = spot_long.strategy
+    strategy = spot_buy.strategy
+    assert isinstance(strategy, HpManager)
     strategy.ticker_update = MagicMock(last_price=1500)  # Mocked TickerUpdate
 
     # Simulate no state change
@@ -30,6 +32,7 @@ async def test_end_to_end_long(spot_long):
     strategy.ticker_update = MagicMock(last_price=1414)
     await strategy.process_ticker()
     assert strategy.state == State.OPEN
+    logger.info("Strategy: %s", strategy)
 
     # Simulate order confirmation
     await strategy.process_order()
@@ -64,9 +67,9 @@ async def test_end_to_end_long(spot_long):
     # )
 
 
-async def test_end_to_end_short(spot_short):
+async def test_end_to_end_short(spot_sell):
     # Set initial conditions
-    strategy = spot_short.strategy
+    strategy = spot_sell.strategy
     strategy.ticker_update = MagicMock(last_price=900)  # Mocked TickerUpdate
 
     # Simulate no state change

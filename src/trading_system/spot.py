@@ -14,8 +14,8 @@ from src.df_handler.spot import DfHandler
 from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.base import BaseStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
-from src.strategies.spot.base import BaseSpotStrategy
-from src.strategies.spot.hp_manager import HpManager
+from src.strategies.spot.hp_manager import BaseSpotStrategy
+from src.strategies.spot.hp_manager_to_be_removed import HpManager
 from src.workers import worker
 from src.workers.trading_state_machine import TradingStateMachine
 

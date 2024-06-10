@@ -1,10 +1,13 @@
 # database.py
 
+import logging
 from typing import Optional, Dict, List
 import aiomysql
 
 from src.common.identifiers.common import Order
 from src.common.identifiers.spot import Position, StrategyConfig
+
+logger = logging.getLogger("database")
 
 
 # SQL Statements
@@ -74,6 +77,27 @@ class Database:
     async def close_pool(self):
         self.pool.close()
         await self.pool.wait_closed()
+
+    async def create_database_if_not_exists(self):
+        try:
+            temp_pool = await aiomysql.create_pool(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                autocommit=True,
+            )
+            async with temp_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.db};")
+                    await cur.execute(
+                        f"GRANT ALL PRIVILEGES ON {self.db}.* TO '{self.user}'@'localhost';"
+                    )
+            temp_pool.close()
+            await temp_pool.wait_closed()
+            logger.info("Database %s checked/created successfully.", self.db)
+        except aiomysql.Error as err:
+            logger.error("Error creating database %s: %s", self.db, err)
 
     async def setup_tables(self):
         async with self.pool.acquire() as conn:

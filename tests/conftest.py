@@ -40,8 +40,9 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-async def spot_long(mock_AsyncClient):
+async def spot_buy(mock_AsyncClient):
     df_handler = MagicMock()  # Mocked DataFrame handler
+    gui_handler = AsyncMock()
 
     config = ConfigSpot(
         system_id="1234",
@@ -52,8 +53,6 @@ async def spot_long(mock_AsyncClient):
         order_trigger=1,
         budget=1000,
     )
-
-    gui_handler = AsyncMock()
 
     strategy = BaseSpotStrategy(
         client=mock_AsyncClient,
@@ -71,7 +70,7 @@ async def spot_long(mock_AsyncClient):
 
 
 @pytest.fixture
-async def spot_short(mock_AsyncClient):
+async def spot_sell(mock_AsyncClient):
     df_handler = MagicMock()  # Mocked DataFrame handler
 
     config = ConfigSpot(

@@ -16,7 +16,7 @@ import asyncio
 import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
-from decouple import config
+from decouple import Config, RepositoryEnv
 from src.common.identifiers.common import BinanceClient
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
@@ -29,6 +29,11 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 logger = logging.getLogger("main")
+
+
+# Specify the path to the .env file
+DOTENV_FILE = "config/.env"
+config = Config(RepositoryEnv(DOTENV_FILE))
 
 # Set initial window size
 Window.size = (960, 600)
