@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Dict
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
@@ -34,6 +35,24 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     mocked_AsyncClient = mocker.patch("binance.AsyncClient")
     # Create an async mock for the instance methods.
     mocked_async_client = AsyncMock()
+
+    # Mock exchange info data.
+    mock_exchange_info: Dict = {
+        "symbols": [
+            {
+                "symbol": "BTCUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
+            },
+            {
+                "symbol": "ETHUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
+            },
+        ]
+    }
+
+    # Mock the get_exchange_info method to return the mock data.
+    mocked_async_client.get_exchange_info.return_value = mock_exchange_info
+
     # Assign the instance to the mocked AsyncClient when used in a context manager.
     mocked_AsyncClient.return_value.__aenter__.return_value = mocked_async_client
     return mocked_async_client

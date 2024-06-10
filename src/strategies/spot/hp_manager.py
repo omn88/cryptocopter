@@ -45,7 +45,6 @@ class HpManager(BaseStrategy):
             State.CLOSED,
         ]
 
-        self.min_order_values = None
         self.trigger_orders_price = self.calculate_trigger_orders_price()
 
         self.transitions = [
@@ -144,7 +143,9 @@ class HpManager(BaseStrategy):
 
     async def initialize(self):
         # Now you can await the _get_minimum_order_values method
-        self.min_order_values = await self._get_minimum_order_values()
+        self.config.min_notional = await self._get_minimum_notional_for_symbol(
+            symbol=self.config.symbol
+        )
         # Additional initialization code can go here
 
     def calculate_trigger_orders_price(self):
@@ -160,18 +161,19 @@ class HpManager(BaseStrategy):
             )
         )
 
-    async def _get_minimum_order_values(self) -> Dict:
+    async def _get_minimum_notional_for_symbol(self, symbol: str) -> float:
         exchange_info = await self.client.get_exchange_info()
-        min_values = {}
+
+        self.logger.info("Exchange info: %s", exchange_info)
 
         for symbol_info in exchange_info["symbols"]:
-            filters = {f["filterType"]: f for f in symbol_info["filters"]}
-            if "MIN_NOTIONAL" in filters:
-                min_values[symbol_info["symbol"]] = {
-                    "minNotional": filters["MIN_NOTIONAL"]["minNotional"]
-                }
+            if symbol_info["symbol"] == symbol:
+                filters = {f["filterType"]: f for f in symbol_info["filters"]}
+                if "MIN_NOTIONAL" in filters:
+                    return float(filters["MIN_NOTIONAL"]["minNotional"])
 
-        return min_values
+        # Raise an exception or return a default value if the symbol is not found
+        raise ValueError(f"Symbol {symbol} not found in exchange info")
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
@@ -326,33 +328,17 @@ class HpManager(BaseStrategy):
     async def open_long(self, *args, **kwargs) -> None:
         self.logger.debug("Opening %s", self.config.side.value)
 
-        assert self.min_order_values
-
         await self.position_handler.open_position(
             side=self.config.side,
-            budget=self.config.budget,
-            price_high=self.config.price_high,
-            price_low=self.config.price_low,
             symbol=self.config.symbol,
-            min_notional=float(
-                self.min_order_values[self.config.symbol]["minNotional"]
-            ),
         )
 
     async def open_short(self, *args, **kwargs) -> None:
         self.logger.debug("Opening %s", self.config.side.value)
 
-        assert self.min_order_values
-
         await self.position_handler.open_position(
             side=self.config.side,
-            budget=self.config.budget,
-            price_high=self.config.price_high,
-            price_low=self.config.price_low,
             symbol=self.config.symbol,
-            min_notional=float(
-                self.min_order_values[self.config.symbol]["minNotional"]
-            ),
         )
 
     async def cancel_long(self, *args, **kwargs) -> None:

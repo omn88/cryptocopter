@@ -76,6 +76,7 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
+            min_notional=0,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)

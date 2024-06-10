@@ -22,6 +22,7 @@ class StrategyConfig:
     order_trigger: float = 0
     name: str = "HP Manager"
     budget: float = 0
+    min_notional: float = 0
 
     def __str__(self):
         return (

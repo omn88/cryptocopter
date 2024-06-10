@@ -1,6 +1,5 @@
 import datetime
 from typing import List
-import uuid
 from logging_config import StrategyLogger
 from src.common.identifiers.common import (
     BinanceClient,
@@ -25,12 +24,18 @@ class PositionHandler:
         self.config = config
         self.strategy_logger = strategy_logger
         self.gui_handler = gui_handler
-        self.orders: List[Order] = []
         self.order_handler = OrderHandler(
             client=client,
             strategy_logger=strategy_logger,
             gui_handler=gui_handler,
         )
+        self.orders: List[Order] = self.order_handler.prepare_orders(
+            budget=config.budget,
+            price_low=config.price_low,
+            price_high=config.price_high,
+            min_notional=config.min_notional,
+        )
+
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
         self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
@@ -44,17 +49,7 @@ class PositionHandler:
         self,
         side: PositionSide,
         symbol: str,
-        budget: float,
-        price_low: float,
-        price_high: float,
-        min_notional: float,
     ) -> None:
-        self.orders = self.order_handler.prepare_orders(
-            budget=budget,
-            price_low=price_low,
-            price_high=price_high,
-            min_notional=min_notional,
-        )
         self.orders = await self.order_handler.create_orders(
             side=side, orders=self.orders, symbol=symbol
         )
