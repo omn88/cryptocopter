@@ -1,4 +1,5 @@
 import asyncio
+import pprint
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -77,7 +78,9 @@ class OrderHandler:
                 )
             )
 
-        self.strategy_logger.info("Prepared orders: %s", orders)
+        self.strategy_logger.info(
+            "Orders created, ids:\n%s", pprint.pformat([order for order in orders])
+        )
         return orders
 
     async def create_order(
@@ -138,9 +141,8 @@ class OrderHandler:
             ]
         )
         self.strategy_logger.info(
-            "Orders created, ids: %s", [order.order_id for order in orders]
+            "Orders created, ids:\n%s", pprint.pformat(list(results))
         )
-
         # await self.gui_handler.create_orders(
         #     orders=results,
         #     symbol=symbol,

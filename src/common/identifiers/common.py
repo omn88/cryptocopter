@@ -139,7 +139,7 @@ class Order:
     realized_quantity: float = 0
     open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
-    status: str = ORDER_STATUS_NEW
+    status: str = "PREPARED"
     order_type: str = ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:

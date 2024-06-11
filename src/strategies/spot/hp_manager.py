@@ -79,7 +79,7 @@ class HpManager(BaseStrategy):
                 "source": State.OPEN,
                 "dest": State.CLOSED,
                 "conditions": "conditions_for_all_orders_filled",
-                "before": "handle_position_closure",
+                "before": "close_position",
             },
             {
                 "trigger": "process_order",
@@ -99,29 +99,29 @@ class HpManager(BaseStrategy):
                 "trigger": "process_ticker",
                 "source": [State.NEW, State.STAGNATED],
                 "dest": State.OPEN,
-                "conditions": "conditions_for_sending_long_orders",
-                "after": "open_long",
+                "conditions": "conditions_for_sending_buy_orders",
+                "after": "send_buy_orders",
             },
             {
                 "trigger": "process_ticker",
                 "source": [State.NEW, State.STAGNATED],
                 "dest": State.OPEN,
-                "conditions": "conditions_for_sending_short_orders",
-                "after": "open_short",
+                "conditions": "conditions_for_sending_sell_orders",
+                "after": "send_sell_orders",
             },
             {
                 "trigger": "process_ticker",
                 "source": State.OPEN,
                 "dest": State.STAGNATED,
-                "conditions": "conditions_for_cancelling_long_orders",
-                "after": "cancel_long",
+                "conditions": "conditions_for_cancelling_buy_orders",
+                "after": "cancel_buy_orders",
             },
             {
                 "trigger": "process_ticker",
                 "source": State.OPEN,
                 "dest": State.STAGNATED,
-                "conditions": "conditions_for_cancelling_short_orders",
-                "after": "cancel_short",
+                "conditions": "conditions_for_cancelling_sell_orders",
+                "after": "cancel_sell_orders",
             },
             {
                 "trigger": "process_ticker",
@@ -137,15 +137,13 @@ class HpManager(BaseStrategy):
             f"gui_handler={self.gui_handler}, logger={self.logger}, "
             f"balance={self.balance}, state={self.state}, "
             f"trigger_orders_price={self.trigger_orders_price}, "
-            f"min_order_values={self.min_order_values}, position_handler={self.position_handler})"
+            f"position_handler={self.position_handler})"
         )
 
     async def initialize(self):
-        # Now you can await the _get_minimum_order_values method
         self.config.min_notional = await self._get_minimum_notional_for_symbol(
             symbol=self.config.symbol
         )
-        # Additional initialization code can go here
 
     def calculate_trigger_orders_price(self):
         return (
@@ -259,7 +257,7 @@ class HpManager(BaseStrategy):
         )
         return condition
 
-    def conditions_for_sending_long_orders(self, *args, **kwargs) -> bool:
+    def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.LONG
@@ -267,30 +265,28 @@ class HpManager(BaseStrategy):
         )
 
         self.logger.info(
-            "Open basic long: %s, state: %s signal: %s",
+            "Send buy orders: %s, state: %s",
             condition,
             self.state,
-            self.signal_update.signal,
         )
 
         return condition
 
-    def conditions_for_sending_short_orders(self, *args, **kwargs) -> bool:
+    def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state in [State.NEW, State.STAGNATED]
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price >= self.trigger_orders_price
         )
         self.logger.info(
-            "Open basic short: %s, state: %s signal: %s",
+            "Open basic short: %s, state: %s",
             condition,
             self.state,
-            self.signal_update.signal,
         )
 
         return condition
 
-    def conditions_for_cancelling_long_orders(self, *args, **kwargs) -> bool:
+    def conditions_for_cancelling_buy_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
             and self.position_handler.side == PositionSide.LONG
@@ -306,7 +302,7 @@ class HpManager(BaseStrategy):
 
         return condition
 
-    def conditions_for_cancelling_short_orders(self, *args, **kwargs) -> bool:
+    def conditions_for_cancelling_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
             and self.position_handler.side == PositionSide.SHORT
@@ -322,32 +318,32 @@ class HpManager(BaseStrategy):
 
         return condition
 
-    async def open_long(self, *args, **kwargs) -> None:
-        self.logger.debug("Opening %s", self.config.side.value)
+    async def send_buy_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Opening %s %s", self.config.symbol, self.config.side.value)
 
         await self.position_handler.open_position(
             side=self.config.side,
             symbol=self.config.symbol,
         )
 
-    async def open_short(self, *args, **kwargs) -> None:
-        self.logger.debug("Opening %s", self.config.side.value)
+    async def send_sell_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Opening %s %s", self.config.symbol, self.config.side.value)
 
         await self.position_handler.open_position(
             side=self.config.side,
             symbol=self.config.symbol,
         )
 
-    async def cancel_long(self, *args, **kwargs) -> None:
+    async def cancel_buy_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.side)
 
         await self.position_handler.cancel_position()
 
-    async def cancel_short(self, *args, **kwargs) -> None:
+    async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.side)
         await self.position_handler.cancel_position()
 
-    async def handle_position_closure(self, *args, **kwargs) -> None:
+    async def close_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
 
     async def handle_ticker(self, *args, **kwargs) -> None:
@@ -400,10 +396,6 @@ class HpManager(BaseStrategy):
 
     async def handle_account(self, *args, **kwargs):
         self.logger.info("Account update: %s", self.account_update.account_update)
-
-    async def enter_flat(self, *args, **kwargs):
-        self.logger.info("Entering Flat")
-        # self.df_handler.update_position_in_df(update=State.FLAT)
 
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")

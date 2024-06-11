@@ -1,11 +1,10 @@
 import asyncio
 import logging
 from typing import Dict
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
-
 from src.common.identifiers.common import (
     Event,
     EventName,
@@ -70,6 +69,7 @@ async def spot_buy(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
+        min_notional=10,
     )
 
     strategy = HpManager(
@@ -79,7 +79,6 @@ async def spot_buy(mock_AsyncClient):
         gui_handler=gui_handler,
         logger=logger,
     )
-    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
 
     state_machine = TradingStateMachine(strategy=strategy)
 
@@ -96,6 +95,7 @@ async def spot_sell(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
+        min_notional=10,
     )
 
     gui_handler = AsyncMock()
@@ -107,7 +107,6 @@ async def spot_sell(mock_AsyncClient):
         gui_handler=gui_handler,
         logger=logger,
     )
-    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
 
     state_machine = TradingStateMachine(strategy=strategy)
 

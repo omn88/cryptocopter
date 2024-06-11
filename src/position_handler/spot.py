@@ -64,7 +64,7 @@ class PositionHandler:
         #     strategy_name=self.config.name, position=self.position
         # )
         self.status = PositionStatus.OPEN
-        self.strategy_logger.info("Position opened successfully: %s", self)
+        self.strategy_logger.info("Position opened successfully.")
 
     async def cancel_position(self) -> None:
         self.strategy_logger.info("Enter cancel position")

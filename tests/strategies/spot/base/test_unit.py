@@ -15,7 +15,7 @@ from src.common.identifiers.common import PositionSide
 async def test_initialize_strategy(spot_sell):
     strategy = spot_sell.strategy
     await strategy.initialize()
-    assert strategy.min_order_values is not None
+    assert strategy.config.min_notional is not None
     assert strategy.state == State.NEW
 
 
@@ -67,23 +67,23 @@ async def test_conditions_for_order_partially_filled(spot_sell):
     assert strategy.conditions_for_order_partially_filled()
 
 
-async def test_conditions_for_sending_long_orders(spot_buy):
+async def test_conditions_for_sending_buy_orders(spot_buy):
     strategy = spot_buy.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.LONG
     strategy.ticker_update = MagicMock(last_price=1300)
-    assert strategy.conditions_for_sending_long_orders()
+    assert strategy.conditions_for_sending_buy_orders()
 
 
-async def test_conditions_for_sending_short_orders(spot_sell):
+async def test_conditions_for_sending_sell_orders(spot_sell):
     strategy = spot_sell.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.SHORT
     strategy.ticker_update = MagicMock(last_price=1500)
-    assert strategy.conditions_for_sending_short_orders()
+    assert strategy.conditions_for_sending_sell_orders()
 
 
-async def test_conditions_for_cancelling_long_orders(spot_buy):
+async def test_conditions_for_cancelling_buy_orders(spot_buy):
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
     strategy.position_handler.side = PositionSide.LONG
@@ -91,14 +91,14 @@ async def test_conditions_for_cancelling_long_orders(spot_buy):
 
     # Condition met
     strategy.ticker_update = MagicMock(last_price=1415)
-    assert strategy.conditions_for_cancelling_long_orders() is True
+    assert strategy.conditions_for_cancelling_buy_orders() is True
 
     # Condition not met
     strategy.ticker_update = MagicMock(last_price=1414)
-    assert strategy.conditions_for_cancelling_long_orders() is False
+    assert strategy.conditions_for_cancelling_buy_orders() is False
 
 
-async def test_conditions_for_cancelling_short_orders(spot_sell):
+async def test_conditions_for_cancelling_sell_orders(spot_sell):
     strategy = spot_sell.strategy
     strategy.state = State.OPEN
     strategy.config.side = PositionSide.SHORT
@@ -111,13 +111,13 @@ async def test_conditions_for_cancelling_short_orders(spot_sell):
     strategy.ticker_update = MagicMock(
         last_price=989
     )  # price_low * (1 - order_trigger / 100) - 1
-    assert strategy.conditions_for_cancelling_short_orders() is True
+    assert strategy.conditions_for_cancelling_sell_orders() is True
 
     # Condition not met
     strategy.ticker_update = MagicMock(
         last_price=991
     )  # price_low * (1 - order_trigger / 100)
-    assert strategy.conditions_for_cancelling_short_orders() is False
+    assert strategy.conditions_for_cancelling_sell_orders() is False
 
 
 async def test_handle_ticker(spot_buy):
