@@ -52,11 +52,11 @@ class OrderHandler:
         orders = []
 
         # Define the number of orders
-        max_num_orders = 11  # Number of desired orders
+        max_num_orders = 3  # Number of desired orders
         min_budget_for_max_orders = max_num_orders * min_notional
 
         if budget >= min_budget_for_max_orders:
-            number_of_orders = 11
+            number_of_orders = 3
             order_quantity_stable = budget / max_num_orders
         else:
             order_quantity_stable = min_notional

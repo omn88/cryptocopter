@@ -10,7 +10,7 @@ from binance.enums import (
 )
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import State, StrategyConfig
-from src.common.identifiers.common import BinanceClient, PositionSide
+from src.common.identifiers.common import BinanceClient, PositionSide, Signal, SignalUpdate
 from src.gui.gui_handler.spot import GuiHandler
 from src.position_handler.spot import PositionHandler
 from src.strategies.base import BaseStrategy
@@ -345,6 +345,7 @@ class HpManager(BaseStrategy):
 
     async def close_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
+        self.state = State.CLOSED
 
     async def handle_ticker(self, *args, **kwargs) -> None:
         date_time_now = datetime.now()
@@ -404,8 +405,15 @@ class HpManager(BaseStrategy):
         self.position_handler.next_monitor_position_time = datetime.now() + timedelta(
             hours=1
         )
-
         await self.position_handler.handle_order_filled(order_update=self.order_update)
+
+        if all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.position_handler.orders
+            ):
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            self.logger.info("All orders filled, sending: %s", signal)
+            await self.queue.put(SignalUpdate(signal=signal))
 
     async def handle_order_partially_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order partially filled")

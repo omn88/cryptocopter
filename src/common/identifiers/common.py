@@ -73,6 +73,7 @@ class TickerUpdate(NamedTuple):
 
 
 class Signal(Enum):
+    HP_ALL_ORDERS_FILLED = "HP_ALL_ORDERS_FILLED"
     LONG = "LONG"
     LONG_EXT = "LONG_EXT"
     SHORT = "SHORT"
@@ -81,6 +82,7 @@ class Signal(Enum):
     SHORT_SPECIAL = "SHORT_SPECIAL"
     CLOSE_SPECIAL = "CLOSE_SPECIAL"
     NULL = "NULL"
+
 
 
 class SignalUpdate(NamedTuple):
