@@ -9,12 +9,12 @@ from src.common.identifiers.common import (
     OrderUpdate,
     PositionSide,
     PositionStatus,
-    SignalUpdate,
 )
 from src.common.identifiers.futures import (
     Position,
     PositionMode,
     StrategyConfig,
+    SignalUpdate,
 )
 from src.gui.gui_handler.futures import GuiHandler
 from src.order_handler.futures import OrderHandler

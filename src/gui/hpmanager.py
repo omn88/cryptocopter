@@ -13,12 +13,10 @@ from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
-    Event,
-    EventName,
     PositionSide,
     PositionStatus,
 )
-from src.common.identifiers.spot import StrategyConfig
+from src.common.identifiers.spot import Event, EventName, StrategyConfig
 from src.gui.gui_handler.spot import GuiHandler
 from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData

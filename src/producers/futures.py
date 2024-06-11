@@ -6,11 +6,9 @@ import pandas
 import numpy
 from src.common.identifiers.common import (
     AccountUpdate,
-    EventName,
-    Event,
     OrderUpdate,
-    KlineUpdate,
 )
+from src.common.identifiers.futures import Event, EventName, KlineUpdate
 from src.gui.identifiers.futures import PriceData
 
 logger = logging.getLogger("producer")

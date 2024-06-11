@@ -5,11 +5,9 @@ from logging_config import StrategyLogger
 from src.common.common import futures_get_balance
 from src.common.identifiers.common import (
     BinanceClient,
-    Event,
-    EventName,
     SentinelUpdate,
 )
-from src.common.identifiers.futures import StrategyConfig
+from src.common.identifiers.futures import Event, EventName, StrategyConfig
 from src.common.initialize_trading_environment import (
     change_margin_type,
     futures_prepare_producers,
@@ -18,9 +16,9 @@ from src.df_handler.futures import DfHandler
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import AccountData
-from src.strategies.base import BaseStrategy
+from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
-from src.workers import worker
+from src.workers import worker_futures
 from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
@@ -54,7 +52,7 @@ class TradingSystem:
         self.stop_producers_event = asyncio.Event()
         self.balance = None
         self.state_machine: Optional[TradingStateMachine] = None
-        self.strategy: Optional[BaseStrategy] = None
+        self.strategy: Optional[BaseFuturesStrategy] = None
 
     async def initialize(self):
         await change_margin_type(
@@ -99,7 +97,7 @@ class TradingSystem:
         # is this sleep needed?
         await asyncio.sleep(5)
         if self.state_machine:
-            await worker.worker(state_machine=self.state_machine, logger=logger)
+            await worker_futures.worker(state_machine=self.state_machine, logger=logger)
 
     async def start_trading(self):
         await asyncio.gather(

@@ -1,6 +1,5 @@
 import logging
 
-
 from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
@@ -10,10 +9,10 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 
-from src.common.identifiers.common import OrderUpdate, Signal
-from src.common.identifiers.futures import State, Order
-from src.strategies.base import BaseStrategy
-from tests.common import (
+from src.common.identifiers.common import OrderUpdate
+from src.common.identifiers.futures import Signal, State, Order
+from src.strategies.futures.base import BaseFuturesStrategy
+from tests.futures import (
     start_long,
     first_order_filled,
     second_order_filled,
@@ -607,7 +606,7 @@ async def test_long_all_orders_filled_then_liquidation(base):
 
 
 async def test_long_all_orders_filled_then_short_first_order_filled(base):
-    assert isinstance(base.strategy, BaseStrategy)
+    assert isinstance(base.strategy, BaseFuturesStrategy)
 
     base.strategy.client.futures_position_information.side_effect = (
         get_position_information_when_long_then_short()

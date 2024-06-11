@@ -5,13 +5,14 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
-from src.common.identifiers.common import (
+from src.common.identifiers.futures import (
     Event,
     EventName,
     PositionSide,
     Signal,
     SignalUpdate,
 )
+from src.common.identifiers.common import PositionSide
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures

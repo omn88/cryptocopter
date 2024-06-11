@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -9,16 +10,26 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
-from src.common.identifiers.spot import State, StrategyConfig
-from src.common.identifiers.common import BinanceClient, PositionSide, Signal, SignalUpdate
+from src.common.identifiers.spot import (
+    Signal,
+    SignalUpdate,
+    State,
+    StrategyConfig,
+    TickerUpdate,
+)
+from src.common.identifiers.common import (
+    AccountUpdate,
+    BinanceClient,
+    OrderUpdate,
+    PositionSide,
+)
 from src.gui.gui_handler.spot import GuiHandler
 from src.position_handler.spot import PositionHandler
-from src.strategies.base import BaseStrategy
 
 STAGNATION_LIMIT = 8
 
 
-class HpManager(BaseStrategy):
+class HpManager:
     def __init__(
         self,
         client: BinanceClient,
@@ -27,7 +38,10 @@ class HpManager(BaseStrategy):
         logger: StrategyLogger,
         balance: float,
     ):
-        super().__init__(client, logger, balance)
+        self.client = client
+        self.logger = logger
+        self.balance = balance
+        self.queue: asyncio.Queue = asyncio.Queue()
         self.gui_handler = gui_handler
         self.config = config
         self.position_handler = PositionHandler(
@@ -43,6 +57,12 @@ class HpManager(BaseStrategy):
             State.STAGNATED,
             State.CLOSED,
         ]
+
+        # Initialize any other common attributes
+        self.signal_update: SignalUpdate = SignalUpdate()
+        self.order_update: OrderUpdate = OrderUpdate()
+        self.ticker_update: TickerUpdate = TickerUpdate()
+        self.account_update: AccountUpdate = AccountUpdate(account_update={})
 
         self.trigger_orders_price = self.calculate_trigger_orders_price()
 
@@ -408,9 +428,9 @@ class HpManager(BaseStrategy):
         await self.position_handler.handle_order_filled(order_update=self.order_update)
 
         if all(
-                order.status == ORDER_STATUS_FILLED
-                for order in self.position_handler.orders
-            ):
+            order.status == ORDER_STATUS_FILLED
+            for order in self.position_handler.orders
+        ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
             await self.queue.put(SignalUpdate(signal=signal))

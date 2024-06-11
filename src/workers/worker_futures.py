@@ -1,8 +1,7 @@
 from logging_config import StrategyLogger
-from src.common.identifiers.common import KlineUpdate, SignalUpdate, TickerUpdate
+from src.common.identifiers.futures import KlineUpdate, SignalUpdate, Event, EventName
 from src.strategies.futures.base import BaseFuturesStrategy
-from src.strategies.spot.hp_manager import HpManager
-from src.common.identifiers.common import AccountUpdate, EventName, Event, OrderUpdate
+from src.common.identifiers.common import AccountUpdate, OrderUpdate
 from src.workers.trading_state_machine import TradingStateMachine
 
 
@@ -29,20 +28,6 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
                 5,
                 state_machine.strategy.df_handler.df.tail(5).to_string(),
             )
-
-        if EventName.TICKER == event.name:
-            assert isinstance(event.content, TickerUpdate)
-            assert isinstance(state_machine.strategy, HpManager)
-            state_machine.strategy.ticker_update = event.content
-
-            logger.info(
-                "Last price for %s: %s, Order trigger price: %s",
-                state_machine.strategy.ticker_update.symbol,
-                state_machine.strategy.ticker_update.last_price,
-                state_machine.strategy.trigger_orders_price,
-            )
-
-            await state_machine.strategy.process_ticker()  # type: ignore
 
         elif EventName.ORDER == event.name:
             logger.info("Entering order event: %s", event)

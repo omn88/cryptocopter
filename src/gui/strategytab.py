@@ -14,7 +14,7 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers.common import EventName, Event
+from src.common.identifiers.futures import EventName, Event
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import (
     AccountData,

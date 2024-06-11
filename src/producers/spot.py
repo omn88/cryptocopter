@@ -2,16 +2,8 @@ import asyncio
 import logging
 
 from binance import BinanceSocketManager
-
-
-from src.common.identifiers.common import (
-    AccountUpdate,
-    EventName,
-    Event,
-    OrderUpdate,
-    TickerUpdate,
-)
-
+from src.common.identifiers.common import AccountUpdate, OrderUpdate
+from src.common.identifiers.spot import EventName, Event, TickerUpdate
 
 logger = logging.getLogger("spot_producers")
 

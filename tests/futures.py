@@ -8,11 +8,11 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.common import signal_to_state
-from src.common.identifiers.common import Order, OrderUpdate, Signal, SignalUpdate
-from src.common.identifiers.futures import Position, State
+from src.common.identifiers.common import Order, OrderUpdate
+from src.common.identifiers.futures import Position, Signal, SignalUpdate, State
 
 
-logger = logging.getLogger("common")
+logger = logging.getLogger("common_futures")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:
@@ -273,148 +273,6 @@ async def start_short(base) -> None:
         df=base.df_handler.df,
         number_of_orders=base.position_handler.config.number_of_orders,
     )
-
-
-def get_buy_orders():
-    return [
-        {
-            "orderId": 1,
-            "price": 1000.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 2,
-            "price": 1040.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 3,
-            "price": 1080.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 4,
-            "price": 1120.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 5,
-            "price": 1160.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 6,
-            "price": 1200.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 7,
-            "price": 1240.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 8,
-            "price": 1280.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 9,
-            "price": 1320.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 10,
-            "price": 1360.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 11,
-            "price": 1400.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-    ]
-
-
-def get_sell_orders():
-    return [
-        {
-            "orderId": 1,
-            "price": 1000.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 2,
-            "price": 1040.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 3,
-            "price": 1080.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 4,
-            "price": 1120.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 5,
-            "price": 1160.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 6,
-            "price": 1200.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 7,
-            "price": 1240.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 8,
-            "price": 1280.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 9,
-            "price": 1320.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 10,
-            "price": 1360.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-        {
-            "orderId": 11,
-            "price": 1400.00,
-            "status": ORDER_STATUS_NEW,
-            "updateTime": 1566818724722,
-        },
-    ]
 
 
 def get_orders_long():

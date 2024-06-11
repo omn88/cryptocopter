@@ -29,7 +29,7 @@ from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
-from src.common.identifiers.common import BinanceClient, EventName, Event
+from src.common.identifiers.common import BinanceClient
 from src.common.database import Database
 
 logger = logging.getLogger("async_app")
