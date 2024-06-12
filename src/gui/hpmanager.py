@@ -67,7 +67,7 @@ class HpManager(BoxLayout):
         config = StrategyConfig(
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
             symbol=symbol,
-            side=PositionSide.LONG.value
+            side=PositionSide.LONG
             if side == PositionSide.LONG.value
             else PositionSide.SHORT,
             price_low=float(price_low),
@@ -186,8 +186,6 @@ class HpManager(BoxLayout):
                 self.strategy_logger.info("Received position data: %s", data)
                 self.update_position(data=data)
 
-                self.filter_records
-
     def update_position(self, data: PositionData) -> None:
         if any(record["system_id"] == data.system_id for record in self.active_records):
             self.strategy_logger.info(
@@ -270,10 +268,18 @@ class HpManager(BoxLayout):
                     )
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
-                    self.position_count -= 1
                     self.strategy_logger.info("Archiving price level: %s", position)
 
+                if data.status == PositionStatus.OPEN.value:
+                    self.strategy_logger.info(
+                        "Will remove from idle and add to open as it is activated"
+                    )
+                    self.idle_records.remove(position)
+                    self.active_records.append(position)
+                    self.strategy_logger.info("Activating price level: %s", position)
+
         self.filter_records("idle", "All")
+        self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
     def filter_records(self, tab, symbol_filter):

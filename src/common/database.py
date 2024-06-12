@@ -213,7 +213,7 @@ class Database:
                     (
                         config.system_id,
                         config.symbol,
-                        config.side,
+                        config.side.value,
                         config.price_low,
                         config.price_high,
                         config.order_trigger,

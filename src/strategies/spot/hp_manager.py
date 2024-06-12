@@ -300,7 +300,12 @@ class HpManager:
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price <= self.trigger_orders_price
         )
-        self.logger.info("Send buy orders: %s, state: %s", condition, self.state)
+        self.logger.info(
+            "Send buy orders: %s, side: %s, state: %s",
+            condition,
+            self.config.side,
+            self.state,
+        )
 
         return condition
 
@@ -316,13 +321,14 @@ class HpManager:
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.state in [State.NEW, State.STAGNATED]
+            self.state == State.NEW
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price >= self.trigger_orders_price
         )
         self.logger.info(
-            "Open basic short: %s, state: %s",
+            "Send sell orders: %s, side: %s, state: %s",
             condition,
+            self.config.side,
             self.state,
         )
 
@@ -363,7 +369,7 @@ class HpManager:
         )
         self.logger.info(
             "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.config.side.value,
+            self.position_handler.config.side,
             condition,
             self.ticker_update.last_price,
         )
