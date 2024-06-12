@@ -41,9 +41,7 @@ class PositionHandler:
         self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
 
         self.state: State = State.NEW
-        self.side: PositionSide = PositionSide.FLAT
         self.status: PositionStatus = PositionStatus.NEW
-        self.opened: bool = False
 
     async def open_position(
         self,
@@ -72,7 +70,7 @@ class PositionHandler:
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol,
             orders=self.orders,
-            side=self.side,
+            side=self.config.side,
         )
 
         # await self.gui_handler.update_position(position=self.position)
@@ -86,10 +84,16 @@ class PositionHandler:
         for order in self.orders:
             if order_update.order_id == order.order_id:
                 order.status = order_update.status
-                order.price = order_update.price
-                order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
+                order.quantity_stable -= (
+                    order_update.price * order_update.last_filled_quantity
+                )
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
+
+        self.stagnation_counter = 0
+        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
+            hours=1
+        )
 
         #         await self.gui_handler.update_order(
         #             order=order,
@@ -109,6 +113,11 @@ class PositionHandler:
                 order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
                 self.strategy_logger.info("Order: %s filled", order.order_id)
+
+        self.stagnation_counter = 0
+        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
+            hours=1
+        )
 
         #         await self.gui_handler.update_order(
         #             order=order,

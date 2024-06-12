@@ -79,7 +79,7 @@ class OrderHandler:
             )
 
         self.strategy_logger.info(
-            "Orders created, ids:\n%s", pprint.pformat([order for order in orders])
+            "Orders created, ids:\n%s", pprint.pformat(list(orders))
         )
         return orders
 

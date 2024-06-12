@@ -1,6 +1,5 @@
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import EventName, Event, SignalUpdate, TickerUpdate
-from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.common import AccountUpdate, OrderUpdate
 from src.workers.trading_state_machine import TradingStateMachine
@@ -48,14 +47,6 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             assert isinstance(event.content, SignalUpdate)
             state_machine.strategy.signal_update = event.content
             await state_machine.strategy.process_signal()  # type: ignore
-
-            assert isinstance(state_machine.strategy, BaseFuturesStrategy)
-
-            logger.info(
-                "Last %s rows from main df: %s",
-                5,
-                state_machine.strategy.df_handler.df.tail(5).to_string(),
-            )
 
         elif EventName.SENTINEL == event.name:
             logger.info("Entering sentinel event -> Exiting worker")

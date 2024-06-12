@@ -86,7 +86,7 @@ async def test_conditions_for_sending_sell_orders(spot_sell):
 async def test_conditions_for_cancelling_buy_orders(spot_buy):
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
-    strategy.position_handler.side = PositionSide.LONG
+    strategy.position_handler.config.side = PositionSide.LONG
     strategy.position_handler.stagnation_counter = 8
 
     # Condition met
@@ -102,7 +102,7 @@ async def test_conditions_for_cancelling_sell_orders(spot_sell):
     strategy = spot_sell.strategy
     strategy.state = State.OPEN
     strategy.config.side = PositionSide.SHORT
-    strategy.position_handler.side = PositionSide.SHORT
+    strategy.position_handler.config.side = PositionSide.SHORT
     strategy.position_handler.stagnation_counter = 8
 
     print("order trigger ", strategy.trigger_orders_price)

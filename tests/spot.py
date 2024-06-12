@@ -1,6 +1,6 @@
 import logging
 
-from binance.enums import ORDER_STATUS_NEW
+from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
 
 
 logger = logging.getLogger("common_spot")
@@ -143,6 +143,29 @@ def get_sell_orders():
             "orderId": 11,
             "price": 1400.00,
             "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        },
+    ]
+
+
+def get_cancel_order():
+    return [
+        {
+            "orderId": 1,
+            "price": 1000.00,
+            "status": ORDER_STATUS_CANCELED,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 2,
+            "price": 1040.00,
+            "status": ORDER_STATUS_CANCELED,
+            "updateTime": 1566818724722,
+        },
+        {
+            "orderId": 3,
+            "price": 1080.00,
+            "status": ORDER_STATUS_CANCELED,
             "updateTime": 1566818724722,
         },
     ]

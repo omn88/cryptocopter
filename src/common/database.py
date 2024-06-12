@@ -186,14 +186,13 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO positions (id, symbol, state, side, status, opened, strategy_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO positions (id, symbol, state, side, status, strategy_id) VALUES (%s, %s, %s, %s, %s, %s)",
                     (
                         position.config.system_id,
                         position.config.symbol,
                         position.state,
-                        position.side,
+                        position.config.side,
                         position.status,
-                        position.opened,
                         strategy_id,
                     ),
                 )
