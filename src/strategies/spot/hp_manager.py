@@ -11,6 +11,8 @@ from binance.enums import (
 )
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import (
+    AccountPosition,
+    ExecutionReport,
     Signal,
     SignalUpdate,
     State,
@@ -18,10 +20,8 @@ from src.common.identifiers.spot import (
     TickerUpdate,
 )
 from src.common.identifiers.common import (
-    AccountUpdate,
     BinanceClient,
     Order,
-    OrderUpdate,
     PositionSide,
 )
 from src.gui.gui_handler.spot import GuiHandler
@@ -61,9 +61,9 @@ class HpManager:
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
-        self.order_update: OrderUpdate = OrderUpdate()
+        self.execution_report: ExecutionReport = ExecutionReport()
         self.ticker_update: TickerUpdate = TickerUpdate()
-        self.account_update: AccountUpdate = AccountUpdate(account_update={})
+        self.account_position: AccountPosition = AccountPosition()
 
         self.trigger_orders_price = self.calculate_trigger_orders_price()
 
@@ -212,67 +212,68 @@ class HpManager:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
-            self.order_update.order_type
+            self.execution_report.order_type
             in [
                 ORDER_TYPE_LIMIT,
                 ORDER_TYPE_MARKET,
             ]
-            and self.order_update.status == ORDER_STATUS_NEW
+            and self.execution_report.current_order_status == ORDER_STATUS_NEW
         )
         self.logger.info(
             "New order confirmation: %s, order type: %s order status: %s",
             condition,
-            self.order_update.order_type,
-            self.order_update.status,
+            self.execution_report.order_type,
+            self.execution_report.current_order_status,
         )
         return condition
 
     def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == ORDER_TYPE_LIMIT
-            and self.order_update.status == ORDER_STATUS_CANCELED
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
         )
         self.logger.info(
             "Order cancelled: %s, order update status: %s",
             condition,
-            self.order_update.status,
+            self.execution_report.current_order_status,
         )
         return condition
 
     def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
         condition = (
-            self.order_update.order_type == ORDER_TYPE_LIMIT
-            and self.order_update.status == ORDER_STATUS_EXPIRED
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
         )
         self.logger.info(
             "Order expired: %s, order update status: %s",
             condition,
-            self.order_update.status,
+            self.execution_report.current_order_status,
         )
         return condition
 
     def conditions_for_order_filled(self, *args, **kwargs):
         condition = (
-            self.order_update.order_type == ORDER_TYPE_LIMIT
-            and self.order_update.status == ORDER_STATUS_FILLED
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_FILLED
         )
 
         self.logger.info(
             "Order filled: %s, order status: %s",
             condition,
-            self.order_update.status,
+            self.execution_report.current_order_status,
         )
         return condition
 
     def conditions_for_order_partially_filled(self, *args, **kwargs):
         condition = (
-            self.order_update.order_type == ORDER_TYPE_LIMIT
-            and self.order_update.status == ORDER_STATUS_PARTIALLY_FILLED
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status
+            == ORDER_STATUS_PARTIALLY_FILLED
         )
         self.logger.info(
             "Order partially filled: %s, order update status: %s",
             condition,
-            self.order_update.status,
+            self.execution_report.current_order_status,
         )
         return condition
 
@@ -475,29 +476,29 @@ class HpManager:
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.orders:
-            if order.order_id == self.order_update.order_id:
-                order.status = self.order_update.status
-                order.order_id = self.order_update.order_id
+            if order.order_id == self.execution_report.order_id:
+                order.status = self.execution_report.current_order_status
+                order.order_id = self.execution_report.order_id
                 self.logger.info(
-                    "New order confirmation: %s", self.order_update.order_id
+                    "New order confirmation: %s", self.execution_report.order_id
                 )
 
     async def confirm_cancelled_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.orders:
-            if order.order_id == self.order_update.order_id:
-                order.status = self.order_update.status
-                order.order_id = self.order_update.order_id
+            if order.order_id == self.execution_report.order_id:
+                order.status = self.execution_report.current_order_status
+                order.order_id = self.execution_report.order_id
                 self.logger.info(
-                    "Cancelled order confirmation: %s", self.order_update.order_id
+                    "Cancelled order confirmation: %s", self.execution_report.order_id
                 )
 
     async def confirm_expired_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.orders:
-            if order.order_id == self.order_update.order_id:
-                order.status = self.order_update.status
-                order.order_id = self.order_update.order_id
+            if order.order_id == self.execution_report.order_id:
+                order.status = self.execution_report.current_order_status
+                order.order_id = self.execution_report.order_id
                 self.logger.info(
-                    "Expired order confirmation: %s", self.order_update.order_id
+                    "Expired order confirmation: %s", self.execution_report.order_id
                 )
                 # await self.gui_handler.update_order(
                 #     order=order,
@@ -506,12 +507,14 @@ class HpManager:
                 # )
 
     async def handle_account(self, *args, **kwargs):
-        self.logger.info("Account update: %s", self.account_update.account_update)
+        self.logger.info("Account update: %s", self.account_update)
 
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")
 
-        await self.position_handler.handle_order_filled(order_update=self.order_update)
+        await self.position_handler.handle_order_filled(
+            execution_report=self.execution_report
+        )
 
         if all(
             order.status == ORDER_STATUS_FILLED
@@ -525,5 +528,5 @@ class HpManager:
         self.logger.info("Entering handle order partially filled")
 
         await self.position_handler.handle_order_partially_filled(
-            order_update=self.order_update
+            execution_report=self.execution_report
         )

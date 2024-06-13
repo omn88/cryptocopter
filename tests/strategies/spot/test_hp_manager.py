@@ -7,8 +7,7 @@ from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
-from src.common.identifiers.common import OrderUpdate
-from src.common.identifiers.spot import State, TickerUpdate
+from src.common.identifiers.spot import ExecutionReport, State, TickerUpdate
 from src.strategies.spot.hp_manager import STAGNATION_LIMIT, HpManager
 from tests.spot import get_buy_orders, get_cancel_order, get_sell_orders
 
@@ -60,8 +59,8 @@ async def test_default_scenario_buy(spot_buy):
     # Simulate position closure
     for order in strategy.position_handler.orders:
         order.status = ORDER_STATUS_FILLED
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
     )
 
     # Simulate order confirmation
@@ -111,8 +110,8 @@ async def test_default_scenario_sell(spot_sell):
     # Simulate position closure
     for order in strategy.position_handler.orders:
         order.status = ORDER_STATUS_FILLED
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
     )
 
     # Simulate order confirmation
@@ -141,29 +140,37 @@ async def test_partial_order_fill_buy(spot_buy):
     )
 
     # Simulate partial fill
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_PARTIALLY_FILLED, order_id=1
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=1,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 1
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=1
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=1,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 2
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=2
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=2,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 3
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=3
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=3,
     )
     await strategy.process_order()
     assert all(
@@ -191,29 +198,37 @@ async def test_partial_order_fill_sell(spot_sell):
     )
 
     # Simulate partial fill
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_PARTIALLY_FILLED, order_id=1
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=1,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 1
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=1
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=1,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 2
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=2
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=2,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate full fill order 3
-    strategy.order_update = OrderUpdate(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED, order_id=3
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=3,
     )
     await strategy.process_order()
     assert all(
@@ -352,21 +367,21 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     )
 
     # Simulate full fill order 1
-    strategy.order_update = OrderUpdate(
+    strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
-        status=ORDER_STATUS_FILLED,
+        current_order_status=ORDER_STATUS_FILLED,
         order_id=1,
-        realized_quantity=strategy.position_handler.orders[0].quantity,
+        cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate partial fill
-    strategy.order_update = OrderUpdate(
+    strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
-        status=ORDER_STATUS_PARTIALLY_FILLED,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
         order_id=2,
-        realized_quantity=(strategy.position_handler.orders[1].quantity / 2),
+        cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -431,21 +446,21 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     )
 
     # Simulate full fill order 1
-    strategy.order_update = OrderUpdate(
+    strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
-        status=ORDER_STATUS_FILLED,
+        current_order_status=ORDER_STATUS_FILLED,
         order_id=1,
-        realized_quantity=strategy.position_handler.orders[0].quantity,
+        cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
 
     # Simulate partial fill
-    strategy.order_update = OrderUpdate(
+    strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
-        status=ORDER_STATUS_PARTIALLY_FILLED,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
         order_id=2,
-        realized_quantity=(strategy.position_handler.orders[1].quantity / 2),
+        cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import time
-from typing import Dict, NamedTuple
+from typing import NamedTuple
 
-from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from binance import AsyncClient
 
 
@@ -17,29 +17,6 @@ class PositionStatus(Enum):
     STAGNATED = "STAGNATED"
     CLOSING = "CLOSING"
     CLOSED = "CLOSED"
-
-
-@dataclass()
-class OrderUpdate:
-    status: str = ORDER_STATUS_NEW
-    price: float = 0
-    quantity: float = 0
-    realized_quantity: float = 0
-    last_filled_quantity: float = 0
-    order_id: int = 0
-    average_price: float = 0
-    order_type: str = ORDER_TYPE_LIMIT
-    symbol: str = ""
-
-    def __repr__(self) -> str:
-        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type}, symbol={self.symbol})"
-
-
-class AccountUpdate(NamedTuple):
-    account_update: Dict
-
-    def __repr__(self) -> str:
-        return f"AccountUpdate(kline={self.account_update})"
 
 
 class SentinelUpdate(NamedTuple):

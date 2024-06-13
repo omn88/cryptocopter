@@ -2,8 +2,14 @@ import asyncio
 import logging
 
 from binance import BinanceSocketManager
-from src.common.identifiers.common import AccountUpdate, OrderUpdate
-from src.common.identifiers.spot import EventName, Event, TickerUpdate
+from src.common.identifiers.spot import (
+    AccountPosition,
+    Balance,
+    EventName,
+    Event,
+    ExecutionReport,
+    TickerUpdate,
+)
 
 logger = logging.getLogger("spot_producers")
 
@@ -19,36 +25,77 @@ async def spot_user_socket(
         while not stop_event.is_set():
             try:
                 msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-                logger.info("From spot user: %s", msg)
-                if msg["e"] == "ACCOUNT_UPDATE":
-                    await queue.put(
-                        Event(
-                            name=EventName.ACCOUNT,
-                            content=AccountUpdate(account_update=msg),
-                        )
-                    )
-                elif msg["e"] == "ORDER_TRADE_UPDATE":
-                    order_info = msg["o"]
-                    await queue.put(
-                        Event(
-                            name=EventName.ORDER,
-                            content=OrderUpdate(
-                                symbol=order_info["s"],
-                                price=round(float(order_info["p"]), 1),
-                                average_price=round(float(order_info["ap"]), 1),
-                                quantity=round(float(order_info["z"]), 3),
-                                status=order_info["X"],
-                                order_id=int(order_info["i"]),
-                                order_type=order_info["o"],
-                                last_filled_quantity=round(float(order_info["l"]), 3),
-                                realized_quantity=round(float(order_info["z"]), 3),
-                            ),
-                        )
-                    )
+                logger.debug("[Event]: %s", msg)
+                event_type = msg.get("e")
+                if event_type == EventName.EXECUTION_REPORT.value:
+                    await handle_execution_report(msg, queue)
+                elif event_type == EventName.ACCOUNT_POSITION.value:
+                    await handle_outbound_account_position(msg, queue)
                 else:
                     logger.info("Unhandled message type: %s", msg)
             except asyncio.TimeoutError:
                 continue
+
+
+async def handle_execution_report(msg, queue):
+    report = ExecutionReport(
+        symbol=msg["s"],
+        client_order_id=msg["c"],
+        side=msg["S"],
+        order_type=msg["o"],
+        time_in_force=msg["f"],
+        quantity=float(msg["q"]),
+        price=float(msg["p"]),
+        stop_price=float(msg["P"]),
+        iceberg_quantity=float(msg["F"]),
+        order_list_id=msg["g"],
+        original_client_order_id=msg["C"],
+        current_execution_type=msg["x"],
+        current_order_status=msg["X"],
+        order_reject_reason=msg["r"],
+        order_id=int(msg["i"]),
+        last_executed_quantity=float(msg["l"]),
+        cumulative_filled_quantity=float(msg["z"]),
+        last_executed_price=float(msg["L"]),
+        commission_amount=float(msg["n"]) if msg["n"] else None,
+        commission_asset=msg["N"],
+        transaction_time=msg["T"],
+        trade_id=msg["t"],
+        ignore_1=msg["I"],
+        is_order_working=msg["w"],
+        is_trade_maker_side=msg["m"],
+        ignore_2=msg["M"],
+        order_creation_time=msg["O"],
+        cumulative_quote_asset_transacted_quantity=float(msg["Z"]),
+        last_quote_asset_transacted_quantity=float(msg["Y"]),
+        quote_order_quantity=float(msg["Q"]),
+        working_time=msg["W"],
+        self_trade_prevention_mode=msg["V"],
+    )
+    await queue.put(
+        Event(
+            name=EventName.EXECUTION_REPORT,
+            content=report,
+        )
+    )
+    logger.info("Execution report added to the queue: %s", report)
+
+
+async def handle_outbound_account_position(msg, queue):
+    balances = [
+        Balance(asset=b["a"], free=float(b["f"]), locked=float(b["l"]))
+        for b in msg["B"]
+    ]
+    account_position = AccountPosition(
+        event_time=msg["E"], last_update_time=msg["u"], balances=balances
+    )
+    await queue.put(
+        Event(
+            name=EventName.ACCOUNT_POSITION,
+            content=account_position,
+        )
+    )
+    logger.info("Account position added to the queue: %s", account_position)
 
 
 async def spot_ticker_socket(

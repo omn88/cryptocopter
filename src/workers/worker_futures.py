@@ -1,7 +1,13 @@
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import KlineUpdate, SignalUpdate, Event, EventName
+from src.common.identifiers.futures import (
+    KlineUpdate,
+    SignalUpdate,
+    Event,
+    EventName,
+    AccountUpdate,
+    OrderUpdate,
+)
 from src.strategies.futures.base import BaseFuturesStrategy
-from src.common.identifiers.common import AccountUpdate, OrderUpdate
 from src.workers.trading_state_machine import TradingStateMachine
 
 

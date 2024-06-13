@@ -4,11 +4,10 @@ from logging_config import StrategyLogger
 from src.common.identifiers.common import (
     BinanceClient,
     Order,
-    OrderUpdate,
     PositionSide,
     PositionStatus,
 )
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
 from src.gui.gui_handler.spot import GuiHandler
 from src.order_handler.spot import OrderHandler
 
@@ -80,13 +79,15 @@ class PositionHandler:
         # )
         self.status = PositionStatus.STAGNATED
 
-    async def handle_order_partially_filled(self, order_update: OrderUpdate) -> None:
+    async def handle_order_partially_filled(
+        self, execution_report: ExecutionReport
+    ) -> None:
         for order in self.orders:
-            if order_update.order_id == order.order_id:
-                order.status = order_update.status
-                order.realized_quantity = order_update.realized_quantity
+            if execution_report.order_id == order.order_id:
+                order.status = execution_report.current_order_status
+                order.realized_quantity = execution_report.cumulative_filled_quantity
                 order.quantity_stable -= (
-                    order_update.price * order_update.last_filled_quantity
+                    execution_report.price * execution_report.last_executed_quantity
                 )
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
 
@@ -105,13 +106,13 @@ class PositionHandler:
         #     strategy_name=self.config.name, position=self.position
         # )
 
-    async def handle_order_filled(self, order_update: OrderUpdate) -> None:
+    async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
-            if order_update.order_id == order.order_id:
-                order.status = order_update.status
-                order.price = order_update.price
-                order.quantity = order_update.quantity
-                order.realized_quantity = order_update.realized_quantity
+            if execution_report.order_id == order.order_id:
+                order.status = execution_report.current_order_status
+                order.price = execution_report.price
+                order.quantity = execution_report.quantity
+                order.realized_quantity = execution_report.cumulative_filled_quantity
                 self.strategy_logger.info("Order: %s filled", order.order_id)
 
         self.stagnation_counter = 0

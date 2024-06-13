@@ -1,7 +1,13 @@
 from logging_config import StrategyLogger
-from src.common.identifiers.spot import EventName, Event, SignalUpdate, TickerUpdate
+from src.common.identifiers.spot import (
+    AccountPosition,
+    EventName,
+    Event,
+    ExecutionReport,
+    SignalUpdate,
+    TickerUpdate,
+)
 from src.strategies.spot.hp_manager import HpManager
-from src.common.identifiers.common import AccountUpdate, OrderUpdate
 from src.workers.trading_state_machine import TradingStateMachine
 
 
@@ -30,15 +36,15 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
 
             await state_machine.strategy.process_ticker()  # type: ignore
 
-        elif EventName.ORDER == event.name:
+        elif EventName.EXECUTION_REPORT == event.name:
             logger.info("Entering order event: %s", event)
-            assert isinstance(event.content, OrderUpdate)
+            assert isinstance(event.content, ExecutionReport)
             state_machine.strategy.order_update = event.content
             await state_machine.strategy.process_order()  # type: ignore
 
-        elif EventName.ACCOUNT == event.name:
+        elif EventName.ACCOUNT_POSITION == event.name:
             logger.info("Entering account event: %s", event)
-            assert isinstance(event.content, AccountUpdate)
+            assert isinstance(event.content, AccountPosition)
             state_machine.strategy.account_update = event.content
             await state_machine.strategy.process_account()  # type: ignore
 

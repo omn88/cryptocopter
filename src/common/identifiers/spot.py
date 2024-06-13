@@ -1,13 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import NamedTuple, Union
+from typing import List, NamedTuple, Optional, Union
 
-from src.common.identifiers.common import (
-    AccountUpdate,
-    OrderUpdate,
-    PositionSide,
-    SentinelUpdate,
-)
+from src.common.identifiers.common import PositionSide, SentinelUpdate
 
 
 class State(Enum):
@@ -30,11 +25,87 @@ class SignalUpdate(NamedTuple):
 
 
 class EventName(Enum):
-    ACCOUNT = "Account"
-    ORDER = "Order"
+    ACCOUNT_POSITION = "outboundAccountPosition"
+    EXECUTION_REPORT = "executionReport"
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
+
+
+@dataclass
+class ExecutionReport:
+    symbol: str = ""
+    client_order_id: str = ""
+    side: str = ""
+    order_type: str = ""
+    time_in_force: str = ""
+    quantity: float = 0.0
+    price: float = 0.0
+    stop_price: float = 0.0
+    iceberg_quantity: float = 0.0
+    order_list_id: int = 0
+    original_client_order_id: str = ""
+    current_execution_type: str = ""
+    current_order_status: str = ""
+    order_reject_reason: str = ""
+    order_id: int = 0
+    last_executed_quantity: float = 0.0
+    cumulative_filled_quantity: float = 0.0
+    last_executed_price: float = 0.0
+    commission_amount: Optional[float] = None
+    commission_asset: Optional[str] = None
+    transaction_time: int = 0
+    trade_id: int = 0
+    ignore_1: int = 0
+    is_order_working: bool = False
+    is_trade_maker_side: bool = False
+    ignore_2: bool = False
+    order_creation_time: int = 0
+    cumulative_quote_asset_transacted_quantity: float = 0.0
+    last_quote_asset_transacted_quantity: float = 0.0
+    quote_order_quantity: float = 0.0
+    working_time: int = 0
+    self_trade_prevention_mode: str = ""
+
+    def __str__(self):
+        return (
+            f"ExecutionReport(symbol={self.symbol}, client_order_id={self.client_order_id}, side={self.side}, "
+            f"order_type={self.order_type}, time_in_force={self.time_in_force}, quantity={self.quantity}, "
+            f"price={self.price}, stop_price={self.stop_price}, iceberg_quantity={self.iceberg_quantity}, "
+            f"order_list_id={self.order_list_id}, original_client_order_id={self.original_client_order_id}, "
+            f"current_execution_type={self.current_execution_type}, current_order_status={self.current_order_status}, "
+            f"order_reject_reason={self.order_reject_reason}, order_id={self.order_id}, last_executed_quantity={self.last_executed_quantity}, "
+            f"cumulative_filled_quantity={self.cumulative_filled_quantity}, last_executed_price={self.last_executed_price}, "
+            f"commission_amount={self.commission_amount}, commission_asset={self.commission_asset}, transaction_time={self.transaction_time}, "
+            f"trade_id={self.trade_id}, ignore_1={self.ignore_1}, is_order_working={self.is_order_working}, is_trade_maker_side={self.is_trade_maker_side}, "
+            f"ignore_2={self.ignore_2}, order_creation_time={self.order_creation_time}, cumulative_quote_asset_transacted_quantity={self.cumulative_quote_asset_transacted_quantity}, "
+            f"last_quote_asset_transacted_quantity={self.last_quote_asset_transacted_quantity}, quote_order_quantity={self.quote_order_quantity}, "
+            f"working_time={self.working_time}, self_trade_prevention_mode={self.self_trade_prevention_mode})"
+        )
+
+
+@dataclass
+class Balance:
+    asset: str = ""
+    free: float = 0.0
+    locked: float = 0.0
+
+    def __str__(self):
+        return f"Balance(asset={self.asset}, free={self.free}, locked={self.locked})"
+
+
+@dataclass
+class AccountPosition:
+    event_time: int = 0
+    last_update_time: int = 0
+    balances: List[Balance] = field(default_factory=list)
+
+    def __str__(self):
+        balances_str = ", ".join(str(balance) for balance in self.balances)
+        return (
+            f"AccountPosition(event_time={self.event_time}, last_update_time={self.last_update_time}, "
+            f"balances=[{balances_str}])"
+        )
 
 
 class TickerUpdate(NamedTuple):
@@ -57,11 +128,7 @@ class TickerUpdate(NamedTuple):
 class Event(NamedTuple):
     name: EventName
     content: Union[
-        OrderUpdate,
-        AccountUpdate,
-        SignalUpdate,
-        TickerUpdate,
-        SentinelUpdate,
+        SignalUpdate, TickerUpdate, SentinelUpdate, ExecutionReport, AccountPosition
     ]
 
     def __repr__(self) -> str:

@@ -8,7 +8,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
-from src.common.identifiers.spot import State
+from src.common.identifiers.spot import ExecutionReport, State
 from src.common.identifiers.common import PositionSide
 
 
@@ -29,40 +29,40 @@ async def test_configuration_settings(spot_buy):
 
 async def test_conditions_for_new_order_confirmation(spot_sell):
     strategy = spot_sell.strategy
-    strategy.order_update = MagicMock(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_NEW
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_NEW
     )
     assert strategy.conditions_for_new_order_confirmation()
 
 
 async def test_conditions_for_order_cancellation(spot_sell):
     strategy = spot_sell.strategy
-    strategy.order_update = MagicMock(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_CANCELED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_CANCELED
     )
     assert strategy.conditions_for_order_cancellation()
 
 
 async def test_conditions_for_order_expiration(spot_sell):
     strategy = spot_sell.strategy
-    strategy.order_update = MagicMock(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_EXPIRED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
 
 
 async def test_conditions_for_order_filled(spot_sell):
     strategy = spot_sell.strategy
-    strategy.order_update = MagicMock(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_FILLED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
     )
     assert strategy.conditions_for_order_filled()
 
 
 async def test_conditions_for_order_partially_filled(spot_sell):
     strategy = spot_sell.strategy
-    strategy.order_update = MagicMock(
-        order_type=ORDER_TYPE_LIMIT, status=ORDER_STATUS_PARTIALLY_FILLED
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_PARTIALLY_FILLED
     )
     assert strategy.conditions_for_order_partially_filled()
 

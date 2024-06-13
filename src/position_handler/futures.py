@@ -6,11 +6,11 @@ from src.common.common import signal_to_state
 from src.common.identifiers.common import (
     BinanceClient,
     Order,
-    OrderUpdate,
     PositionSide,
     PositionStatus,
 )
 from src.common.identifiers.futures import (
+    OrderUpdate,
     Position,
     PositionMode,
     StrategyConfig,

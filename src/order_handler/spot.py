@@ -92,7 +92,7 @@ class OrderHandler:
                 resp = await self.client.create_order(
                     symbol=symbol,
                     price=round(order.price, 2),
-                    quantity=round(abs(order.quantity), 3),
+                    quantity=self.round_quantity(abs(order.quantity)),
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,

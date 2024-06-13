@@ -10,7 +10,7 @@ from binance.enums import (
 )
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
-from src.common.identifiers.common import AccountUpdate, BinanceClient, OrderUpdate
+from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import (
     KlineUpdate,
     PositionMode,
@@ -20,6 +20,8 @@ from src.common.identifiers.futures import (
     SignalUpdate,
     State,
     StrategyConfig,
+    AccountUpdate,
+    OrderUpdate,
 )
 from src.df_handler.futures import DfHandler
 from src.gui.gui_handler.futures import GuiHandler

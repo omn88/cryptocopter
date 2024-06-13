@@ -4,11 +4,13 @@ from typing import Dict
 from binance import BinanceSocketManager
 import pandas
 import numpy
-from src.common.identifiers.common import (
+from src.common.identifiers.futures import (
+    Event,
+    EventName,
+    KlineUpdate,
     AccountUpdate,
     OrderUpdate,
 )
-from src.common.identifiers.futures import Event, EventName, KlineUpdate
 from src.gui.identifiers.futures import PriceData
 
 logger = logging.getLogger("producer")
