@@ -33,6 +33,13 @@ class EventName(Enum):
 
 
 @dataclass
+class SymbolConfig:
+    min_notional: float = 0.0
+    lot_size: float = 0.0
+    precision: int = 0
+
+
+@dataclass
 class ExecutionReport:
     symbol: str = ""
     client_order_id: str = ""
@@ -145,7 +152,6 @@ class StrategyConfig:
     order_trigger: float = 0
     name: str = "HP Manager"
     budget: float = 0
-    min_notional: float = 0
 
     def __str__(self):
         return (

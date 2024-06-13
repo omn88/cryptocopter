@@ -74,7 +74,6 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
-            min_notional=0,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
@@ -210,7 +209,7 @@ class HpManager(BoxLayout):
         new_position = {
             "system_id": data.system_id,
             "symbol": data.symbol,
-            "side": str(data.side),
+            "side": str(data.side.value),
             "price_low": str(data.price_low),
             "price_high": str(data.price_high),
             "budget": str(data.budget),

@@ -85,9 +85,7 @@ def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -
         log_display_widget (Widget): The widget to display the logs in.
     """
     gui_log_handler = KivyGuiHandler(log_display_widget)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     gui_log_handler.setFormatter(formatter)
 
     strategy_logger.add_handler(gui_log_handler)

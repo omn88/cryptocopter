@@ -32,7 +32,7 @@ class PositionHandler:
             budget=config.budget,
             price_low=config.price_low,
             price_high=config.price_high,
-            min_notional=config.min_notional,
+            min_notional=self.order_handler.symbol_config.min_notional,
         )
 
         self.stagnation_counter: int = 0

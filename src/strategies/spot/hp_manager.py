@@ -179,9 +179,40 @@ class HpManager:
         ]
 
     async def initialize(self):
-        self.config.min_notional = await self._get_minimum_notional_for_symbol(
-            symbol=self.config.symbol
+        symbol_config = self.position_handler.order_handler.symbol_config
+        symbol_config.min_notional = await self._get_minimum_notional_for_symbol(
+            self.config.symbol
         )
+        (
+            symbol_config.lot_size,
+            symbol_config.precision,
+        ) = await self._get_lot_size_and_precision(self.config.symbol)
+
+    async def _get_minimum_notional_for_symbol(self, symbol):
+        exchange_info = await self.client.get_exchange_info()
+        for s in exchange_info["symbols"]:
+            if s["symbol"] == symbol:
+                for f in s["filters"]:
+                    if f["filterType"] == "MIN_NOTIONAL":
+                        return float(f["minNotional"])
+        return None
+
+    async def _get_lot_size_and_precision(self, symbol):
+        exchange_info = await self.client.get_exchange_info()
+        for s in exchange_info["symbols"]:
+            if s["symbol"] == symbol:
+                for f in s["filters"]:
+                    if f["filterType"] == "LOT_SIZE":
+                        lot_size = float(f["stepSize"])
+                        precision = self._calculate_precision(f["stepSize"])
+                        return lot_size, precision
+        return None, None
+
+    def _calculate_precision(self, step_size):
+        step_size_str = f"{float(step_size):.20f}".rstrip("0")
+        if "." in step_size_str:
+            return len(step_size_str.split(".")[1])
+        return 0
 
     def calculate_trigger_orders_price(self):
         return (
@@ -195,18 +226,6 @@ class HpManager:
                 2,
             )
         )
-
-    async def _get_minimum_notional_for_symbol(self, symbol: str) -> float:
-        exchange_info = await self.client.get_exchange_info()
-
-        for symbol_info in exchange_info["symbols"]:
-            if symbol_info["symbol"] == symbol:
-                # Iterate through filters to find minNotional filter
-                for symbol_filter in symbol_info["filters"]:
-                    if symbol_filter["filterType"] == "NOTIONAL":
-                        return float(symbol_filter["minNotional"])
-        safe_value = 10
-        return safe_value
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?

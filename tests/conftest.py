@@ -70,7 +70,6 @@ async def spot_buy(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
-        min_notional=10,
     )
 
     strategy = HpManager(
@@ -96,7 +95,6 @@ async def spot_sell(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
-        min_notional=10,
     )
 
     gui_handler = AsyncMock()

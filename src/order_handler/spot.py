@@ -14,6 +14,7 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
+from src.common.identifiers.spot import SymbolConfig
 from src.gui.gui_handler.spot import GuiHandler
 from src.common.identifiers.common import BinanceClient, Order, PositionSide
 
@@ -30,6 +31,7 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
         self.gui_handler = gui_handler
+        self.symbol_config: SymbolConfig = SymbolConfig()
 
     def round_quantity(self, quantity: float) -> float:
         if quantity >= 1:
@@ -92,7 +94,7 @@ class OrderHandler:
                 resp = await self.client.create_order(
                     symbol=symbol,
                     price=round(order.price, 2),
-                    quantity=self.round_quantity(abs(order.quantity)),
+                    quantity=round(abs(order.quantity), self.symbol_config.precision),
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
