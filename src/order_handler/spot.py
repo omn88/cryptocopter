@@ -15,7 +15,6 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import SymbolConfig
-from src.gui.gui_handler.spot import GuiHandler
 from src.common.identifiers.common import BinanceClient, Order, PositionSide
 
 
@@ -26,11 +25,9 @@ class OrderHandler:
         self,
         strategy_logger: StrategyLogger,
         client: BinanceClient,
-        gui_handler: GuiHandler,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
-        self.gui_handler = gui_handler
         self.symbol_config: SymbolConfig = SymbolConfig()
 
     def round_quantity(self, quantity: float) -> float:
@@ -145,12 +142,6 @@ class OrderHandler:
         self.strategy_logger.info(
             "Orders created, ids:\n%s", pprint.pformat(list(results))
         )
-        # await self.gui_handler.create_orders(
-        #     orders=results,
-        #     symbol=symbol,
-        #     side=side,
-        # )
-
         return results
 
     async def cancel_order(self, order_id: int, symbol: str) -> None:
@@ -170,16 +161,13 @@ class OrderHandler:
             raise exception
 
     async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str, side: PositionSide
+        self, orders: List[Order], symbol: str
     ) -> List[Order]:
         self.strategy_logger.info("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                # await self.gui_handler.update_order(
-                #     order=order, symbol=symbol, side=side
-                # )
 
                 self.strategy_logger.info(
                     "Cancelled partially filled order_id: %s", order.order_id

@@ -16,8 +16,12 @@ from src.common.identifiers.common import (
     PositionSide,
     PositionStatus,
 )
-from src.common.identifiers.spot import Event, EventName, StrategyConfig
-from src.gui.gui_handler.spot import GuiHandler
+from src.common.identifiers.spot import (
+    AccountPosition,
+    Event,
+    EventName,
+    StrategyConfig,
+)
 from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData
 from src.workers.strategy_executor import StrategyExecutor
@@ -42,18 +46,17 @@ class HpManager(BoxLayout):
         self,
         client: BinanceClient,
         db: Database,
-        gui_handler: GuiHandler,
         strategy_logger: StrategyLogger,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.client = client
         self.db = db
+        self.gui_handler: asyncio.Queue = asyncio.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
-        self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
         self.strategy_executor = StrategyExecutor(
-            client=client, logger=strategy_logger, gui_handler=gui_handler
+            client=client, logger=strategy_logger, gui_handler=self.gui_handler
         )
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
@@ -171,15 +174,15 @@ class HpManager(BoxLayout):
 
     async def update_ui(self):
         while True:
-            if self.gui_handler.ui_queue.qsize() == 0:
+            if self.gui_handler.qsize() == 0:
                 self.strategy_logger.debug("Awaiting new event")
                 await asyncio.sleep(1)
                 continue
-            data = await self.gui_handler.ui_queue.get()
+            data = await self.gui_handler.get()
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 self.strategy_logger.info("Received sentinel event, exiting")
                 return
-            if isinstance(data, AccountData):
+            if isinstance(data, AccountPosition):
                 pass  # handle account update
             if isinstance(data, PositionData):
                 self.strategy_logger.info("Received position data: %s", data)
@@ -209,7 +212,7 @@ class HpManager(BoxLayout):
         new_position = {
             "system_id": data.system_id,
             "symbol": data.symbol,
-            "side": str(data.side.value),
+            "side": str(data.side),
             "price_low": str(data.price_low),
             "price_high": str(data.price_high),
             "budget": str(data.budget),
@@ -267,18 +270,10 @@ class HpManager(BoxLayout):
                     )
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
+                    self.position_count -= 1
                     self.strategy_logger.info("Archiving price level: %s", position)
 
-                if data.status == PositionStatus.OPEN.value:
-                    self.strategy_logger.info(
-                        "Will remove from idle and add to open as it is activated"
-                    )
-                    self.idle_records.remove(position)
-                    self.active_records.append(position)
-                    self.strategy_logger.info("Activating price level: %s", position)
-
         self.filter_records("idle", "All")
-        self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
     def filter_records(self, tab, symbol_filter):

@@ -8,7 +8,6 @@ from src.common.identifiers.common import (
 )
 from src.common.identifiers.spot import Event, EventName, StrategyConfig
 from src.common.initialize_trading_environment import spot_prepare_producers
-from src.gui.gui_handler.spot import GuiHandler
 from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker_spot
 from src.workers.trading_state_machine import TradingStateMachine
@@ -21,7 +20,7 @@ class TradingSystem:
         self,
         system_id: str,
         client: BinanceClient,
-        gui_handler: GuiHandler,
+        gui_handler: asyncio.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
     ):

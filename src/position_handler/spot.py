@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from typing import List
 from logging_config import StrategyLogger
@@ -8,7 +9,6 @@ from src.common.identifiers.common import (
     PositionStatus,
 )
 from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
-from src.gui.gui_handler.spot import GuiHandler
 from src.order_handler.spot import OrderHandler
 
 
@@ -18,15 +18,14 @@ class PositionHandler:
         client: BinanceClient,
         strategy_logger: StrategyLogger,
         config: StrategyConfig,
-        gui_handler: GuiHandler,
+        gui_handler: asyncio.Queue,
     ):
         self.config = config
         self.strategy_logger = strategy_logger
-        self.gui_handler = gui_handler
+        self.gui_handler: asyncio.Queue = gui_handler
         self.order_handler = OrderHandler(
             client=client,
             strategy_logger=strategy_logger,
-            gui_handler=gui_handler,
         )
         self.orders: List[Order] = self.order_handler.prepare_orders(
             budget=config.budget,
@@ -56,10 +55,7 @@ class PositionHandler:
 
         self.state = State.OPEN
 
-        # Update GUI
-        # await self.gui_handler.update_price_level(
-        #     strategy_name=self.config.name, position=self.position
-        # )
+        await self.gui_handler.put(self.orders)
         self.status = PositionStatus.OPEN
         self.strategy_logger.info("Position opened successfully.")
 
@@ -69,7 +65,6 @@ class PositionHandler:
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol,
             orders=self.orders,
-            side=self.config.side,
         )
 
         # await self.gui_handler.update_position(position=self.position)

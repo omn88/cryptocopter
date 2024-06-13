@@ -24,7 +24,6 @@ from src.common.identifiers.common import (
     Order,
     PositionSide,
 )
-from src.gui.gui_handler.spot import GuiHandler
 from src.position_handler.spot import PositionHandler
 
 STAGNATION_LIMIT = 8
@@ -35,15 +34,14 @@ class HpManager:
         self,
         client: BinanceClient,
         config: StrategyConfig,
-        gui_handler: GuiHandler,
         logger: StrategyLogger,
         balance: float,
+        gui_handler: asyncio.Queue,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
         self.queue: asyncio.Queue = asyncio.Queue()
-        self.gui_handler = gui_handler
         self.config = config
         self.position_handler = PositionHandler(
             client=client,
@@ -72,7 +70,7 @@ class HpManager:
     def __str__(self):
         return (
             f"HpManager(client={self.client}, config={self.config}, "
-            f"gui_handler={self.gui_handler}, logger={self.logger}, "
+            f"logger={self.logger}, "
             f"balance={self.balance}, state={self.state}, "
             f"trigger_orders_price={self.trigger_orders_price}, "
             f"position_handler={self.position_handler})"
