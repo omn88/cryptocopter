@@ -2,16 +2,14 @@ import numpy
 
 from logging_config import StrategyLogger
 
-from src.common.identifiers.common import (
-    BinanceClient,
+from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.futures import (
+    State,
+    StrategyConfig,
     Event,
     EventName,
     Signal,
     SignalUpdate,
-)
-from src.common.identifiers.futures import (
-    State,
-    StrategyConfig,
 )
 from src.df_handler.futures import DfHandler
 from src.gui.gui_handler.futures import GuiHandler

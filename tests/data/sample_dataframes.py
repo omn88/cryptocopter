@@ -1,7 +1,7 @@
 from typing import List
 import logging
 
-from src.common.identifiers.common import Signal
+from src.common.identifiers.futures import Signal
 
 logger = logging.getLogger("sample_dataframes")
 

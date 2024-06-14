@@ -1,3 +1,4 @@
+import asyncio
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -9,21 +10,25 @@ from binance.enums import (
 )
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
-from src.common.identifiers.common import BinanceClient, Signal
+from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import (
+    KlineUpdate,
     PositionMode,
     PositionSide,
     PositionStatus,
+    Signal,
+    SignalUpdate,
     State,
     StrategyConfig,
+    AccountUpdate,
+    OrderUpdate,
 )
 from src.df_handler.futures import DfHandler
 from src.gui.gui_handler.futures import GuiHandler
 from src.position_handler.futures import PositionHandler
-from src.strategies.base import BaseStrategy
 
 
-class BaseFuturesStrategy(BaseStrategy):
+class BaseFuturesStrategy:
     def __init__(
         self,
         client: BinanceClient,
@@ -33,7 +38,11 @@ class BaseFuturesStrategy(BaseStrategy):
         logger: StrategyLogger,
         df_handler: DfHandler,
     ):
-        super().__init__(client, logger, balance)
+        self.client = client
+        self.logger = logger
+        self.balance = balance
+        self.queue: asyncio.Queue = asyncio.Queue()
+
         self.gui_handler = gui_handler
         self.df_handler = df_handler
         self.config = config
@@ -46,7 +55,17 @@ class BaseFuturesStrategy(BaseStrategy):
         self.state = State.FLAT
         self.mode = PositionMode.DCA
         self.states = [State.LONG, State.SHORT]
-        self.transitions = [
+
+        # Initialize any other common attributes
+        self.signal_update: SignalUpdate = SignalUpdate()
+        self.order_update: OrderUpdate = OrderUpdate()
+        self.kline_update: KlineUpdate = KlineUpdate()
+        self.account_update: AccountUpdate = AccountUpdate(account_update={})
+
+        self.transitions = self.get_base_transitions()
+
+    def get_base_transitions(self):
+        return [
             {
                 "trigger": "process_signal",
                 "source": "*",

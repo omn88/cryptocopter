@@ -8,11 +8,17 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.common import signal_to_state
-from src.common.identifiers.common import Order, OrderUpdate, Signal, SignalUpdate
-from src.common.identifiers.futures import Position, State
+from src.common.identifiers.common import Order
+from src.common.identifiers.futures import (
+    Position,
+    Signal,
+    SignalUpdate,
+    State,
+    OrderUpdate,
+)
 
 
-logger = logging.getLogger("common")
+logger = logging.getLogger("common_futures")
 
 
 def generate_signal(signal: Signal, df: pandas.DataFrame) -> SignalUpdate:

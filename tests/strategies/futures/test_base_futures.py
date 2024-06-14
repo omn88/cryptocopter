@@ -1,14 +1,12 @@
-from unittest.mock import patch
-from src.common.identifiers.common import Signal
-from src.common.identifiers.futures import State
-from tests.common import (
-    generate_signal,
+from src.common.identifiers.futures import Signal, State
+from tests.futures import (
     assert_dca_long_opened,
     assert_dca_short_opened,
-    get_orders_long,
-    get_orders_short,
-    get_orders_long_then_short,
+    generate_signal,
     get_cancel_order,
+    get_orders_long,
+    get_orders_long_then_short,
+    get_orders_short,
     get_orders_short_then_long,
     validation_orders,
 )

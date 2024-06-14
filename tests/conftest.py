@@ -1,18 +1,18 @@
 import asyncio
 import logging
 from typing import Dict
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
-
-from src.common.identifiers.common import (
+from src.common.identifiers.futures import (
     Event,
     EventName,
     PositionSide,
     Signal,
     SignalUpdate,
 )
+from src.common.identifiers.common import PositionSide
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
@@ -79,7 +79,6 @@ async def spot_buy(mock_AsyncClient):
         gui_handler=gui_handler,
         logger=logger,
     )
-    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
 
     state_machine = TradingStateMachine(strategy=strategy)
 
@@ -107,7 +106,6 @@ async def spot_sell(mock_AsyncClient):
         gui_handler=gui_handler,
         logger=logger,
     )
-    strategy.min_order_values = {"BTCUSDT": {"minNotional": 10}}
 
     state_machine = TradingStateMachine(strategy=strategy)
 

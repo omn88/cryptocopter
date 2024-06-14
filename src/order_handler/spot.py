@@ -1,4 +1,5 @@
 import asyncio
+import pprint
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -13,7 +14,7 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
-from src.gui.gui_handler.spot import GuiHandler
+from src.common.identifiers.spot import SymbolConfig
 from src.common.identifiers.common import BinanceClient, Order, PositionSide
 
 
@@ -24,11 +25,10 @@ class OrderHandler:
         self,
         strategy_logger: StrategyLogger,
         client: BinanceClient,
-        gui_handler: GuiHandler,
     ):
         self.strategy_logger = strategy_logger
         self.client = client
-        self.gui_handler = gui_handler
+        self.symbol_config: SymbolConfig = SymbolConfig()
 
     def round_quantity(self, quantity: float) -> float:
         if quantity >= 1:
@@ -51,11 +51,11 @@ class OrderHandler:
         orders = []
 
         # Define the number of orders
-        max_num_orders = 11  # Number of desired orders
+        max_num_orders = 3  # Number of desired orders
         min_budget_for_max_orders = max_num_orders * min_notional
 
         if budget >= min_budget_for_max_orders:
-            number_of_orders = 11
+            number_of_orders = 3
             order_quantity_stable = budget / max_num_orders
         else:
             order_quantity_stable = min_notional
@@ -77,7 +77,9 @@ class OrderHandler:
                 )
             )
 
-        self.strategy_logger.info("Prepared orders: %s", orders)
+        self.strategy_logger.info(
+            "Orders created, ids:\n%s", pprint.pformat(list(orders))
+        )
         return orders
 
     async def create_order(
@@ -89,7 +91,7 @@ class OrderHandler:
                 resp = await self.client.create_order(
                     symbol=symbol,
                     price=round(order.price, 2),
-                    quantity=round(abs(order.quantity), 3),
+                    quantity=round(abs(order.quantity), self.symbol_config.precision),
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
@@ -138,15 +140,8 @@ class OrderHandler:
             ]
         )
         self.strategy_logger.info(
-            "Orders created, ids: %s", [order.order_id for order in orders]
+            "Orders created, ids:\n%s", pprint.pformat(list(results))
         )
-
-        # await self.gui_handler.create_orders(
-        #     orders=results,
-        #     symbol=symbol,
-        #     side=side,
-        # )
-
         return results
 
     async def cancel_order(self, order_id: int, symbol: str) -> None:
@@ -166,16 +161,13 @@ class OrderHandler:
             raise exception
 
     async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str, side: PositionSide
+        self, orders: List[Order], symbol: str
     ) -> List[Order]:
         self.strategy_logger.info("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                # await self.gui_handler.update_order(
-                #     order=order, symbol=symbol, side=side
-                # )
 
                 self.strategy_logger.info(
                     "Cancelled partially filled order_id: %s", order.order_id

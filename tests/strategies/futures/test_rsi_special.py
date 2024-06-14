@@ -1,8 +1,7 @@
-from src.common.identifiers.common import KlineUpdate
-from src.common.identifiers.futures import State
-
-from tests.common import get_orders_long, get_cancel_order, validation_orders
+from src.common.identifiers.futures import KlineUpdate, State
 import logging
+
+from tests.futures import get_cancel_order, get_orders_long, validation_orders
 
 logger = logging.getLogger("test")
 

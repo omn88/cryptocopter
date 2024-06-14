@@ -8,10 +8,7 @@ from src.trading_system.spot import TradingSystem
 
 class StrategyExecutor:
     def __init__(
-        self,
-        client: BinanceClient,
-        logger: StrategyLogger,
-        gui_handler,
+        self, client: BinanceClient, logger: StrategyLogger, gui_handler: asyncio.Queue
     ):
         self.client = client
         self.logger = logger

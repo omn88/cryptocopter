@@ -3,10 +3,15 @@ Module containing product identifiers.
 """
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Union, Dict
 
-
-from src.common.identifiers.common import Order, PositionStatus, PositionSide
+from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT
+from src.common.identifiers.common import (
+    Order,
+    PositionStatus,
+    PositionSide,
+    SentinelUpdate,
+)
 
 
 class State(Enum):
@@ -23,6 +28,24 @@ class PositionMode(Enum):
     DCA = "DCA"
     FULL = "FULL"
     NEW = "NEW"
+
+
+class KlineUpdate(NamedTuple):
+    start_time: int = 0
+    open_price: float = 0
+    high_price: float = 0
+    low_price: float = 0
+    close_price: float = 0
+    volume: float = 0
+    open_interest: float = 0
+
+    def __repr__(self) -> str:
+        return (
+            f"KlineUpdate(start_time={self.start_time}, open_price={self.open_price}, "
+            f"high_price={self.high_price}, low_price={self.low_price}, "
+            f"close_price={self.close_price}, volume={self.volume}, "
+            f"open_interest={self.open_interest})"
+        )
 
 
 @dataclass()
@@ -49,6 +72,70 @@ class Position:
             f"take_profit_order={self.take_profit_order}, "
             f"market_order={self.market_order})"
         )
+
+
+class EventName(Enum):
+    KLINE = "Kline"
+    ACCOUNT = "Account"
+    ORDER = "Order"
+    SIGNAL = "Signal"
+    SENTINEL = "Sentinel"
+
+
+class Signal(Enum):
+    LONG = "LONG"
+    LONG_EXT = "LONG_EXT"
+    SHORT = "SHORT"
+    SHORT_EXT = "SHORT_EXT"
+    LONG_SPECIAL = "LONG_SPECIAL"
+    SHORT_SPECIAL = "SHORT_SPECIAL"
+    CLOSE_SPECIAL = "CLOSE_SPECIAL"
+    NULL = "NULL"
+
+
+@dataclass()
+class OrderUpdate:
+    status: str = ORDER_STATUS_NEW
+    price: float = 0
+    quantity: float = 0
+    realized_quantity: float = 0
+    last_filled_quantity: float = 0
+    order_id: int = 0
+    average_price: float = 0
+    order_type: str = ORDER_TYPE_LIMIT
+    symbol: str = ""
+
+    def __repr__(self) -> str:
+        return f"OrderUpdate(price={self.price}, quantity={self.quantity}, status={self.status}, order_id={self.order_id}, order_type={self.order_type}, symbol={self.symbol})"
+
+
+class AccountUpdate(NamedTuple):
+    account_update: Dict
+
+    def __repr__(self) -> str:
+        return f"AccountUpdate(kline={self.account_update})"
+
+
+class SignalUpdate(NamedTuple):
+    signal: Signal = Signal.NULL
+    price: float = 0
+
+    def __repr__(self) -> str:
+        return f"SignalUpdate(signal={self.signal}, price={self.price})"
+
+
+class Event(NamedTuple):
+    name: EventName
+    content: Union[
+        OrderUpdate,
+        KlineUpdate,
+        AccountUpdate,
+        SignalUpdate,
+        SentinelUpdate,
+    ]
+
+    def __repr__(self) -> str:
+        return f"Event(name={self.name}, content={self.content})"
 
 
 class StrategyConfig(NamedTuple):

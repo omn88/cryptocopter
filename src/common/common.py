@@ -3,9 +3,8 @@ import logging
 import os
 from datetime import datetime, timezone
 import pytz
-import uuid
-from src.common.identifiers.common import Signal, BinanceClient
-from src.common.identifiers.futures import State
+from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.futures import Signal, State
 
 logger = logging.getLogger("common")
 
