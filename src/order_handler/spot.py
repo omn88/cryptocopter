@@ -77,9 +77,7 @@ class OrderHandler:
                 )
             )
 
-        self.strategy_logger.info(
-            "Orders created, ids:\n%s", pprint.pformat(list(orders))
-        )
+        self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
         return orders
 
     async def create_order(
@@ -139,9 +137,7 @@ class OrderHandler:
                 for order in orders
             ]
         )
-        self.strategy_logger.info(
-            "Orders created, ids:\n%s", pprint.pformat(list(results))
-        )
+        self.strategy_logger.info("New orders:\n%s", pprint.pformat(list(results)))
         return results
 
     async def cancel_order(self, order_id: int, symbol: str) -> None:

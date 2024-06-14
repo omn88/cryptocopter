@@ -20,7 +20,7 @@ class StrategyExecutor:
         self.logger.info("Strategy executor ready to retrieve the first config")
         while True:
             config = await self.config_queue.get()
-            self.logger.info("New config for strategy executor: %s", config)
+            self.logger.debug("New config for strategy executor: %s", config)
             if config == "STOP":
                 break
 
@@ -40,7 +40,7 @@ class StrategyExecutor:
         await trading_system.initialize()
 
         self.id_to_system[config.system_id] = trading_system
-        self.logger.info("Starting trading system for %s", config)
+        self.logger.debug("Starting trading system for %s", config)
         await trading_system.start_trading()
 
     async def remove_record(self, system_id: str) -> None:
@@ -48,4 +48,4 @@ class StrategyExecutor:
             trading_system: TradingSystem = self.id_to_system.pop(system_id)
 
             await trading_system.stop()
-            self.logger.info(f"Removed trading system with {system_id}.")
+            self.logger.debug(f"Removed trading system with {system_id}.")

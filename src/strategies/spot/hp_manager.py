@@ -523,7 +523,7 @@ class HpManager:
                 # )
 
     async def handle_account(self, *args, **kwargs):
-        self.logger.info("Account update: %s", self.account_position)
+        self.logger.debug("Account update: %s", self.account_position)
 
     async def handle_order_filled(self, *args, **kwargs):
         self.logger.info("Entering handle order filled")

@@ -186,12 +186,12 @@ class HpManager(BoxLayout):
                 pass  # handle account update
 
             if isinstance(data, PositionData):
-                self.strategy_logger.info("Received position data: %s", data)
+                self.strategy_logger.debug("Received position data: %s", data)
                 if any(
                     record["system_id"] == data.system_id
                     for record in self.active_records
                 ):
-                    self.strategy_logger.info(
+                    self.strategy_logger.debug(
                         "Record %s found in active records", data.system_id
                     )
                     self.update_active_position(data=data)
@@ -199,13 +199,13 @@ class HpManager(BoxLayout):
                     record["system_id"] == data.system_id
                     for record in self.idle_records
                 ):
-                    self.strategy_logger.info(
+                    self.strategy_logger.debug(
                         "Record %s found in idle records", data.system_id
                     )
                     self.update_idle_position(data=data)
                 else:
                     self.add_new_position(data=data)
-                self.strategy_logger.info(
+                self.strategy_logger.debug(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                     self.active_records,
                     self.idle_records,
@@ -247,7 +247,7 @@ class HpManager(BoxLayout):
                 if data.status == PositionStatus.CLOSED.value:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
-                    self.strategy_logger.info("Archiving price level: %s", position)
+                    self.strategy_logger.debug("Archiving price level: %s", position)
 
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
@@ -258,7 +258,7 @@ class HpManager(BoxLayout):
     ) -> None:
         for position in self.idle_records:
             if position["system_id"] == data.system_id:
-                self.strategy_logger.info("Will update position")
+                self.strategy_logger.debug("Will update position")
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
@@ -268,19 +268,19 @@ class HpManager(BoxLayout):
                     }
                 )
                 if data.orders_opened:
-                    self.strategy_logger.info(
+                    self.strategy_logger.debug(
                         "Will remove from idle and add to archive as its closed"
                     )
                     self.idle_records.remove(position)
                     self.active_records.append(position)
-                    self.strategy_logger.info("Activating price level: %s", position)
+                    self.strategy_logger.debug("Activating price level: %s", position)
                 if data.status == PositionStatus.CLOSED.value:
-                    self.strategy_logger.info(
+                    self.strategy_logger.debug(
                         "Will remove from idle and add to archive as its closed"
                     )
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
-                    self.strategy_logger.info("Archiving price level: %s", position)
+                    self.strategy_logger.debug("Archiving price level: %s", position)
 
         self.filter_records("idle", "All")
         self.filter_records("active", "All")

@@ -52,9 +52,8 @@ class KivyGuiHandler(logging.Handler):
 
 
 class StrategyLogger:
-    def __init__(self, name, strategy_info):
+    def __init__(self, name):
         self.logger = logging.getLogger(name)
-        self.strategy_info = strategy_info
 
     def add_handler(self, handler):
         self.logger.addHandler(handler)
@@ -84,10 +83,11 @@ def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -
     """
     gui_log_handler = KivyGuiHandler(log_display_widget)
 
+    gui_log_handler.setLevel(logging.INFO)
     formatter = logging.Formatter(
         "%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     gui_log_handler.setFormatter(formatter)
 
     strategy_logger.add_handler(gui_log_handler)
-    strategy_logger.info("Logging handler configured with success")
+    strategy_logger.debug("Logging handler configured with success")

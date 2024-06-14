@@ -162,9 +162,7 @@ class AsyncApp(App):
                     "Starting new strategy: %s on pair %s", config.name, config.symbol
                 )
 
-                strategy_logger = StrategyLogger(
-                    name=config.name, strategy_info=strategy_name_short
-                )
+                strategy_logger = StrategyLogger(name=config.name)
 
                 gui_handler = GuiHandlerFutures(
                     main_ui_queue=self.main_ui_queue,
@@ -234,9 +232,7 @@ class AsyncApp(App):
             # Builder.load_file("src/gui/searchable_drop_down.kv")
             Builder.load_file("src/gui/hpmanager.kv")
 
-            strategy_logger = StrategyLogger(
-                name=strategy_name, strategy_info=strategy_name
-            )
+            strategy_logger = StrategyLogger(name=strategy_name)
 
             hp_manager = HpManager(
                 strategy_logger=strategy_logger,
