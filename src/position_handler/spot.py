@@ -9,6 +9,7 @@ from src.common.identifiers.common import (
     PositionStatus,
 )
 from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
+from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
 
@@ -54,9 +55,17 @@ class PositionHandler:
         )
 
         self.state = State.OPEN
-
-        await self.gui_handler.put(self.orders)
         self.status = PositionStatus.OPEN
+        await self.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                status=self.status,
+                orders_opened=len(self.orders),
+                orders_filled=0,
+                orders_total=len(self.orders),
+            )
+        )
+
         self.strategy_logger.info("Position opened successfully.")
 
     async def cancel_position(self) -> None:

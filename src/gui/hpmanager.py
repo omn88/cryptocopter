@@ -13,6 +13,7 @@ from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
+    Order,
     PositionSide,
     PositionStatus,
 )
@@ -37,8 +38,6 @@ class HpManager(BoxLayout):
     active_filter = StringProperty("All")
     idle_filter = StringProperty("All")
     archive_filter = StringProperty("All")
-
-    position_count = NumericProperty(0)
 
     log_display = ObjectProperty(None)
 
@@ -81,7 +80,7 @@ class HpManager(BoxLayout):
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
 
-        await self.gui_handler.ui_queue.put(
+        await self.gui_handler.put(
             PositionData(
                 system_id=config.system_id,
                 symbol=config.symbol,
@@ -156,7 +155,7 @@ class HpManager(BoxLayout):
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
         # Update GUI asynchronously
-        await self.gui_handler.ui_queue.put(
+        await self.gui_handler.put(
             PositionData(
                 system_id=system_id,
                 symbol=symbol,
@@ -182,37 +181,42 @@ class HpManager(BoxLayout):
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 self.strategy_logger.info("Received sentinel event, exiting")
                 return
+
             if isinstance(data, AccountPosition):
                 pass  # handle account update
+
             if isinstance(data, PositionData):
                 self.strategy_logger.info("Received position data: %s", data)
-                self.update_position(data=data)
-
-    def update_position(self, data: PositionData) -> None:
-        if any(record["system_id"] == data.system_id for record in self.active_records):
-            self.strategy_logger.info(
-                "Record %s found in active records", data.system_id
-            )
-            self.update_active_position(data=data)
-        elif any(record["system_id"] == data.system_id for record in self.idle_records):
-            self.strategy_logger.info("Record %s found in idle records", data.system_id)
-            self.update_idle_position(data=data)
-        else:
-            self.add_new_position(data=data)
-
-        self.strategy_logger.info(
-            "Records active:\n%s\nIdle\n%s\nArchive\n%s",
-            self.active_records,
-            self.idle_records,
-            self.archive_records,
-        )
+                if any(
+                    record["system_id"] == data.system_id
+                    for record in self.active_records
+                ):
+                    self.strategy_logger.info(
+                        "Record %s found in active records", data.system_id
+                    )
+                    self.update_active_position(data=data)
+                elif any(
+                    record["system_id"] == data.system_id
+                    for record in self.idle_records
+                ):
+                    self.strategy_logger.info(
+                        "Record %s found in idle records", data.system_id
+                    )
+                    self.update_idle_position(data=data)
+                else:
+                    self.add_new_position(data=data)
+                self.strategy_logger.info(
+                    "Records active:\n%s\nIdle\n%s\nArchive\n%s",
+                    self.active_records,
+                    self.idle_records,
+                    self.archive_records,
+                )
 
     def add_new_position(self, data: PositionData):
-        self.position_count += 1
         new_position = {
             "system_id": data.system_id,
             "symbol": data.symbol,
-            "side": str(data.side),
+            "side": str(data.side.value),
             "price_low": str(data.price_low),
             "price_high": str(data.price_high),
             "budget": str(data.budget),
@@ -243,7 +247,6 @@ class HpManager(BoxLayout):
                 if data.status == PositionStatus.CLOSED.value:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
-                    self.position_count -= 1
                     self.strategy_logger.info("Archiving price level: %s", position)
 
         self.filter_records("active", "All")
@@ -264,16 +267,23 @@ class HpManager(BoxLayout):
                         "status": str(data.status),
                     }
                 )
+                if data.orders_opened:
+                    self.strategy_logger.info(
+                        "Will remove from idle and add to archive as its closed"
+                    )
+                    self.idle_records.remove(position)
+                    self.active_records.append(position)
+                    self.strategy_logger.info("Activating price level: %s", position)
                 if data.status == PositionStatus.CLOSED.value:
                     self.strategy_logger.info(
                         "Will remove from idle and add to archive as its closed"
                     )
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
-                    self.position_count -= 1
                     self.strategy_logger.info("Archiving price level: %s", position)
 
         self.filter_records("idle", "All")
+        self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
     def filter_records(self, tab, symbol_filter):

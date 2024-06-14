@@ -25,7 +25,6 @@ from src.common.identifiers.futures import (
 )
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.gui.gui_handler.spot import GuiHandler as GuiHandlerSpot
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
@@ -241,11 +240,6 @@ class AsyncApp(App):
 
             hp_manager = HpManager(
                 strategy_logger=strategy_logger,
-                gui_handler=GuiHandlerSpot(
-                    main_ui_queue=self.main_ui_queue,
-                    ui_queue=asyncio.Queue(),
-                    logger=strategy_logger,
-                ),
                 client=self.client,
                 db=self.db,
             )
