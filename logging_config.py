@@ -66,15 +66,15 @@ class StrategyLogger:
 
     def info(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.INFO):
-            self.logger.info("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.info(message, *args)
 
     def debug(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.debug(message, *args)
 
     def error(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.ERROR):
-            self.logger.error("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.error(message, *args)
 
 
 def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -> None:
@@ -85,9 +85,11 @@ def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -
         log_display_widget (Widget): The widget to display the logs in.
     """
     gui_log_handler = KivyGuiHandler(log_display_widget)
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
     gui_log_handler.setFormatter(formatter)
 
     strategy_logger.add_handler(gui_log_handler)
-
     strategy_logger.info("Logging handler configured with success")
