@@ -137,13 +137,21 @@ class OrderHandler:
                 for order in orders
             ]
         )
-        self.strategy_logger.info("New orders:\n%s", pprint.pformat(list(results)))
+        for order in results:
+            self.strategy_logger.info(
+                "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+                side.value,
+                symbol,
+                order.price,
+                order.quantity_stable,
+                order.order_id,
+            )
         return results
 
     async def cancel_order(self, order_id: int, symbol: str) -> None:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
-            self.strategy_logger.info(f"Cancelled order {order_id}: {resp}")
+            self.strategy_logger.debug(f"Cancelled order {order_id}: {resp}")
         except (
             BinanceAPIException,
             BinanceOrderException,
@@ -159,17 +167,17 @@ class OrderHandler:
     async def cancel_remaining_limit_orders(
         self, orders: List[Order], symbol: str
     ) -> List[Order]:
-        self.strategy_logger.info("Cancelling remaining limit orders")
+        self.strategy_logger.debug("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
 
-                self.strategy_logger.info(
+                self.strategy_logger.debug(
                     "Cancelled partially filled order_id: %s", order.order_id
                 )
             elif order.status == ORDER_STATUS_NEW:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
-                self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
+                self.strategy_logger.debug("Cancelled new order_id: %s", order.order_id)
 
         return orders

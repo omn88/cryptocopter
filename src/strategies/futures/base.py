@@ -600,7 +600,7 @@ class BaseFuturesStrategy:
                 )
 
     async def handle_account(self, *args, **kwargs) -> None:
-        self.logger.info("Account update: %s", self.account_update.account_update)
+        self.logger.debug("Account update: %s", self.account_update.account_update)
 
     async def handle_liquidation(self, *args, **kwargs) -> None:
         self.logger.info("Entering handle liquidation")

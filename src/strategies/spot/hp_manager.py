@@ -23,6 +23,7 @@ from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
+    PositionStatus,
 )
 from src.position_handler.spot import PositionHandler
 
@@ -465,10 +466,12 @@ class HpManager:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
 
         await self.position_handler.cancel_position()
+        self.position_handler.status = PositionStatus.STAGNATED
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
         await self.position_handler.cancel_position()
+        self.position_handler.status = PositionStatus.STAGNATED
 
     async def close_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
@@ -495,7 +498,7 @@ class HpManager:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "New order confirmation: %s", self.execution_report.order_id
                 )
 
@@ -504,7 +507,7 @@ class HpManager:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "Cancelled order confirmation: %s", self.execution_report.order_id
                 )
 
@@ -513,7 +516,7 @@ class HpManager:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
                 # await self.gui_handler.update_order(

@@ -66,22 +66,15 @@ class PositionHandler:
             )
         )
 
-        self.strategy_logger.info("Position opened successfully.")
+        self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self) -> None:
-        self.strategy_logger.info("Enter cancel position")
+        self.strategy_logger.debug("Enter cancel position")
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol,
             orders=self.orders,
         )
-
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name,
-        #     position=self.position,
-        # )
-        self.status = PositionStatus.STAGNATED
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
