@@ -14,12 +14,6 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
     while True:
-        logger.debug(
-            "-------------------------------------POSITION-----------------------------------------"
-        )
-        if state_machine.strategy.queue.qsize() == 0:
-            logger.debug("Awaiting new Event...")
-
         event = await state_machine.strategy.queue.get()
         assert isinstance(event, Event)
 
@@ -29,13 +23,6 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             assert isinstance(event.content, TickerUpdate)
             assert isinstance(state_machine.strategy, HpManager)
             state_machine.strategy.ticker_update = event.content
-
-            logger.debug(
-                "Last price for %s: %s, Order trigger price: %s",
-                state_machine.strategy.ticker_update.symbol,
-                state_machine.strategy.ticker_update.last_price,
-                state_machine.strategy.trigger_orders_price,
-            )
 
             await state_machine.strategy.process_ticker()  # type: ignore
 
@@ -58,7 +45,7 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             assert isinstance(event.content, SentinelUpdate)
             await state_machine.strategy.position_handler.cancel_position()
             state_machine.strategy.position_handler.status = PositionStatus.CLOSED
-            logger.info("Trading system: %s closed successfully.")
+            logger.info("Trading system: %s closed successfully.", state_machine.strategy.config.system_id)
             return
 
         state_machine.strategy.queue.task_done()

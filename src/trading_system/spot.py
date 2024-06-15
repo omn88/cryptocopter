@@ -51,8 +51,6 @@ class TradingSystem:
         self.state_machine = TradingStateMachine(strategy=self.strategy)
 
     async def prepare_worker(self, logger: StrategyLogger):
-        # is this sleep needed?
-        await asyncio.sleep(5)
         if self.state_machine:
             await worker_spot.worker(state_machine=self.state_machine, logger=logger)
 
@@ -71,12 +69,11 @@ class TradingSystem:
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
-        self.strategy_logger.debug("Trading system STOP initiated properly")
+        self.strategy_logger.info(
+            "Closing trading system: %s", self.strategy.config.system_id
+        )
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
         await asyncio.sleep(5)
         self.stop_producers_event.set()
-        self.strategy_logger.info(
-            "Closing trading system: %s", self.strategy.config.system_id
-        )

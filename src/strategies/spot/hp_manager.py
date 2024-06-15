@@ -370,8 +370,7 @@ class HpManager:
             and self.ticker_update.last_price > self.trigger_orders_price
         )
         self.logger.debug(
-            "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.config.side.value,
+            "Cancel BUY orders due to stagnation: %s, last price: %s",
             condition,
             self.ticker_update.last_price,
         )
@@ -386,8 +385,7 @@ class HpManager:
             and self.ticker_update.last_price < self.trigger_orders_price
         )
         self.logger.debug(
-            "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.config.side,
+            "Cancel SELL orders due to stagnation: %s, last price: %s",
             condition,
             self.ticker_update.last_price,
         )

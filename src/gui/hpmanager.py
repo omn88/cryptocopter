@@ -174,7 +174,6 @@ class HpManager(BoxLayout):
     async def update_ui(self):
         while True:
             if self.gui_handler.qsize() == 0:
-                self.strategy_logger.debug("Awaiting new event")
                 await asyncio.sleep(1)
                 continue
             data = await self.gui_handler.get()

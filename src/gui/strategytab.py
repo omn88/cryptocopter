@@ -56,11 +56,6 @@ class StrategyTab(BoxLayout):
 
     async def update_ui(self):
         while True:
-            self.strategy_logger.debug(
-                "Events in UI queue: %s", self.gui_handler.ui_queue.qsize()
-            )
-            if self.gui_handler.ui_queue.qsize() == 0:
-                self.strategy_logger.debug("Awaiting new Event")
             data = await self.gui_handler.ui_queue.get()
             # Update the UI based on data
             if isinstance(data, Event):
