@@ -1,6 +1,8 @@
 import asyncio
 import datetime
 from typing import List
+
+from binance.enums import ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.identifiers.common import (
     BinanceClient,
@@ -93,16 +95,6 @@ class PositionHandler:
             hours=1
         )
 
-        #         await self.gui_handler.update_order(
-        #             order=order,
-        #             symbol=self.position.symbol,
-        #             side=self.position.side,
-        #         )
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name, position=self.position
-        # )
-
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
             if execution_report.order_id == order.order_id:
@@ -116,13 +108,20 @@ class PositionHandler:
         self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
             hours=1
         )
+        orders_opened = len(
+            order for order in self.orders if order.status is not ORDER_STATUS_FILLED
+        )
 
-        #         await self.gui_handler.update_order(
-        #             order=order,
-        #             symbol=self.position.symbol,
-        #             side=self.position.side,
-        #         )
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name, position=self.position
-        # )
+        orders_filled = len(
+            order for order in self.orders if order.status is ORDER_STATUS_FILLED
+        )
+
+        await self.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                status=PositionStatus.OPEN,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+            )
+        )

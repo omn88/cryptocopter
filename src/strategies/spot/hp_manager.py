@@ -12,6 +12,8 @@ from binance.enums import (
 from logging_config import StrategyLogger
 from src.common.identifiers.spot import (
     AccountPosition,
+    Event,
+    EventName,
     ExecutionReport,
     Signal,
     SignalUpdate,
@@ -527,7 +529,7 @@ class HpManager:
         self.logger.debug("Account update: %s", self.account_position)
 
     async def handle_order_filled(self, *args, **kwargs):
-        self.logger.info("Entering handle order filled")
+        self.logger.debug("Entering handle order filled")
 
         await self.position_handler.handle_order_filled(
             execution_report=self.execution_report
@@ -539,10 +541,12 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
-            await self.queue.put(SignalUpdate(signal=signal))
+            await self.queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
-        self.logger.info("Entering handle order partially filled")
+        self.logger.debug("Entering handle order partially filled")
 
         await self.position_handler.handle_order_partially_filled(
             execution_report=self.execution_report

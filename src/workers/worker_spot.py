@@ -45,7 +45,10 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             assert isinstance(event.content, SentinelUpdate)
             await state_machine.strategy.position_handler.cancel_position()
             state_machine.strategy.position_handler.status = PositionStatus.CLOSED
-            logger.info("Trading system: %s closed successfully.", state_machine.strategy.config.system_id)
+            logger.info(
+                "Trading system: %s closed successfully.",
+                state_machine.strategy.config.system_id,
+            )
             return
 
         state_machine.strategy.queue.task_done()
