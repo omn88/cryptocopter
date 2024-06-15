@@ -36,6 +36,12 @@ console_handler.setFormatter(
 )
 logging.getLogger().addHandler(console_handler)
 
+# Set a higher logging level for transitions.extensions.asyncio to suppress INFO logs
+logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
+
+# Set a higher logging level for transitions.extensions.asyncio to suppress INFO logs
+logging.getLogger("websockets.client").setLevel(logging.WARNING)
+
 
 class KivyGuiHandler(logging.Handler):
     def __init__(self, log_display_widget):
