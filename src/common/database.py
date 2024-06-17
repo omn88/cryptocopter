@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional, Dict, List
+import uuid
 import aiomysql
 
 from src.common.identifiers.common import Order
@@ -14,9 +15,10 @@ logger = logging.getLogger("database")
 # SQL Statements
 CREATE_STRATEGIES_TABLE = """
 CREATE TABLE IF NOT EXISTS strategies (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id CHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    status ENUM('ACTIVE', 'CLOSED') NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -25,7 +27,7 @@ CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     price_level_id INT,
-    strategy_id INT,
+    strategy_id CHAR(36),
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
     quantity_stable FLOAT NOT NULL,
@@ -104,8 +106,9 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(CREATE_STRATEGIES_TABLE)
-                await cur.execute(CREATE_ORDERS_TABLE)
                 await cur.execute(CREATE_PRICE_LEVELS_TABLE)
+                await cur.execute(CREATE_ORDERS_TABLE)
+
                 await conn.commit()
 
     async def fetch_strategy(self, strategy_id: int) -> Optional[Dict]:
@@ -125,6 +128,21 @@ class Database:
                     (name, description),
                 )
                 await conn.commit()
+
+    async def insert_strategy(self, name, description, status="ACTIVE"):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                strategy_id = str(uuid.uuid4())
+                insert_query = """
+                INSERT INTO strategies (id, name, description, status)
+                VALUES (%s, %s, %s, %s)
+                """
+                await cur.execute(
+                    insert_query, (strategy_id, name, description, status)
+                )
+                await conn.commit()
+                logger.info("Inserted strategy with ID: %s", strategy_id)
+                return strategy_id
 
     async def create_order(
         self, strategy_id: int, price_level_id: int, order: Order
@@ -149,36 +167,12 @@ class Database:
                 )
                 await conn.commit()
 
-    async def save_strategy_state(self, strategy_id: int, state: Dict) -> None:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "REPLACE INTO strategy_states (strategy_id, state) VALUES (%s, %s)",
-                    (strategy_id, str(state)),
-                )
-                await conn.commit()
-
-    async def load_strategy_state(self, strategy_id: int) -> Optional[Dict]:
+    async def fetch_all_active_strategies(self) -> List[Dict]:
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT state FROM strategy_states WHERE strategy_id=%s",
-                    (strategy_id,),
-                )
-                result = await cur.fetchone()
-                if result:
-                    return eval(result["state"])
-                return None
-
-    async def fetch_all_strategy_states(self) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT strategy_id, state FROM strategy_states")
+                await cur.execute("SELECT * FROM strategies WHERE status = 'ACTIVE'")
                 result = await cur.fetchall()
-                return [
-                    {"strategy_id": row["strategy_id"], "state": eval(row["state"])}
-                    for row in result
-                ]
+                return result
 
     async def create_position(
         self, position: PositionHandler, strategy_id: int

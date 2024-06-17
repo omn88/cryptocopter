@@ -144,6 +144,7 @@ class Event(NamedTuple):
 
 @dataclass
 class StrategyConfig:
+    strategy_id: str = ""
     system_id: str = ""
     symbol: str = ""
     side: PositionSide = PositionSide.FLAT

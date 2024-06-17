@@ -109,11 +109,11 @@ class PositionHandler:
             hours=1
         )
         orders_opened = len(
-            order for order in self.orders if order.status is not ORDER_STATUS_FILLED
+            [order for order in self.orders if order.status is not ORDER_STATUS_FILLED]
         )
 
         orders_filled = len(
-            order for order in self.orders if order.status is ORDER_STATUS_FILLED
+            [order for order in self.orders if order.status is ORDER_STATUS_FILLED]
         )
 
         await self.gui_handler.put(

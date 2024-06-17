@@ -46,11 +46,13 @@ class HpManager(BoxLayout):
         client: BinanceClient,
         db: Database,
         strategy_logger: StrategyLogger,
+        strategy_id: str,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.client = client
         self.db = db
+        self.strategy_id = strategy_id
         self.gui_handler: asyncio.Queue = asyncio.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
@@ -67,6 +69,7 @@ class HpManager(BoxLayout):
         self, symbol, side, price_low, price_high, budget, order_trigger
     ):
         config = StrategyConfig(
+            strategy_id=self.strategy_id,
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
             symbol=symbol,
             side=PositionSide.LONG

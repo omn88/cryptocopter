@@ -77,21 +77,25 @@ class AsyncApp(App):
         asyncio.create_task(self.initialize())
 
     async def initialize(self):
-        # await self.load_all_strategies()
+        await self.load_all_active_strategies()
         await self.update_ui()
         logger.info("Initialization finished!")
 
     async def close_pool(self):
         await self.db.close_pool()
 
-    async def load_all_strategies(self):
-        strategy_states = await self.db.fetch_all_strategy_states()
-        for state in strategy_states:
-            await self.restore_strategy(state["strategy_name"], state["state"])
+    async def load_all_active_strategies(self):
+        active_strategies = await self.db.fetch_all_active_strategies()
+        if not active_strategies:
+            logger.info("No active strategy found")
+            return
+        logger.info("Current active strategies: %s", active_strategies)
+        for strategy in active_strategies:
+            await self.restore_strategy(strategy)
 
-    async def restore_strategy(self, strategy_name: str, state: Dict):
+    async def restore_strategy(self, strategy):
         # Logic to restore strategy from saved state
-        logger.info(f"Restoring strategy: {strategy_name}")
+        logger.info(f"Restoring strategy: {strategy}")
         # Create and start the strategy using the state data
 
     def __str__(self):
@@ -212,7 +216,9 @@ class AsyncApp(App):
                     len(self.trading_systems),
                 )
 
-                await self.db.create_strategy(name=config.name, description=str(config))
+                strategy_id = await self.db.insert_strategy(
+                    name=config.name, description=str(config)
+                )
 
                 await trading_system.start_trading()
             else:
@@ -234,10 +240,15 @@ class AsyncApp(App):
 
             strategy_logger = StrategyLogger(name=strategy_name)
 
+            strategy_id = await self.db.insert_strategy(
+                name="HPManager", description="HPManager"
+            )
+
             hp_manager = HpManager(
                 strategy_logger=strategy_logger,
                 client=self.client,
                 db=self.db,
+                strategy_id=strategy_id,
             )
 
             tab = TabbedPanelItem(
