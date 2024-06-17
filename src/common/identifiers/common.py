@@ -11,11 +11,10 @@ from binance import AsyncClient
 
 class PositionStatus(Enum):
     NEW = "NEW"
-    OPEN = "OPEN"
-    PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
-    CONFIRMED = "CONFIRMED"
-    STAGNATED = "STAGNATED"
-    CLOSING = "CLOSING"
+    OPEN = "OPEN"  # orders are on the exchange
+    STAGNATED = "STAGNATED"  # orders were on the market, but got stagnated
+    RECOVERING = "RECOVERING"  # after crash, status for every price level
+    CLOSING = "CLOSING"  # some temp status for proper gui working
     CLOSED = "CLOSED"
 
 

@@ -69,7 +69,7 @@ class AsyncApp(App):
         self.client = client
         self.db = db
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
-        self.tabs: Dict = {}
+        self.strategies: Dict = {}
         self.strategy_mapping = {
             "RSI Basic": "RB",
             "RSI Extended": "RE",
@@ -100,6 +100,19 @@ class AsyncApp(App):
             logger.info("Found instance of HPManager, restoring last known state.")
 
             self.setup_hp_manager_gui(strategy_id=strategy.get("id"))
+            assert isinstance(self.strategies["HPManager"].content, HpManager)
+            active_price_levels = await self.db.fetch_all_active_price_levels()
+            if not active_price_levels:
+                logger.info("No active price levels found")
+                return
+            logger.info("Current active price levels: %s", active_price_levels)
+            for price_level in active_price_levels:
+                await self.restore_price_level(price_level=price_level)
+
+            hp_manager = self.strategies["HPManager"].content
+
+            # hp_manager.add_record() for
+
             # Restore all price levels
             # Restore all orders
             # Create instance of objects to restore the state
@@ -200,7 +213,7 @@ class AsyncApp(App):
                     ),
                 )
                 # Store a reference to the tab
-                self.tabs[strategy_name_short] = tab
+                self.strategies[strategy_name_short] = tab
                 # Add a new tab for the strategy
                 self.root.add_widget(tab)
                 self.root.ids.strategy_spinner.text = "Choose Strategy"
@@ -257,6 +270,7 @@ class AsyncApp(App):
             db=self.db,
             strategy_id=strategy_id,
         )
+
         tab = TabbedPanelItem(
             text="HPManager",
             content=hp_manager,
@@ -267,13 +281,13 @@ class AsyncApp(App):
             log_display_widget=tab.content.log_display,
         )
         # Store a reference to the tab
-        self.tabs["HPManager"] = tab
+        self.strategies["HPManager"] = tab
         # Add a new tab for the strategy
         self.root.add_widget(tab)
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
-        tab = self.tabs[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
+        tab = self.strategies[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
 
         # Remove the tab from the TabbedPanel
         self.root.remove_widget(tab)
