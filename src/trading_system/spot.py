@@ -49,8 +49,14 @@ class TradingSystem:
             db=self.db,
         )
 
+        self.strategy_logger.debug("Config status: %s", self.config.status)
+
         await self.strategy.initialize()
-        if not self.config.status:
+        if self.config.status is not None:
+            self.strategy_logger.debug(
+                "Old status is not None: %s, moving strategy state to recovering",
+                self.config.status,
+            )
             self.strategy.state = State.RECOVERING
 
         # Trading State Machine initialization

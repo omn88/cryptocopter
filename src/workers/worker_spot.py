@@ -1,3 +1,4 @@
+import asyncio
 from logging_config import StrategyLogger
 from src.common.identifiers.common import PositionStatus, SentinelUpdate
 from src.common.identifiers.spot import (
@@ -6,6 +7,7 @@ from src.common.identifiers.spot import (
     Event,
     ExecutionReport,
     SignalUpdate,
+    State,
     TickerUpdate,
 )
 from src.strategies.spot.hp_manager import HpManager
@@ -13,6 +15,9 @@ from src.workers.trading_state_machine import TradingStateMachine
 
 
 async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
+    logger.debug("Worker sleep 5 secs before starting, so the sockets can start")
+    await asyncio.sleep(5)
+    logger.debug("Worker start now, state: %s.", state_machine.strategy.state)
     while True:
         event = await state_machine.strategy.queue.get()
         assert isinstance(event, Event)
@@ -23,8 +28,10 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
             assert isinstance(event.content, TickerUpdate)
             assert isinstance(state_machine.strategy, HpManager)
             state_machine.strategy.ticker_update = event.content
-
-            await state_machine.strategy.process_ticker()  # type: ignore
+            if state_machine.strategy.state == State.RECOVERING:
+                await state_machine.strategy.process_recovery()  # type: ignore
+            else:
+                await state_machine.strategy.process_ticker()  # type: ignore
 
         elif EventName.EXECUTION_REPORT == event.name:
             assert isinstance(event.content, ExecutionReport)

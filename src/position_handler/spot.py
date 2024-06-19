@@ -72,6 +72,15 @@ class PositionHandler:
             await self.db.insert_order(
                 price_level_id=self.config.system_id, order=order
             )
+        await self.db.update_price_level(
+            system_id=self.config.system_id,
+            side=self.config.side,
+            price_low=self.config.price_low,
+            price_high=self.config.price_high,
+            order_trigger=self.config.order_trigger,
+            budget=self.config.budget,
+            status=self.config.status,
+        )
 
         self.strategy_logger.debug("Position opened successfully.")
 

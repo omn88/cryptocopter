@@ -88,21 +88,21 @@ class HpManager:
     def get_transitions(self):
         return [
             {
-                "trigger": "process_ticker",
+                "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.NEW,
                 "conditions": "condition_for_recovering_to_new",
                 "after": "handle_recovery_to_new",
             },
             {
-                "trigger": "process_ticker",
+                "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.OPEN,
                 "conditions": "condition_for_recovering_to_open",
                 "after": "handle_recovery_to_open",
             },
             {
-                "trigger": "process_ticker",
+                "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.STAGNATED,
                 "conditions": "condition_for_recovering_to_stagnated",
@@ -268,7 +268,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.config.status == PositionStatus.NEW.value
         )
-        self.logger.debug("Recovering to state NEW.")
+        self.logger.debug("Recovering to state NEW: %s.", condition)
         return condition
 
     def condition_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -278,7 +278,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.config.status == PositionStatus.OPEN.value
         )
-        self.logger.debug("Recovering to state OPEN.")
+        self.logger.debug("Recovering to state OPEN: %s.", condition)
         return condition
 
     def condition_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -288,7 +288,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.config.status == PositionStatus.STAGNATED.value
         )
-        self.logger.debug("Recovering to state STAGNATED.")
+        self.logger.debug("Recovering to state STAGNATED: %s.", condition)
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:

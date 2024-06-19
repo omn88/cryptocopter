@@ -6,7 +6,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from src.common.identifiers.common import Order
+from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 
 logger = logging.getLogger("database")
@@ -55,8 +55,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_type VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (price_level_id) REFERENCES price_levels(id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -196,20 +195,43 @@ class Database:
                 result = await cur.fetchall()
                 return result
 
-    async def update_price_level(self, system_id: str, updates: Dict) -> None:
+    async def update_price_level(
+        self,
+        system_id: str,
+        symbol: str,
+        side: PositionSide,
+        price_low: float,
+        price_high: float,
+        order_trigger: float,
+        budget: float,
+        status: PositionStatus,
+    ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
                 await cur.execute(
-                    "UPDATE price_levels SET is_current=FALSE WHERE system_id=%s AND is_current=TRUE",
+                    "UPDATE price_levels SET is_current=FALSE WHERE id=%s AND is_current=TRUE",
                     system_id,
                 )
                 # Insert a new record with the updated values
-                set_clause = ", ".join([f"{key}=%s" for key in updates.keys()])
-                version_timestamp = (
-                    datetime.datetime.now().isoformat()
-                )  # Ensure you import datetime
-                insert_query = f"INSERT INTO price_levels (system_id, {set_clause}, is_current, version_timestamp) VALUES (%s, {', '.join(['%s'] * len(updates))}, TRUE, %s)"
-                params = [system_id] + list(updates.values()) + [version_timestamp]
-                await cur.execute(insert_query, params)
+                version_timestamp = datetime.datetime.now().isoformat()
+                insert_query = """
+                INSERT INTO price_levels (
+                    id, symbol, side, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                """
+                await cur.execute(
+                    insert_query,
+                    (
+                        system_id,
+                        symbol,
+                        side.value,
+                        price_low,
+                        price_high,
+                        order_trigger,
+                        budget,
+                        status.value,
+                        version_timestamp,
+                    ),
+                )
                 await conn.commit()

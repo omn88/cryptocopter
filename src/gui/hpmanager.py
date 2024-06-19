@@ -93,6 +93,8 @@ class HpManager(BoxLayout):
         if (
             not last_known_status
         ):  # inserting level only if there is no last known status, recovery will
+            status = PositionStatus.NEW
+
             await self.gui_handler.put(
                 PositionData(
                     system_id=config.system_id,
@@ -105,7 +107,7 @@ class HpManager(BoxLayout):
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
-                    status=PositionStatus.NEW,
+                    status=status,
                 )
             )
             await self.db.insert_price_level(
@@ -117,7 +119,7 @@ class HpManager(BoxLayout):
                     price_high=config.price_high,
                     order_trigger=config.order_trigger,
                     budget=config.budget,
-                    status=config.status,
+                    status=status,
                 ),
             )
 
