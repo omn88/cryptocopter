@@ -57,7 +57,7 @@ class HpManager(BoxLayout):
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
         self.strategy_executor = StrategyExecutor(
-            client=client, logger=strategy_logger, gui_handler=self.gui_handler
+            client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
         )
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
@@ -66,10 +66,16 @@ class HpManager(BoxLayout):
         asyncio.create_task(self.add_record(*args))
 
     async def add_record(
-        self, symbol, side, price_low, price_high, budget, order_trigger
+        self,
+        symbol,
+        side,
+        price_low,
+        price_high,
+        budget,
+        order_trigger,
+        last_known_status=None,
     ):
         config = StrategyConfig(
-            strategy_id=self.strategy_id,
             system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
             symbol=symbol,
             side=PositionSide.LONG
@@ -79,38 +85,41 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
+            status=last_known_status,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
 
-        await self.gui_handler.put(
-            PositionData(
-                system_id=config.system_id,
-                symbol=config.symbol,
-                side=config.side,
-                price_low=config.price_low,
-                price_high=config.price_high,
-                budget=config.budget,
-                order_trigger=config.order_trigger,
-                orders_opened=0,
-                orders_filled=0,
-                orders_total=0,
-                status=PositionStatus.NEW,
+        if (
+            not last_known_status
+        ):  # inserting level only if there is no last known status, recovery will
+            await self.gui_handler.put(
+                PositionData(
+                    system_id=config.system_id,
+                    symbol=config.symbol,
+                    side=config.side,
+                    price_low=config.price_low,
+                    price_high=config.price_high,
+                    budget=config.budget,
+                    order_trigger=config.order_trigger,
+                    orders_opened=0,
+                    orders_filled=0,
+                    orders_total=0,
+                    status=PositionStatus.NEW,
+                )
             )
-        )
-
-        await self.db.insert_price_level(
-            config=StrategyConfig(
-                system_id=config.system_id,
-                symbol=config.symbol,
-                side=config.side,
-                price_low=config.price_low,
-                price_high=config.price_high,
-                order_trigger=config.order_trigger,
-                budget=config.budget,
-            ),
-            status=PositionStatus.NEW,
-        )
+            await self.db.insert_price_level(
+                config=StrategyConfig(
+                    system_id=config.system_id,
+                    symbol=config.symbol,
+                    side=config.side,
+                    price_low=config.price_low,
+                    price_high=config.price_high,
+                    order_trigger=config.order_trigger,
+                    budget=config.budget,
+                    status=config.status,
+                ),
+            )
 
         self.filter_records(tab="idle", symbol_filter="All")
 

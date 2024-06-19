@@ -7,7 +7,7 @@ for each strategy.
 
 import asyncio
 import logging
-from typing import Dict, List, Union
+from typing import Dict, List
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -106,10 +106,18 @@ class AsyncApp(App):
                 logger.info("No active price levels found")
                 return
             logger.info("Current active price levels: %s", active_price_levels)
-            for price_level in active_price_levels:
-                await self.restore_price_level(price_level=price_level)
-
             hp_manager = self.strategies["HPManager"].content
+
+            for price_level in active_price_levels:
+                await hp_manager.add_record(
+                    symbol=price_level.get("symbol"),
+                    side=price_level.get("side"),
+                    price_low=price_level.get("price_low"),
+                    price_high=price_level.get("price_high"),
+                    budget=price_level.get("budget"),
+                    order_trigger=price_level.get("order_trigger"),
+                    last_known_status=price_level.get("status"),
+                )
 
             # hp_manager.add_record() for
 

@@ -4,13 +4,14 @@ from typing import List
 
 from binance.enums import ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
     PositionStatus,
 )
-from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
+from src.common.identifiers.spot import ExecutionReport, StrategyConfig
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
@@ -22,9 +23,11 @@ class PositionHandler:
         strategy_logger: StrategyLogger,
         config: StrategyConfig,
         gui_handler: asyncio.Queue,
+        db: Database,
     ):
         self.config = config
         self.strategy_logger = strategy_logger
+        self.db = db
         self.gui_handler: asyncio.Queue = gui_handler
         self.order_handler = OrderHandler(
             client=client,
@@ -40,8 +43,6 @@ class PositionHandler:
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
         self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
-
-        self.state: State = State.NEW
         self.status: PositionStatus = PositionStatus.NEW
 
     async def open_position(
@@ -56,7 +57,6 @@ class PositionHandler:
             hours=1
         )
 
-        self.state = State.OPEN
         self.status = PositionStatus.OPEN
         await self.gui_handler.put(
             PositionData(
@@ -68,6 +68,11 @@ class PositionHandler:
             )
         )
 
+        for order in self.orders:
+            await self.db.insert_order(
+                price_level_id=self.config.system_id, order=order
+            )
+
         self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self) -> None:
@@ -77,6 +82,7 @@ class PositionHandler:
             symbol=self.config.symbol,
             orders=self.orders,
         )
+        self.status = PositionStatus.CLOSED
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport

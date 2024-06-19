@@ -60,6 +60,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
     gui_handler = AsyncMock()
+    db = AsyncMock()
 
     config = ConfigSpot(
         system_id="1234",
@@ -77,6 +78,7 @@ async def spot_buy(mock_AsyncClient):
         config=config,
         gui_handler=gui_handler,
         logger=logger,
+        db=db,
     )
 
     state_machine = TradingStateMachine(strategy=strategy)
@@ -97,6 +99,7 @@ async def spot_sell(mock_AsyncClient):
     )
 
     gui_handler = AsyncMock()
+    db = AsyncMock()
 
     strategy = HpManager(
         client=mock_AsyncClient,
@@ -104,6 +107,7 @@ async def spot_sell(mock_AsyncClient):
         config=config,
         gui_handler=gui_handler,
         logger=logger,
+        db=db,
     )
 
     state_machine = TradingStateMachine(strategy=strategy)

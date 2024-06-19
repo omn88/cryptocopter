@@ -10,6 +10,7 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.spot import (
     AccountPosition,
     Event,
@@ -27,6 +28,7 @@ from src.common.identifiers.common import (
     PositionSide,
     PositionStatus,
 )
+from src.gui.identifiers.spot import PositionData
 from src.position_handler.spot import PositionHandler
 
 STAGNATION_LIMIT = 8
@@ -40,10 +42,12 @@ class HpManager:
         logger: StrategyLogger,
         balance: float,
         gui_handler: asyncio.Queue,
+        db: Database,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
+        self.db = db
         self.queue: asyncio.Queue = asyncio.Queue()
         self.config = config
         self.position_handler = PositionHandler(
@@ -51,13 +55,16 @@ class HpManager:
             strategy_logger=logger,
             config=config,
             gui_handler=gui_handler,
+            db=db,
         )
         self.state = State.NEW
+
         self.states = [
+            State.CLOSED,
             State.NEW,
             State.OPEN,
+            State.RECOVERING,
             State.STAGNATED,
-            State.CLOSED,
         ]
 
         # Initialize any other common attributes
@@ -67,7 +74,6 @@ class HpManager:
         self.account_position: AccountPosition = AccountPosition()
 
         self.trigger_orders_price = self.calculate_trigger_orders_price()
-
         self.transitions = self.get_transitions()
 
     def __str__(self):
@@ -82,8 +88,35 @@ class HpManager:
     def get_transitions(self):
         return [
             {
+                "trigger": "process_ticker",
+                "source": State.RECOVERING,
+                "dest": State.NEW,
+                "conditions": "condition_for_recovering_to_new",
+                "after": "handle_recovery_to_new",
+            },
+            {
+                "trigger": "process_ticker",
+                "source": State.RECOVERING,
+                "dest": State.OPEN,
+                "conditions": "condition_for_recovering_to_open",
+                "after": "handle_recovery_to_open",
+            },
+            {
+                "trigger": "process_ticker",
+                "source": State.RECOVERING,
+                "dest": State.STAGNATED,
+                "conditions": "condition_for_recovering_to_stagnated",
+                "after": "handle_recovery_to_stagnated",
+            },
+            {
                 "trigger": "process_account",
-                "source": [State.NEW, State.OPEN, State.STAGNATED, State.CLOSED],
+                "source": [
+                    State.NEW,
+                    State.OPEN,
+                    State.STAGNATED,
+                    State.RECOVERING,
+                    State.CLOSED,
+                ],
                 "dest": "=",
                 "after": "handle_account",
             },
@@ -227,6 +260,36 @@ class HpManager:
                 2,
             )
         )
+
+    def condition_for_recovering_to_new(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.NEW.value
+        )
+        self.logger.debug("Recovering to state NEW.")
+        return condition
+
+    def condition_for_recovering_to_open(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.OPEN.value
+        )
+        self.logger.debug("Recovering to state OPEN.")
+        return condition
+
+    def condition_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.STAGNATED.value
+        )
+        self.logger.debug("Recovering to state STAGNATED.")
+        return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
@@ -550,4 +613,77 @@ class HpManager:
 
         await self.position_handler.handle_order_partially_filled(
             execution_report=self.execution_report
+        )
+
+    async def handle_recovery_to_new(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to new")
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=0,
+                orders_filled=0,
+                orders_total=0,
+                status=self.config.status,
+            )
+        )
+
+    async def handle_recovery_to_open(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to open")
+
+        orders = self.db.fetch_orders_for_price_level(
+            price_level_id=self.config.system_id
+        )
+
+        self.logger.debug(
+            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+        )
+
+        # await self.position_handler.gui_handler.put(
+        #     PositionData(
+        #         system_id=self.config.system_id,
+        #         symbol=self.config.symbol,
+        #         side=self.config.side,
+        #         price_low=self.config.price_low,
+        #         price_high=self.config.price_high,
+        #         budget=self.config.budget,
+        #         order_trigger=self.config.order_trigger,
+        #         orders_opened=0,
+        #         orders_filled=0,
+        #         orders_total=0,
+        #         status=self.config.status,
+        #     )
+        # )
+
+    async def handle_recovery_to_stagnated(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to stagnated")
+
+        orders = self.db.fetch_orders_for_price_level(
+            price_level_id=self.config.system_id
+        )
+
+        self.logger.debug(
+            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+        )
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=0,
+                orders_filled=0,
+                orders_total=0,
+                status=self.config.status,
+            )
         )

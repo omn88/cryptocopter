@@ -2,11 +2,12 @@ import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
     SentinelUpdate,
 )
-from src.common.identifiers.spot import Event, EventName, StrategyConfig
+from src.common.identifiers.spot import Event, EventName, State, StrategyConfig
 from src.common.initialize_trading_environment import spot_prepare_producers
 from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker_spot
@@ -23,12 +24,14 @@ class TradingSystem:
         gui_handler: asyncio.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
+        db: Database,
     ):
         self.system_id = system_id
         self.client = client
         self.config = config
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
+        self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
@@ -43,9 +46,12 @@ class TradingSystem:
             logger=self.strategy_logger,
             config=self.config,
             balance=self.balance,
+            db=self.db,
         )
 
         await self.strategy.initialize()
+        if not self.config.status:
+            self.strategy.state = State.RECOVERING
 
         # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)

@@ -2,13 +2,12 @@
 
 import datetime
 import logging
-from typing import Optional, Dict, List
+from typing import Dict, List
 import uuid
 import aiomysql
 
-from src.common.identifiers.common import Order, PositionStatus
+from src.common.identifiers.common import Order
 from src.common.identifiers.spot import StrategyConfig
-from src.position_handler.spot import PositionHandler
 
 logger = logging.getLogger("database")
 
@@ -29,7 +28,6 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id CHAR(36) PRIMARY KEY,
-    strategy_id CHAR(36) NOT NULL,
     symbol VARCHAR(10) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
@@ -39,19 +37,17 @@ CREATE TABLE IF NOT EXISTS price_levels (
     status VARCHAR(20) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (strategy_id) REFERENCES strategies(id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 
 CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
-    id CHAR(36) PRIMARY KEY,
+    order_id CHAR(36) PRIMARY KEY,
     price_level_id CHAR(36) NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
     quantity_stable FLOAT NOT NULL,
-    order_id CHAR(36) NOT NULL,
     realized_quantity FLOAT NOT NULL,
     open_time TIMESTAMP,
     time_in_force VARCHAR(10) NOT NULL,
@@ -132,20 +128,17 @@ class Database:
                 logger.info("Inserted strategy with ID: %s", strategy_id)
                 return strategy_id
 
-    async def insert_order(
-        self, strategy_id: int, price_level_id: int, order: Order
-    ) -> None:
+    async def insert_order(self, price_level_id: str, order: Order) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO orders (price_level_id, strategy_id, quantity, price, quantity_stable, order_id, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
+                        order.order_id,
                         price_level_id,
-                        strategy_id,
                         order.quantity,
                         order.price,
                         order.quantity_stable,
-                        order.order_id,
                         order.realized_quantity,
                         order.open_time,
                         order.time_in_force,
@@ -155,13 +148,11 @@ class Database:
                 )
                 await conn.commit()
 
-    async def insert_price_level(
-        self, config: StrategyConfig, status: PositionStatus
-    ) -> None:
+    async def insert_price_level(self, config: StrategyConfig) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (system_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
                         config.symbol,
@@ -170,7 +161,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        status,
+                        config.status.value,
                     ),
                 )
                 await conn.commit()
