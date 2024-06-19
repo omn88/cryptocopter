@@ -15,7 +15,8 @@ logger = logging.getLogger("database")
 # SQL Statements
 CREATE_STRATEGIES_TABLE = """
 CREATE TABLE IF NOT EXISTS strategies (
-    id CHAR(36) PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    strategy_id CHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     status ENUM('ACTIVE', 'CLOSED') NOT NULL DEFAULT 'ACTIVE',
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS strategies (
 
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
-    id CHAR(36) PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    price_level_id CHAR(36) NOT NULL,
     symbol VARCHAR(10) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
@@ -43,7 +45,8 @@ CREATE TABLE IF NOT EXISTS price_levels (
 
 CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
-    order_id CHAR(36) PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id CHAR(36) NOT NULL,
     price_level_id CHAR(36) NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
@@ -151,7 +154,7 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
                         config.symbol,
@@ -217,7 +220,7 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    id, symbol, side, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
+                    price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(

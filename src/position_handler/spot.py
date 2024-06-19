@@ -58,6 +58,7 @@ class PositionHandler:
         )
 
         self.status = PositionStatus.OPEN
+        self.config.status = self.status
         await self.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
@@ -80,6 +81,7 @@ class PositionHandler:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
+            symbol=self.config.symbol
         )
 
         self.strategy_logger.debug("Position opened successfully.")
