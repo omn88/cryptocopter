@@ -167,8 +167,13 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
     ):
+        status = PositionStatus.CLOSED
+
+        side = PositionSide.LONG if side == "BUY" else PositionSide.SHORT
+
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
+
         # Update GUI asynchronously
         await self.gui_handler.put(
             PositionData(
@@ -182,8 +187,19 @@ class HpManager(BoxLayout):
                 orders_opened=orders_opened,
                 orders_total=orders_total,
                 orders_filled=orders_filled,
-                status=PositionStatus.CLOSED.value,
+                status=status,
             )
+        )
+
+        await self.db.update_price_level(
+            system_id=system_id,
+            side=side,
+            price_low=price_low,
+            price_high=price_high,
+            order_trigger=order_trigger,
+            budget=budget,
+            status=status,
+            symbol=symbol,
         )
 
     async def update_ui(self):
@@ -258,7 +274,7 @@ class HpManager(BoxLayout):
                         "status": str(data.status),
                     }
                 )
-                if data.status == PositionStatus.CLOSED.value:
+                if data.status == PositionStatus.CLOSED:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)

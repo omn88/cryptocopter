@@ -6,6 +6,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
     ORDER_TYPE_LIMIT,
+    ORDER_STATUS_CANCELED,
 )
 from binance.exceptions import (
     BinanceAPIException,
@@ -172,12 +173,14 @@ class OrderHandler:
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
+                order.status = ORDER_STATUS_CANCELED
 
                 self.strategy_logger.debug(
                     "Cancelled partially filled order_id: %s", order.order_id
                 )
             elif order.status == ORDER_STATUS_NEW:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
+                order.status = ORDER_STATUS_CANCELED
                 self.strategy_logger.debug("Cancelled new order_id: %s", order.order_id)
 
         return orders

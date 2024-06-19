@@ -81,7 +81,7 @@ class PositionHandler:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
-            symbol=self.config.symbol
+            symbol=self.config.symbol,
         )
 
         self.strategy_logger.debug("Position opened successfully.")
@@ -94,6 +94,18 @@ class PositionHandler:
             orders=self.orders,
         )
         self.status = PositionStatus.CLOSED
+        for order in self.orders:
+            await self.db.update_order(
+                price=order.price,
+                quantity=order.quantity,
+                quantity_stable=order.quantity_stable,
+                realized_quantity=order.realized_quantity,
+                time_in_force=order.time_in_force,
+                status=order.status,
+                order_type=order.order_type,
+                order_id=order.order_id,
+                price_level_id=self.config.system_id,
+            )
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport

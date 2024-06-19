@@ -1,5 +1,3 @@
-# database.py
-
 import datetime
 import logging
 from typing import Dict, List
@@ -46,13 +44,12 @@ CREATE TABLE IF NOT EXISTS price_levels (
 CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    order_id CHAR(36) NOT NULL,
+    order_id BIGINT NOT NULL,
     price_level_id CHAR(36) NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
     quantity_stable FLOAT NOT NULL,
     realized_quantity FLOAT NOT NULL,
-    open_time TIMESTAMP,
     time_in_force VARCHAR(10) NOT NULL,
     status VARCHAR(10) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
@@ -120,7 +117,7 @@ class Database:
             async with conn.cursor() as cur:
                 strategy_id = str(uuid.uuid4())
                 insert_query = """
-                INSERT INTO strategies (id, name, description, status)
+                INSERT INTO strategies (strategy_id, name, description, status)
                 VALUES (%s, %s, %s, %s)
                 """
                 await cur.execute(
@@ -134,7 +131,7 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO orders (order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         order.order_id,
                         price_level_id,
@@ -142,7 +139,6 @@ class Database:
                         order.price,
                         order.quantity_stable,
                         order.realized_quantity,
-                        order.open_time,
                         order.time_in_force,
                         order.status,
                         order.order_type,
@@ -213,8 +209,8 @@ class Database:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
                 await cur.execute(
-                    "UPDATE price_levels SET is_current=FALSE WHERE id=%s AND is_current=TRUE",
-                    system_id,
+                    "UPDATE price_levels SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE",
+                    (system_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
@@ -234,6 +230,49 @@ class Database:
                         order_trigger,
                         budget,
                         status.value,
+                        version_timestamp,
+                    ),
+                )
+                await conn.commit()
+
+    async def update_order(
+        self,
+        order_id: int,
+        price_level_id: str,
+        quantity: float,
+        price: float,
+        quantity_stable: float,
+        realized_quantity: float,
+        time_in_force: str,
+        status: str,
+        order_type: str,
+    ) -> None:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Mark the current order as not current
+                await cur.execute(
+                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
+                    (order_id,),
+                )
+                # Insert a new record with the updated values
+                version_timestamp = datetime.datetime.now().isoformat()
+                insert_query = """
+                INSERT INTO orders (
+                    order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                """
+                await cur.execute(
+                    insert_query,
+                    (
+                        order_id,
+                        price_level_id,
+                        quantity,
+                        price,
+                        quantity_stable,
+                        realized_quantity,
+                        time_in_force,
+                        status,
+                        order_type,
                         version_timestamp,
                     ),
                 )
