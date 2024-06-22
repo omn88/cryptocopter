@@ -15,6 +15,7 @@ class PositionData:
         orders_opened: int = 0,
         orders_total: int = 0,
         orders_filled: int = 0,
+        recovering: bool = False,
     ):
         self.system_id = system_id
         self.symbol = symbol
@@ -27,6 +28,7 @@ class PositionData:
         self.orders_total = orders_total
         self.orders_filled = orders_filled
         self.status = status
+        self.recovering = recovering
 
     def __repr__(self) -> str:
         return (

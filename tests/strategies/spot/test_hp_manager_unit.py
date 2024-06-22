@@ -123,7 +123,7 @@ async def test_handle_ticker(spot_buy):
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
     strategy.position_handler.next_monitor_position_time = datetime.now()
-    await strategy.handle_ticker()
+    await strategy.increase_stagnation_counter()
     assert strategy.position_handler.stagnation_counter == 1
 
 

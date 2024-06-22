@@ -646,6 +646,7 @@ class HpManager:
                 orders_filled=0,
                 orders_total=0,
                 status=self.config.status,
+                recovering=True,
             )
         )
 
@@ -668,11 +669,20 @@ class HpManager:
                     order.status = fetched_order.get("status")
 
         orders_opened = len(
-            [order for order in orders if order.status != ORDER_STATUS_FILLED]
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status != ORDER_STATUS_FILLED
+            ]
         )
         orders_filled = len(
-            [order for order in orders if order.status == ORDER_STATUS_FILLED]
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
         )
+
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
@@ -686,6 +696,7 @@ class HpManager:
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
                 status=self.config.status,
+                recovering=True,
             )
         )
 
@@ -708,10 +719,18 @@ class HpManager:
                     order.status = fetched_order.get("status")
 
         orders_opened = len(
-            [order for order in orders if order.status != ORDER_STATUS_FILLED]
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status != ORDER_STATUS_FILLED
+            ]
         )
         orders_filled = len(
-            [order for order in orders if order.status == ORDER_STATUS_FILLED]
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
         )
         await self.position_handler.gui_handler.put(
             PositionData(

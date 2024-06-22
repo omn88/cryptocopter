@@ -218,7 +218,14 @@ class HpManager(BoxLayout):
 
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
-                if any(
+                if data.recovering:
+                    if data.status == PositionStatus.OPEN.value:
+                        self.strategy_logger.logger.debug(
+                            "Recovering position to active tab in GUI: %s", data
+                        )
+                        self.recovery_to_active(data=data)
+
+                elif any(
                     record["system_id"] == data.system_id
                     for record in self.active_records
                 ):
@@ -260,6 +267,24 @@ class HpManager(BoxLayout):
 
         self.idle_records.append(new_position)
         self.filter_records("idle", "All")
+
+    def recovery_to_active(self, data: PositionData):
+        new_position = {
+            "system_id": data.system_id,
+            "symbol": data.symbol,
+            "side": str(data.side.value),
+            "price_low": str(data.price_low),
+            "price_high": str(data.price_high),
+            "budget": str(data.budget),
+            "order_trigger": str(data.order_trigger),
+            "orders_opened": str(data.orders_opened),
+            "orders_total": str(data.orders_total),
+            "orders_filled": str(data.orders_filled),
+            "status": str(data.status),
+        }
+
+        self.active_records.append(new_position)
+        self.filter_records("active", "All")
 
     def update_active_position(
         self,
