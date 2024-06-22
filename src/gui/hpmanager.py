@@ -74,9 +74,10 @@ class HpManager(BoxLayout):
         budget,
         order_trigger,
         last_known_status=None,
+        system_id=str(uuid.uuid4()),
     ):
         config = StrategyConfig(
-            system_id=str(uuid.uuid4()),  # Generate a unique identifier for the system,
+            system_id=system_id,
             symbol=symbol,
             side=PositionSide.LONG
             if side == PositionSide.LONG.value

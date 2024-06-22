@@ -124,6 +124,24 @@ class PositionHandler:
             hours=1
         )
 
+        orders_opened = len(
+            [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
+        )
+
+        orders_filled = len(
+            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
+        )
+
+        await self.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                status=PositionStatus.OPEN,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+            )
+        )
+
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
             if execution_report.order_id == order.order_id:
@@ -136,6 +154,9 @@ class PositionHandler:
         self.stagnation_counter = 0
         self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
             hours=1
+        )
+        self.strategy_logger.info(
+            "Reseting stagation counter, current value: %s", self.stagnation_counter
         )
         orders_opened = len(
             [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
