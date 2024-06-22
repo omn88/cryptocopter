@@ -61,12 +61,12 @@ CREATE TABLE IF NOT EXISTS orders (
 
 
 class Database:
-    def __init__(self, host: str, port: int, user: str, password: str, db: str):
+    def __init__(self, host: str, port: int, user: str, password: str, name: str):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
-        self.db = db
+        self.name = name
 
     async def create_pool(self):
         self.pool = await aiomysql.create_pool(
@@ -74,7 +74,7 @@ class Database:
             port=self.port,
             user=self.user,
             password=self.password,
-            db=self.db,
+            db=self.name,
             autocommit=True,
         )
 
@@ -93,15 +93,15 @@ class Database:
             )
             async with temp_pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.db};")
+                    await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.name};")
                     await cur.execute(
-                        f"GRANT ALL PRIVILEGES ON {self.db}.* TO '{self.user}'@'localhost';"
+                        f"GRANT ALL PRIVILEGES ON {self.name}.* TO '{self.user}'@'localhost';"
                     )
             temp_pool.close()
             await temp_pool.wait_closed()
-            logger.info("Database %s checked/created successfully.", self.db)
+            logger.info("Database %s checked/created successfully.", self.name)
         except aiomysql.Error as err:
-            logger.error("Error creating database %s: %s", self.db, err)
+            logger.error("Error creating database %s: %s", self.name, err)
 
     async def setup_tables(self):
         async with self.pool.acquire() as conn:
