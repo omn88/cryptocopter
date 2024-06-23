@@ -38,7 +38,7 @@ class TradingSystem:
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize(self):
+    async def initialize_strategy(self):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,

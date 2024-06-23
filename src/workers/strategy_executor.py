@@ -46,7 +46,7 @@ class StrategyExecutor:
             system_id=config.system_id,
             db=db,
         )
-        await trading_system.initialize()
+        await trading_system.initialize_strategy()
 
         self.id_to_system[config.system_id] = trading_system
         self.logger.debug("Starting trading system for %s", config)
