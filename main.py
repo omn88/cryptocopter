@@ -54,9 +54,10 @@ async def main():
         port=int(config("DB_PORT")),
         user=config("DB_USER"),
         password=config("DB_PASSWORD"),
-        db=config("DB_NAME"),
+        name=config("DB_NAME"),
     )
 
+    await db.create_database_if_not_exists()
     await db.create_pool()
     await db.setup_tables()
 

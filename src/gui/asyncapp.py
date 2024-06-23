@@ -7,7 +7,7 @@ for each strategy.
 
 import asyncio
 import logging
-from typing import Dict, List, Union
+from typing import Dict, List
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -20,6 +20,8 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.identifiers.futures import (
+    Event,
+    EventName,
     Position,
     StrategyConfig,
 )
@@ -67,7 +69,7 @@ class AsyncApp(App):
         self.client = client
         self.db = db
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
-        self.tabs: Dict = {}
+        self.strategies: Dict = {}
         self.strategy_mapping = {
             "RSI Basic": "RB",
             "RSI Extended": "RE",
@@ -77,22 +79,52 @@ class AsyncApp(App):
         asyncio.create_task(self.initialize())
 
     async def initialize(self):
-        # await self.load_all_strategies()
+        await self.load_all_active_strategies()
         await self.update_ui()
         logger.info("Initialization finished!")
 
     async def close_pool(self):
         await self.db.close_pool()
 
-    async def load_all_strategies(self):
-        strategy_states = await self.db.fetch_all_strategy_states()
-        for state in strategy_states:
-            await self.restore_strategy(state["strategy_name"], state["state"])
+    async def load_all_active_strategies(self):
+        active_strategies = await self.db.fetch_all_active_strategies()
+        if not active_strategies:
+            logger.info("No active strategy found")
+            return
+        logger.info("Current active strategies: %s", active_strategies)
+        for strategy in active_strategies:
+            await self.restore_strategy(strategy)
 
-    async def restore_strategy(self, strategy_name: str, state: Dict):
-        # Logic to restore strategy from saved state
-        logger.info(f"Restoring strategy: {strategy_name}")
-        # Create and start the strategy using the state data
+    async def restore_strategy(self, strategy):
+        if strategy.get("name") == "HPManager":
+            logger.info("Found instance of HPManager, restoring last known state.")
+
+            self.setup_hp_manager_gui(strategy_id=strategy.get("id"))
+            assert isinstance(self.strategies["HPManager"].content, HpManager)
+            active_price_levels = await self.db.fetch_all_active_price_levels()
+            if not active_price_levels:
+                logger.info("No active price levels found")
+                return
+            logger.info("Current active price levels: %s", active_price_levels)
+            hp_manager = self.strategies["HPManager"].content
+
+            for price_level in active_price_levels:
+                await hp_manager.add_record(
+                    system_id=price_level.get("price_level_id"),
+                    symbol=price_level.get("symbol"),
+                    side=price_level.get("side"),
+                    price_low=price_level.get("price_low"),
+                    price_high=price_level.get("price_high"),
+                    budget=price_level.get("budget"),
+                    order_trigger=price_level.get("order_trigger"),
+                    last_known_status=price_level.get("status"),
+                )
+
+            # hp_manager.add_record() for
+
+            # Restore all price levels
+            # Restore all orders
+            # Create instance of objects to restore the state
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -162,9 +194,7 @@ class AsyncApp(App):
                     "Starting new strategy: %s on pair %s", config.name, config.symbol
                 )
 
-                strategy_logger = StrategyLogger(
-                    name=config.name, strategy_info=strategy_name_short
-                )
+                strategy_logger = StrategyLogger(name=config.name)
 
                 gui_handler = GuiHandlerFutures(
                     main_ui_queue=self.main_ui_queue,
@@ -192,7 +222,7 @@ class AsyncApp(App):
                     ),
                 )
                 # Store a reference to the tab
-                self.tabs[strategy_name_short] = tab
+                self.strategies[strategy_name_short] = tab
                 # Add a new tab for the strategy
                 self.root.add_widget(tab)
                 self.root.ids.strategy_spinner.text = "Choose Strategy"
@@ -214,7 +244,9 @@ class AsyncApp(App):
                     len(self.trading_systems),
                 )
 
-                await self.db.create_strategy(name=config.name, description=str(config))
+                strategy_id = await self.db.insert_strategy(
+                    name=config.name, description=str(config)
+                )
 
                 await trading_system.start_trading()
             else:
@@ -231,39 +263,40 @@ class AsyncApp(App):
 
             logger.info("Starting HP manager strategy")
 
-            # Builder.load_file("src/gui/searchable_drop_down.kv")
-            Builder.load_file("src/gui/hpmanager.kv")
-
-            strategy_logger = StrategyLogger(
-                name=strategy_name, strategy_info=strategy_name
+            strategy_id = await self.db.insert_strategy(
+                name="HPManager", description="HPManager"
             )
-
-            hp_manager = HpManager(
-                strategy_logger=strategy_logger,
-                client=self.client,
-                db=self.db,
-            )
-
-            tab = TabbedPanelItem(
-                text=strategy_name,
-                content=hp_manager,
-            )
-
-            # Set up a logging handler for the strategy
-            setup_logging_handler(
-                strategy_logger=strategy_logger,
-                log_display_widget=tab.content.log_display,
-            )
-
-            # Store a reference to the tab
-            self.tabs[strategy_name] = tab
-            # Add a new tab for the strategy
-            self.root.add_widget(tab)
+            self.setup_hp_manager_gui(strategy_id=strategy_id)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
+
+    def setup_hp_manager_gui(self, strategy_id):
+        # Builder.load_file("src/gui/searchable_drop_down.kv")
+        Builder.load_file("src/gui/hpmanager.kv")
+        strategy_logger = StrategyLogger(name="HPManager")
+        hp_manager = HpManager(
+            strategy_logger=strategy_logger,
+            client=self.client,
+            db=self.db,
+            strategy_id=strategy_id,
+        )
+
+        tab = TabbedPanelItem(
+            text="HPManager",
+            content=hp_manager,
+        )
+        # Set up a logging handler for the strategy
+        setup_logging_handler(
+            strategy_logger=strategy_logger,
+            log_display_widget=tab.content.log_display,
+        )
+        # Store a reference to the tab
+        self.strategies["HPManager"] = tab
+        # Add a new tab for the strategy
+        self.root.add_widget(tab)
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
-        tab = self.tabs[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
+        tab = self.strategies[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
 
         # Remove the tab from the TabbedPanel
         self.root.remove_widget(tab)

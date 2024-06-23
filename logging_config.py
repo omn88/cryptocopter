@@ -21,10 +21,8 @@ now = datetime.now()
 
 # setup basic config for all loggers
 logging.basicConfig(
-    level=logging.INFO,
-    filename="artifacts/rsi_based_futures_{}.log".format(
-        now.strftime("%Y-%m-%d_%H-%M-%S")
-    ),
+    level=logging.DEBUG,
+    filename=f"artifacts/cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log",
     filemode="w",
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -32,11 +30,17 @@ logging.basicConfig(
 
 # create a console handler
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
+console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )
 logging.getLogger().addHandler(console_handler)
+
+# Set a higher logging level for transitions.extensions.asyncio to suppress INFO logs
+logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
+
+# Set a higher logging level for transitions.extensions.asyncio to suppress INFO logs
+logging.getLogger("websockets.client").setLevel(logging.WARNING)
 
 
 class KivyGuiHandler(logging.Handler):
@@ -54,9 +58,8 @@ class KivyGuiHandler(logging.Handler):
 
 
 class StrategyLogger:
-    def __init__(self, name, strategy_info):
+    def __init__(self, name):
         self.logger = logging.getLogger(name)
-        self.strategy_info = strategy_info
 
     def add_handler(self, handler):
         self.logger.addHandler(handler)
@@ -66,15 +69,15 @@ class StrategyLogger:
 
     def info(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.INFO):
-            self.logger.info("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.info(message, *args)
 
     def debug(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.debug(message, *args)
 
     def error(self, message, *args, **kwargs):
         if self.logger.isEnabledFor(logging.ERROR):
-            self.logger.error("%s: %s" % (self.strategy_info, message), *args)
+            self.logger.error(message, *args)
 
 
 def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -> None:
@@ -85,9 +88,12 @@ def setup_logging_handler(strategy_logger: StrategyLogger, log_display_widget) -
         log_display_widget (Widget): The widget to display the logs in.
     """
     gui_log_handler = KivyGuiHandler(log_display_widget)
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    gui_log_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
     gui_log_handler.setFormatter(formatter)
 
     strategy_logger.add_handler(gui_log_handler)
-
-    strategy_logger.info("Logging handler configured with success")
+    strategy_logger.debug("Logging handler configured with success")

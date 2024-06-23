@@ -96,9 +96,7 @@ class OrderHandler:
                 for order in orders
             ]
         )
-        self.strategy_logger.info(
-            "Orders created, ids: %s", [order.order_id for order in orders]
-        )
+        self.strategy_logger.info("Orders created: %s", list(orders))
 
         await self.gui_handler.create_orders(
             orders=results,

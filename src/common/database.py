@@ -1,12 +1,11 @@
-# database.py
-
+import datetime
 import logging
-from typing import Optional, Dict, List
+from typing import Dict, List
+import uuid
 import aiomysql
 
-from src.common.identifiers.common import Order
+from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
-from src.position_handler.spot import PositionHandler
 
 logger = logging.getLogger("database")
 
@@ -15,8 +14,29 @@ logger = logging.getLogger("database")
 CREATE_STRATEGIES_TABLE = """
 CREATE TABLE IF NOT EXISTS strategies (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    strategy_id CHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    status ENUM('ACTIVE', 'CLOSED') NOT NULL DEFAULT 'ACTIVE',
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_PRICE_LEVELS_TABLE = """
+CREATE TABLE IF NOT EXISTS price_levels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    price_level_id CHAR(36) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    price_low FLOAT NOT NULL,
+    price_high FLOAT NOT NULL,
+    order_trigger FLOAT NOT NULL,
+    budget FLOAT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -24,46 +44,29 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    price_level_id INT,
-    strategy_id INT,
+    order_id BIGINT NOT NULL,
+    price_level_id CHAR(36) NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
     quantity_stable FLOAT NOT NULL,
-    order_id INT NOT NULL,
     realized_quantity FLOAT NOT NULL,
-    open_time TIMESTAMP,
     time_in_force VARCHAR(10) NOT NULL,
     status VARCHAR(10) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (price_level_id) REFERENCES price_levels(id),
-    FOREIGN KEY (strategy_id) REFERENCES strategies(id)
-);
-"""
-
-CREATE_PRICE_LEVELS_TABLE = """
-CREATE TABLE IF NOT EXISTS price_levels (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    system_id VARCHAR(36) NOT NULL,
-    symbol VARCHAR(10) NOT NULL,
-    side VARCHAR(10) NOT NULL,
-    price_low FLOAT NOT NULL,
-    price_high FLOAT NOT NULL,
-    order_trigger FLOAT NOT NULL,
-    budget FLOAT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 
 
 class Database:
-    def __init__(self, host: str, port: int, user: str, password: str, db: str):
+    def __init__(self, host: str, port: int, user: str, password: str, name: str):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
-        self.db = db
+        self.name = name
 
     async def create_pool(self):
         self.pool = await aiomysql.create_pool(
@@ -71,7 +74,7 @@ class Database:
             port=self.port,
             user=self.user,
             password=self.password,
-            db=self.db,
+            db=self.name,
             autocommit=True,
         )
 
@@ -90,58 +93,52 @@ class Database:
             )
             async with temp_pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.db};")
+                    await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.name};")
                     await cur.execute(
-                        f"GRANT ALL PRIVILEGES ON {self.db}.* TO '{self.user}'@'localhost';"
+                        f"GRANT ALL PRIVILEGES ON {self.name}.* TO '{self.user}'@'localhost';"
                     )
             temp_pool.close()
             await temp_pool.wait_closed()
-            logger.info("Database %s checked/created successfully.", self.db)
+            logger.info("Database %s checked/created successfully.", self.name)
         except aiomysql.Error as err:
-            logger.error("Error creating database %s: %s", self.db, err)
+            logger.error("Error creating database %s: %s", self.name, err)
 
     async def setup_tables(self):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(CREATE_STRATEGIES_TABLE)
-                await cur.execute(CREATE_ORDERS_TABLE)
                 await cur.execute(CREATE_PRICE_LEVELS_TABLE)
+                await cur.execute(CREATE_ORDERS_TABLE)
+
                 await conn.commit()
 
-    async def fetch_strategy(self, strategy_id: int) -> Optional[Dict]:
+    async def insert_strategy(self, name, description, status="ACTIVE"):
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
+            async with conn.cursor() as cur:
+                strategy_id = str(uuid.uuid4())
+                insert_query = """
+                INSERT INTO strategies (strategy_id, name, description, status)
+                VALUES (%s, %s, %s, %s)
+                """
                 await cur.execute(
-                    "SELECT * FROM strategies WHERE id=%s", (strategy_id,)
+                    insert_query, (strategy_id, name, description, status)
                 )
-                result = await cur.fetchone()
-                return result
+                await conn.commit()
+                logger.info("Inserted strategy with ID: %s", strategy_id)
+                return strategy_id
 
-    async def create_strategy(self, name: str, description: str) -> None:
+    async def insert_order(self, price_level_id: str, order: Order) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO strategies (name, description) VALUES (%s, %s)",
-                    (name, description),
-                )
-                await conn.commit()
-
-    async def create_order(
-        self, strategy_id: int, price_level_id: int, order: Order
-    ) -> None:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO orders (price_level_id, strategy_id, quantity, price, quantity_stable, order_id, realized_quantity, open_time, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
+                        order.order_id,
                         price_level_id,
-                        strategy_id,
                         order.quantity,
                         order.price,
                         order.quantity_stable,
-                        order.order_id,
                         order.realized_quantity,
-                        order.open_time,
                         order.time_in_force,
                         order.status,
                         order.order_type,
@@ -149,67 +146,11 @@ class Database:
                 )
                 await conn.commit()
 
-    async def save_strategy_state(self, strategy_id: int, state: Dict) -> None:
+    async def insert_price_level(self, config: StrategyConfig) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "REPLACE INTO strategy_states (strategy_id, state) VALUES (%s, %s)",
-                    (strategy_id, str(state)),
-                )
-                await conn.commit()
-
-    async def load_strategy_state(self, strategy_id: int) -> Optional[Dict]:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT state FROM strategy_states WHERE strategy_id=%s",
-                    (strategy_id,),
-                )
-                result = await cur.fetchone()
-                if result:
-                    return eval(result["state"])
-                return None
-
-    async def fetch_all_strategy_states(self) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT strategy_id, state FROM strategy_states")
-                result = await cur.fetchall()
-                return [
-                    {"strategy_id": row["strategy_id"], "state": eval(row["state"])}
-                    for row in result
-                ]
-
-    async def create_position(
-        self, position: PositionHandler, strategy_id: int
-    ) -> None:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO positions (id, symbol, state, side, status, strategy_id) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (
-                        position.config.system_id,
-                        position.config.symbol,
-                        position.state,
-                        position.config.side,
-                        position.status,
-                        strategy_id,
-                    ),
-                )
-                await conn.commit()
-
-    async def fetch_all_price_levels(self, system_id: str) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute("SELECT * FROM price_levels")
-                result = await cur.fetchall()
-                return result
-
-    async def create_price_level(self, config: StrategyConfig) -> None:
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO price_levels (system_id, symbol, side, price_low, price_high, order_trigger, budget) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
                         config.symbol,
@@ -218,15 +159,121 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
+                        config.status.value,
                     ),
                 )
                 await conn.commit()
 
-    async def update_price_level(self, system_id: str, updates: Dict) -> None:
+    async def fetch_all_active_strategies(self) -> List[Dict]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM strategies WHERE status = 'ACTIVE' AND is_current=TRUE"
+                )
+                result = await cur.fetchall()
+                return result
+
+    async def fetch_all_active_price_levels(self) -> List[Dict]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                query = """
+                SELECT * FROM price_levels
+                WHERE status IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
+                """
+                await cur.execute(query)
+                result = await cur.fetchall()
+                return result
+
+    async def fetch_orders_for_price_level(self, price_level_id: str) -> List[Dict]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM orders WHERE price_level_id=%s AND is_current=TRUE",
+                    price_level_id,
+                )
+                result = await cur.fetchall()
+                return result
+
+    async def update_price_level(
+        self,
+        system_id: str,
+        symbol: str,
+        side: PositionSide,
+        price_low: float,
+        price_high: float,
+        order_trigger: float,
+        budget: float,
+        status: PositionStatus,
+    ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                set_clause = ", ".join([f"{key}=%s" for key in updates.keys()])
-                sql = f"UPDATE price_levels SET {set_clause} WHERE system_id=%s"
-                params = list(updates.values()) + [system_id]
-                await cur.execute(sql, params)
+                # Mark the current record as not current
+                await cur.execute(
+                    "UPDATE price_levels SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE",
+                    (system_id,),
+                )
+                # Insert a new record with the updated values
+                version_timestamp = datetime.datetime.now().isoformat()
+                insert_query = """
+                INSERT INTO price_levels (
+                    price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                """
+                await cur.execute(
+                    insert_query,
+                    (
+                        system_id,
+                        symbol,
+                        side.value,
+                        price_low,
+                        price_high,
+                        order_trigger,
+                        budget,
+                        status.value,
+                        version_timestamp,
+                    ),
+                )
+                await conn.commit()
+
+    async def update_order(
+        self,
+        order_id: int,
+        price_level_id: str,
+        quantity: float,
+        price: float,
+        quantity_stable: float,
+        realized_quantity: float,
+        time_in_force: str,
+        status: str,
+        order_type: str,
+    ) -> None:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Mark the current order as not current
+                await cur.execute(
+                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
+                    (order_id,),
+                )
+                # Insert a new record with the updated values
+                version_timestamp = datetime.datetime.now().isoformat()
+                insert_query = """
+                INSERT INTO orders (
+                    order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                """
+                await cur.execute(
+                    insert_query,
+                    (
+                        order_id,
+                        price_level_id,
+                        quantity,
+                        price,
+                        quantity_stable,
+                        realized_quantity,
+                        time_in_force,
+                        status,
+                        order_type,
+                        version_timestamp,
+                    ),
+                )
                 await conn.commit()

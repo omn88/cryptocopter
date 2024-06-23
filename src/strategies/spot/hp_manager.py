@@ -10,8 +10,11 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.spot import (
     AccountPosition,
+    Event,
+    EventName,
     ExecutionReport,
     Signal,
     SignalUpdate,
@@ -23,7 +26,9 @@ from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
+    PositionStatus,
 )
+from src.gui.identifiers.spot import PositionData
 from src.position_handler.spot import PositionHandler
 
 STAGNATION_LIMIT = 8
@@ -37,10 +42,12 @@ class HpManager:
         logger: StrategyLogger,
         balance: float,
         gui_handler: asyncio.Queue,
+        db: Database,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
+        self.db = db
         self.queue: asyncio.Queue = asyncio.Queue()
         self.config = config
         self.position_handler = PositionHandler(
@@ -48,13 +55,16 @@ class HpManager:
             strategy_logger=logger,
             config=config,
             gui_handler=gui_handler,
+            db=db,
         )
         self.state = State.NEW
+
         self.states = [
+            State.CLOSED,
             State.NEW,
             State.OPEN,
+            State.RECOVERING,
             State.STAGNATED,
-            State.CLOSED,
         ]
 
         # Initialize any other common attributes
@@ -64,7 +74,6 @@ class HpManager:
         self.account_position: AccountPosition = AccountPosition()
 
         self.trigger_orders_price = self.calculate_trigger_orders_price()
-
         self.transitions = self.get_transitions()
 
     def __str__(self):
@@ -79,8 +88,35 @@ class HpManager:
     def get_transitions(self):
         return [
             {
+                "trigger": "process_recovery",
+                "source": State.RECOVERING,
+                "dest": State.NEW,
+                "conditions": "condition_for_recovering_to_new",
+                "after": "handle_recovery_to_new",
+            },
+            {
+                "trigger": "process_recovery",
+                "source": State.RECOVERING,
+                "dest": State.OPEN,
+                "conditions": "condition_for_recovering_to_open",
+                "after": "handle_recovery_to_open",
+            },
+            {
+                "trigger": "process_recovery",
+                "source": State.RECOVERING,
+                "dest": State.STAGNATED,
+                "conditions": "condition_for_recovering_to_stagnated",
+                "after": "handle_recovery_to_stagnated",
+            },
+            {
                 "trigger": "process_account",
-                "source": [State.NEW, State.OPEN, State.STAGNATED, State.CLOSED],
+                "source": [
+                    State.NEW,
+                    State.OPEN,
+                    State.STAGNATED,
+                    State.RECOVERING,
+                    State.CLOSED,
+                ],
                 "dest": "=",
                 "after": "handle_account",
             },
@@ -170,9 +206,10 @@ class HpManager:
             },
             {
                 "trigger": "process_ticker",
-                "source": [State.NEW, State.OPEN, State.STAGNATED, State.CLOSED],
+                "source": State.OPEN,
                 "dest": "=",
-                "after": "handle_ticker",
+                "conditions": "conditions_for_position_stagnation",
+                "after": "increase_stagnation_counter",
             },
         ]
 
@@ -225,6 +262,36 @@ class HpManager:
             )
         )
 
+    def condition_for_recovering_to_new(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.NEW.value
+        )
+        self.logger.debug("Recovering to state NEW: %s.", condition)
+        return condition
+
+    def condition_for_recovering_to_open(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.OPEN.value
+        )
+        self.logger.debug("Recovering to state OPEN: %s.", condition)
+        return condition
+
+    def condition_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
+        # This has to figure out whether this is new target order or just limit dca, or not?
+
+        condition = (
+            self.state == State.RECOVERING
+            and self.config.status == PositionStatus.STAGNATED.value
+        )
+        self.logger.debug("Recovering to state STAGNATED: %s.", condition)
+        return condition
+
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
@@ -236,7 +303,7 @@ class HpManager:
             ]
             and self.execution_report.current_order_status == ORDER_STATUS_NEW
         )
-        self.logger.info(
+        self.logger.debug(
             "New order confirmation: %s, order type: %s order status: %s",
             condition,
             self.execution_report.order_type,
@@ -249,7 +316,7 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
         )
-        self.logger.info(
+        self.logger.debug(
             "Order cancelled: %s, order update status: %s",
             condition,
             self.execution_report.current_order_status,
@@ -261,7 +328,7 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
         )
-        self.logger.info(
+        self.logger.debug(
             "Order expired: %s, order update status: %s",
             condition,
             self.execution_report.current_order_status,
@@ -274,7 +341,7 @@ class HpManager:
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
         )
 
-        self.logger.info(
+        self.logger.debug(
             "Order filled: %s, order status: %s",
             condition,
             self.execution_report.current_order_status,
@@ -287,7 +354,7 @@ class HpManager:
             and self.execution_report.current_order_status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
-        self.logger.info(
+        self.logger.debug(
             "Order partially filled: %s, order update status: %s",
             condition,
             self.execution_report.current_order_status,
@@ -295,7 +362,6 @@ class HpManager:
         return condition
 
     def conditions_for_all_orders_filled(self, *args, **kwargs):
-        self.logger.info("Entering conditions for all orders filled")
         condition = (
             self.state == State.OPEN
             and all(
@@ -305,7 +371,7 @@ class HpManager:
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
 
-        self.logger.info(
+        self.logger.debug(
             "All orders filled: %s, signal update: %s",
             condition,
             self.signal_update.signal,
@@ -318,7 +384,7 @@ class HpManager:
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price <= self.trigger_orders_price
         )
-        self.logger.info(
+        self.logger.debug(
             "Send buy orders: %s, side: %s, state: %s",
             condition,
             self.config.side,
@@ -333,7 +399,7 @@ class HpManager:
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price <= self.trigger_orders_price
         )
-        self.logger.info("Resend buy orders: %s, state: %s", condition, self.state)
+        self.logger.debug("Resend buy orders: %s, state: %s", condition, self.state)
 
         return condition
 
@@ -343,7 +409,7 @@ class HpManager:
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price >= self.trigger_orders_price
         )
-        self.logger.info(
+        self.logger.debug(
             "Send sell orders: %s, side: %s, state: %s",
             condition,
             self.config.side,
@@ -358,7 +424,7 @@ class HpManager:
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price >= self.trigger_orders_price
         )
-        self.logger.info("Resend sell orders: %s, state: %s", condition, self.state)
+        self.logger.debug("Resend sell orders: %s, state: %s", condition, self.state)
 
         return condition
 
@@ -366,14 +432,16 @@ class HpManager:
         condition = (
             self.state == State.OPEN
             and self.position_handler.config.side == PositionSide.LONG
-            and self.position_handler.stagnation_counter == STAGNATION_LIMIT
+            and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
             and self.ticker_update.last_price > self.trigger_orders_price
         )
-        self.logger.info(
-            "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.config.side.value,
+        self.logger.debug(
+            "Cancel BUY orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
             condition,
+            self.position_handler.stagnation_counter,
+            STAGNATION_LIMIT,
             self.ticker_update.last_price,
+            self.trigger_orders_price,
         )
 
         return condition
@@ -382,14 +450,32 @@ class HpManager:
         condition = (
             self.state == State.OPEN
             and self.position_handler.config.side == PositionSide.SHORT
-            and self.position_handler.stagnation_counter == STAGNATION_LIMIT
+            and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
             and self.ticker_update.last_price < self.trigger_orders_price
         )
-        self.logger.info(
-            "Cancel %s orders due to stagnation: %s, last price: %s",
-            self.position_handler.config.side,
+        self.logger.debug(
+            "Cancel SELL orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
             condition,
+            self.position_handler.stagnation_counter,
+            STAGNATION_LIMIT,
             self.ticker_update.last_price,
+            self.trigger_orders_price,
+        )
+
+        return condition
+
+    def conditions_for_position_stagnation(self, *args, **kwargs) -> bool:
+        date_time_now = datetime.now()
+
+        condition = (
+            self.state == State.OPEN
+            and date_time_now > self.position_handler.next_monitor_position_time
+        )
+        self.logger.debug(
+            "Handle position stagnation: %s, time now: %s, monitor time: %s",
+            condition,
+            date_time_now,
+            self.position_handler.next_monitor_position_time,
         )
 
         return condition
@@ -466,37 +552,31 @@ class HpManager:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
 
         await self.position_handler.cancel_position()
+        self.position_handler.status = PositionStatus.STAGNATED
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
         await self.position_handler.cancel_position()
+        self.position_handler.status = PositionStatus.STAGNATED
 
     async def close_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
 
-    async def handle_ticker(self, *args, **kwargs) -> None:
-        date_time_now = datetime.now()
-
-        if (
-            self.state == State.OPEN
-            and date_time_now > self.position_handler.next_monitor_position_time
-        ):
-            self.position_handler.stagnation_counter += 1
-            self.logger.info(
-                "Stagnation counter increase due to crossing stagnation timer: %s, time now: %s, stagnation counter: %s",
-                self.position_handler.next_monitor_position_time,
-                date_time_now,
-                self.position_handler.stagnation_counter,
-            )
-            self.position_handler.next_monitor_position_time += timedelta(hours=1)
+    async def increase_stagnation_counter(self, *args, **kwargs) -> None:
+        self.position_handler.stagnation_counter += 1
+        self.logger.info(
+            "Orders stagnated for one hour, stagnation counter increased to: %s",
+            self.position_handler.stagnation_counter,
+        )
+        self.position_handler.next_monitor_position_time += timedelta(hours=1)
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.orders:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "New order confirmation: %s", self.execution_report.order_id
                 )
 
@@ -505,7 +585,7 @@ class HpManager:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "Cancelled order confirmation: %s", self.execution_report.order_id
                 )
 
@@ -514,7 +594,7 @@ class HpManager:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                self.logger.info(
+                self.logger.debug(
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
                 # await self.gui_handler.update_order(
@@ -524,10 +604,10 @@ class HpManager:
                 # )
 
     async def handle_account(self, *args, **kwargs):
-        self.logger.info("Account update: %s", self.account_update)
+        self.logger.debug("Account update: %s", self.account_position)
 
     async def handle_order_filled(self, *args, **kwargs):
-        self.logger.info("Entering handle order filled")
+        self.logger.debug("Entering handle order filled")
 
         await self.position_handler.handle_order_filled(
             execution_report=self.execution_report
@@ -539,11 +619,131 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
-            await self.queue.put(SignalUpdate(signal=signal))
+            await self.queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
 
     async def handle_order_partially_filled(self, *args, **kwargs):
-        self.logger.info("Entering handle order partially filled")
+        self.logger.debug("Entering handle order partially filled")
 
         await self.position_handler.handle_order_partially_filled(
             execution_report=self.execution_report
+        )
+
+    async def handle_recovery_to_new(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to new")
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=0,
+                orders_filled=0,
+                orders_total=0,
+                status=self.config.status,
+                recovering=True,
+            )
+        )
+
+    async def handle_recovery_to_open(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to open")
+
+        orders = await self.db.fetch_orders_for_price_level(
+            price_level_id=self.config.system_id
+        )
+
+        self.logger.debug(
+            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+        )
+
+        for order in self.position_handler.orders:
+            for fetched_order in orders:
+                if order.price == fetched_order.get("price"):
+                    order.order_id = fetched_order.get("order_id")
+                    order.quantity -= fetched_order.get("realized_quantity")
+                    order.status = fetched_order.get("status")
+
+        orders_opened = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status != ORDER_STATUS_FILLED
+            ]
+        )
+        orders_filled = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
+        )
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+                status=self.config.status,
+                recovering=True,
+            )
+        )
+
+    async def handle_recovery_to_stagnated(self, *args, **kwargs):
+        self.logger.debug("Handle recovery to stagnated")
+
+        orders = await self.db.fetch_orders_for_price_level(
+            price_level_id=self.config.system_id
+        )
+
+        self.logger.debug(
+            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+        )
+
+        for order in self.position_handler.orders:
+            for fetched_order in orders:
+                if order.price == fetched_order.get("price"):
+                    order.order_id = fetched_order.get("order_id")
+                    order.quantity -= fetched_order.get("realized_quantity")
+                    order.status = fetched_order.get("status")
+
+        orders_opened = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status != ORDER_STATUS_FILLED
+            ]
+        )
+        orders_filled = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
+        )
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+                status=self.config.status,
+            )
         )

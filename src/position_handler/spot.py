@@ -1,14 +1,17 @@
 import asyncio
 import datetime
 from typing import List
+
+from binance.enums import ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
     PositionStatus,
 )
-from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
+from src.common.identifiers.spot import ExecutionReport, StrategyConfig
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
@@ -20,9 +23,11 @@ class PositionHandler:
         strategy_logger: StrategyLogger,
         config: StrategyConfig,
         gui_handler: asyncio.Queue,
+        db: Database,
     ):
         self.config = config
         self.strategy_logger = strategy_logger
+        self.db = db
         self.gui_handler: asyncio.Queue = gui_handler
         self.order_handler = OrderHandler(
             client=client,
@@ -38,8 +43,6 @@ class PositionHandler:
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
         self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
-
-        self.state: State = State.NEW
         self.status: PositionStatus = PositionStatus.NEW
 
     async def open_position(
@@ -54,8 +57,8 @@ class PositionHandler:
             hours=1
         )
 
-        self.state = State.OPEN
         self.status = PositionStatus.OPEN
+        self.config.status = self.status
         await self.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
@@ -66,22 +69,43 @@ class PositionHandler:
             )
         )
 
-        self.strategy_logger.info("Position opened successfully.")
+        for order in self.orders:
+            await self.db.insert_order(
+                price_level_id=self.config.system_id, order=order
+            )
+        await self.db.update_price_level(
+            system_id=self.config.system_id,
+            side=self.config.side,
+            price_low=self.config.price_low,
+            price_high=self.config.price_high,
+            order_trigger=self.config.order_trigger,
+            budget=self.config.budget,
+            status=self.config.status,
+            symbol=self.config.symbol,
+        )
+
+        self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self) -> None:
-        self.strategy_logger.info("Enter cancel position")
+        self.strategy_logger.debug("Enter cancel position")
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol,
             orders=self.orders,
         )
-
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name,
-        #     position=self.position,
-        # )
-        self.status = PositionStatus.STAGNATED
+        self.status = PositionStatus.CLOSED
+        for order in self.orders:
+            await self.db.update_order(
+                price=order.price,
+                quantity=order.quantity,
+                quantity_stable=order.quantity_stable,
+                realized_quantity=order.realized_quantity,
+                time_in_force=order.time_in_force,
+                status=order.status,
+                order_type=order.order_type,
+                order_id=order.order_id,
+                price_level_id=self.config.system_id,
+            )
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
@@ -100,15 +124,23 @@ class PositionHandler:
             hours=1
         )
 
-        #         await self.gui_handler.update_order(
-        #             order=order,
-        #             symbol=self.position.symbol,
-        #             side=self.position.side,
-        #         )
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name, position=self.position
-        # )
+        orders_opened = len(
+            [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
+        )
+
+        orders_filled = len(
+            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
+        )
+
+        await self.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                status=PositionStatus.OPEN,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+            )
+        )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
@@ -123,13 +155,23 @@ class PositionHandler:
         self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
             hours=1
         )
+        self.strategy_logger.info(
+            "Reseting stagation counter, current value: %s", self.stagnation_counter
+        )
+        orders_opened = len(
+            [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
+        )
 
-        #         await self.gui_handler.update_order(
-        #             order=order,
-        #             symbol=self.position.symbol,
-        #             side=self.position.side,
-        #         )
-        # await self.gui_handler.update_position(position=self.position)
-        # await self.gui_handler.update_strategy(
-        #     strategy_name=self.config.name, position=self.position
-        # )
+        orders_filled = len(
+            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
+        )
+
+        await self.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                status=PositionStatus.OPEN,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=orders_opened + orders_filled,
+            )
+        )

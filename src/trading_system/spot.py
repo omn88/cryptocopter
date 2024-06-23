@@ -2,11 +2,12 @@ import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
     SentinelUpdate,
 )
-from src.common.identifiers.spot import Event, EventName, StrategyConfig
+from src.common.identifiers.spot import Event, EventName, State, StrategyConfig
 from src.common.initialize_trading_environment import spot_prepare_producers
 from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker_spot
@@ -23,19 +24,21 @@ class TradingSystem:
         gui_handler: asyncio.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
+        db: Database,
     ):
         self.system_id = system_id
         self.client = client
         self.config = config
         self.gui_handler = gui_handler
         self.strategy_logger = strategy_logger
+        self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize(self):
+    async def initialize_strategy(self):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
@@ -43,16 +46,23 @@ class TradingSystem:
             logger=self.strategy_logger,
             config=self.config,
             balance=self.balance,
+            db=self.db,
         )
 
+        self.strategy_logger.debug("Config status: %s", self.config.status)
+
         await self.strategy.initialize()
+        if self.config.status is not None:
+            self.strategy_logger.debug(
+                "Old status is not None: %s, moving strategy state to recovering",
+                self.config.status,
+            )
+            self.strategy.state = State.RECOVERING
 
         # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)
 
     async def prepare_worker(self, logger: StrategyLogger):
-        # is this sleep needed?
-        await asyncio.sleep(5)
         if self.state_machine:
             await worker_spot.worker(state_machine=self.state_machine, logger=logger)
 
@@ -71,10 +81,11 @@ class TradingSystem:
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
-        self.strategy_logger.info("Trading system STOP initiated properly")
+        self.strategy_logger.info(
+            "Closing trading system: %s", self.strategy.config.system_id
+        )
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
         await asyncio.sleep(5)
         self.stop_producers_event.set()
-        self.strategy_logger.info("Sentinel should be send.")

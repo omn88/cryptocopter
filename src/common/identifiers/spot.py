@@ -2,13 +2,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, NamedTuple, Optional, Union
 
-from src.common.identifiers.common import PositionSide, SentinelUpdate
+from src.common.identifiers.common import PositionSide, PositionStatus, SentinelUpdate
 
 
 class State(Enum):
     NEW = "NEW"
     OPEN = "OPEN"
     STAGNATED = "STAGNATED"
+    RECOVERING = "RECOVERING"
     CLOSED = "CLOSED"
 
 
@@ -152,6 +153,7 @@ class StrategyConfig:
     order_trigger: float = 0
     name: str = "HP Manager"
     budget: float = 0
+    status: PositionStatus = PositionStatus.NEW
 
     def __str__(self):
         return (
