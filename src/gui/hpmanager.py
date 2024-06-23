@@ -323,17 +323,11 @@ class HpManager(BoxLayout):
                         "status": str(data.status),
                     }
                 )
-                if data.orders_opened:
-                    self.strategy_logger.debug(
-                        "Will remove from idle and add to archive as its closed"
-                    )
+                if data.status == PositionStatus.OPEN:
                     self.idle_records.remove(position)
                     self.active_records.append(position)
                     self.strategy_logger.debug("Activating price level: %s", position)
-                if data.status == PositionStatus.CLOSED.value:
-                    self.strategy_logger.debug(
-                        "Will remove from idle and add to archive as its closed"
-                    )
+                if data.status == PositionStatus.CLOSED:
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
