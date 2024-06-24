@@ -84,6 +84,13 @@ class Database:
 
     async def create_database_if_not_exists(self):
         try:
+            logger.info(
+                "Will setup pool with config: host %s, port %s, user %s, pass %s",
+                self.host,
+                self.port,
+                self.user,
+                self.password,
+            )
             temp_pool = await aiomysql.create_pool(
                 host=self.host,
                 port=self.port,
@@ -91,6 +98,7 @@ class Database:
                 password=self.password,
                 autocommit=True,
             )
+            logger.info("Pool created")
             async with temp_pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.name};")

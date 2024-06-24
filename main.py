@@ -56,7 +56,6 @@ async def main():
         password=config("DB_PASSWORD"),
         name=config("DB_NAME"),
     )
-
     await db.create_database_if_not_exists()
     await db.create_pool()
     await db.setup_tables()

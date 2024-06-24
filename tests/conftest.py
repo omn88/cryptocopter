@@ -5,6 +5,9 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
 from logging_config import StrategyLogger
+from decouple import Config, RepositoryEnv
+
+from src.common.database import Database
 from src.common.identifiers.futures import (
     Event,
     EventName,
@@ -26,6 +29,11 @@ from src.workers.trading_state_machine import TradingStateMachine
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
+
+
+# Specify the path to the .env file
+DOTENV_FILE = "config/.env"
+config = Config(RepositoryEnv(DOTENV_FILE))
 
 
 @pytest.fixture
@@ -55,6 +63,50 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     # Assign the instance to the mocked AsyncClient when used in a context manager.
     mocked_AsyncClient.return_value.__aenter__.return_value = mocked_async_client
     return mocked_async_client
+
+
+@pytest.fixture
+async def test_db():
+    db = Database(
+        host=config("DB_HOST"),
+        port=int(config("DB_PORT")),
+        user=config("DB_USER"),
+        password=config("DB_PASSWORD"),
+        name=config("DB_TEST_NAME"),
+    )
+    try:
+        await db.create_database_if_not_exists()
+        await db.create_pool()
+        await db.setup_tables()
+        yield db
+    except Exception as e:
+        logger.error(f"Error setting up the database: {e}")
+        raise e
+    await db.close_pool()
+
+
+@pytest.fixture
+async def spot_buy_with_gui_and_db(mock_AsyncClient, test_db):
+    gui_handler = asyncio.Queue()
+    config = ConfigSpot(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.LONG,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
+    strategy = HpManager(
+        client=mock_AsyncClient,
+        balance=1000,
+        config=config,
+        gui_handler=gui_handler,
+        logger=logger,
+        db=test_db,
+    )
+    state_machine = TradingStateMachine(strategy=strategy)
+    yield state_machine
 
 
 @pytest.fixture
