@@ -108,6 +108,29 @@ async def spot_buy_with_gui_and_db(mock_AsyncClient, test_db):
     state_machine = TradingStateMachine(strategy=strategy)
     yield state_machine
 
+@pytest.fixture
+async def spot_sell_with_gui_and_db(mock_AsyncClient, test_db):
+    gui_handler = asyncio.Queue()
+    config = ConfigSpot(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.SHORT,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
+    strategy = HpManager(
+        client=mock_AsyncClient,
+        balance=1000,
+        config=config,
+        gui_handler=gui_handler,
+        logger=logger,
+        db=test_db,
+    )
+    state_machine = TradingStateMachine(strategy=strategy)
+    yield state_machine
+
 
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
