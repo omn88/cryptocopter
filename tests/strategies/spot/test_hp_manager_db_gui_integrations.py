@@ -3,6 +3,7 @@ import logging
 import aiomysql
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_FILLED, ORDER_TYPE_LIMIT
 
+from src.common.database import Database
 from src.common.identifiers.common import PositionSide, PositionStatus
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import (
@@ -13,6 +14,28 @@ from tests.spot import get_buy_orders, get_sell_orders
 
 
 logger = logging.getLogger("test_hp_manager_gui_db_integrations")
+
+
+async def assert_db_price_level_content(
+    db: Database, system_id: str, side: PositionSide, status: PositionStatus
+):
+    async with db.pool.acquire() as conn:
+        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
+            await cur.execute(
+                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
+                (system_id,),
+            )
+            result = await cur.fetchone()
+
+            logger.info("Result: %s", result)
+            assert result is not None, "Price level not found in the database"
+            assert result.get("symbol") == "BTCUSDT"
+            assert result.get("side") == side.value
+            assert result.get("price_low") == 1000.0
+            assert result.get("price_high") == 1400.0
+            assert result.get("status") == status.value
+            assert result.get("budget") == 1000
+            assert result.get("order_trigger") == 1.0
 
 
 async def test_default_buy_scenario(spot_buy_with_gui_and_db):
@@ -100,23 +123,12 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.LONG.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -145,23 +157,12 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.LONG.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -190,23 +191,12 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.LONG.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -233,23 +223,12 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     assert strategy.state == State.CLOSED
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.LONG.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.CLOSED.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.CLOSED,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -270,7 +249,9 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
 
 
 async def test_default_sell_scenario(spot_sell_with_gui_and_db):
-    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = get_sell_orders()
+    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+        get_sell_orders()
+    )
 
     # Set initial condition
     strategy = spot_sell_with_gui_and_db.strategy
@@ -309,23 +290,12 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     )
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.SHORT.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -354,23 +324,12 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.SHORT.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -399,23 +358,12 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.SHORT.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -444,23 +392,12 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     await strategy.process_order()
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.SHORT.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.OPEN.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.OPEN,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -487,23 +424,12 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     assert strategy.state == State.CLOSED
 
     # Verify database state
-    async with strategy.position_handler.db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (strategy.config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == "BTCUSDT"
-            assert result.get("side") == PositionSide.SHORT.value
-            assert result.get("price_low") == 1000.0
-            assert result.get("price_high") == 1400.0
-            assert result.get("status") == PositionStatus.CLOSED.value
-            assert result.get("budget") == 1000
-            assert result.get("order_trigger") == 1.0
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=PositionStatus.CLOSED,
+        side=strategy.config.side,
+    )
 
     # Verify GUI queue content
     gui_msg = await strategy.position_handler.gui_handler.get()
@@ -521,4 +447,3 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     assert gui_msg.orders_total == 3
     assert gui_msg.orders_opened == 0
     assert gui_msg.budget == 1000
-

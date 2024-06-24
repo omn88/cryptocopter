@@ -108,6 +108,7 @@ async def spot_buy_with_gui_and_db(mock_AsyncClient, test_db):
     state_machine = TradingStateMachine(strategy=strategy)
     yield state_machine
 
+
 @pytest.fixture
 async def spot_sell_with_gui_and_db(mock_AsyncClient, test_db):
     gui_handler = asyncio.Queue()
