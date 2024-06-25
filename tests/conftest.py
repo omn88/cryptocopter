@@ -4,8 +4,8 @@ from typing import Dict
 from unittest.mock import AsyncMock
 import pytest
 from pytest_mock import MockerFixture
-from logging_config import StrategyLogger
 from decouple import Config, RepositoryEnv
+from logging_config import StrategyLogger
 
 from src.common.database import Database
 from src.common.identifiers.futures import (
@@ -77,15 +77,16 @@ async def test_db():
     try:
         await db.create_database_if_not_exists()
         await db.create_pool()
-        await db.setup_tables()
 
-        # Cleanup database before running tests
+        # Drop tables if they exist
         async with db.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM strategies")
-                await cur.execute("DELETE FROM price_levels")
-                await cur.execute("DELETE FROM orders")
+                await cur.execute("DROP TABLE IF EXISTS strategies")
+                await cur.execute("DROP TABLE IF EXISTS price_levels")
+                await cur.execute("DROP TABLE IF EXISTS orders")
                 await conn.commit()
+
+        await db.setup_tables()
 
         yield db
     except Exception as e:
