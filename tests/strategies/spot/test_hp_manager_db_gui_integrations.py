@@ -2,18 +2,20 @@ from datetime import timedelta
 import logging
 
 import aiomysql
-from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_FILLED, ORDER_TYPE_LIMIT
+from binance.enums import (
+    ORDER_STATUS_NEW,
+    ORDER_STATUS_FILLED,
+    ORDER_TYPE_LIMIT,
+    ORDER_STATUS_CANCELED,
+)
 import pytest
 
 from src.common.database import Database
 from src.common.identifiers.common import PositionSide, PositionStatus
 from src.gui.identifiers.spot import PositionData
-from src.strategies.spot.hp_manager import (
-    HpManager,
-)  # Ensure this import matches your project structure
+from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
 from src.common.identifiers.spot import ExecutionReport, TickerUpdate, State
 from tests.spot import get_buy_orders, get_cancel_order, get_sell_orders
-from src.strategies.spot.hp_manager import STAGNATION_LIMIT
 
 
 logger = logging.getLogger("test_hp_manager_gui_db_integrations")
@@ -63,7 +65,14 @@ async def assert_gui_position_data_content(
     assert gui_msg.budget == 1000
 
 
-@pytest.mark.skip_in_main_suite
+async def process_ticker(strategy: HpManager, last_price: float):
+    logger.info("Processing ticker with last price: %s", last_price)
+    strategy.ticker_update = TickerUpdate(last_price=last_price)
+
+    await strategy.process_ticker()  # type: ignore
+
+
+@pytest.mark.database_integration
 async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
 
@@ -71,39 +80,18 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     strategy = spot_buy_with_gui_and_db.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
-    last_price = 1500
-    logger.info(
-        "Processing ticker with last price outside of threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
 
-    # Simulate no state change
-    await strategy.process_ticker()
+    # Simulate price outside of the threshold
+    await process_ticker(strategy=strategy, last_price=1415)
     assert strategy.state == State.NEW
 
-    # Simulate no state change but on the price edge
-    last_price = 1415
-    logger.info(
-        "Processing ticker with last price on the edge of threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    await strategy.process_ticker()
-    assert strategy.state == State.NEW
-
-    # Simulate process_signal triggering
-    last_price = 1414
-    logger.info(
-        "Processing ticker with last price touching the threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    await strategy.process_ticker()
-
+    # Simulate position opening
+    await process_ticker(strategy=strategy, last_price=1414)
     assert strategy.state == State.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
     status = PositionStatus.OPEN
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -126,7 +114,6 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
         order_id=strategy.position_handler.orders[0].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -149,7 +136,6 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
         order_id=strategy.position_handler.orders[1].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -172,7 +158,6 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
         order_id=strategy.position_handler.orders[2].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -188,6 +173,7 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
         status=status,
     )
 
+    # Retrieve all orders filled signal from the queue and close the position.
     assert strategy.queue.qsize() == 1
     event = await strategy.queue.get()
     strategy.signal_update = event.content
@@ -195,7 +181,6 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
 
     assert strategy.state == State.CLOSED
     status = PositionStatus.CLOSED
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -211,7 +196,8 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
         status=status,
     )
 
-@pytest.mark.skip_in_main_suite
+
+@pytest.mark.database_integration
 async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
         get_sell_orders()
@@ -221,39 +207,16 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     strategy = spot_sell_with_gui_and_db.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 990
-    last_price = 900
-    logger.info(
-        "Processing ticker with last price outside of threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-    # Simulate no state change
-    await strategy.process_ticker()
-    assert strategy.state == State.NEW
-
-    # Simulate no state change but on the price edge
-    last_price = 989
-    logger.info(
-        "Processing ticker with last price on the edge of threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    await strategy.process_ticker()
+    await process_ticker(strategy=strategy, last_price=989)
     assert strategy.state == State.NEW
 
     # Simulate process_signal triggering
-    last_price = 990
-    logger.info(
-        "Processing ticker with last price touching the threshold: %s", last_price
-    )
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    await strategy.process_ticker()
+    await process_ticker(strategy=strategy, last_price=990)
     assert strategy.state == State.OPEN
     status = PositionStatus.OPEN
-
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -276,7 +239,6 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
         order_id=strategy.position_handler.orders[0].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -299,7 +261,6 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
         order_id=strategy.position_handler.orders[1].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -322,7 +283,6 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
         order_id=strategy.position_handler.orders[2].order_id,
     )
     await strategy.process_order()
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -338,14 +298,13 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
         status=status,
     )
 
+    # Retrieve all orders filled signal from the queue and close the position.
     assert strategy.queue.qsize() == 1
     event = await strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
-
     assert strategy.state == State.CLOSED
     status = PositionStatus.CLOSED
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -361,7 +320,8 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
         status=status,
     )
 
-@pytest.mark.skip_in_main_suite
+
+@pytest.mark.database_integration
 async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
     spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
     spot_buy_with_gui_and_db.strategy.client.cancel_order.side_effect = (
@@ -370,17 +330,13 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
     strategy = spot_buy_with_gui_and_db.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
-    last_price = 1400
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
 
-    # Simulate order creation
-    await strategy.process_ticker()
+    await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
     status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
-
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -398,7 +354,6 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
 
     # Simulate stagnation counter increase
     assert strategy.position_handler.stagnation_counter == 0
-
     strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
 
     # Simulate reaching the stagnation limit
@@ -409,15 +364,18 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    last_price = 1415
-    logger.info("Ticker outside, position should be cancelled: %s", last_price)
-
-    # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    await strategy.process_ticker()
+    await process_ticker(strategy=strategy, last_price=1415)
 
     assert strategy.state == State.STAGNATED
     status = PositionStatus.STAGNATED
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 3
+    for order in orders:
+        assert order.get("status") == ORDER_STATUS_CANCELED
 
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
@@ -425,7 +383,6 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
         status=status,
         side=strategy.config.side,
     )
-    logger.info("Db updated")
     await assert_gui_position_data_content(
         gui_handler=strategy.position_handler.gui_handler,
         orders_filled=0,
@@ -435,13 +392,7 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
         status=status,
     )
 
-    last_price = 1500
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    # Simulate nothing happening
-    await strategy.process_ticker()
-
-    logger.info("Ticker outside, nothing should happen: %s", last_price)
-
+    await process_ticker(strategy=strategy, last_price=1500)
     await assert_db_price_level_content(
         db=strategy.position_handler.db,
         system_id=strategy.config.system_id,
@@ -449,16 +400,32 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
         side=strategy.config.side,
     )
 
-    last_price = 1400
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
-    # Simulate nothing happening
-    await strategy.process_ticker()
-
-    logger.info("Ticker inside, reopen orders: %s", last_price)
-
+    await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
     status = PositionStatus.OPEN
-
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
+    )
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 6
+    for order in orders:
+        assert order.get("status") in [ORDER_STATUS_NEW, ORDER_STATUS_CANCELED]
+
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=status,
+        side=strategy.config.side,
+    )
+    await assert_gui_position_data_content(
+        gui_handler=strategy.position_handler.gui_handler,
+        orders_filled=0,
+        orders_opened=3,
+        orders_total=3,
+        side=strategy.config.side,
+        status=status,
     )

@@ -4,6 +4,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
+from binance.enums import ORDER_STATUS_CANCELED
 from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 

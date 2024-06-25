@@ -78,6 +78,15 @@ async def test_db():
         await db.create_database_if_not_exists()
         await db.create_pool()
         await db.setup_tables()
+
+        # Cleanup database before running tests
+        async with db.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DELETE FROM strategies")
+                await cur.execute("DELETE FROM price_levels")
+                await cur.execute("DELETE FROM orders")
+                await conn.commit()
+
         yield db
     except Exception as e:
         logger.error(f"Error setting up the database: {e}")
