@@ -11,7 +11,7 @@ from binance.enums import (
 import pytest
 
 from src.common.database import Database
-from src.common.identifiers.common import PositionSide, PositionStatus
+from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
 from src.common.identifiers.spot import ExecutionReport, TickerUpdate, State
@@ -72,13 +72,15 @@ async def process_ticker(strategy: HpManager, last_price: float):
     await strategy.process_ticker()  # type: ignore
 
 
-async def simulate_order_filled(strategy: HpManager, order_id: str):
+async def simulate_order_filled(strategy: HpManager, order: Order):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=order_id,
+        order_id=order.order_id,
+        price=order.price,
+        quantity=order.quantity,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore
 
 
 async def db_and_gui_assertions(
@@ -130,7 +132,7 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     # Simulate first order filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[0].order_id,
+        order=strategy.position_handler.orders[0],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -142,7 +144,7 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     # Simulate second order being filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[1].order_id,
+        order=strategy.position_handler.orders[1],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -154,7 +156,7 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
     # Simulate last order being filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[2].order_id,
+        order=strategy.position_handler.orders[2],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -209,7 +211,7 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     # Simulate first order filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[0].order_id,
+        order=strategy.position_handler.orders[0],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -222,7 +224,7 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     # Simulate first order filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[1].order_id,
+        order=strategy.position_handler.orders[1],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -234,7 +236,7 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
     # Simulate last order being filled
     await simulate_order_filled(
         strategy=strategy,
-        order_id=strategy.position_handler.orders[2].order_id,
+        order=strategy.position_handler.orders[2],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -332,10 +334,9 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
         price_level_id=strategy.config.system_id
     )
 
-    assert len(orders) == 6
+    assert len(orders) == 3
     for order in orders:
-        assert order.get("status") in [ORDER_STATUS_NEW, ORDER_STATUS_CANCELED]
-
+        assert order.get("status") == ORDER_STATUS_NEW
     await db_and_gui_assertions(
         strategy=strategy,
         orders_filled=0,
@@ -420,9 +421,9 @@ async def test_stagnation_sell_position(spot_sell_with_gui_and_db):
         price_level_id=strategy.config.system_id
     )
 
-    assert len(orders) == 6
+    assert len(orders) == 3
     for order in orders:
-        assert order.get("status") in [ORDER_STATUS_NEW, ORDER_STATUS_CANCELED]
+        assert order.get("status") == ORDER_STATUS_NEW
 
     await db_and_gui_assertions(
         strategy=strategy,
@@ -430,3 +431,211 @@ async def test_stagnation_sell_position(spot_sell_with_gui_and_db):
         orders_opened=3,
         orders_total=3,
     )
+
+
+@pytest.mark.database_integration
+async def test_order_reopen_with_filled_orders_buy(spot_buy_with_gui_and_db):
+    spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
+    spot_buy_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+        get_cancel_order()
+    )
+    strategy = spot_buy_with_gui_and_db.strategy
+    assert isinstance(strategy, HpManager)
+    assert strategy.trigger_orders_price == 1414
+
+    await process_ticker(strategy=strategy, last_price=1400)
+    assert strategy.state == State.OPEN
+    status = PositionStatus.OPEN
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
+    )
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=0,
+        orders_opened=3,
+        orders_total=3,
+    )
+
+    # Simulate first order filled
+    await simulate_order_filled(
+        strategy=strategy,
+        order=strategy.position_handler.orders[0],
+    )
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=1,
+        orders_opened=2,
+        orders_total=3,
+    )
+
+    # Simulate stagnation counter increase
+    assert strategy.position_handler.stagnation_counter == 0
+    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+
+    # Simulate reaching the stagnation limit
+    for _ in range(STAGNATION_LIMIT):
+        await strategy.process_ticker()
+
+    assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
+
+    logger.info("Stagnation Limit achieved but the price is still within the area")
+
+    await process_ticker(strategy=strategy, last_price=1415)
+
+    assert strategy.state == State.STAGNATED
+    status = PositionStatus.STAGNATED
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 3
+    for order in orders:
+        assert order.get("status") in [ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED]
+
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=1,
+        orders_opened=0,
+        orders_total=3,
+    )
+
+    await process_ticker(strategy=strategy, last_price=1500)
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=status,
+        side=strategy.config.side,
+    )
+
+    await process_ticker(strategy=strategy, last_price=1400)
+    assert strategy.state == State.OPEN
+    status = PositionStatus.OPEN
+    assert all(
+        order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
+        for order in strategy.position_handler.orders
+    )
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 3
+    for order in orders:
+        assert order.get("status") in [
+            ORDER_STATUS_NEW,
+            ORDER_STATUS_FILLED,
+        ]
+
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=0,
+        orders_opened=2,
+        orders_total=2,
+    )
+    logger.info("All valid orders reopened.")
+
+
+@pytest.mark.database_integration
+async def test_order_reopen_with_filled_orders_sell(spot_sell_with_gui_and_db):
+    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+        get_sell_orders()
+    )
+    spot_sell_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+        get_cancel_order()
+    )
+    strategy = spot_sell_with_gui_and_db.strategy
+    assert isinstance(strategy, HpManager)
+    assert strategy.trigger_orders_price == 990
+
+    await process_ticker(strategy=strategy, last_price=1000)
+    assert strategy.state == State.OPEN
+    status = PositionStatus.OPEN
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
+    )
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=0,
+        orders_opened=3,
+        orders_total=3,
+    )
+
+    # Simulate first order filled
+    await simulate_order_filled(
+        strategy=strategy,
+        order=strategy.position_handler.orders[0],
+    )
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=1,
+        orders_opened=2,
+        orders_total=3,
+    )
+
+    # Simulate stagnation counter increase
+    assert strategy.position_handler.stagnation_counter == 0
+    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+
+    # Simulate reaching the stagnation limit
+    for _ in range(STAGNATION_LIMIT):
+        await strategy.process_ticker()
+
+    assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
+
+    logger.info("Stagnation Limit achieved but the price is still within the area")
+
+    await process_ticker(strategy=strategy, last_price=989)
+
+    assert strategy.state == State.STAGNATED
+    status = PositionStatus.STAGNATED
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 3
+    for order in orders:
+        assert order.get("status") in [ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED]
+
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=1,
+        orders_opened=0,
+        orders_total=3,
+    )
+
+    await process_ticker(strategy=strategy, last_price=900)
+    await assert_db_price_level_content(
+        db=strategy.position_handler.db,
+        system_id=strategy.config.system_id,
+        status=status,
+        side=strategy.config.side,
+    )
+
+    await process_ticker(strategy=strategy, last_price=1000)
+    assert strategy.state == State.OPEN
+    status = PositionStatus.OPEN
+    assert all(
+        order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
+        for order in strategy.position_handler.orders
+    )
+
+    orders = await strategy.db.fetch_orders_for_price_level(
+        price_level_id=strategy.config.system_id
+    )
+
+    assert len(orders) == 3
+    for order in orders:
+        assert order.get("status") in [
+            ORDER_STATUS_NEW,
+            ORDER_STATUS_FILLED,
+        ]
+
+    await db_and_gui_assertions(
+        strategy=strategy,
+        orders_filled=0,
+        orders_opened=2,
+        orders_total=2,
+    )
+    logger.info("All valid orders reopened.")

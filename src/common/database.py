@@ -4,7 +4,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from binance.enums import ORDER_STATUS_CANCELED
+from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 
@@ -260,8 +260,8 @@ class Database:
             async with conn.cursor() as cur:
                 # Mark the current order as not current
                 await cur.execute(
-                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
-                    (order_id,),
+                    "UPDATE orders SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE AND price=%s",
+                    (price_level_id, price),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()

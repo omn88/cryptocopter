@@ -6,6 +6,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
     ORDER_TYPE_LIMIT,
+    ORDER_STATUS_FILLED,
     ORDER_STATUS_CANCELED,
 )
 from binance.exceptions import (
@@ -136,6 +137,7 @@ class OrderHandler:
             *[
                 self.create_order(side=side, order=order, symbol=symbol)
                 for order in orders
+                if order.status != ORDER_STATUS_FILLED
             ]
         )
         for order in results:

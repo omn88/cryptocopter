@@ -515,6 +515,8 @@ class HpManager:
         self.state = State.OPEN
         self.config.status = PositionStatus.OPEN
 
+        self.logger.info("Will update orders: %s", self.position_handler.orders)
+
         for order in self.position_handler.orders:
             await self.db.update_order(
                 price=order.price,

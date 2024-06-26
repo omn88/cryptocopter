@@ -2,7 +2,7 @@ import asyncio
 import datetime
 from typing import List
 
-from binance.enums import ORDER_STATUS_FILLED
+from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
@@ -99,17 +99,18 @@ class PositionHandler:
         )
         self.config.status = PositionStatus.STAGNATED
         for order in self.orders:
-            await self.db.update_order(
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
-                time_in_force=order.time_in_force,
-                status=order.status,
-                order_type=order.order_type,
-                order_id=order.order_id,
-                price_level_id=self.config.system_id,
-            )
+            if order.status == ORDER_STATUS_CANCELED:
+                await self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    price_level_id=self.config.system_id,
+                )
 
         await self.db.update_price_level(
             system_id=self.config.system_id,
@@ -216,9 +217,21 @@ class PositionHandler:
                 budget=self.config.budget,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
-                status=PositionStatus.OPEN,
+                status=self.config.status,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
             )
+        )
+
+        await self.db.update_order(
+            order_id=execution_report.order_id,
+            price_level_id=self.config.system_id,
+            quantity=execution_report.quantity,
+            realized_quantity=execution_report.cumulative_filled_quantity,
+            status=execution_report.current_order_status,
+            price=execution_report.price,
+            time_in_force=execution_report.time_in_force,
+            order_type=execution_report.order_type,
+            quantity_stable=self.orders[0].quantity_stable,
         )
