@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS orders (
     quantity_stable FLOAT NOT NULL,
     realized_quantity FLOAT NOT NULL,
     time_in_force VARCHAR(10) NOT NULL,
-    status VARCHAR(10) NOT NULL,
+    status VARCHAR(20) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -177,11 +177,23 @@ class PositionHandler:
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
                 system_id=self.config.system_id,
-                status=PositionStatus.OPEN,
+                status=self.config.status,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
             )
+        )
+        self.strategy_logger.info("status: %s", execution_report.current_order_status)
+        await self.db.update_order(
+            order_id=execution_report.order_id,
+            price_level_id=self.config.system_id,
+            quantity=execution_report.quantity,
+            realized_quantity=execution_report.cumulative_filled_quantity,
+            status=execution_report.current_order_status,
+            price=execution_report.price,
+            time_in_force=execution_report.time_in_force,
+            order_type=execution_report.order_type,
+            quantity_stable=self.orders[0].quantity_stable,
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
