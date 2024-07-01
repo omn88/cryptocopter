@@ -89,10 +89,26 @@ async def test_db():
         await db.setup_tables()
 
         yield db
-    except Exception as e:
-        logger.error(f"Error setting up the database: {e}")
-        raise e
+    except Exception as err:
+        logger.error("Error setting up the database: %s", err)
+        raise err
     await db.close_pool()
+
+@pytest.fixture
+def trading_system_factory(mock_AsyncClient, test_db):
+    async def create_trading_system(config: ConfigSpot, balance: float = 1000):
+        gui_handler = asyncio.Queue()
+        strategy = HpManager(
+            client=mock_AsyncClient,
+            balance=balance,
+            config=config,
+            gui_handler=gui_handler,
+            logger=logger,
+            db=test_db,
+        )
+        state_machine = TradingStateMachine(strategy=strategy)
+        return state_machine
+    return create_trading_system
 
 
 @pytest.fixture

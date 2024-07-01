@@ -15,7 +15,7 @@ from src.common.database import Database
 from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
-from src.common.identifiers.spot import ExecutionReport, TickerUpdate, State
+from src.common.identifiers.spot import ExecutionReport, StrategyConfig, TickerUpdate, State
 from tests.spot import get_buy_orders, get_cancel_order, get_sell_orders
 
 
@@ -119,13 +119,35 @@ async def db_and_gui_assertions(
         status=strategy.config.status,
     )
 
+def get_buy_config():
+    return StrategyConfig(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.LONG,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
+
+def get_sell_config():
+    return StrategyConfig(
+        system_id="1234",
+        symbol="BTCUSDT",
+        side=PositionSide.SHORT,
+        price_low=1000,
+        price_high=1400,
+        order_trigger=1,
+        budget=1000,
+    )
 
 @pytest.mark.database_integration
-async def test_default_buy_scenario(spot_buy_with_gui_and_db):
-    spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
+async def test_default_buy_scenario(trading_system_factory):
+    trading_system = await trading_system_factory(get_buy_config())
+    trading_system.strategy.client.create_order.side_effect = get_buy_orders()
 
     # Set initial condition
-    strategy = spot_buy_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
 
@@ -200,13 +222,14 @@ async def test_default_buy_scenario(spot_buy_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_default_sell_scenario(spot_sell_with_gui_and_db):
-    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+async def test_default_sell_scenario(trading_system_factory):
+    trading_system = await trading_system_factory(get_sell_config())
+    trading_system.strategy.client.create_order.side_effect = (
         get_sell_orders()
     )
 
     # Set initial condition
-    strategy = spot_sell_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 990
     await process_ticker(strategy=strategy, last_price=989)
@@ -279,12 +302,13 @@ async def test_default_sell_scenario(spot_sell_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
-    spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
-    spot_buy_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+async def test_stagnation_buy_position(trading_system_factory):
+    trading_system = await trading_system_factory(get_buy_config())
+    trading_system.strategy.client.create_order.side_effect = get_buy_orders()
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_buy_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
 
@@ -364,14 +388,15 @@ async def test_stagnation_buy_position(spot_buy_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_stagnation_sell_position(spot_sell_with_gui_and_db):
-    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+async def test_stagnation_sell_position(trading_system_factory):
+    trading_system = await trading_system_factory(get_sell_config())
+    trading_system.strategy.client.create_order.side_effect = (
         get_sell_orders()
     )
-    spot_sell_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_sell_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 990
 
@@ -452,12 +477,13 @@ async def test_stagnation_sell_position(spot_sell_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_order_reopen_with_filled_orders_buy(spot_buy_with_gui_and_db):
-    spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
-    spot_buy_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
+    trading_system = await trading_system_factory(get_buy_config())
+    trading_system.strategy.client.create_order.side_effect = get_buy_orders()
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_buy_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
 
@@ -555,14 +581,15 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_order_reopen_with_filled_orders_sell(spot_sell_with_gui_and_db):
-    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
+    trading_system = await trading_system_factory(get_sell_config())
+    trading_system.strategy.client.create_order.side_effect = (
         get_sell_orders()
     )
-    spot_sell_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_sell_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 990
 
@@ -660,12 +687,13 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell_with_gui_and_db):
 
 
 @pytest.mark.database_integration
-async def test_order_reopen_with_partially_filled_orders_buy(spot_buy_with_gui_and_db):
-    spot_buy_with_gui_and_db.strategy.client.create_order.side_effect = get_buy_orders()
-    spot_buy_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+async def test_order_reopen_with_partially_filled_orders_buy(trading_system_factory):
+    trading_system = await trading_system_factory(get_buy_config())
+    trading_system.strategy.client.create_order.side_effect = get_buy_orders()
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_buy_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 1414
 
@@ -780,15 +808,15 @@ async def test_order_reopen_with_partially_filled_orders_buy(spot_buy_with_gui_a
 
 @pytest.mark.database_integration
 async def test_order_reopen_with_partially_filled_orders_sell(
-    spot_sell_with_gui_and_db,
-):
-    spot_sell_with_gui_and_db.strategy.client.create_order.side_effect = (
+    trading_system_factory):
+    trading_system = await trading_system_factory(get_sell_config())
+    trading_system.strategy.client.create_order.side_effect = (
         get_sell_orders()
     )
-    spot_sell_with_gui_and_db.strategy.client.cancel_order.side_effect = (
+    trading_system.strategy.client.cancel_order.side_effect = (
         get_cancel_order()
     )
-    strategy = spot_sell_with_gui_and_db.strategy
+    strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
     assert strategy.trigger_orders_price == 990
 
