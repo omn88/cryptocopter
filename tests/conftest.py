@@ -94,10 +94,12 @@ async def test_db():
         raise err
     await db.close_pool()
 
+
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(config: ConfigSpot, balance: float = 1000):
-        gui_handler = asyncio.Queue()
+        gui_handler: asyncio.Queue = asyncio.Queue()
+        logger = AsyncMock()
         strategy = HpManager(
             client=mock_AsyncClient,
             balance=balance,
@@ -108,6 +110,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
         )
         state_machine = TradingStateMachine(strategy=strategy)
         return state_machine
+
     return create_trading_system
 
 
