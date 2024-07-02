@@ -57,7 +57,9 @@ class AsyncApp(App):
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
 
-    def __init__(self, client: BinanceClient, db: Database, **kwargs):
+    def __init__(
+        self, client: BinanceClient, db: Database, symbols: List[str], **kwargs
+    ):
         """Initializes the `AsyncApp` instance.
 
         Args:
@@ -68,6 +70,7 @@ class AsyncApp(App):
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
         self.db = db
+        self.symbols = symbols
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.strategies: Dict = {}
         self.strategy_mapping = {
@@ -119,12 +122,6 @@ class AsyncApp(App):
                     order_trigger=price_level.get("order_trigger"),
                     last_known_status=price_level.get("status"),
                 )
-
-            # hp_manager.add_record() for
-
-            # Restore all price levels
-            # Restore all orders
-            # Create instance of objects to restore the state
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
