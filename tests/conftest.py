@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Dict
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
@@ -23,7 +23,8 @@ from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpManager
+from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.gui.hpmanager import HpManager as GuiHP
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
@@ -99,7 +100,7 @@ async def test_db():
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(config: ConfigSpot, balance: float = 1000):
         gui_handler: asyncio.Queue = asyncio.Queue()
-        strategy = HpManager(
+        strategy = StrategyHP(
             client=mock_AsyncClient,
             balance=balance,
             config=config,
@@ -111,6 +112,26 @@ def trading_system_factory(mock_AsyncClient, test_db):
         return state_machine
 
     return create_trading_system
+
+# @pytest.fixture
+# async def hp_manager():
+#     mock_client = MagicMock()
+#     mock_db = AsyncMock()
+#     mock_logger = MagicMock()
+#     strategy_id = "test_strategy"
+#     manager = GuiHP(
+#         client=mock_client,
+#         db=mock_db,
+#         strategy_logger=mock_logger,
+#         strategy_id=strategy_id
+#     )
+#     manager.ids = MagicMock()
+#     manager.ids.active_records_list = MagicMock()
+#     manager.ids.idle_records_list = MagicMock()
+#     manager.ids.archive_records_list = MagicMock()
+
+#     await asyncio.sleep(0)  # Yield control to let tasks initialize properly
+#     return manager
 
 
 @pytest.fixture
