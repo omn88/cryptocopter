@@ -4,6 +4,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
+from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 from src.common.identifiers.common import Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 
@@ -51,7 +52,7 @@ CREATE TABLE IF NOT EXISTS orders (
     quantity_stable FLOAT NOT NULL,
     realized_quantity FLOAT NOT NULL,
     time_in_force VARCHAR(10) NOT NULL,
-    status VARCHAR(10) NOT NULL,
+    status VARCHAR(20) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -84,6 +85,13 @@ class Database:
 
     async def create_database_if_not_exists(self):
         try:
+            logger.debug(
+                "Will setup pool with config: host %s, port %s, user %s, pass %s",
+                self.host,
+                self.port,
+                self.user,
+                self.password,
+            )
             temp_pool = await aiomysql.create_pool(
                 host=self.host,
                 port=self.port,
@@ -91,6 +99,7 @@ class Database:
                 password=self.password,
                 autocommit=True,
             )
+            logger.debug("Pool created")
             async with temp_pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.name};")
@@ -251,8 +260,8 @@ class Database:
             async with conn.cursor() as cur:
                 # Mark the current order as not current
                 await cur.execute(
-                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
-                    (order_id,),
+                    "UPDATE orders SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE AND price=%s",
+                    (price_level_id, price),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()

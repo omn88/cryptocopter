@@ -34,4 +34,4 @@ testing:
   stage: testing
   script:
     - pip install pytest
-    - pytest
+    - pytest -m "not database_integration"

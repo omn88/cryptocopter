@@ -33,7 +33,10 @@ logger = logging.getLogger("main")
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
-config = Config(RepositoryEnv(DOTENV_FILE))
+config_env = Config(RepositoryEnv(DOTENV_FILE))
+
+DB_CONFIG_FILE = "config/.db_config"
+config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 
 # Set initial window size
 Window.size = (960, 600)
@@ -50,20 +53,19 @@ async def main():
     """
 
     db = Database(
-        host=config("DB_HOST"),
-        port=int(config("DB_PORT")),
-        user=config("DB_USER"),
-        password=config("DB_PASSWORD"),
-        name=config("DB_NAME"),
+        host=config_db("DB_HOST"),
+        port=int(config_db("DB_PORT")),
+        user=config_db("DB_USER"),
+        password=config_db("DB_PASSWORD"),
+        name=config_db("DB_NAME"),
     )
-
     await db.create_database_if_not_exists()
     await db.create_pool()
     await db.setup_tables()
 
     app = AsyncApp(
         client=BinanceClient(
-            api_key=config("API_KEY"), api_secret=config("API_SECRET")
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         ),
         db=db,
     )

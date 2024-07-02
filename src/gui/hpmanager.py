@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional
 import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (
@@ -74,8 +74,11 @@ class HpManager(BoxLayout):
         budget,
         order_trigger,
         last_known_status=None,
-        system_id=str(uuid.uuid4()),
+        system_id: Optional[str] = None,
     ):
+        if system_id is None:
+            system_id = str(uuid.uuid4())
+
         config = StrategyConfig(
             system_id=system_id,
             symbol=symbol,

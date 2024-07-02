@@ -9,13 +9,16 @@ from binance.enums import (
 )
 from src.common.identifiers.spot import ExecutionReport, State, TickerUpdate
 from src.strategies.spot.hp_manager import STAGNATION_LIMIT, HpManager
-from tests.spot import get_buy_orders, get_cancel_order, get_sell_orders
+from tests.spot import get_cancel_order, get_new_orders
 
 logger = logging.getLogger("test_hp_manager")
 
 
 async def test_default_scenario_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_buy_orders()
+    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.strategy.config.price_low,
+        price_high=spot_buy.strategy.config.price_high,
+    )
 
     # Set initial condition
     strategy = spot_buy.strategy
@@ -76,7 +79,10 @@ async def test_default_scenario_buy(spot_buy):
 
 
 async def test_default_scenario_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_sell_orders()
+    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.strategy.config.price_low,
+        price_high=spot_sell.strategy.config.price_high,
+    )
 
     # Set initial conditions
     strategy = spot_sell.strategy
@@ -128,7 +134,10 @@ async def test_default_scenario_sell(spot_sell):
 
 
 async def test_partial_order_fill_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_buy_orders()
+    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.strategy.config.price_low,
+        price_high=spot_buy.strategy.config.price_high,
+    )
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
     last_price = 1000
@@ -145,7 +154,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1,
+        order_id=445862,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -154,7 +163,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445862,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -163,7 +172,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=2,
+        order_id=445861,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -172,7 +181,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=3,
+        order_id=445860,
     )
     await strategy.process_order()
     assert all(
@@ -187,7 +196,10 @@ async def test_partial_order_fill_buy(spot_buy):
 
 
 async def test_partial_order_fill_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_sell_orders()
+    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.strategy.config.price_low,
+        price_high=spot_sell.strategy.config.price_high,
+    )
     strategy = spot_sell.strategy
     assert isinstance(strategy, HpManager)
     last_price = 1000
@@ -204,7 +216,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1,
+        order_id=445860,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -213,7 +225,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445860,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -222,7 +234,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=2,
+        order_id=445861,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -231,7 +243,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=3,
+        order_id=445862,
     )
     await strategy.process_order()
     assert all(
@@ -246,7 +258,10 @@ async def test_partial_order_fill_sell(spot_sell):
 
 
 async def test_order_cancellation_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_sell_orders()
+    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.strategy.config.price_low,
+        price_high=spot_sell.strategy.config.price_high,
+    )
     spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_sell.strategy
     assert isinstance(strategy, HpManager)
@@ -301,7 +316,10 @@ async def test_order_cancellation_sell(spot_sell):
 
 
 async def test_order_cancellation_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_buy_orders()
+    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.strategy.config.price_low,
+        price_high=spot_buy.strategy.config.price_high,
+    )
     spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
@@ -355,7 +373,10 @@ async def test_order_cancellation_buy(spot_buy):
 
 
 async def test_order_reopen_with_filled_orders_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_sell_orders()
+    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.strategy.config.price_low,
+        price_high=spot_sell.strategy.config.price_high,
+    )
     spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_sell.strategy
     assert isinstance(strategy, HpManager)
@@ -374,7 +395,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445860,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
@@ -384,7 +405,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=2,
+        order_id=445861,
         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()
@@ -434,7 +455,10 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
 
 
 async def test_order_reopen_with_filled_orders_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_buy_orders()
+    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.strategy.config.price_low,
+        price_high=spot_buy.strategy.config.price_high,
+    )
     spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
@@ -453,7 +477,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445862,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
@@ -463,7 +487,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=2,
+        order_id=445861,
         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()

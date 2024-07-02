@@ -1,10 +1,14 @@
 import asyncio
 import logging
+import os
 from typing import Dict
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
+from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
+
+from src.common.database import Database
 from src.common.identifiers.futures import (
     Event,
     EventName,
@@ -20,12 +24,17 @@ from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpManager
+from src.strategies.spot.hp_manager import HpManager as StrategyHP
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
+
+DB_CONFIG_FILE = "config/.db_config"
+config = Config(RepositoryEnv(DB_CONFIG_FILE))
+
+logger.info("DB CONFIG: %s", config)
 
 
 @pytest.fixture
@@ -58,6 +67,54 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
+async def test_db():
+    db = Database(
+        host=config("DB_HOST"),
+        port=int(config("DB_PORT")),
+        user=config("DB_USER"),
+        password=config("DB_PASSWORD"),
+        name=config("DB_TEST_NAME"),
+    )
+    try:
+        await db.create_database_if_not_exists()
+        await db.create_pool()
+
+        # Drop tables if they exist
+        async with db.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DROP TABLE IF EXISTS strategies")
+                await cur.execute("DROP TABLE IF EXISTS price_levels")
+                await cur.execute("DROP TABLE IF EXISTS orders")
+                await conn.commit()
+
+        await db.setup_tables()
+
+        yield db
+    except Exception as err:
+        logger.error("Error setting up the database: %s", err)
+        raise err
+    await db.close_pool()
+
+
+@pytest.fixture
+def trading_system_factory(mock_AsyncClient, test_db):
+    async def create_trading_system(config: ConfigSpot, balance: float = 1000):
+        gui_handler: asyncio.Queue = asyncio.Queue()
+        strategy = StrategyHP(
+            client=mock_AsyncClient,
+            balance=balance,
+            config=config,
+            gui_handler=gui_handler,
+            logger=StrategyLogger(name="test"),
+            db=test_db,
+        )
+        state_machine = TradingStateMachine(strategy=strategy)
+        return state_machine
+
+    return create_trading_system
+
+
+@pytest.fixture
 async def spot_buy(mock_AsyncClient):
     gui_handler = AsyncMock()
     db = AsyncMock()
@@ -72,7 +129,7 @@ async def spot_buy(mock_AsyncClient):
         budget=1000,
     )
 
-    strategy = HpManager(
+    strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=1000,
         config=config,
@@ -101,7 +158,7 @@ async def spot_sell(mock_AsyncClient):
     gui_handler = AsyncMock()
     db = AsyncMock()
 
-    strategy = HpManager(
+    strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=1000,
         config=config,

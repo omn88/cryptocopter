@@ -146,7 +146,7 @@ class HpManager:
                 "source": State.OPEN,
                 "dest": State.CLOSED,
                 "conditions": "conditions_for_all_orders_filled",
-                "before": "close_position",
+                "before": "close_filled_position",
             },
             {
                 "trigger": "process_order",
@@ -513,6 +513,57 @@ class HpManager:
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
+        self.config.status = PositionStatus.OPEN
+
+        self.logger.info("Will update orders: %s", self.position_handler.orders)
+
+        for order in self.position_handler.orders:
+            await self.db.update_order(
+                price=order.price,
+                quantity=order.quantity,
+                quantity_stable=order.quantity_stable,
+                realized_quantity=order.realized_quantity,
+                time_in_force=order.time_in_force,
+                status=order.status,
+                order_type=order.order_type,
+                order_id=order.order_id,
+                price_level_id=self.config.system_id,
+            )
+        await self.db.update_price_level(
+            system_id=self.config.system_id,
+            side=self.config.side,
+            price_low=self.config.price_low,
+            price_high=self.config.price_high,
+            order_trigger=self.config.order_trigger,
+            budget=self.config.budget,
+            status=self.config.status,
+            symbol=self.config.symbol,
+        )
+
+        orders_total = len(self.position_handler.orders)
+        orders_filled = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
+        )
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                price_high=self.config.price_high,
+                price_low=self.config.price_low,
+                side=self.config.side,
+                symbol=self.config.symbol,
+                order_trigger=self.config.order_trigger,
+                budget=self.config.budget,
+                status=self.config.status,
+                orders_opened=orders_total - orders_filled,
+                orders_filled=orders_filled,
+                orders_total=orders_total,
+            )
+        )
 
     async def resend_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Resending %s %s", self.config.symbol, self.config.side.value)
@@ -539,6 +590,55 @@ class HpManager:
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
+        self.config.status = PositionStatus.OPEN
+
+        for order in self.position_handler.orders:
+            await self.db.update_order(
+                price=order.price,
+                quantity=order.quantity,
+                quantity_stable=order.quantity_stable,
+                realized_quantity=order.realized_quantity,
+                time_in_force=order.time_in_force,
+                status=order.status,
+                order_type=order.order_type,
+                order_id=order.order_id,
+                price_level_id=self.config.system_id,
+            )
+        await self.db.update_price_level(
+            system_id=self.config.system_id,
+            side=self.config.side,
+            price_low=self.config.price_low,
+            price_high=self.config.price_high,
+            order_trigger=self.config.order_trigger,
+            budget=self.config.budget,
+            status=self.config.status,
+            symbol=self.config.symbol,
+        )
+
+        orders_total = len(self.position_handler.orders)
+        orders_filled = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
+        )
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                price_high=self.config.price_high,
+                price_low=self.config.price_low,
+                side=self.config.side,
+                symbol=self.config.symbol,
+                order_trigger=self.config.order_trigger,
+                budget=self.config.budget,
+                status=self.config.status,
+                orders_opened=orders_total - orders_filled,
+                orders_filled=orders_filled,
+                orders_total=orders_total,
+            )
+        )
 
     async def send_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Opening %s %s", self.config.symbol, self.config.side.value)
@@ -552,16 +652,61 @@ class HpManager:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
 
         await self.position_handler.cancel_position()
-        self.position_handler.status = PositionStatus.STAGNATED
+        self.position_handler.config.status = PositionStatus.STAGNATED
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
         await self.position_handler.cancel_position()
-        self.position_handler.status = PositionStatus.STAGNATED
+        self.position_handler.config.status = PositionStatus.STAGNATED
 
-    async def close_position(self, *args, **kwargs) -> None:
+    async def close_filled_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
+
+        self.config.status = PositionStatus.CLOSED
+
+        orders_opened = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status in [ORDER_STATUS_NEW, ORDER_STATUS_PARTIALLY_FILLED]
+            ]
+        )
+
+        orders_filled = len(
+            [
+                order
+                for order in self.position_handler.orders
+                if order.status == ORDER_STATUS_FILLED
+            ]
+        )
+
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                system_id=self.config.system_id,
+                symbol=self.config.symbol,
+                side=self.config.side,
+                price_low=self.config.price_low,
+                price_high=self.config.price_high,
+                budget=self.config.budget,
+                order_trigger=self.config.order_trigger,
+                orders_opened=orders_opened,
+                orders_filled=orders_filled,
+                orders_total=len(self.position_handler.orders),
+                status=self.config.status,
+            )
+        )
+
+        await self.position_handler.db.update_price_level(
+            system_id=self.config.system_id,
+            side=self.config.side,
+            price_low=self.config.price_low,
+            price_high=self.config.price_high,
+            order_trigger=self.config.order_trigger,
+            budget=self.config.budget,
+            status=self.config.status,
+            symbol=self.config.symbol,
+        )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
         self.position_handler.stagnation_counter += 1
