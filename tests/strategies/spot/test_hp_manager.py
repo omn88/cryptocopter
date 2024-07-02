@@ -154,7 +154,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1,
+        order_id=445862,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -163,7 +163,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445862,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -172,7 +172,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=2,
+        order_id=445861,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -181,7 +181,7 @@ async def test_partial_order_fill_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=3,
+        order_id=445860,
     )
     await strategy.process_order()
     assert all(
@@ -216,7 +216,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=1,
+        order_id=445860,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -225,7 +225,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445860,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -234,7 +234,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=2,
+        order_id=445861,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -243,7 +243,7 @@ async def test_partial_order_fill_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=3,
+        order_id=445862,
     )
     await strategy.process_order()
     assert all(
@@ -395,7 +395,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445860,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
@@ -405,7 +405,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=2,
+        order_id=445861,
         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()
@@ -477,7 +477,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=1,
+        order_id=445862,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
@@ -487,7 +487,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=2,
+        order_id=445861,
         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
     )
     await strategy.process_order()
