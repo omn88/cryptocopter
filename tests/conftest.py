@@ -99,7 +99,6 @@ async def test_db():
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(config: ConfigSpot, balance: float = 1000):
         gui_handler: asyncio.Queue = asyncio.Queue()
-        logger = AsyncMock()
         strategy = HpManager(
             client=mock_AsyncClient,
             balance=balance,
