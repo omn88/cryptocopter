@@ -113,26 +113,6 @@ def trading_system_factory(mock_AsyncClient, test_db):
 
     return create_trading_system
 
-# @pytest.fixture
-# async def hp_manager():
-#     mock_client = MagicMock()
-#     mock_db = AsyncMock()
-#     mock_logger = MagicMock()
-#     strategy_id = "test_strategy"
-#     manager = GuiHP(
-#         client=mock_client,
-#         db=mock_db,
-#         strategy_logger=mock_logger,
-#         strategy_id=strategy_id
-#     )
-#     manager.ids = MagicMock()
-#     manager.ids.active_records_list = MagicMock()
-#     manager.ids.idle_records_list = MagicMock()
-#     manager.ids.archive_records_list = MagicMock()
-
-#     await asyncio.sleep(0)  # Yield control to let tasks initialize properly
-#     return manager
-
 
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
