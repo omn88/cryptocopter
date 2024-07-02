@@ -85,7 +85,7 @@ class Database:
 
     async def create_database_if_not_exists(self):
         try:
-            logger.info(
+            logger.debug(
                 "Will setup pool with config: host %s, port %s, user %s, pass %s",
                 self.host,
                 self.port,
@@ -99,7 +99,7 @@ class Database:
                 password=self.password,
                 autocommit=True,
             )
-            logger.info("Pool created")
+            logger.debug("Pool created")
             async with temp_pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(f"CREATE DATABASE IF NOT EXISTS {self.name};")

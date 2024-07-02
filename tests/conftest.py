@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from typing import Dict
 from unittest.mock import AsyncMock, MagicMock
 import pytest
@@ -24,17 +25,16 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
-from src.gui.hpmanager import HpManager as GuiHP
 from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
 
 logger = logging.getLogger("conftest")
 
+DB_CONFIG_FILE = "config/.db_config"
+config = Config(RepositoryEnv(DB_CONFIG_FILE))
 
-# Specify the path to the .env file
-DOTENV_FILE = "config/.env"
-config = Config(RepositoryEnv(DOTENV_FILE))
+logger.info("DB CONFIG: %s", config)
 
 
 @pytest.fixture
