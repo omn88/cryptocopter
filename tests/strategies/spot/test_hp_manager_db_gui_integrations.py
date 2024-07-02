@@ -184,7 +184,7 @@ async def test_default_buy_scenario(trading_system_factory):
     # Simulate first order filled
     await simulate_order_filled(
         strategy=strategy,
-        order=strategy.position_handler.orders[0],
+        order=strategy.position_handler.orders[2],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -208,7 +208,7 @@ async def test_default_buy_scenario(trading_system_factory):
     # Simulate last order being filled
     await simulate_order_filled(
         strategy=strategy,
-        order=strategy.position_handler.orders[2],
+        order=strategy.position_handler.orders[0],
     )
     await db_and_gui_assertions(
         strategy=strategy,
@@ -332,7 +332,6 @@ async def test_stagnation_buy_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -358,7 +357,6 @@ async def test_stagnation_buy_position(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=1415)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -383,7 +381,6 @@ async def test_stagnation_buy_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -419,7 +416,6 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -445,7 +441,6 @@ async def test_stagnation_sell_position(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=989)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -470,7 +465,6 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -1007,6 +1001,7 @@ async def test_multiple_trading_systems(trading_system_factory):
         orders_opened=3,
         orders_total=3,
     )
+
 
     # # Simulate first order filled
     # await simulate_order_filled(
