@@ -1002,7 +1002,6 @@ async def test_multiple_trading_systems(trading_system_factory):
         orders_total=3,
     )
 
-
     # # Simulate first order filled
     # await simulate_order_filled(
     #     strategy=strategy,

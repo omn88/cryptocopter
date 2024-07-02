@@ -129,7 +129,7 @@ async def spot_buy(mock_AsyncClient):
         budget=1000,
     )
 
-    strategy = HpManager(
+    strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=1000,
         config=config,
@@ -158,7 +158,7 @@ async def spot_sell(mock_AsyncClient):
     gui_handler = AsyncMock()
     db = AsyncMock()
 
-    strategy = HpManager(
+    strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=1000,
         config=config,
