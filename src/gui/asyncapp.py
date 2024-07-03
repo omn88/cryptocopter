@@ -102,7 +102,9 @@ class AsyncApp(App):
         if strategy.get("name") == "HPManager":
             logger.info("Found instance of HPManager, restoring last known state.")
 
-            self.setup_hp_manager_gui(strategy_id=strategy.get("id"))
+            self.setup_hp_manager_gui(
+                strategy_id=strategy.get("id"), symbols=self.symbols
+            )
             assert isinstance(self.strategies["HPManager"].content, HpManager)
             active_price_levels = await self.db.fetch_all_active_price_levels()
             if not active_price_levels:
@@ -263,11 +265,10 @@ class AsyncApp(App):
             strategy_id = await self.db.insert_strategy(
                 name="HPManager", description="HPManager"
             )
-            self.setup_hp_manager_gui(strategy_id=strategy_id)
+            self.setup_hp_manager_gui(strategy_id=strategy_id, symbols=self.symbols)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
-    def setup_hp_manager_gui(self, strategy_id):
-        # Builder.load_file("src/gui/searchable_drop_down.kv")
+    def setup_hp_manager_gui(self, strategy_id, symbols):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
         hp_manager = HpManager(
@@ -275,6 +276,7 @@ class AsyncApp(App):
             client=self.client,
             db=self.db,
             strategy_id=strategy_id,
+            symbols=symbols,
         )
 
         tab = TabbedPanelItem(

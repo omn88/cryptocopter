@@ -78,7 +78,7 @@ async def main():
     )
 
     symbols = await fetch_trading_symbols(client=client)
-    logger.info("Symbols: %s, count: %s", symbols, len(symbols))
+    logger.debug("Symbols: %s, count: %s", symbols, len(symbols))
 
     app = AsyncApp(client=client, db=db, symbols=symbols)
     logger.info("Created %s", app)

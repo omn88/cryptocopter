@@ -9,6 +9,10 @@ from kivy.properties import (
     StringProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.dropdown import DropDown
+from kivy.uix.button import Button
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
@@ -25,6 +29,7 @@ from src.common.identifiers.spot import (
 )
 from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData
+from src.gui.searchable_drop_down import SearchableDropDown
 from src.workers.strategy_executor import StrategyExecutor
 
 
@@ -40,6 +45,7 @@ class HpManager(BoxLayout):
     archive_filter = StringProperty("All")
 
     log_display = ObjectProperty(None)
+    symbols = ListProperty()
 
     def __init__(
         self,
@@ -47,9 +53,11 @@ class HpManager(BoxLayout):
         db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
+        symbols: List[str],
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.symbols = symbols
         self.client = client
         self.db = db
         self.strategy_id = strategy_id
@@ -61,6 +69,9 @@ class HpManager(BoxLayout):
         )
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
+
+    def update_label(self, instance, value):
+        self.selected_label.text = value
 
     def trigger_add_record(self, *args):
         asyncio.create_task(self.add_record(*args))
