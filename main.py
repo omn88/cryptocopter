@@ -13,6 +13,7 @@ Functions:
 
 import os
 import asyncio
+from typing import List
 import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
@@ -42,6 +43,15 @@ config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 Window.size = (960, 600)
 
 
+async def fetch_trading_symbols(client) -> List[str]:
+    exchange_info = await client.get_exchange_info()
+    return [
+        symbol["symbol"]
+        for symbol in exchange_info["symbols"]
+        if symbol["status"] == "TRADING"
+    ]
+
+
 async def main():
     """
     The main function of the module.
@@ -63,12 +73,14 @@ async def main():
     await db.create_pool()
     await db.setup_tables()
 
-    app = AsyncApp(
-        client=BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        ),
-        db=db,
+    client = BinanceClient(
+        api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
     )
+
+    symbols = await fetch_trading_symbols(client=client)
+    logger.debug("Symbols: %s, count: %s", symbols, len(symbols))
+
+    app = AsyncApp(client=client, db=db, symbols=symbols)
     logger.info("Created %s", app)
 
     try:

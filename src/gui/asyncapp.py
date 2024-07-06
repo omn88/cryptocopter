@@ -57,7 +57,9 @@ class AsyncApp(App):
     active_strategies = ListProperty([])
     closed_strategies = ListProperty([])
 
-    def __init__(self, client: BinanceClient, db: Database, **kwargs):
+    def __init__(
+        self, client: BinanceClient, db: Database, symbols: List[str], **kwargs
+    ):
         """Initializes the `AsyncApp` instance.
 
         Args:
@@ -68,6 +70,7 @@ class AsyncApp(App):
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
         self.db = db
+        self.symbols = symbols
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.strategies: Dict = {}
         self.strategy_mapping = {
@@ -99,7 +102,9 @@ class AsyncApp(App):
         if strategy.get("name") == "HPManager":
             logger.info("Found instance of HPManager, restoring last known state.")
 
-            self.setup_hp_manager_gui(strategy_id=strategy.get("id"))
+            self.setup_hp_manager_gui(
+                strategy_id=strategy.get("id"), symbols=self.symbols
+            )
             assert isinstance(self.strategies["HPManager"].content, HpManager)
             active_price_levels = await self.db.fetch_all_active_price_levels()
             if not active_price_levels:
@@ -119,12 +124,6 @@ class AsyncApp(App):
                     order_trigger=price_level.get("order_trigger"),
                     last_known_status=price_level.get("status"),
                 )
-
-            # hp_manager.add_record() for
-
-            # Restore all price levels
-            # Restore all orders
-            # Create instance of objects to restore the state
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -266,11 +265,10 @@ class AsyncApp(App):
             strategy_id = await self.db.insert_strategy(
                 name="HPManager", description="HPManager"
             )
-            self.setup_hp_manager_gui(strategy_id=strategy_id)
+            self.setup_hp_manager_gui(strategy_id=strategy_id, symbols=self.symbols)
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
-    def setup_hp_manager_gui(self, strategy_id):
-        # Builder.load_file("src/gui/searchable_drop_down.kv")
+    def setup_hp_manager_gui(self, strategy_id, symbols):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
         hp_manager = HpManager(
@@ -278,6 +276,7 @@ class AsyncApp(App):
             client=self.client,
             db=self.db,
             strategy_id=strategy_id,
+            symbols=symbols,
         )
 
         tab = TabbedPanelItem(

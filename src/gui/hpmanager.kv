@@ -2,7 +2,7 @@
     orientation: 'vertical'
     BoxLayout:
         orientation: 'vertical'
-        size_hint_y: 0.3
+        size_hint_y: 0.35
         height: '150dp'  # Height for configuration controls
 
         BoxLayout:  # Main horizontal layout for configuration and buttons
@@ -15,25 +15,21 @@
 
                 BoxLayout:  # First line: Basic trading options
                     orientation: 'horizontal'
-                    size_hint_y: 0.3
+                    size_hint_y: 0.4
                     height: '50dp'
                     spacing: 5
-                    Label:
-                        text: 'I want to '
-                        size_hint_x: 0.1
-                        size_hint_y: 0.7  # Full height within the line
+                    BoxLayout:
+                        size_hint_x: 0.35
+                        size_hint_y: 0.7  # Ensure this aligns with other elements
+                        SearchableDropDown:
+                            id: symbol_input
+                            options: root.symbols
                     Spinner:
                         id: side_input
                         values: ['BUY', 'SELL']
-                        text: 'BUY'
+                        text: 'SIDE'
                         size_hint_x: 0.15
-                        size_hint_y: 0.7  # Full height within the line
-                    Spinner:
-                        id: symbol_input
-                        values: ['BTCUSDT', 'ETHUSDT']
-                        text: 'BTCUSDT'
-                        size_hint_x: 0.25
-                        size_hint_y: 0.7  # Ensure this aligns with other elements
+                        size_hint_y: 0.9  # Full height within the line
                     Label:
                         text: ' with budget: '
                         size_hint_x: 0.15
@@ -50,7 +46,7 @@
 
                 BoxLayout:  # Second line: Pricing information
                     orientation: 'horizontal'
-                    size_hint_y: 0.3
+                    size_hint_y: 0.25
                     height: '50dp'
                     spacing: 5
                     Label:
@@ -80,7 +76,7 @@
 
                 BoxLayout:  # Third line: Advanced trading options
                     orientation: 'horizontal'
-                    size_hint_y: 0.3
+                    size_hint_y: 0.25
                     height: '50dp'
                     Label:
                         text: 'Order Trigger(%):'
@@ -120,12 +116,12 @@
                     text: 'Add Record'
                     size_hint_y: None
                     height: '50dp'
-                    on_release: root.trigger_add_record(symbol_input.text, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_input.text)
+                    on_release: root.trigger_add_record(symbol_input.selected_value, side_input.text, price_low_input.text, price_high_input.text, budget_input.text, order_trigger_input.text)
 
     # Bottom section with tabbed panels for records
     TabbedPanel:
         do_default_tab: False
-        size_hint_y: 0.7  # Allow this to take the remaining space
+        size_hint_y: 0.65  # Allow this to take the remaining space
 
         TabbedPanelItem:
             text: 'Active'
