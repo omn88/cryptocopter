@@ -127,18 +127,7 @@ class HpManager(BoxLayout):
                     status=status,
                 )
             )
-            await self.db.insert_price_level(
-                config=StrategyConfig(
-                    system_id=config.system_id,
-                    symbol_info=config.symbol_info,
-                    side=config.side,
-                    price_low=config.price_low,
-                    price_high=config.price_high,
-                    order_trigger=config.order_trigger,
-                    budget=config.budget,
-                    status=status,
-                ),
-            )
+            await self.db.insert_price_level(config=config)
 
         self.filter_records(tab="idle", symbol_filter="All")
 

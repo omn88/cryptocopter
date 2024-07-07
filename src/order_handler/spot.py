@@ -87,11 +87,12 @@ class OrderHandler:
         last_exception = None
         for _ in range(self.MAX_RETRIES):
             try:
+                price = round(order.price, symbol_info.price_precision)
                 quantity = symbol_info.adjust_quantity(order.quantity)
-                symbol_info.validate_order(price=order.price, quantity=quantity)
+                symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
-                    price=round(order.price, 2),
+                    price=price,
                     quantity=quantity,
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,

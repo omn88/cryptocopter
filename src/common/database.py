@@ -29,7 +29,7 @@ CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     price_level_id CHAR(36) NOT NULL,
-    symbol VARCHAR(10) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,

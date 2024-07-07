@@ -10,7 +10,8 @@ class SymbolInfo:
         min_qty: float = 0,
         max_qty: float = 0,
         price_filter: float = 0,
-        precision: float = 0,
+        precision: int = 0,
+        price_precision: int = 0,
     ):
         self.symbol = symbol
         self.min_notional = min_notional
@@ -19,11 +20,12 @@ class SymbolInfo:
         self.max_qty = max_qty
         self.price_filter = price_filter
         self.precision = precision
+        self.price_precision = price_precision
 
     def __repr__(self):
         return (
             f"SymbolInfo(symbol={self.symbol}, min_notional={self.min_notional}, lot_size={self.lot_size}, "
-            f"min_qty={self.min_qty}, max_qty={self.max_qty}, price_filter={self.price_filter}, precision={self.precision})"
+            f"min_qty={self.min_qty}, max_qty={self.max_qty}, price_filter={self.price_filter}, precision={self.precision}, price_precision={self.price_precision})"
         )
 
     def adjust_quantity(self, quantity):
@@ -57,6 +59,9 @@ async def fetch_symbol_info(client) -> Dict[str, SymbolInfo]:
                 price_filter=float(filters.get("PRICE_FILTER", {}).get("tickSize", 0)),
                 precision=SymbolInfo.calculate_precision(
                     filters["LOT_SIZE"]["stepSize"]
+                ),
+                price_precision=SymbolInfo.calculate_precision(
+                    filters.get("PRICE_FILTER", {}).get("tickSize", 0)
                 ),
             )
     return symbols_info
