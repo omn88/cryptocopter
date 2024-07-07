@@ -162,7 +162,7 @@ class Database:
                     "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
-                        config.symbol,
+                        config.symbol_info.symbol,
                         config.side.value,
                         config.price_low,
                         config.price_high,

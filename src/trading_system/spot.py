@@ -51,7 +51,6 @@ class TradingSystem:
 
         self.strategy_logger.debug("Config status: %s", self.config.status)
 
-        await self.strategy.initialize()
         if self.config.status is not None:
             self.strategy_logger.debug(
                 "Old status is not None: %s, moving strategy state to recovering",
@@ -72,7 +71,7 @@ class TradingSystem:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
             return_exceptions=True,

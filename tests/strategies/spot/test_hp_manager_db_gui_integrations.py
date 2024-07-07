@@ -14,6 +14,7 @@ import pytest
 
 from src.common.database import Database
 from src.common.identifiers.common import Order, PositionSide, PositionStatus
+from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
 from src.common.identifiers.spot import (
@@ -42,7 +43,7 @@ async def assert_db_price_level_content(
 
             logger.info("Result: %s", result)
             assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == config.symbol
+            assert result.get("symbol") == config.symbol_info.symbol
             assert result.get("side") == config.side.value
             assert result.get("price_low") == config.price_low
             assert result.get("price_high") == config.price_high
@@ -65,7 +66,7 @@ async def assert_gui_position_data_content(
     logger.info("GUI msg: %s", gui_msg)
     assert isinstance(gui_msg, PositionData)
 
-    assert gui_msg.symbol == config.symbol
+    assert gui_msg.symbol == config.symbol_info.symbol
     assert gui_msg.side == config.side
     assert gui_msg.status == config.status
     assert gui_msg.price_low == config.price_low
@@ -131,7 +132,7 @@ async def db_and_gui_assertions(
 def get_strategy_config(
     side: PositionSide,
     system_id: str = "1234",
-    symbol: str = "BTCUSDT",
+    symbol_info: SymbolInfo = SymbolInfo(),
     price_low: float = 1000,
     price_high: float = 1400,
     order_trigger: float = 1.0,
@@ -139,7 +140,7 @@ def get_strategy_config(
 ):
     return StrategyConfig(
         system_id=system_id,
-        symbol=symbol,
+        symbol_info=symbol_info,
         side=side,
         price_low=price_low,
         price_high=price_high,
@@ -955,7 +956,7 @@ async def test_multiple_trading_systems(trading_system_factory):
     trading_system2 = await trading_system_factory(
         get_strategy_config(
             side=PositionSide.LONG,
-            symbol="ETHUSDT",
+            symbol_info=SymbolInfo(symbol="ETHUSDT"),
             system_id="5678",
             price_low=300,
             price_high=420,

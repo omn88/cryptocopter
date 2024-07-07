@@ -18,6 +18,7 @@ from src.common.identifiers.futures import (
 from src.common.identifiers.common import PositionSide
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
+from src.common.symbol_info import SymbolInfo
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.strategies.futures.base import BaseFuturesStrategy
@@ -121,7 +122,7 @@ async def spot_buy(mock_AsyncClient):
 
     config = ConfigSpot(
         system_id="1234",
-        symbol="BTCUSDT",
+        symbol_info=SymbolInfo(symbol="BTCUSDT"),
         side=PositionSide.LONG,
         price_low=1000,
         price_high=1400,
@@ -147,7 +148,7 @@ async def spot_buy(mock_AsyncClient):
 async def spot_sell(mock_AsyncClient):
     config = ConfigSpot(
         system_id="1234",
-        symbol="BTCUSDT",
+        symbol_info=SymbolInfo(symbol="BTCUSDT"),
         side=PositionSide.SHORT,
         price_low=1000,
         price_high=1400,

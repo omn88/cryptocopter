@@ -27,6 +27,7 @@ from src.common.identifiers.spot import (
     EventName,
     StrategyConfig,
 )
+from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData
 from src.gui.searchable_drop_down import SearchableDropDown
@@ -53,11 +54,11 @@ class HpManager(BoxLayout):
         db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
-        symbols: List[str],
+        symbols_info: Dict[str, SymbolInfo],
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.symbols = symbols
+        self.symbols_info = symbols_info
         self.client = client
         self.db = db
         self.strategy_id = strategy_id
@@ -67,6 +68,7 @@ class HpManager(BoxLayout):
         self.strategy_executor = StrategyExecutor(
             client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
         )
+        self.symbols = [symbol for symbol, info in self.symbols_info.items()]
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
 
@@ -92,7 +94,7 @@ class HpManager(BoxLayout):
 
         config = StrategyConfig(
             system_id=system_id,
-            symbol=symbol,
+            symbol_info=self.symbols_info[symbol],
             side=PositionSide.LONG
             if side == PositionSide.LONG.value
             else PositionSide.SHORT,
@@ -113,7 +115,7 @@ class HpManager(BoxLayout):
             await self.gui_handler.put(
                 PositionData(
                     system_id=config.system_id,
-                    symbol=config.symbol,
+                    symbol=config.symbol_info.symbol,
                     side=config.side,
                     price_low=config.price_low,
                     price_high=config.price_high,
@@ -128,7 +130,7 @@ class HpManager(BoxLayout):
             await self.db.insert_price_level(
                 config=StrategyConfig(
                     system_id=config.system_id,
-                    symbol=config.symbol,
+                    symbol_info=config.symbol_info,
                     side=config.side,
                     price_low=config.price_low,
                     price_high=config.price_high,
