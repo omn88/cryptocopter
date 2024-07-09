@@ -19,6 +19,7 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.common.identifiers.common import BinanceClient
+from src.common.symbol_info import fetch_symbol_info
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 
@@ -41,15 +42,6 @@ config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 
 # Set initial window size
 Window.size = (960, 600)
-
-
-async def fetch_trading_symbols(client) -> List[str]:
-    exchange_info = await client.get_exchange_info()
-    return [
-        symbol["symbol"]
-        for symbol in exchange_info["symbols"]
-        if symbol["status"] == "TRADING"
-    ]
 
 
 async def main():
@@ -77,10 +69,10 @@ async def main():
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
     )
 
-    symbols = await fetch_trading_symbols(client=client)
-    logger.debug("Symbols: %s, count: %s", symbols, len(symbols))
+    symbols_info = await fetch_symbol_info(client=client)
+    logger.debug("Symbols: %s, count: %s", symbols_info, len(symbols_info))
 
-    app = AsyncApp(client=client, db=db, symbols=symbols)
+    app = AsyncApp(client=client, db=db, symbols_info=symbols_info)
     logger.info("Created %s", app)
 
     try:

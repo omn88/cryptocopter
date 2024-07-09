@@ -3,6 +3,7 @@ from enum import Enum
 from typing import List, NamedTuple, Optional, Union
 
 from src.common.identifiers.common import PositionSide, PositionStatus, SentinelUpdate
+from src.common.symbol_info import SymbolInfo
 
 
 class State(Enum):
@@ -31,13 +32,6 @@ class EventName(Enum):
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
-
-
-@dataclass
-class SymbolConfig:
-    min_notional: float = 0.0
-    lot_size: float = 0.0
-    precision: int = 0
 
 
 @dataclass
@@ -145,8 +139,8 @@ class Event(NamedTuple):
 
 @dataclass
 class StrategyConfig:
+    symbol_info: SymbolInfo = SymbolInfo()
     system_id: str = ""
-    symbol: str = ""
     side: PositionSide = PositionSide.FLAT
     price_low: float = 0
     price_high: float = 0
@@ -157,7 +151,7 @@ class StrategyConfig:
 
     def __str__(self):
         return (
-            f"StrategyConfig(system_id={self.system_id}, symbol={self.symbol}, side={self.side}, "
+            f"StrategyConfig(system_id={self.system_id}, symbol_info={self.symbol_info}, side={self.side}, "
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
             f"name={self.name}, budget={self.budget})"
         )

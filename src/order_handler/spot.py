@@ -16,8 +16,8 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
-from src.common.identifiers.spot import SymbolConfig
 from src.common.identifiers.common import BinanceClient, Order, PositionSide
+from src.common.symbol_info import SymbolInfo
 
 
 class OrderHandler:
@@ -30,7 +30,6 @@ class OrderHandler:
     ):
         self.strategy_logger = strategy_logger
         self.client = client
-        self.symbol_config: SymbolConfig = SymbolConfig()
 
     def round_quantity(self, quantity: float) -> float:
         if quantity >= 1:
@@ -83,15 +82,18 @@ class OrderHandler:
         return orders
 
     async def create_order(
-        self, side: PositionSide, order: Order, symbol: str
+        self, side: PositionSide, order: Order, symbol_info: SymbolInfo
     ) -> Order:
         last_exception = None
         for _ in range(self.MAX_RETRIES):
             try:
+                price = round(order.price, symbol_info.price_precision)
+                quantity = symbol_info.adjust_quantity(order.quantity)
+                symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(
-                    symbol=symbol,
-                    price=round(order.price, 2),
-                    quantity=round(abs(order.quantity), self.symbol_config.precision),
+                    symbol=symbol_info.symbol,
+                    price=price,
+                    quantity=quantity,
                     side=side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
@@ -121,7 +123,7 @@ class OrderHandler:
         self,
         side: PositionSide,
         orders: List[Order],
-        symbol: str,
+        symbol_info: SymbolInfo,
     ) -> List[Order]:
         """Send a list of orders concurrently.
 
@@ -135,7 +137,7 @@ class OrderHandler:
         """
         results = await asyncio.gather(
             *[
-                self.create_order(side=side, order=order, symbol=symbol)
+                self.create_order(side=side, order=order, symbol_info=symbol_info)
                 for order in orders
                 if order.status != ORDER_STATUS_FILLED
             ]
@@ -144,7 +146,7 @@ class OrderHandler:
             self.strategy_logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
                 side.value,
-                symbol,
+                symbol_info.symbol,
                 order.price,
                 order.quantity_stable,
                 order.order_id,

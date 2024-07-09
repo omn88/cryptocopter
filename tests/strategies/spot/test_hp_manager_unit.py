@@ -14,7 +14,6 @@ from src.common.identifiers.common import PositionSide
 
 async def test_initialize_strategy(spot_sell):
     strategy = spot_sell.strategy
-    await strategy.initialize()
     assert strategy.state == State.NEW
 
 

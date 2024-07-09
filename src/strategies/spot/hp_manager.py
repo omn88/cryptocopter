@@ -213,42 +213,6 @@ class HpManager:
             },
         ]
 
-    async def initialize(self):
-        symbol_config = self.position_handler.order_handler.symbol_config
-        symbol_config.min_notional = await self._get_minimum_notional_for_symbol(
-            self.config.symbol
-        )
-        (
-            symbol_config.lot_size,
-            symbol_config.precision,
-        ) = await self._get_lot_size_and_precision(self.config.symbol)
-
-    async def _get_minimum_notional_for_symbol(self, symbol):
-        exchange_info = await self.client.get_exchange_info()
-        for s in exchange_info["symbols"]:
-            if s["symbol"] == symbol:
-                for f in s["filters"]:
-                    if f["filterType"] == "MIN_NOTIONAL":
-                        return float(f["minNotional"])
-        return None
-
-    async def _get_lot_size_and_precision(self, symbol):
-        exchange_info = await self.client.get_exchange_info()
-        for s in exchange_info["symbols"]:
-            if s["symbol"] == symbol:
-                for f in s["filters"]:
-                    if f["filterType"] == "LOT_SIZE":
-                        lot_size = float(f["stepSize"])
-                        precision = self._calculate_precision(f["stepSize"])
-                        return lot_size, precision
-        return None, None
-
-    def _calculate_precision(self, step_size):
-        step_size_str = f"{float(step_size):.20f}".rstrip("0")
-        if "." in step_size_str:
-            return len(step_size_str.split(".")[1])
-        return 0
-
     def calculate_trigger_orders_price(self):
         return (
             round(
@@ -481,15 +445,19 @@ class HpManager:
         return condition
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Opening %s %s", self.config.symbol, self.config.side.value)
+        self.logger.info(
+            "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
+        )
 
         await self.position_handler.open_position(
             side=self.config.side,
-            symbol=self.config.symbol,
+            symbol_info=self.config.symbol_info,
         )
 
     async def resend_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Resending %s %s", self.config.symbol, self.config.side.value)
+        self.logger.info(
+            "Resending %s %s", self.config.symbol_info.symbol, self.config.side.value
+        )
 
         new_orders = []
 
@@ -509,7 +477,7 @@ class HpManager:
 
         await self.position_handler.order_handler.create_orders(
             side=self.position_handler.config.side,
-            symbol=self.position_handler.config.symbol,
+            symbol_info=self.position_handler.config.symbol_info,
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
@@ -537,7 +505,7 @@ class HpManager:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
         )
 
         orders_total = len(self.position_handler.orders)
@@ -555,7 +523,7 @@ class HpManager:
                 price_high=self.config.price_high,
                 price_low=self.config.price_low,
                 side=self.config.side,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,
                 status=self.config.status,
@@ -566,7 +534,9 @@ class HpManager:
         )
 
     async def resend_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Resending %s %s", self.config.symbol, self.config.side.value)
+        self.logger.info(
+            "Resending %s %s", self.config.symbol_info.symbol, self.config.side.value
+        )
 
         new_orders = []
 
@@ -586,7 +556,7 @@ class HpManager:
 
         await self.position_handler.order_handler.create_orders(
             side=self.position_handler.config.side,
-            symbol=self.position_handler.config.symbol,
+            symbol_info=self.position_handler.config.symbol_info,
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
@@ -612,7 +582,7 @@ class HpManager:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
         )
 
         orders_total = len(self.position_handler.orders)
@@ -630,7 +600,7 @@ class HpManager:
                 price_high=self.config.price_high,
                 price_low=self.config.price_low,
                 side=self.config.side,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,
                 status=self.config.status,
@@ -641,11 +611,13 @@ class HpManager:
         )
 
     async def send_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Opening %s %s", self.config.symbol, self.config.side.value)
+        self.logger.info(
+            "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
+        )
 
         await self.position_handler.open_position(
             side=self.config.side,
-            symbol=self.config.symbol,
+            symbol_info=self.config.symbol_info,
         )
 
     async def cancel_buy_orders(self, *args, **kwargs) -> None:
@@ -684,7 +656,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
@@ -705,7 +677,7 @@ class HpManager:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
         )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
@@ -781,7 +753,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
@@ -831,7 +803,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
@@ -880,7 +852,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,

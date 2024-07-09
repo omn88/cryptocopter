@@ -12,6 +12,7 @@ from src.common.identifiers.common import (
     PositionStatus,
 )
 from src.common.identifiers.spot import ExecutionReport, StrategyConfig
+from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
@@ -37,7 +38,7 @@ class PositionHandler:
             budget=config.budget,
             price_low=config.price_low,
             price_high=config.price_high,
-            min_notional=self.order_handler.symbol_config.min_notional,
+            min_notional=self.config.symbol_info.min_notional,
         )
 
         self.stagnation_counter: int = 0
@@ -47,10 +48,10 @@ class PositionHandler:
     async def open_position(
         self,
         side: PositionSide,
-        symbol: str,
+        symbol_info: SymbolInfo,
     ) -> None:
         self.orders = await self.order_handler.create_orders(
-            side=side, orders=self.orders, symbol=symbol
+            side=side, orders=self.orders, symbol_info=symbol_info
         )
         self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
             hours=1
@@ -63,7 +64,7 @@ class PositionHandler:
                 price_high=self.config.price_high,
                 price_low=self.config.price_low,
                 side=self.config.side,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,
                 status=self.config.status,
@@ -85,7 +86,7 @@ class PositionHandler:
             order_trigger=self.config.order_trigger,
             budget=self.config.budget,
             status=self.config.status,
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
         )
 
         self.strategy_logger.debug("Position opened successfully.")
@@ -94,7 +95,7 @@ class PositionHandler:
         self.strategy_logger.debug("Enter cancel position")
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
             orders=self.orders,
         )
         self.config.status = PositionStatus.STAGNATED
@@ -114,7 +115,7 @@ class PositionHandler:
 
         await self.db.update_price_level(
             system_id=self.config.system_id,
-            symbol=self.config.symbol,
+            symbol=self.config.symbol_info.symbol,
             side=self.config.side,
             price_low=self.config.price_low,
             price_high=self.config.price_high,
@@ -133,7 +134,7 @@ class PositionHandler:
                 price_high=self.config.price_high,
                 price_low=self.config.price_low,
                 side=self.config.side,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,
                 status=self.config.status,
@@ -170,7 +171,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,
@@ -223,7 +224,7 @@ class PositionHandler:
         await self.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 order_trigger=self.config.order_trigger,
                 budget=self.config.budget,

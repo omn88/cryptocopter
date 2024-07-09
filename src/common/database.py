@@ -29,7 +29,7 @@ CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     price_level_id CHAR(36) NOT NULL,
-    symbol VARCHAR(10) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
@@ -162,13 +162,13 @@ class Database:
                     "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
-                        config.symbol,
+                        config.symbol_info.symbol,
                         config.side.value,
                         config.price_low,
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        config.status.value,
+                        config.status.value if config.status is not None else "NEW",
                     ),
                 )
                 await conn.commit()
