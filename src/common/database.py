@@ -168,7 +168,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        config.status.value,
+                        config.status.value if config.status is not None else "NEW",
                     ),
                 )
                 await conn.commit()

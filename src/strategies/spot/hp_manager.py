@@ -753,7 +753,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
@@ -803,7 +803,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
@@ -852,7 +852,7 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 system_id=self.config.system_id,
-                symbol=self.config.symbol,
+                symbol=self.config.symbol_info.symbol,
                 side=self.config.side,
                 price_low=self.config.price_low,
                 price_high=self.config.price_high,
