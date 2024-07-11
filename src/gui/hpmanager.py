@@ -81,7 +81,16 @@ class HpManager(BoxLayout):
         self.selected_label.text = value
 
     def trigger_add_record(self, *args):
-        asyncio.create_task(self.add_record(*args))
+        asyncio.create_task(
+            self.add_record(
+                symbol=self.symbol_input.selected_value,
+                price_low=self.symbol_input.price_low_input.text,
+                price_high=self.symbol_input.price_high_input.text,
+                side=self.ids.side_input.text,
+                budget=self.ids.budget_input.text,
+                order_trigger=self.ids.order_trigger_input.text,
+            )
+        )
 
     async def add_record(
         self,
