@@ -17,6 +17,7 @@ from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
     BinanceClient,
+    Mode,
     Order,
     PositionSide,
     PositionStatus,
@@ -89,6 +90,7 @@ class HpManager(BoxLayout):
                 side=self.ids.side_input.text,
                 budget=self.ids.budget_input.text,
                 order_trigger=self.ids.order_trigger_input.text,
+                mode=self.ids.mode_input.text,
             )
         )
 
@@ -100,6 +102,7 @@ class HpManager(BoxLayout):
         price_high,
         budget,
         order_trigger,
+        mode,
         last_known_status=None,
         system_id: Optional[str] = None,
     ):
@@ -117,6 +120,7 @@ class HpManager(BoxLayout):
             budget=float(budget),
             order_trigger=float(order_trigger),
             status=last_known_status,
+            mode=Mode.DCA if mode == Mode.DCA.value else Mode.SINGLE,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)

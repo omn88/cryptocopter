@@ -39,6 +39,8 @@ class PositionHandler:
             price_low=config.price_low,
             price_high=config.price_high,
             min_notional=self.config.symbol_info.min_notional,
+            mode=self.config.mode,
+            side=self.config.side,
         )
 
         self.stagnation_counter: int = 0

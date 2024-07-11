@@ -15,7 +15,7 @@ from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.common import PositionSide
+from src.common.identifiers.common import Mode, PositionSide
 from src.common.identifiers.spot import StrategyConfig as ConfigSpot
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.common.symbol_info import SymbolInfo
@@ -128,6 +128,7 @@ async def spot_buy(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
+        mode=Mode.DCA,
     )
 
     strategy = StrategyHP(
@@ -154,6 +155,7 @@ async def spot_sell(mock_AsyncClient):
         price_high=1400,
         order_trigger=1,
         budget=1000,
+        mode=Mode.DCA,
     )
 
     gui_handler = AsyncMock()

@@ -16,7 +16,7 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
-from src.common.identifiers.common import BinanceClient, Order, PositionSide
+from src.common.identifiers.common import BinanceClient, Mode, Order, PositionSide
 from src.common.symbol_info import SymbolInfo
 
 
@@ -48,35 +48,51 @@ class OrderHandler:
         price_high: float,
         budget: float,
         min_notional: float,
+        mode: Mode,
+        side: PositionSide,
     ) -> List[Order]:
         orders = []
 
-        # Define the number of orders
-        max_num_orders = 3  # Number of desired orders
-        min_budget_for_max_orders = max_num_orders * min_notional
-
-        if budget >= min_budget_for_max_orders:
-            number_of_orders = 3
-            order_quantity_stable = budget / max_num_orders
-        else:
-            order_quantity_stable = min_notional
-            number_of_orders = int(budget / min_notional)
-            number_of_orders = (
-                number_of_orders if number_of_orders % 2 == 1 else number_of_orders - 1
-            )
-
-        price_increment = (price_high - price_low) / (number_of_orders - 1)
-
-        for i in range(number_of_orders):
-            order_price = price_low + i * price_increment
-
+        if mode == Mode.SINGLE:
+            order_price = price_high if side == PositionSide.LONG else price_low
             orders.append(
                 Order(
-                    quantity=self.round_quantity(order_quantity_stable / order_price),
+                    quantity=self.round_quantity(budget / order_price),
                     price=order_price,
-                    quantity_stable=self.round_quantity(order_quantity_stable),
+                    quantity_stable=self.round_quantity(budget),
                 )
             )
+
+        if mode == Mode.DCA:
+            num_orders = 3
+
+            min_budget_for_max_orders = num_orders * min_notional
+
+            if budget >= min_budget_for_max_orders:
+                order_quantity_stable = budget / num_orders
+            else:
+                order_quantity_stable = min_notional
+                num_orders = int(budget / min_notional)
+                num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
+
+            price_increment = (price_high - price_low) / (num_orders - 1)
+
+            for i in range(num_orders):
+                order_price = (
+                    (price_low + i * price_increment)
+                    if side == PositionSide.SHORT
+                    else (price_high - i * price_increment)
+                )
+
+                orders.append(
+                    Order(
+                        quantity=self.round_quantity(
+                            order_quantity_stable / order_price
+                        ),
+                        price=order_price,
+                        quantity_stable=self.round_quantity(order_quantity_stable),
+                    )
+                )
 
         self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
         return orders

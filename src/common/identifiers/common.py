@@ -23,6 +23,11 @@ class SentinelUpdate(NamedTuple):
     sentinel: str
 
 
+class Mode(Enum):
+    SINGLE = "SINGLE"
+    DCA = "DCA"
+
+
 class PositionSide(Enum):
     LONG = "BUY"
     SHORT = "SELL"
