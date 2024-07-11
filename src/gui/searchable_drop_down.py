@@ -1,3 +1,4 @@
+import asyncio
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
@@ -10,8 +11,9 @@ class SearchableDropDown(BoxLayout):
     options = ListProperty()
     selected_value = StringProperty()
 
-    def __init__(self, **kwargs):
+    def __init__(self, client, **kwargs):
         super().__init__(**kwargs)
+        self.client = client
         self.orientation = "vertical"
         self.dropdown = DropDown()
 
@@ -51,10 +53,17 @@ class SearchableDropDown(BoxLayout):
         price_box.add_widget(self.price_high_input)
         self.add_widget(price_box)
 
+    async def fetch_bid_ask_price(self, symbol: str):
+        ticker = await self.client.get_orderbook_ticker(symbol=symbol)
+        return float(ticker["bidPrice"]), float(ticker["askPrice"])
+
     def update_prices(self, instance, value):
-        # Example: set static values for demo purposes
-        self.price_low_input.text = "666"
-        self.price_high_input.text = "999"
+        asyncio.create_task(self._update_prices_async(value))
+
+    async def _update_prices_async(self, symbol: str):
+        bid, ask = await self.fetch_bid_ask_price(symbol)
+        self.price_low_input.text = str(bid)
+        self.price_high_input.text = str(ask)
 
     def update_dropdown(self, instance, value):
         self.dropdown.clear_widgets()

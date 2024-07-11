@@ -72,6 +72,11 @@ class HpManager(BoxLayout):
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
 
+        # Create the SearchableDropDown instance with the client
+        self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
+        # Add it to the layout where needed
+        self.ids.symbol_container.add_widget(self.symbol_input)
+
     def update_label(self, instance, value):
         self.selected_label.text = value
 

@@ -19,11 +19,9 @@
                     height: '50dp'
                     spacing: 5
                     BoxLayout:
+                        id: symbol_container  # Placeholder for the SearchableDropDown
                         size_hint_x: 0.6
                         size_hint_y: 0.7  # Ensure this aligns with other elements
-                        SearchableDropDown:
-                            id: symbol_input
-                            options: root.symbols
                     Spinner:
                         id: side_input
                         values: ['BUY', 'SELL']
