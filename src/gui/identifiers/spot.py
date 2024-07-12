@@ -1,4 +1,4 @@
-from src.common.identifiers.common import PositionSide, PositionStatus
+from src.common.identifiers.common import Mode, PositionSide, PositionStatus
 
 
 class PositionData:
@@ -8,6 +8,7 @@ class PositionData:
         status: PositionStatus,
         symbol: str = "",
         side: PositionSide = PositionSide.FLAT,
+        mode: Mode = Mode.DCA,
         price_low: float = 0,
         price_high: float = 0,
         budget: float = 0,
@@ -20,6 +21,7 @@ class PositionData:
         self.system_id = system_id
         self.symbol = symbol
         self.side = side
+        self.mode = mode
         self.price_low = price_low
         self.price_high = price_high
         self.budget = budget
@@ -34,6 +36,7 @@ class PositionData:
         return (
             f"PositionData(system_id={self.system_id}, symbol={self.symbol}, "
             f"side={self.side}, status={self.status}, "
+            f"mode={self.mode}, "
             f"price_low={self.price_low}, "
             f"price_high={self.price_high}, "
             f"budget={self.budget}, "
