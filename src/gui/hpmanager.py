@@ -103,6 +103,8 @@ class HpManager(BoxLayout):
             validation_message += "Order trigger is required. "
         if mode not in [Mode.DCA.value, Mode.SINGLE.value]:
             validation_message += "Mode has to be selected."
+        if price_low > price_high:
+            validation_message += "Price low is bigger than price high. "
 
         self.ids.validation_label.text = validation_message
 
