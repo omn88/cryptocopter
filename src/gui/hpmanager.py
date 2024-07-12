@@ -69,6 +69,9 @@ class HpManager(BoxLayout):
         self.strategy_executor = StrategyExecutor(
             client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
         )
+        self.bind(active_records=self.update_active_symbols)
+        self.bind(idle_records=self.update_idle_symbols)
+        self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
@@ -80,6 +83,24 @@ class HpManager(BoxLayout):
 
     def update_label(self, instance, value):
         self.selected_label.text = value
+
+    def update_active_symbols(self, *args):
+        symbols = {"All"}
+        for record in self.active_records:
+            symbols.add(record.get("symbol", ""))
+        self.ids.active_filter_input.values = sorted(list(symbols))
+
+    def update_idle_symbols(self, *args):
+        symbols = {"All"}
+        for record in self.idle_records:
+            symbols.add(record.get("symbol", ""))
+        self.ids.idle_filter_input.values = sorted(list(symbols))
+
+    def update_archive_symbols(self, *args):
+        symbols = {"All"}
+        for record in self.archive_records:
+            symbols.add(record.get("symbol", ""))
+        self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def validate_inputs(self):
         symbol = self.symbol_input.selected_value

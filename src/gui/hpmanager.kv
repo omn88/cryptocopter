@@ -106,7 +106,6 @@
                     height: '40dp'
                     Spinner:
                         id: active_filter_input
-                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
                         text: 'All'
                         size_hint_x: 0.2
                         on_text: root.filter_records('active', self.text)
@@ -157,7 +156,6 @@
                     height: '40dp'
                     Spinner:
                         id: idle_filter_input
-                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
                         text: 'All'
                         size_hint_x: 0.2
                         on_text: root.filter_records('idle', self.text)
@@ -208,7 +206,6 @@
                     height: '40dp'
                     Spinner:
                         id: archive_filter_input
-                        values: ['All', 'BTCUSDT', 'ETHUSDT']  # Populate dynamically if needed
                         text: 'All'
                         size_hint_x: 0.2
                         on_text: root.filter_records('archive', self.text)
