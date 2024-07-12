@@ -128,6 +128,7 @@ class AsyncApp(App):
                     budget=price_level.get("budget"),
                     order_trigger=price_level.get("order_trigger"),
                     last_known_status=price_level.get("status"),
+                    mode=price_level.get("mode"),
                 )
 
     def __str__(self):
