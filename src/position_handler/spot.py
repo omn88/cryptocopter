@@ -62,15 +62,7 @@ class PositionHandler:
         self.config.status = PositionStatus.OPEN
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                mode=self.config.mode,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=len(self.orders),
                 orders_filled=0,
                 orders_total=len(self.orders),
@@ -135,15 +127,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                mode=self.config.mode,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=0,
                 orders_filled=orders_filled,
                 orders_total=len(self.orders),
@@ -177,15 +161,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                system_id=self.config.system_id,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
@@ -230,15 +206,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,

@@ -132,18 +132,10 @@ class HpManager(BoxLayout):
 
             await self.gui_handler.put(
                 PositionData(
-                    system_id=config.system_id,
-                    symbol=config.symbol_info.symbol,
-                    side=config.side,
-                    mode=config.mode,
-                    price_low=config.price_low,
-                    price_high=config.price_high,
-                    budget=config.budget,
-                    order_trigger=config.order_trigger,
+                    config=self.config,
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
-                    status=status,
                 )
             )
             await self.db.insert_price_level(config=config)
@@ -281,18 +273,18 @@ class HpManager(BoxLayout):
 
     def add_new_position(self, data: PositionData):
         new_position = {
-            "system_id": data.system_id,
-            "symbol": data.symbol,
-            "side": str(data.side.value),
-            "mode": str(data.mode.value),
-            "price_low": str(data.price_low),
-            "price_high": str(data.price_high),
-            "budget": str(data.budget),
-            "order_trigger": str(data.order_trigger),
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "mode": str(data.config.mode.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_trigger": str(data.config.order_trigger),
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.status),
+            "status": str(data.config.status),
         }
 
         self.idle_records.append(new_position)
@@ -300,17 +292,17 @@ class HpManager(BoxLayout):
 
     def recovery_to_active(self, data: PositionData):
         new_position = {
-            "system_id": data.system_id,
-            "symbol": data.symbol,
-            "side": str(data.side.value),
-            "price_low": str(data.price_low),
-            "price_high": str(data.price_high),
-            "budget": str(data.budget),
-            "order_trigger": str(data.order_trigger),
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_trigger": str(data.config.order_trigger),
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.status),
+            "status": str(data.config.status),
         }
 
         self.active_records.append(new_position)
@@ -321,16 +313,16 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
-            if position["system_id"] == data.system_id:
+            if position["system_id"] == data.config.system_id:
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.status),
+                        "status": str(data.config.status),
                     }
                 )
-                if data.status == PositionStatus.CLOSED:
+                if data.config.status == PositionStatus.CLOSED:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
@@ -343,21 +335,21 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if position["system_id"] == data.system_id:
+            if position["system_id"] == data.config.system_id:
                 self.strategy_logger.debug("Will update position")
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.status),
+                        "status": str(data.config.status),
                     }
                 )
-                if data.status == PositionStatus.OPEN:
+                if data.config.status == PositionStatus.OPEN:
                     self.idle_records.remove(position)
                     self.active_records.append(position)
                     self.strategy_logger.debug("Activating price level: %s", position)
-                if data.status == PositionStatus.CLOSED:
+                if data.config.status == PositionStatus.CLOSED:
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)

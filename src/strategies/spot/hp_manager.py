@@ -520,15 +520,7 @@ class HpManager:
 
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                mode=self.config.mode,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_total - orders_filled,
                 orders_filled=orders_filled,
                 orders_total=orders_total,
@@ -599,15 +591,7 @@ class HpManager:
 
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                mode=self.config.mode,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_total - orders_filled,
                 orders_filled=orders_filled,
                 orders_total=orders_total,
@@ -659,18 +643,10 @@ class HpManager:
 
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                budget=self.config.budget,
-                order_trigger=self.config.order_trigger,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=len(self.position_handler.orders),
-                status=self.config.status,
             )
         )
 
@@ -758,18 +734,10 @@ class HpManager:
 
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                budget=self.config.budget,
-                order_trigger=self.config.order_trigger,
+                config=self.config,
                 orders_opened=0,
                 orders_filled=0,
                 orders_total=0,
-                status=self.config.status,
                 recovering=True,
             )
         )
@@ -809,18 +777,10 @@ class HpManager:
 
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                budget=self.config.budget,
-                order_trigger=self.config.order_trigger,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
-                status=self.config.status,
                 recovering=True,
             )
         )
@@ -859,17 +819,9 @@ class HpManager:
         )
         await self.position_handler.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                mode=self.config.mode,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                budget=self.config.budget,
-                order_trigger=self.config.order_trigger,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
-                status=self.config.status,
             )
         )

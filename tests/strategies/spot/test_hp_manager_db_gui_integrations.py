@@ -66,16 +66,16 @@ async def assert_gui_position_data_content(
     logger.info("GUI msg: %s", gui_msg)
     assert isinstance(gui_msg, PositionData)
 
-    assert gui_msg.symbol == config.symbol_info.symbol
-    assert gui_msg.side == config.side
-    assert gui_msg.status == config.status
-    assert gui_msg.price_low == config.price_low
-    assert gui_msg.price_high == config.price_high
-    assert gui_msg.order_trigger == config.order_trigger
+    assert gui_msg.config.symbol_info.symbol == config.symbol_info.symbol
+    assert gui_msg.config.side == config.side
+    assert gui_msg.config.status == config.status
+    assert gui_msg.config.price_low == config.price_low
+    assert gui_msg.config.price_high == config.price_high
+    assert gui_msg.config.order_trigger == config.order_trigger
     assert gui_msg.orders_filled == orders_filled
     assert gui_msg.orders_total == orders_total
     assert gui_msg.orders_opened == orders_opened
-    assert gui_msg.budget == config.budget
+    assert gui_msg.config.budget == config.budget
 
 
 async def process_ticker(strategy: HpManager, last_price: float):
