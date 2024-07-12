@@ -187,9 +187,17 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
     ):
-        status = PositionStatus.CLOSED
-
-        side = PositionSide.LONG if side == "BUY" else PositionSide.SHORT
+        config = StrategyConfig(
+            symbol_info=SymbolInfo(symbol=symbol),
+            system_id=system_id,
+            side=PositionSide.LONG if side == "BUY" else PositionSide.SHORT,
+            mode=mode,
+            price_high=price_high,
+            price_low=price_low,
+            budget=budget,
+            order_trigger=order_trigger,
+            status=PositionStatus.CLOSED,
+        )
 
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
@@ -197,32 +205,14 @@ class HpManager(BoxLayout):
         # Update GUI asynchronously
         await self.gui_handler.put(
             PositionData(
-                system_id=system_id,
-                symbol=symbol,
-                side=side,
-                mode=mode,
-                price_low=price_low,
-                price_high=price_high,
-                budget=budget,
-                order_trigger=order_trigger,
+                config=config,
                 orders_opened=orders_opened,
                 orders_total=orders_total,
                 orders_filled=orders_filled,
-                status=status,
             )
         )
 
-        await self.db.update_price_level(
-            system_id=system_id,
-            side=side,
-            price_low=price_low,
-            price_high=price_high,
-            order_trigger=order_trigger,
-            budget=budget,
-            status=status,
-            symbol=symbol,
-            mode=mode,
-        )
+        await self.db.update_price_level(config=config)
 
     async def update_ui(self):
         while True:

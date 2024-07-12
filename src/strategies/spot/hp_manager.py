@@ -497,17 +497,7 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            side=self.config.side,
-            mode=self.config.mode,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-            symbol=self.config.symbol_info.symbol,
-        )
+        await self.db.update_price_level(self.config)
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -568,17 +558,7 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            side=self.config.side,
-            mode=self.config.mode,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-            symbol=self.config.symbol_info.symbol,
-        )
+        await self.db.update_price_level(config=self.config)
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -650,17 +630,7 @@ class HpManager:
             )
         )
 
-        await self.position_handler.db.update_price_level(
-            system_id=self.config.system_id,
-            side=self.config.side,
-            mode=self.config.mode,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-            symbol=self.config.symbol_info.symbol,
-        )
+        await self.position_handler.db.update_price_level(config=self.config)
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
         self.position_handler.stagnation_counter += 1

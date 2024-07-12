@@ -4,7 +4,6 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
 from src.common.identifiers.common import Mode, Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 
@@ -207,22 +206,14 @@ class Database:
 
     async def update_price_level(
         self,
-        system_id: str,
-        symbol: str,
-        side: PositionSide,
-        price_low: float,
-        price_high: float,
-        order_trigger: float,
-        budget: float,
-        mode: Mode,
-        status: PositionStatus,
+        config: StrategyConfig,
     ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
                 await cur.execute(
                     "UPDATE price_levels SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE",
-                    (system_id,),
+                    (config.system_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
@@ -234,15 +225,15 @@ class Database:
                 await cur.execute(
                     insert_query,
                     (
-                        system_id,
-                        symbol,
-                        side.value,
-                        mode.value,
-                        price_low,
-                        price_high,
-                        order_trigger,
-                        budget,
-                        status.value,
+                        config.system_id,
+                        config.symbol_info.symbol,
+                        config.side.value,
+                        config.mode.value,
+                        config.price_low,
+                        config.price_high,
+                        config.order_trigger,
+                        config.budget,
+                        config.status.value,
                         version_timestamp,
                     ),
                 )

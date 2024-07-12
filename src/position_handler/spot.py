@@ -73,17 +73,7 @@ class PositionHandler:
             await self.db.insert_order(
                 price_level_id=self.config.system_id, order=order
             )
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            side=self.config.side,
-            mode=self.config.mode,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-            symbol=self.config.symbol_info.symbol,
-        )
+        await self.db.update_price_level(self.config)
 
         self.strategy_logger.debug("Position opened successfully.")
 
@@ -109,17 +99,7 @@ class PositionHandler:
                     price_level_id=self.config.system_id,
                 )
 
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            symbol=self.config.symbol_info.symbol,
-            side=self.config.side,
-            mode=self.config.mode,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-        )
+        await self.db.update_price_level(config=self.config)
 
         orders_filled = len(
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
