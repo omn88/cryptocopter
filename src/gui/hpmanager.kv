@@ -85,6 +85,13 @@
                     height: '50dp'
                     on_release: root.trigger_add_record()
 
+                Label:
+                    id: validation_label
+                    text: ''
+                    color: 1, 0, 0, 1  # Red color for validation messages
+                    size_hint_y: None
+                    height: '30dp'
+
     # Bottom section with tabbed panels for records
     TabbedPanel:
         do_default_tab: False

@@ -81,7 +81,36 @@ class HpManager(BoxLayout):
     def update_label(self, instance, value):
         self.selected_label.text = value
 
+    def validate_inputs(self):
+        symbol = self.symbol_input.selected_value
+        price_low = self.symbol_input.price_low_input.text
+        price_high = self.symbol_input.price_high_input.text
+        side = self.ids.side_input.text
+        budget = self.ids.budget_input.text
+        order_trigger = self.ids.order_trigger_input.text
+        mode = self.ids.mode_input.text
+
+        validation_message = ""
+        if not symbol:
+            validation_message += "Symbol is required. "
+        if not price_low or not price_high:
+            validation_message += "Price range is required. "
+        if not side or side == "SIDE":
+            validation_message += "Side is required. "
+        if not budget:
+            validation_message += "Budget is required. "
+        if not order_trigger:
+            validation_message += "Order trigger is required. "
+        if mode not in [Mode.DCA.value, Mode.SINGLE.value]:
+            validation_message += "Mode has to be selected."
+
+        self.ids.validation_label.text = validation_message
+
+        return not validation_message
+
     def trigger_add_record(self, *args):
+        if not self.validate_inputs():
+            return
         asyncio.create_task(
             self.add_record(
                 symbol=self.symbol_input.selected_value,
@@ -132,7 +161,7 @@ class HpManager(BoxLayout):
 
             await self.gui_handler.put(
                 PositionData(
-                    config=self.config,
+                    config=config,
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
@@ -191,7 +220,7 @@ class HpManager(BoxLayout):
             symbol_info=SymbolInfo(symbol=symbol),
             system_id=system_id,
             side=PositionSide.LONG if side == "BUY" else PositionSide.SHORT,
-            mode=mode,
+            mode=Mode.DCA if mode == "DCA" else Mode.SINGLE,
             price_high=price_high,
             price_low=price_low,
             budget=budget,
@@ -230,26 +259,26 @@ class HpManager(BoxLayout):
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
                 if data.recovering:
-                    if data.status == PositionStatus.OPEN.value:
+                    if data.config.status == PositionStatus.OPEN.value:
                         self.strategy_logger.logger.debug(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
 
                 elif any(
-                    record["system_id"] == data.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.active_records
                 ):
                     self.strategy_logger.debug(
-                        "Record %s found in active records", data.system_id
+                        "Record %s found in active records", data.config.system_id
                     )
                     self.update_active_position(data=data)
                 elif any(
-                    record["system_id"] == data.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.idle_records
                 ):
                     self.strategy_logger.debug(
-                        "Record %s found in idle records", data.system_id
+                        "Record %s found in idle records", data.config.system_id
                     )
                     self.update_idle_position(data=data)
                 else:
