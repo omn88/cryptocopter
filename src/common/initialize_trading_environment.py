@@ -5,6 +5,7 @@ from binance import BinanceSocketManager
 
 
 from src.common.identifiers.common import BinanceClient
+from src.common.symbol_info import SymbolInfo
 from src.gui.gui_handler.futures import GuiHandler
 from src.producers.futures import (
     kline_futures_socket,
@@ -64,7 +65,7 @@ def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     stop_event: asyncio.Event,
-    symbol: str,
+    symbol_info: SymbolInfo,
 ):
     return [
         asyncio.create_task(
@@ -76,7 +77,7 @@ def spot_prepare_producers(
             spot_ticker_socket(
                 socket_manager=socket_manager,
                 stop_event=stop_event,
-                symbol=symbol,
+                symbol_info=symbol_info,
                 queue=queue,
             )
         ),

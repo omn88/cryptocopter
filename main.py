@@ -41,7 +41,7 @@ DB_CONFIG_FILE = "config/.db_config"
 config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 
 # Set initial window size
-Window.size = (960, 600)
+Window.size = (1020, 600)
 
 
 async def main():

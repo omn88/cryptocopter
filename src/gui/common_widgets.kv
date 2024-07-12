@@ -148,6 +148,7 @@
     system_id: ''
     symbol: ''
     side: ''
+    mode: ''
     price_low: ''
     price_high: ''
     budget: ''
@@ -167,6 +168,8 @@
     Label:
         text: root.side
     Label:
+        text: root.mode
+    Label:
         text: root.price_low
     Label:
         text: root.price_high
@@ -182,7 +185,7 @@
         text: root.orders_filled
     Button:
         text: 'Remove'
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.price_low, root.price_high, root.budget, root.order_trigger, root.orders_opened, root.orders_total, root.orders_filled)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.orders_opened, root.orders_total, root.orders_filled)
 
 
 

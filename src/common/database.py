@@ -4,8 +4,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_NEW
-from src.common.identifiers.common import Order, PositionSide, PositionStatus
+from src.common.identifiers.common import Mode, Order, PositionSide, PositionStatus
 from src.common.identifiers.spot import StrategyConfig
 
 logger = logging.getLogger("database")
@@ -36,6 +35,7 @@ CREATE TABLE IF NOT EXISTS price_levels (
     order_trigger FLOAT NOT NULL,
     budget FLOAT NOT NULL,
     status VARCHAR(20) NOT NULL,
+    mode VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -159,7 +159,7 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
                         config.symbol_info.symbol,
@@ -169,6 +169,7 @@ class Database:
                         config.order_trigger,
                         config.budget,
                         config.status.value if config.status is not None else "NEW",
+                        config.mode.value,
                     ),
                 )
                 await conn.commit()
@@ -205,40 +206,34 @@ class Database:
 
     async def update_price_level(
         self,
-        system_id: str,
-        symbol: str,
-        side: PositionSide,
-        price_low: float,
-        price_high: float,
-        order_trigger: float,
-        budget: float,
-        status: PositionStatus,
+        config: StrategyConfig,
     ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
                 await cur.execute(
                     "UPDATE price_levels SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE",
-                    (system_id,),
+                    (config.system_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                    price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(
                     insert_query,
                     (
-                        system_id,
-                        symbol,
-                        side.value,
-                        price_low,
-                        price_high,
-                        order_trigger,
-                        budget,
-                        status.value,
+                        config.system_id,
+                        config.symbol_info.symbol,
+                        config.side.value,
+                        config.mode.value,
+                        config.price_low,
+                        config.price_high,
+                        config.order_trigger,
+                        config.budget,
+                        config.status.value,
                         version_timestamp,
                     ),
                 )

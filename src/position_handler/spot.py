@@ -62,14 +62,7 @@ class PositionHandler:
         self.config.status = PositionStatus.OPEN
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=len(self.orders),
                 orders_filled=0,
                 orders_total=len(self.orders),
@@ -80,16 +73,7 @@ class PositionHandler:
             await self.db.insert_order(
                 price_level_id=self.config.system_id, order=order
             )
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            side=self.config.side,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-            symbol=self.config.symbol_info.symbol,
-        )
+        await self.db.update_price_level(self.config)
 
         self.strategy_logger.debug("Position opened successfully.")
 
@@ -115,16 +99,7 @@ class PositionHandler:
                     price_level_id=self.config.system_id,
                 )
 
-        await self.db.update_price_level(
-            system_id=self.config.system_id,
-            symbol=self.config.symbol_info.symbol,
-            side=self.config.side,
-            price_low=self.config.price_low,
-            price_high=self.config.price_high,
-            order_trigger=self.config.order_trigger,
-            budget=self.config.budget,
-            status=self.config.status,
-        )
+        await self.db.update_price_level(config=self.config)
 
         orders_filled = len(
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
@@ -132,14 +107,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                price_high=self.config.price_high,
-                price_low=self.config.price_low,
-                side=self.config.side,
-                symbol=self.config.symbol_info.symbol,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=0,
                 orders_filled=orders_filled,
                 orders_total=len(self.orders),
@@ -173,14 +141,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                system_id=self.config.system_id,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
@@ -225,14 +186,7 @@ class PositionHandler:
 
         await self.gui_handler.put(
             PositionData(
-                system_id=self.config.system_id,
-                symbol=self.config.symbol_info.symbol,
-                side=self.config.side,
-                order_trigger=self.config.order_trigger,
-                budget=self.config.budget,
-                price_low=self.config.price_low,
-                price_high=self.config.price_high,
-                status=self.config.status,
+                config=self.config,
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,

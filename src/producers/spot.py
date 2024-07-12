@@ -10,6 +10,7 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     TickerUpdate,
 )
+from src.common.symbol_info import SymbolInfo
 
 logger = logging.getLogger("spot_producers")
 
@@ -101,11 +102,11 @@ async def handle_outbound_account_position(msg, queue):
 async def spot_ticker_socket(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
-    symbol: str,
+    symbol_info: SymbolInfo,
     stop_event: asyncio.Event,
 ):
     logger.info("Entering spot ticker socket")
-    socket = socket_manager.symbol_ticker_socket(symbol=symbol)
+    socket = socket_manager.symbol_ticker_socket(symbol=symbol_info.symbol)
     async with socket:
         logger.info("Spot ticker socket connected.")
         while not stop_event.is_set():
@@ -116,17 +117,21 @@ async def spot_ticker_socket(
                         name=EventName.TICKER,
                         content=TickerUpdate(
                             symbol=str(msg["s"]),
-                            last_price=round(float(msg["c"]), 1),  # Last price
+                            last_price=round(
+                                float(msg["c"]), symbol_info.price_precision
+                            ),  # Last price
                             best_bid_price=round(
-                                float(msg.get("b", "0")), 1
+                                float(msg.get("b", "0")), symbol_info.price_precision
                             ),  # Best bid price, with safe default if 'b' is absent
                             best_ask_price=round(
-                                float(msg.get("a", "0")), 1
+                                float(msg.get("a", "0")), symbol_info.price_precision
                             ),  # Best ask price, with safe default if 'a' is absent
                             high_price=round(
-                                float(msg["h"]), 1
+                                float(msg["h"]), symbol_info.price_precision
                             ),  # High price of the day
-                            low_price=round(float(msg["l"]), 1),  # Low price of the day
+                            low_price=round(
+                                float(msg["l"]), symbol_info.price_precision
+                            ),  # Low price of the day
                             volume=float(msg["v"]),  # Total traded base asset volume
                         ),
                     )

@@ -81,7 +81,38 @@ class HpManager(BoxLayout):
     def update_label(self, instance, value):
         self.selected_label.text = value
 
+    def validate_inputs(self):
+        symbol = self.symbol_input.selected_value
+        price_low = self.symbol_input.price_low_input.text
+        price_high = self.symbol_input.price_high_input.text
+        side = self.ids.side_input.text
+        budget = self.ids.budget_input.text
+        order_trigger = self.ids.order_trigger_input.text
+        mode = self.ids.mode_input.text
+
+        validation_message = ""
+        if not symbol:
+            validation_message += "Symbol is required. "
+        if not price_low or not price_high:
+            validation_message += "Price range is required. "
+        if not side or side == "SIDE":
+            validation_message += "Side is required. "
+        if not budget:
+            validation_message += "Budget is required. "
+        if not order_trigger:
+            validation_message += "Order trigger is required. "
+        if mode not in [Mode.DCA.value, Mode.SINGLE.value]:
+            validation_message += "Mode has to be selected."
+        if price_low > price_high:
+            validation_message += "Price low is bigger than price high. "
+
+        self.ids.validation_label.text = validation_message
+
+        return not validation_message
+
     def trigger_add_record(self, *args):
+        if not self.validate_inputs():
+            return
         asyncio.create_task(
             self.add_record(
                 symbol=self.symbol_input.selected_value,
@@ -132,17 +163,10 @@ class HpManager(BoxLayout):
 
             await self.gui_handler.put(
                 PositionData(
-                    system_id=config.system_id,
-                    symbol=config.symbol_info.symbol,
-                    side=config.side,
-                    price_low=config.price_low,
-                    price_high=config.price_high,
-                    budget=config.budget,
-                    order_trigger=config.order_trigger,
+                    config=config,
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
-                    status=status,
                 )
             )
             await self.db.insert_price_level(config=config)
@@ -154,6 +178,7 @@ class HpManager(BoxLayout):
         system_id,
         symbol,
         side,
+        mode,
         price_low,
         price_high,
         budget,
@@ -168,6 +193,7 @@ class HpManager(BoxLayout):
                 system_id=system_id,
                 symbol=symbol,
                 side=side,
+                mode=mode,
                 price_high=price_high,
                 price_low=price_low,
                 budget=budget,
@@ -183,6 +209,7 @@ class HpManager(BoxLayout):
         system_id,
         symbol,
         side,
+        mode,
         price_low,
         price_high,
         budget,
@@ -191,9 +218,17 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
     ):
-        status = PositionStatus.CLOSED
-
-        side = PositionSide.LONG if side == "BUY" else PositionSide.SHORT
+        config = StrategyConfig(
+            symbol_info=SymbolInfo(symbol=symbol),
+            system_id=system_id,
+            side=PositionSide.LONG if side == "BUY" else PositionSide.SHORT,
+            mode=Mode.DCA if mode == "DCA" else Mode.SINGLE,
+            price_high=price_high,
+            price_low=price_low,
+            budget=budget,
+            order_trigger=order_trigger,
+            status=PositionStatus.CLOSED,
+        )
 
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
@@ -201,30 +236,14 @@ class HpManager(BoxLayout):
         # Update GUI asynchronously
         await self.gui_handler.put(
             PositionData(
-                system_id=system_id,
-                symbol=symbol,
-                side=side,
-                price_low=price_low,
-                price_high=price_high,
-                budget=budget,
-                order_trigger=order_trigger,
+                config=config,
                 orders_opened=orders_opened,
                 orders_total=orders_total,
                 orders_filled=orders_filled,
-                status=status,
             )
         )
 
-        await self.db.update_price_level(
-            system_id=system_id,
-            side=side,
-            price_low=price_low,
-            price_high=price_high,
-            order_trigger=order_trigger,
-            budget=budget,
-            status=status,
-            symbol=symbol,
-        )
+        await self.db.update_price_level(config=config)
 
     async def update_ui(self):
         while True:
@@ -242,26 +261,26 @@ class HpManager(BoxLayout):
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
                 if data.recovering:
-                    if data.status == PositionStatus.OPEN.value:
+                    if data.config.status == PositionStatus.OPEN.value:
                         self.strategy_logger.logger.debug(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
 
                 elif any(
-                    record["system_id"] == data.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.active_records
                 ):
                     self.strategy_logger.debug(
-                        "Record %s found in active records", data.system_id
+                        "Record %s found in active records", data.config.system_id
                     )
                     self.update_active_position(data=data)
                 elif any(
-                    record["system_id"] == data.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.idle_records
                 ):
                     self.strategy_logger.debug(
-                        "Record %s found in idle records", data.system_id
+                        "Record %s found in idle records", data.config.system_id
                     )
                     self.update_idle_position(data=data)
                 else:
@@ -275,17 +294,18 @@ class HpManager(BoxLayout):
 
     def add_new_position(self, data: PositionData):
         new_position = {
-            "system_id": data.system_id,
-            "symbol": data.symbol,
-            "side": str(data.side.value),
-            "price_low": str(data.price_low),
-            "price_high": str(data.price_high),
-            "budget": str(data.budget),
-            "order_trigger": str(data.order_trigger),
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "mode": str(data.config.mode.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_trigger": str(data.config.order_trigger),
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.status),
+            "status": str(data.config.status),
         }
 
         self.idle_records.append(new_position)
@@ -293,17 +313,17 @@ class HpManager(BoxLayout):
 
     def recovery_to_active(self, data: PositionData):
         new_position = {
-            "system_id": data.system_id,
-            "symbol": data.symbol,
-            "side": str(data.side.value),
-            "price_low": str(data.price_low),
-            "price_high": str(data.price_high),
-            "budget": str(data.budget),
-            "order_trigger": str(data.order_trigger),
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_trigger": str(data.config.order_trigger),
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.status),
+            "status": str(data.config.status),
         }
 
         self.active_records.append(new_position)
@@ -314,16 +334,16 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
-            if position["system_id"] == data.system_id:
+            if position["system_id"] == data.config.system_id:
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.status),
+                        "status": str(data.config.status),
                     }
                 )
-                if data.status == PositionStatus.CLOSED:
+                if data.config.status == PositionStatus.CLOSED:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
@@ -336,21 +356,21 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if position["system_id"] == data.system_id:
+            if position["system_id"] == data.config.system_id:
                 self.strategy_logger.debug("Will update position")
                 position.update(
                     {
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.status),
+                        "status": str(data.config.status),
                     }
                 )
-                if data.status == PositionStatus.OPEN:
+                if data.config.status == PositionStatus.OPEN:
                     self.idle_records.remove(position)
                     self.active_records.append(position)
                     self.strategy_logger.debug("Activating price level: %s", position)
-                if data.status == PositionStatus.CLOSED:
+                if data.config.status == PositionStatus.CLOSED:
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
