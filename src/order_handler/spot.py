@@ -75,24 +75,34 @@ class OrderHandler:
                 num_orders = int(budget / min_notional)
                 num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
-            price_increment = (price_high - price_low) / (num_orders - 1)
-
-            for i in range(num_orders):
-                order_price = (
-                    (price_low + i * price_increment)
-                    if side == PositionSide.SHORT
-                    else (price_high - i * price_increment)
-                )
-
+            if num_orders == 1:
+                order_price = price_high if side == PositionSide.LONG else price_low
                 orders.append(
                     Order(
-                        quantity=self.round_quantity(
-                            order_quantity_stable / order_price
-                        ),
+                        quantity=self.round_quantity(budget / order_price),
                         price=order_price,
-                        quantity_stable=self.round_quantity(order_quantity_stable),
+                        quantity_stable=self.round_quantity(budget),
                     )
                 )
+            else:
+                price_increment = (price_high - price_low) / (num_orders - 1)
+
+                for i in range(num_orders):
+                    order_price = (
+                        (price_low + i * price_increment)
+                        if side == PositionSide.SHORT
+                        else (price_high - i * price_increment)
+                    )
+
+                    orders.append(
+                        Order(
+                            quantity=self.round_quantity(
+                                order_quantity_stable / order_price
+                            ),
+                            price=order_price,
+                            quantity_stable=self.round_quantity(order_quantity_stable),
+                        )
+                    )
 
         self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
         return orders

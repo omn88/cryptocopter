@@ -34,7 +34,6 @@ class StrategyExecutor:
                 await self.remove_record(config.split(":")[1])
 
             if isinstance(config, List):
-                assert isinstance(config[0], State)
                 assert isinstance(config[1], StrategyConfig)
                 asyncio.create_task(
                     self.initialize_trading_system(
