@@ -127,7 +127,7 @@ class AsyncApp(App):
                     price_high=price_level.get("price_high"),
                     budget=price_level.get("budget"),
                     order_trigger=price_level.get("order_trigger"),
-                    last_known_status=price_level.get("status"),
+                    last_state=price_level.get("state"),
                     mode=price_level.get("mode"),
                 )
 

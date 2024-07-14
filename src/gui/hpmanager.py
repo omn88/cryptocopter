@@ -71,28 +71,28 @@ class HpManager(BoxLayout):
         # Add it to the layout where needed
         self.ids.symbol_container.add_widget(self.symbol_input)
 
-    def update_label(self, instance, value):
+    def update_label(self, instance, value) -> None:
         self.selected_label.text = value
 
-    def update_active_symbols(self, *args):
+    def update_active_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.active_records:
             symbols.add(record.get("symbol", ""))
         self.ids.active_filter_input.values = sorted(list(symbols))
 
-    def update_idle_symbols(self, *args):
+    def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
             symbols.add(record.get("symbol", ""))
         self.ids.idle_filter_input.values = sorted(list(symbols))
 
-    def update_archive_symbols(self, *args):
+    def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
             symbols.add(record.get("symbol", ""))
         self.ids.archive_filter_input.values = sorted(list(symbols))
 
-    def validate_inputs(self):
+    def validate_inputs(self) -> bool:
         symbol = self.symbol_input.selected_value
         price_low = self.symbol_input.price_low_input.text
         price_high = self.symbol_input.price_high_input.text
@@ -121,7 +121,7 @@ class HpManager(BoxLayout):
 
         return not validation_message
 
-    def trigger_add_record(self, *args):
+    def trigger_add_record(self, *args) -> None:
         if not self.validate_inputs():
             return
         asyncio.create_task(
@@ -147,7 +147,7 @@ class HpManager(BoxLayout):
         mode,
         last_state=None,
         system_id: Optional[str] = None,
-    ):
+    ) -> None:
         if system_id is None:
             system_id = str(uuid.uuid4())
 
@@ -197,7 +197,7 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
         *args,
-    ):
+    ) -> None:
         asyncio.create_task(
             self.remove_record(
                 system_id=system_id,
@@ -227,7 +227,7 @@ class HpManager(BoxLayout):
         orders_opened,
         orders_total,
         orders_filled,
-    ):
+    ) -> None:
         state = State.CLOSED
         config = StrategyConfig(
             symbol_info=SymbolInfo(symbol=symbol),
@@ -238,7 +238,6 @@ class HpManager(BoxLayout):
             price_low=price_low,
             budget=budget,
             order_trigger=order_trigger,
-            status=state,
         )
 
         # Send a command to the strategy executor to stop the trading process
@@ -252,12 +251,13 @@ class HpManager(BoxLayout):
                     orders_opened=orders_opened,
                     orders_total=orders_total,
                     orders_filled=orders_filled,
+                    state=state,
                 )
             )
 
             await self.db.update_price_level(config=config, state=state)
 
-    async def update_ui(self):
+    async def update_ui(self) -> None:
         while True:
             if self.gui_handler.qsize() == 0:
                 await asyncio.sleep(1)
@@ -304,7 +304,7 @@ class HpManager(BoxLayout):
                     self.archive_records,
                 )
 
-    def add_new_position(self, data: PositionData):
+    def add_new_position(self, data: PositionData) -> None:
         new_position = {
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
@@ -323,7 +323,7 @@ class HpManager(BoxLayout):
         self.idle_records.append(new_position)
         self.filter_records("idle", "All")
 
-    def recovery_to_active(self, data: PositionData):
+    def recovery_to_active(self, data: PositionData) -> None:
         new_position = {
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
@@ -359,18 +359,20 @@ class HpManager(BoxLayout):
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
-                    self.remove_record(
-                        system_id=data.config.system_id,
-                        symbol=data.config.symbol_info.symbol,
-                        mode=data.config.mode,
-                        price_high=data.config.price_high,
-                        price_low=data.config.price_low,
-                        side=data.config.side,
-                        budget=data.config.budget,
-                        order_trigger=data.config.order_trigger,
-                        orders_filled=data.orders_filled,
-                        orders_opened=data.orders_opened,
-                        orders_total=data.orders_total,
+                    asyncio.create_task(
+                        self.remove_record(
+                            system_id=data.config.system_id,
+                            symbol=data.config.symbol_info.symbol,
+                            mode=data.config.mode,
+                            price_high=data.config.price_high,
+                            price_low=data.config.price_low,
+                            side=data.config.side,
+                            budget=data.config.budget,
+                            order_trigger=data.config.order_trigger,
+                            orders_filled=data.orders_filled,
+                            orders_opened=data.orders_opened,
+                            orders_total=data.orders_total,
+                        )
                     )
 
         self.filter_records("active", "All")
@@ -404,7 +406,7 @@ class HpManager(BoxLayout):
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
-    def filter_records(self, tab, symbol_filter):
+    def filter_records(self, tab, symbol_filter) -> None:
         if tab == "active":
             self.active_filter = symbol_filter
             self.filtered_active_records = [
