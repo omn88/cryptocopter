@@ -164,7 +164,7 @@ class HpManager(BoxLayout):
             mode=Mode.DCA if mode == Mode.DCA.value else Mode.SINGLE,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
-        await self.strategy_executor.config_queue.put(config)
+        await self.strategy_executor.config_queue.put([last_state, config])
 
         if (
             last_state is None

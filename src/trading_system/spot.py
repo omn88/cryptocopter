@@ -34,11 +34,11 @@ class TradingSystem:
         self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
-        self.balance = None
+        self.balance = 0
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize_strategy(self):
+    async def initialize_strategy(self, last_state: Optional[State]):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
@@ -49,14 +49,15 @@ class TradingSystem:
             db=self.db,
         )
 
-        self.strategy_logger.debug("Config status: %s", self.config.status)
+        self.strategy_logger.debug("Config status: %s", last_state)
 
-        if self.config.status is not None:
+        if last_state is not None:
             self.strategy_logger.debug(
                 "Old status is not None: %s, moving strategy state to recovering",
-                self.config.status,
+                last_state,
             )
             self.strategy.state = State.RECOVERING
+            self.strategy.position_handler.last_state = last_state
 
         # Trading State Machine initialization
         self.state_machine = TradingStateMachine(strategy=self.strategy)
