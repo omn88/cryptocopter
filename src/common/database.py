@@ -188,7 +188,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 query = """
                 SELECT * FROM price_levels
-                WHERE status IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
+                WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
                 """
                 await cur.execute(query)
                 result = await cur.fetchall()
