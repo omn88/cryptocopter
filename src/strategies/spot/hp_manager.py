@@ -26,7 +26,6 @@ from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
-    PositionStatus,
 )
 from src.gui.identifiers.spot import PositionData
 from src.position_handler.spot import PositionHandler
@@ -150,14 +149,14 @@ class HpManager:
             },
             {
                 "trigger": "process_order",
-                "source": State.OPEN,
+                "source": [State.NEW, State.OPEN],
                 "dest": "=",
                 "conditions": "conditions_for_order_filled",
                 "before": "handle_order_filled",
             },
             {
                 "trigger": "process_order",
-                "source": State.OPEN,
+                "source": [State.NEW, State.OPEN],
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled",
                 "before": "handle_order_partially_filled",
@@ -211,6 +210,13 @@ class HpManager:
                 "conditions": "conditions_for_position_stagnation",
                 "after": "increase_stagnation_counter",
             },
+            {
+                "trigger": "process_ticker",
+                "source": State.CLOSED,
+                "dest": "=",
+                "conditions": "conditions_for_position_closure_messages",
+                "after": "allow_messages",
+            },
         ]
 
     def calculate_trigger_orders_price(self):
@@ -231,7 +237,7 @@ class HpManager:
 
         condition = (
             self.state == State.RECOVERING
-            and self.config.status == PositionStatus.NEW.value
+            and self.position_handler.last_state == State.NEW.value
         )
         self.logger.debug("Recovering to state NEW: %s.", condition)
         return condition
@@ -241,7 +247,7 @@ class HpManager:
 
         condition = (
             self.state == State.RECOVERING
-            and self.config.status == PositionStatus.OPEN.value
+            and self.position_handler.last_state == State.OPEN.value
         )
         self.logger.debug("Recovering to state OPEN: %s.", condition)
         return condition
@@ -251,7 +257,7 @@ class HpManager:
 
         condition = (
             self.state == State.RECOVERING
-            and self.config.status == PositionStatus.STAGNATED.value
+            and self.position_handler.last_state == State.STAGNATED.value
         )
         self.logger.debug("Recovering to state STAGNATED: %s.", condition)
         return condition
@@ -481,7 +487,6 @@ class HpManager:
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
-        self.config.status = PositionStatus.OPEN
 
         self.logger.info("Will update orders: %s", self.position_handler.orders)
 
@@ -497,7 +502,7 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(self.config)
+        await self.db.update_price_level(self.config, state=self.state)
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -514,6 +519,7 @@ class HpManager:
                 orders_opened=orders_total - orders_filled,
                 orders_filled=orders_filled,
                 orders_total=orders_total,
+                state=self.state,
             )
         )
 
@@ -544,7 +550,6 @@ class HpManager:
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
-        self.config.status = PositionStatus.OPEN
 
         for order in self.position_handler.orders:
             await self.db.update_order(
@@ -558,7 +563,7 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(config=self.config)
+        await self.db.update_price_level(config=self.config, state=self.state)
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -575,6 +580,7 @@ class HpManager:
                 orders_opened=orders_total - orders_filled,
                 orders_filled=orders_filled,
                 orders_total=orders_total,
+                state=self.state,
             )
         )
 
@@ -590,20 +596,17 @@ class HpManager:
 
     async def cancel_buy_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
-
-        await self.position_handler.cancel_position()
-        self.position_handler.config.status = PositionStatus.STAGNATED
+        self.state = State.STAGNATED
+        await self.position_handler.cancel_position(state=self.state)
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
-        await self.position_handler.cancel_position()
-        self.position_handler.config.status = PositionStatus.STAGNATED
+        self.state = State.STAGNATED
+        await self.position_handler.cancel_position(state=self.state)
 
     async def close_filled_position(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
-
-        self.config.status = PositionStatus.CLOSED
 
         orders_opened = len(
             [
@@ -627,10 +630,13 @@ class HpManager:
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=len(self.position_handler.orders),
+                state=self.state,
             )
         )
 
-        await self.position_handler.db.update_price_level(config=self.config)
+        await self.position_handler.db.update_price_level(
+            config=self.config, state=self.state
+        )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
         self.position_handler.stagnation_counter += 1
@@ -709,6 +715,7 @@ class HpManager:
                 orders_filled=0,
                 orders_total=0,
                 recovering=True,
+                state=State.NEW,
             )
         )
 
@@ -752,6 +759,7 @@ class HpManager:
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
                 recovering=True,
+                state=State.OPEN,
             )
         )
 
@@ -793,5 +801,12 @@ class HpManager:
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
+                state=State.STAGNATED,
             )
+        )
+
+    async def allow_messages(self, *args, **kwargs):
+        self.logger.info(
+            "Ticker update from allow messages method: %s",
+            self.ticker_update.last_price,
         )

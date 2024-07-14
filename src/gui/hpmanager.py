@@ -4,32 +4,22 @@ import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (
     ListProperty,
-    NumericProperty,
     ObjectProperty,
     StringProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.dropdown import DropDown
-from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import (
-    BinanceClient,
-    Mode,
-    Order,
-    PositionSide,
-    PositionStatus,
-)
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     AccountPosition,
     Event,
     EventName,
+    State,
     StrategyConfig,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.workers.strategy_executor import StrategyExecutor
@@ -155,7 +145,7 @@ class HpManager(BoxLayout):
         budget,
         order_trigger,
         mode,
-        last_known_status=None,
+        last_state=None,
         system_id: Optional[str] = None,
     ):
         if system_id is None:
@@ -171,26 +161,25 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
-            status=last_known_status,
             mode=Mode.DCA if mode == Mode.DCA.value else Mode.SINGLE,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put(config)
 
         if (
-            not last_known_status
+            last_state is None
         ):  # inserting level only if there is no last known status, recovery will
-            status = PositionStatus.NEW
-
+            state = State.NEW
             await self.gui_handler.put(
                 PositionData(
                     config=config,
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
+                    state=state,
                 )
             )
-            await self.db.insert_price_level(config=config)
+            await self.db.insert_price_level(config=config, state=state)
 
         self.filter_records(tab="idle", symbol_filter="All")
 
@@ -239,6 +228,7 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
     ):
+        state = State.CLOSED
         config = StrategyConfig(
             symbol_info=SymbolInfo(symbol=symbol),
             system_id=system_id,
@@ -248,23 +238,24 @@ class HpManager(BoxLayout):
             price_low=price_low,
             budget=budget,
             order_trigger=order_trigger,
-            status=PositionStatus.CLOSED,
+            status=state,
         )
 
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
 
-        # Update GUI asynchronously
-        await self.gui_handler.put(
-            PositionData(
-                config=config,
-                orders_opened=orders_opened,
-                orders_total=orders_total,
-                orders_filled=orders_filled,
+        if orders_filled != orders_total:
+            # Update GUI asynchronously
+            await self.gui_handler.put(
+                PositionData(
+                    config=config,
+                    orders_opened=orders_opened,
+                    orders_total=orders_total,
+                    orders_filled=orders_filled,
+                )
             )
-        )
 
-        await self.db.update_price_level(config=config)
+            await self.db.update_price_level(config=config, state=state)
 
     async def update_ui(self):
         while True:
@@ -282,7 +273,7 @@ class HpManager(BoxLayout):
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
                 if data.recovering:
-                    if data.config.status == PositionStatus.OPEN.value:
+                    if data.state == State.OPEN.value:
                         self.strategy_logger.logger.debug(
                             "Recovering position to active tab in GUI: %s", data
                         )
@@ -326,7 +317,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.config.status),
+            "state": str(data.state),
         }
 
         self.idle_records.append(new_position)
@@ -344,7 +335,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.config.status),
+            "state": str(data.state),
         }
 
         self.active_records.append(new_position)
@@ -361,13 +352,26 @@ class HpManager(BoxLayout):
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.config.status),
+                        "state": str(data.state),
                     }
                 )
-                if data.config.status == PositionStatus.CLOSED:
+                if data.state == State.CLOSED:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
+                    self.remove_record(
+                        system_id=data.config.system_id,
+                        symbol=data.config.symbol_info.symbol,
+                        mode=data.config.mode,
+                        price_high=data.config.price_high,
+                        price_low=data.config.price_low,
+                        side=data.config.side,
+                        budget=data.config.budget,
+                        order_trigger=data.config.order_trigger,
+                        orders_filled=data.orders_filled,
+                        orders_opened=data.orders_opened,
+                        orders_total=data.orders_total,
+                    )
 
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
@@ -384,14 +388,14 @@ class HpManager(BoxLayout):
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.config.status),
+                        "state": str(data.state),
                     }
                 )
-                if data.config.status == PositionStatus.OPEN:
+                if data.state == State.OPEN:
                     self.idle_records.remove(position)
                     self.active_records.append(position)
                     self.strategy_logger.debug("Activating price level: %s", position)
-                if data.config.status == PositionStatus.CLOSED:
+                if data.state == State.CLOSED:
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)

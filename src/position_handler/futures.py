@@ -7,12 +7,12 @@ from src.common.identifiers.common import (
     BinanceClient,
     Order,
     PositionSide,
-    PositionStatus,
 )
 from src.common.identifiers.futures import (
     OrderUpdate,
     Position,
     PositionMode,
+    PositionStatus,
     StrategyConfig,
     SignalUpdate,
 )

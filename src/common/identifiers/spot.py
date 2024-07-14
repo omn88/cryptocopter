@@ -5,7 +5,6 @@ from typing import List, NamedTuple, Optional, Union
 from src.common.identifiers.common import (
     Mode,
     PositionSide,
-    PositionStatus,
     SentinelUpdate,
 )
 from src.common.symbol_info import SymbolInfo
@@ -152,7 +151,6 @@ class StrategyConfig:
     order_trigger: float = 0
     name: str = "HP Manager"
     budget: float = 0
-    status: PositionStatus = PositionStatus.NEW
     mode: Mode = Mode.DCA
 
     def __str__(self):

@@ -13,7 +13,7 @@ from binance.enums import (
 import pytest
 
 from src.common.database import Database
-from src.common.identifiers.common import Order, PositionSide, PositionStatus
+from src.common.identifiers.common import Order, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
@@ -30,8 +30,7 @@ logger = logging.getLogger("test_hp_manager_gui_db_integrations")
 
 
 async def assert_db_price_level_content(
-    db: Database,
-    config: StrategyConfig,
+    db: Database, config: StrategyConfig, state: State
 ):
     async with db.pool.acquire() as conn:
         async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
@@ -47,7 +46,7 @@ async def assert_db_price_level_content(
             assert result.get("side") == config.side.value
             assert result.get("price_low") == config.price_low
             assert result.get("price_high") == config.price_high
-            assert result.get("status") == config.status.value
+            assert result.get("state") == state.value
             assert result.get("budget") == config.budget
             assert result.get("order_trigger") == config.order_trigger
 
@@ -58,6 +57,7 @@ async def assert_gui_position_data_content(
     orders_total: int,
     orders_opened: int,
     config: StrategyConfig,
+    state: State,
 ):
     # Verify GUI queue content
     logger.info("GUI queue size: %s", gui_handler.qsize())
@@ -68,7 +68,7 @@ async def assert_gui_position_data_content(
 
     assert gui_msg.config.symbol_info.symbol == config.symbol_info.symbol
     assert gui_msg.config.side == config.side
-    assert gui_msg.config.status == config.status
+    assert gui_msg.state == state
     assert gui_msg.config.price_low == config.price_low
     assert gui_msg.config.price_high == config.price_high
     assert gui_msg.config.order_trigger == config.order_trigger
@@ -117,8 +117,7 @@ async def db_and_gui_assertions(
     strategy: HpManager, orders_filled: int, orders_opened: int, orders_total: int
 ):
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
     await assert_gui_position_data_content(
         gui_handler=strategy.position_handler.gui_handler,
@@ -126,6 +125,7 @@ async def db_and_gui_assertions(
         orders_opened=orders_opened,
         orders_total=orders_total,
         config=strategy.config,
+        state=strategy.state,
     )
 
 
@@ -174,7 +174,6 @@ async def test_default_buy_scenario(trading_system_factory):
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
-    strategy.config.status = PositionStatus.OPEN
     await db_and_gui_assertions(
         strategy=strategy,
         orders_filled=0,
@@ -225,7 +224,6 @@ async def test_default_buy_scenario(trading_system_factory):
     await strategy.process_signal()
 
     assert strategy.state == State.CLOSED
-    strategy.config.status = PositionStatus.CLOSED
     await db_and_gui_assertions(
         strategy=strategy,
         orders_filled=3,
@@ -254,7 +252,6 @@ async def test_default_sell_scenario(trading_system_factory):
     # Simulate process_signal triggering
     await process_ticker(strategy=strategy, last_price=990)
     assert strategy.state == State.OPEN
-    strategy.config.status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -308,7 +305,6 @@ async def test_default_sell_scenario(trading_system_factory):
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
-    strategy.config.status = PositionStatus.CLOSED
     await db_and_gui_assertions(
         strategy=strategy,
         orders_filled=3,
@@ -376,8 +372,7 @@ async def test_stagnation_buy_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1500)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -460,8 +455,7 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=900)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -502,7 +496,6 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -540,7 +533,6 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=1415)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -559,13 +551,11 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1500)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
         for order in strategy.position_handler.orders
@@ -607,7 +597,6 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -645,7 +634,6 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=989)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -664,13 +652,11 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     await process_ticker(strategy=strategy, last_price=900)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
         for order in strategy.position_handler.orders
@@ -712,7 +698,6 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -766,7 +751,6 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     await process_ticker(strategy=strategy, last_price=1415)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -785,13 +769,11 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     await process_ticker(strategy=strategy, last_price=1500)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
         for order in strategy.position_handler.orders
@@ -833,7 +815,6 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
@@ -887,7 +868,6 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     await process_ticker(strategy=strategy, last_price=989)
 
     assert strategy.state == State.STAGNATED
-    status = PositionStatus.STAGNATED
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -906,13 +886,11 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     await process_ticker(strategy=strategy, last_price=900)
     await assert_db_price_level_content(
-        db=strategy.position_handler.db,
-        config=strategy.config,
+        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
-    status = PositionStatus.OPEN
     assert all(
         order.status in [ORDER_STATUS_NEW, ORDER_STATUS_FILLED]
         for order in strategy.position_handler.orders
@@ -982,7 +960,6 @@ async def test_multiple_trading_systems(trading_system_factory):
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy1.position_handler.orders
     )
-    strategy1.config.status = PositionStatus.OPEN
     await db_and_gui_assertions(
         strategy=strategy1,
         orders_filled=0,
@@ -995,7 +972,6 @@ async def test_multiple_trading_systems(trading_system_factory):
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy2.position_handler.orders
     )
-    strategy2.config.status = PositionStatus.OPEN
     await db_and_gui_assertions(
         strategy=strategy2,
         orders_filled=0,
