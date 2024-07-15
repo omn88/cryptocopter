@@ -1,22 +1,12 @@
 import asyncio
 from dataclasses import dataclass
-import datetime
 from enum import Enum
 import logging
 import time
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from binance import AsyncClient
-
-
-class PositionStatus(Enum):
-    NEW = "NEW"
-    OPEN = "OPEN"  # orders are on the exchange
-    STAGNATED = "STAGNATED"  # orders were on the market, but got stagnated
-    RECOVERING = "RECOVERING"  # after crash, status for every price level
-    CLOSING = "CLOSING"  # some temp status for proper gui working
-    CLOSED = "CLOSED"
 
 
 class SentinelUpdate(NamedTuple):

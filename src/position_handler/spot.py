@@ -1,20 +1,19 @@
 import asyncio
 import datetime
-from typing import List
+from typing import List, Optional
 
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import (
-    BinanceClient,
-    Order,
-    PositionSide,
-    PositionStatus,
-)
-from src.common.identifiers.spot import ExecutionReport, StrategyConfig
+from src.common.identifiers.common import BinanceClient, Order, PositionSide
+from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
+
+import logging
+
+logger = logging.getLogger("pos_handler")
 
 
 class PositionHandler:
@@ -25,6 +24,7 @@ class PositionHandler:
         config: StrategyConfig,
         gui_handler: asyncio.Queue,
         db: Database,
+        last_state: Optional[State] = None,
     ):
         self.config = config
         self.strategy_logger = strategy_logger
@@ -42,7 +42,7 @@ class PositionHandler:
             mode=self.config.mode,
             side=self.config.side,
         )
-
+        self.last_state: Optional[State] = last_state
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
         self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
@@ -59,13 +59,15 @@ class PositionHandler:
             hours=1
         )
 
-        self.config.status = PositionStatus.OPEN
+        state = State.OPEN
+
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
                 orders_opened=len(self.orders),
                 orders_filled=0,
                 orders_total=len(self.orders),
+                state=state,
             )
         )
 
@@ -73,18 +75,17 @@ class PositionHandler:
             await self.db.insert_order(
                 price_level_id=self.config.system_id, order=order
             )
-        await self.db.update_price_level(self.config)
+        await self.db.update_price_level(self.config, state=state)
 
         self.strategy_logger.debug("Position opened successfully.")
 
-    async def cancel_position(self) -> None:
-        self.strategy_logger.debug("Enter cancel position")
+    async def cancel_position(self, state: State) -> None:
+        self.strategy_logger.info("Start canceling orders")
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
             orders=self.orders,
         )
-        self.config.status = PositionStatus.STAGNATED
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
                 await self.db.update_order(
@@ -99,18 +100,21 @@ class PositionHandler:
                     price_level_id=self.config.system_id,
                 )
 
-        await self.db.update_price_level(config=self.config)
-
-        orders_filled = len(
-            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
+        await self.db.update_price_level(config=self.config, state=state)
 
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
                 orders_opened=0,
-                orders_filled=orders_filled,
+                orders_filled=len(
+                    [
+                        order
+                        for order in self.orders
+                        if order.status == ORDER_STATUS_FILLED
+                    ]
+                ),
                 orders_total=len(self.orders),
+                state=state,
             )
         )
 
@@ -145,6 +149,7 @@ class PositionHandler:
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
+                state=State.OPEN,
             )
         )
         self.strategy_logger.info("status: %s", execution_report.current_order_status)
@@ -190,6 +195,7 @@ class PositionHandler:
                 orders_opened=orders_opened,
                 orders_filled=orders_filled,
                 orders_total=orders_opened + orders_filled,
+                state=State.OPEN,
             )
         )
 

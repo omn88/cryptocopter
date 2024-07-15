@@ -4,32 +4,22 @@ import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (
     ListProperty,
-    NumericProperty,
     ObjectProperty,
     StringProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.dropdown import DropDown
-from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import (
-    BinanceClient,
-    Mode,
-    Order,
-    PositionSide,
-    PositionStatus,
-)
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     AccountPosition,
     Event,
     EventName,
+    State,
     StrategyConfig,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.futures import AccountData
 from src.gui.identifiers.spot import PositionData
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.workers.strategy_executor import StrategyExecutor
@@ -81,28 +71,28 @@ class HpManager(BoxLayout):
         # Add it to the layout where needed
         self.ids.symbol_container.add_widget(self.symbol_input)
 
-    def update_label(self, instance, value):
+    def update_label(self, instance, value) -> None:
         self.selected_label.text = value
 
-    def update_active_symbols(self, *args):
+    def update_active_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.active_records:
             symbols.add(record.get("symbol", ""))
         self.ids.active_filter_input.values = sorted(list(symbols))
 
-    def update_idle_symbols(self, *args):
+    def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
             symbols.add(record.get("symbol", ""))
         self.ids.idle_filter_input.values = sorted(list(symbols))
 
-    def update_archive_symbols(self, *args):
+    def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
             symbols.add(record.get("symbol", ""))
         self.ids.archive_filter_input.values = sorted(list(symbols))
 
-    def validate_inputs(self):
+    def validate_inputs(self) -> bool:
         symbol = self.symbol_input.selected_value
         price_low = self.symbol_input.price_low_input.text
         price_high = self.symbol_input.price_high_input.text
@@ -131,7 +121,7 @@ class HpManager(BoxLayout):
 
         return not validation_message
 
-    def trigger_add_record(self, *args):
+    def trigger_add_record(self, *args) -> None:
         if not self.validate_inputs():
             return
         asyncio.create_task(
@@ -155,9 +145,9 @@ class HpManager(BoxLayout):
         budget,
         order_trigger,
         mode,
-        last_known_status=None,
+        last_state=None,
         system_id: Optional[str] = None,
-    ):
+    ) -> None:
         if system_id is None:
             system_id = str(uuid.uuid4())
 
@@ -171,26 +161,25 @@ class HpManager(BoxLayout):
             price_high=float(price_high),
             budget=float(budget),
             order_trigger=float(order_trigger),
-            status=last_known_status,
             mode=Mode.DCA if mode == Mode.DCA.value else Mode.SINGLE,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
-        await self.strategy_executor.config_queue.put(config)
+        await self.strategy_executor.config_queue.put([last_state, config])
 
         if (
-            not last_known_status
+            last_state is None
         ):  # inserting level only if there is no last known status, recovery will
-            status = PositionStatus.NEW
-
+            state = State.NEW
             await self.gui_handler.put(
                 PositionData(
                     config=config,
                     orders_opened=0,
                     orders_filled=0,
                     orders_total=0,
+                    state=state,
                 )
             )
-            await self.db.insert_price_level(config=config)
+            await self.db.insert_price_level(config=config, state=state)
 
         self.filter_records(tab="idle", symbol_filter="All")
 
@@ -208,7 +197,7 @@ class HpManager(BoxLayout):
         orders_total,
         orders_filled,
         *args,
-    ):
+    ) -> None:
         asyncio.create_task(
             self.remove_record(
                 system_id=system_id,
@@ -238,7 +227,8 @@ class HpManager(BoxLayout):
         orders_opened,
         orders_total,
         orders_filled,
-    ):
+    ) -> None:
+        state = State.CLOSED
         config = StrategyConfig(
             symbol_info=SymbolInfo(symbol=symbol),
             system_id=system_id,
@@ -248,25 +238,26 @@ class HpManager(BoxLayout):
             price_low=price_low,
             budget=budget,
             order_trigger=order_trigger,
-            status=PositionStatus.CLOSED,
         )
 
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
 
-        # Update GUI asynchronously
-        await self.gui_handler.put(
-            PositionData(
-                config=config,
-                orders_opened=orders_opened,
-                orders_total=orders_total,
-                orders_filled=orders_filled,
-            )
-        )
+        # if orders_filled != orders_total:
+        #     # Update GUI asynchronously
+        #     await self.gui_handler.put(
+        #         PositionData(
+        #             config=config,
+        #             orders_opened=orders_opened,
+        #             orders_total=orders_total,
+        #             orders_filled=orders_filled,
+        #             state=state,
+        #         )
+        #     )
 
-        await self.db.update_price_level(config=config)
+        #     await self.db.update_price_level(config=config, state=state)
 
-    async def update_ui(self):
+    async def update_ui(self) -> None:
         while True:
             if self.gui_handler.qsize() == 0:
                 await asyncio.sleep(1)
@@ -282,7 +273,7 @@ class HpManager(BoxLayout):
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
                 if data.recovering:
-                    if data.config.status == PositionStatus.OPEN.value:
+                    if data.state == State.OPEN.value:
                         self.strategy_logger.logger.debug(
                             "Recovering position to active tab in GUI: %s", data
                         )
@@ -313,7 +304,7 @@ class HpManager(BoxLayout):
                     self.archive_records,
                 )
 
-    def add_new_position(self, data: PositionData):
+    def add_new_position(self, data: PositionData) -> None:
         new_position = {
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
@@ -326,13 +317,13 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.config.status),
+            "state": str(data.state),
         }
 
         self.idle_records.append(new_position)
         self.filter_records("idle", "All")
 
-    def recovery_to_active(self, data: PositionData):
+    def recovery_to_active(self, data: PositionData) -> None:
         new_position = {
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
@@ -344,7 +335,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
-            "status": str(data.config.status),
+            "state": str(data.state),
         }
 
         self.active_records.append(new_position)
@@ -361,13 +352,29 @@ class HpManager(BoxLayout):
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.config.status),
+                        "state": str(data.state),
                     }
                 )
-                if data.config.status == PositionStatus.CLOSED:
+                if data.state == State.CLOSED:
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
+                    if data.orders_total == data.orders_filled:
+                        asyncio.create_task(
+                            self.remove_record(
+                                system_id=data.config.system_id,
+                                symbol=data.config.symbol_info.symbol,
+                                mode=data.config.mode,
+                                price_high=data.config.price_high,
+                                price_low=data.config.price_low,
+                                side=data.config.side,
+                                budget=data.config.budget,
+                                order_trigger=data.config.order_trigger,
+                                orders_filled=data.orders_filled,
+                                orders_opened=data.orders_opened,
+                                orders_total=data.orders_total,
+                            )
+                        )
 
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
@@ -384,14 +391,14 @@ class HpManager(BoxLayout):
                         "orders_opened": str(data.orders_opened),
                         "orders_total": str(data.orders_total),
                         "orders_filled": str(data.orders_filled),
-                        "status": str(data.config.status),
+                        "state": str(data.state),
                     }
                 )
-                if data.config.status == PositionStatus.OPEN:
+                if data.state == State.OPEN:
                     self.idle_records.remove(position)
                     self.active_records.append(position)
                     self.strategy_logger.debug("Activating price level: %s", position)
-                if data.config.status == PositionStatus.CLOSED:
+                if data.state == State.CLOSED:
                     self.idle_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
@@ -400,7 +407,7 @@ class HpManager(BoxLayout):
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
-    def filter_records(self, tab, symbol_filter):
+    def filter_records(self, tab, symbol_filter) -> None:
         if tab == "active":
             self.active_filter = symbol_filter
             self.filtered_active_records = [

@@ -4,8 +4,8 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from src.common.identifiers.common import Mode, Order, PositionSide, PositionStatus
-from src.common.identifiers.spot import StrategyConfig
+from src.common.identifiers.common import Order
+from src.common.identifiers.spot import State, StrategyConfig
 
 logger = logging.getLogger("database")
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS price_levels (
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
     budget FLOAT NOT NULL,
-    status VARCHAR(20) NOT NULL,
+    state VARCHAR(20) NOT NULL,
     mode VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -155,11 +155,11 @@ class Database:
                 )
                 await conn.commit()
 
-    async def insert_price_level(self, config: StrategyConfig) -> None:
+    async def insert_price_level(self, config: StrategyConfig, state: State) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, status, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         config.system_id,
                         config.symbol_info.symbol,
@@ -168,7 +168,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        config.status.value if config.status is not None else "NEW",
+                        state.value,
                         config.mode.value,
                     ),
                 )
@@ -188,7 +188,7 @@ class Database:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 query = """
                 SELECT * FROM price_levels
-                WHERE status IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
+                WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
                 """
                 await cur.execute(query)
                 result = await cur.fetchall()
@@ -204,10 +204,7 @@ class Database:
                 result = await cur.fetchall()
                 return result
 
-    async def update_price_level(
-        self,
-        config: StrategyConfig,
-    ) -> None:
+    async def update_price_level(self, config: StrategyConfig, state: State) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
@@ -219,7 +216,7 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, status, is_current, version_timestamp
+                    price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(
@@ -233,7 +230,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        config.status.value,
+                        state.value,
                         version_timestamp,
                     ),
                 )

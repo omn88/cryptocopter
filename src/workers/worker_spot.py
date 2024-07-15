@@ -1,6 +1,6 @@
 import asyncio
 from logging_config import StrategyLogger
-from src.common.identifiers.common import PositionStatus, SentinelUpdate
+from src.common.identifiers.common import SentinelUpdate
 from src.common.identifiers.spot import (
     AccountPosition,
     EventName,
@@ -50,8 +50,10 @@ async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
 
         elif EventName.SENTINEL == event.name:
             assert isinstance(event.content, SentinelUpdate)
-            await state_machine.strategy.position_handler.cancel_position()
-            state_machine.strategy.position_handler.status = PositionStatus.CLOSED
+            state_machine.strategy.state = State.CLOSED
+            await state_machine.strategy.position_handler.cancel_position(
+                state=state_machine.strategy.state
+            )
             logger.info(
                 "Trading system: %s closed successfully.",
                 state_machine.strategy.config.system_id,

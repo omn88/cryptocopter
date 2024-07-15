@@ -1,9 +1,9 @@
 import asyncio
-from typing import Dict
+from typing import Dict, List, Optional
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import StrategyConfig
+from src.common.identifiers.spot import State, StrategyConfig
 from src.trading_system.spot import TradingSystem
 
 
@@ -32,11 +32,17 @@ class StrategyExecutor:
 
             if isinstance(config, str) and config.startswith("remove:"):
                 await self.remove_record(config.split(":")[1])
-            else:
-                asyncio.create_task(self.initialize_trading_system(config, db=self.db))
+
+            if isinstance(config, List):
+                assert isinstance(config[1], StrategyConfig)
+                asyncio.create_task(
+                    self.initialize_trading_system(
+                        config=config[1], db=self.db, last_state=config[0]
+                    )
+                )
 
     async def initialize_trading_system(
-        self, config: StrategyConfig, db: Database
+        self, config: StrategyConfig, db: Database, last_state: Optional[State]
     ) -> None:
         trading_system = TradingSystem(
             client=self.client,
@@ -46,7 +52,7 @@ class StrategyExecutor:
             system_id=config.system_id,
             db=db,
         )
-        await trading_system.initialize_strategy()
+        await trading_system.initialize_strategy(last_state=last_state)
 
         self.id_to_system[config.system_id] = trading_system
         self.logger.debug("Starting trading system for %s", config)
