@@ -21,6 +21,7 @@ class PositionData:
     def __repr__(self) -> str:
         return (
             f"PositionData(config={self.config}, "
+            f"state={self.state}, "
             f"orders_opened={self.orders_opened}, "
             f"orders_total={self.orders_total}, "
             f"orders_filled={self.orders_filled}, recovering={self.recovering})"

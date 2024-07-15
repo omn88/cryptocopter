@@ -11,6 +11,10 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
+import logging
+
+logger = logging.getLogger("pos_handler")
+
 
 class PositionHandler:
     def __init__(
@@ -76,7 +80,7 @@ class PositionHandler:
         self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self, state: State) -> None:
-        self.strategy_logger.debug("Enter cancel position")
+        self.strategy_logger.info("Start canceling orders")
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
@@ -98,15 +102,17 @@ class PositionHandler:
 
         await self.db.update_price_level(config=self.config, state=state)
 
-        orders_filled = len(
-            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
-
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
                 orders_opened=0,
-                orders_filled=orders_filled,
+                orders_filled=len(
+                    [
+                        order
+                        for order in self.orders
+                        if order.status == ORDER_STATUS_FILLED
+                    ]
+                ),
                 orders_total=len(self.orders),
                 state=state,
             )

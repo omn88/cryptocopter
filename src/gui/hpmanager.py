@@ -243,19 +243,19 @@ class HpManager(BoxLayout):
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
 
-        if orders_filled != orders_total:
-            # Update GUI asynchronously
-            await self.gui_handler.put(
-                PositionData(
-                    config=config,
-                    orders_opened=orders_opened,
-                    orders_total=orders_total,
-                    orders_filled=orders_filled,
-                    state=state,
-                )
-            )
+        # if orders_filled != orders_total:
+        #     # Update GUI asynchronously
+        #     await self.gui_handler.put(
+        #         PositionData(
+        #             config=config,
+        #             orders_opened=orders_opened,
+        #             orders_total=orders_total,
+        #             orders_filled=orders_filled,
+        #             state=state,
+        #         )
+        #     )
 
-            await self.db.update_price_level(config=config, state=state)
+        #     await self.db.update_price_level(config=config, state=state)
 
     async def update_ui(self) -> None:
         while True:
@@ -359,21 +359,22 @@ class HpManager(BoxLayout):
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
-                    asyncio.create_task(
-                        self.remove_record(
-                            system_id=data.config.system_id,
-                            symbol=data.config.symbol_info.symbol,
-                            mode=data.config.mode,
-                            price_high=data.config.price_high,
-                            price_low=data.config.price_low,
-                            side=data.config.side,
-                            budget=data.config.budget,
-                            order_trigger=data.config.order_trigger,
-                            orders_filled=data.orders_filled,
-                            orders_opened=data.orders_opened,
-                            orders_total=data.orders_total,
+                    if data.orders_total == data.orders_filled:
+                        asyncio.create_task(
+                            self.remove_record(
+                                system_id=data.config.system_id,
+                                symbol=data.config.symbol_info.symbol,
+                                mode=data.config.mode,
+                                price_high=data.config.price_high,
+                                price_low=data.config.price_low,
+                                side=data.config.side,
+                                budget=data.config.budget,
+                                order_trigger=data.config.order_trigger,
+                                orders_filled=data.orders_filled,
+                                orders_opened=data.orders_opened,
+                                orders_total=data.orders_total,
+                            )
                         )
-                    )
 
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
