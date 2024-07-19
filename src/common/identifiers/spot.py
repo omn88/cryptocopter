@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import List, NamedTuple, Optional, Union
 
@@ -152,10 +153,11 @@ class StrategyConfig:
     name: str = "HP Manager"
     budget: float = 0
     mode: Mode = Mode.DCA
+    open_time: Optional[str] = None
 
     def __str__(self):
         return (
             f"StrategyConfig(system_id={self.system_id}, symbol_info={self.symbol_info}, side={self.side}, "
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
-            f"name={self.name}, budget={self.budget}, mode={self.mode})"
+            f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time})"
         )

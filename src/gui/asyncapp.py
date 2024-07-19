@@ -121,6 +121,7 @@ class AsyncApp(App):
 
             for price_level in active_price_levels:
                 await hp_manager.add_record(
+                    open_time=price_level.get("open_time"),
                     system_id=price_level.get("price_level_id"),
                     symbol=price_level["symbol"],
                     side=PositionSide.LONG

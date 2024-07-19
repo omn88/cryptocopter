@@ -40,8 +40,19 @@ config_env = Config(RepositoryEnv(DOTENV_FILE))
 DB_CONFIG_FILE = "config/.db_config"
 config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 
-# Set initial window size
-Window.size = (1020, 600)
+window_width = 1200  # Set your desired width
+window_height = 640  # Set your desired height
+
+# Set window size
+Window.size = (window_width, window_height)
+
+# # Get screen dimensions
+# screen_width = Window.system_size[0]
+# screen_height = Window.system_size[1]
+
+# # Center the window
+# Window.left = (screen_width - window_width) // 2
+# Window.top = (screen_height - window_height) // 2
 
 
 async def main():
