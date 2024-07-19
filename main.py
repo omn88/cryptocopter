@@ -46,14 +46,6 @@ window_height = 640  # Set your desired height
 # Set window size
 Window.size = (window_width, window_height)
 
-# # Get screen dimensions
-# screen_width = Window.system_size[0]
-# screen_height = Window.system_size[1]
-
-# # Center the window
-# Window.left = (screen_width - window_width) // 2
-# Window.top = (screen_height - window_height) // 2
-
 
 async def main():
     """
