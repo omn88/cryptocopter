@@ -303,6 +303,10 @@ class HpManager(BoxLayout):
                     )
                     self.update_idle_position(data=data)
                 else:
+                    self.strategy_logger.debug(
+                        "New position added to Idle, system id: %s",
+                        data.config.system_id,
+                    )
                     self.add_new_position(data=data)
                 self.strategy_logger.debug(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
@@ -366,6 +370,7 @@ class HpManager(BoxLayout):
         self.idle_records.append(new_position)
         self.filter_records("idle", "All")
 
+    # ToDO: Recovery to stagnated and update stagnated position to be added?!!!
     def update_active_position(
         self,
         data: PositionData,

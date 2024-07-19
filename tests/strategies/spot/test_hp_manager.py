@@ -63,7 +63,9 @@ async def test_default_scenario_buy(spot_buy):
     for order in strategy.position_handler.orders:
         order.status = ORDER_STATUS_FILLED
     strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=strategy.position_handler.orders[0].order_id,
     )
 
     # Simulate order confirmation
@@ -118,7 +120,9 @@ async def test_default_scenario_sell(spot_sell):
     for order in strategy.position_handler.orders:
         order.status = ORDER_STATUS_FILLED
     strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=strategy.position_handler.orders[0].order_id,
     )
 
     # Simulate order confirmation

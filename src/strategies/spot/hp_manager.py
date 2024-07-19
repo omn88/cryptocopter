@@ -309,6 +309,8 @@ class HpManager:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.position_handler.orders]
         )
 
         self.logger.debug(
@@ -323,6 +325,8 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
             == ORDER_STATUS_PARTIALLY_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.position_handler.orders]
         )
         self.logger.debug(
             "Order partially filled: %s, order update status: %s",
