@@ -90,21 +90,21 @@ class HpManager:
                 "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.NEW,
-                "conditions": "condition_for_recovering_to_new",
+                "conditions": "conditions_for_recovering_to_new",
                 "after": "handle_recovery_to_new",
             },
             {
                 "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.OPEN,
-                "conditions": "condition_for_recovering_to_open",
+                "conditions": "conditions_for_recovering_to_open",
                 "after": "handle_recovery_to_open",
             },
             {
                 "trigger": "process_recovery",
                 "source": State.RECOVERING,
                 "dest": State.STAGNATED,
-                "conditions": "condition_for_recovering_to_stagnated",
+                "conditions": "conditions_for_recovering_to_stagnated",
                 "after": "handle_recovery_to_stagnated",
             },
             {
@@ -232,32 +232,32 @@ class HpManager:
             )
         )
 
-    def condition_for_recovering_to_new(self, *args, **kwargs) -> bool:
+    def conditions_for_recovering_to_new(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
             self.state == State.RECOVERING
-            and self.position_handler.last_state == State.NEW.value
+            and self.position_handler.last_state == State.NEW
         )
         self.logger.debug("Recovering to state NEW: %s.", condition)
         return condition
 
-    def condition_for_recovering_to_open(self, *args, **kwargs) -> bool:
+    def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
             self.state == State.RECOVERING
-            and self.position_handler.last_state == State.OPEN.value
+            and self.position_handler.last_state == State.OPEN
         )
         self.logger.debug("Recovering to state OPEN: %s.", condition)
         return condition
 
-    def condition_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
+    def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
         # This has to figure out whether this is new target order or just limit dca, or not?
 
         condition = (
             self.state == State.RECOVERING
-            and self.position_handler.last_state == State.STAGNATED.value
+            and self.position_handler.last_state == State.STAGNATED
         )
         self.logger.debug("Recovering to state STAGNATED: %s.", condition)
         return condition
@@ -309,6 +309,8 @@ class HpManager:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.position_handler.orders]
         )
 
         self.logger.debug(
@@ -323,6 +325,8 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
             == ORDER_STATUS_PARTIALLY_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.position_handler.orders]
         )
         self.logger.debug(
             "Order partially filled: %s, order update status: %s",

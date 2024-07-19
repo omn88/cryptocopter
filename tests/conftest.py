@@ -121,6 +121,7 @@ async def spot_buy(mock_AsyncClient):
     db = AsyncMock()
 
     config = ConfigSpot(
+        open_time="",
         system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT"),
         side=PositionSide.LONG,
@@ -148,6 +149,7 @@ async def spot_buy(mock_AsyncClient):
 @pytest.fixture
 async def spot_sell(mock_AsyncClient):
     config = ConfigSpot(
+        open_time="",
         system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT"),
         side=PositionSide.SHORT,

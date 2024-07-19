@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    open_time VARCHAR(20) NOT NULL,
     price_level_id CHAR(36) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10) NOT NULL,
@@ -159,8 +160,9 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (open_time, price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
+                        config.open_time,
                         config.system_id,
                         config.symbol_info.symbol,
                         config.side.value,
@@ -216,12 +218,13 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                    open_time, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(
                     insert_query,
                     (
+                        config.open_time,
                         config.system_id,
                         config.symbol_info.symbol,
                         config.side.value,

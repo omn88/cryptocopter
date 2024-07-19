@@ -146,6 +146,7 @@ def get_strategy_config(
         price_high=price_high,
         order_trigger=order_trigger,
         budget=budget,
+        open_time="",
     )
 
 

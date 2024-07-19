@@ -61,6 +61,9 @@ class PositionHandler:
 
         state = State.OPEN
 
+        self.strategy_logger.info(
+            "INVEST, SENDING POS DATA FOR CONFIG AFTER POSITION OPEN: %s", self.config
+        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
@@ -142,7 +145,10 @@ class PositionHandler:
         orders_filled = len(
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
         )
-
+        self.strategy_logger.info(
+            "INVEST, SENDING POS DATA FOR CONFIG AFTER ORDER  PARTIALLY FILLED: %s",
+            self.config,
+        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
@@ -189,6 +195,9 @@ class PositionHandler:
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
         )
 
+        self.strategy_logger.info(
+            "INVEST, SENDING POS DATA FOR CONFIG AFTER ORDER FILLED: %s", self.config
+        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,

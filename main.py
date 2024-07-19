@@ -40,8 +40,11 @@ config_env = Config(RepositoryEnv(DOTENV_FILE))
 DB_CONFIG_FILE = "config/.db_config"
 config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
 
-# Set initial window size
-Window.size = (1020, 600)
+window_width = 1200  # Set your desired width
+window_height = 640  # Set your desired height
+
+# Set window size
+Window.size = (window_width, window_height)
 
 
 async def main():
@@ -70,7 +73,6 @@ async def main():
     )
 
     symbols_info = await fetch_symbol_info(client=client)
-    logger.debug("Symbols: %s, count: %s", symbols_info, len(symbols_info))
 
     app = AsyncApp(client=client, db=db, symbols_info=symbols_info)
     logger.info("Created %s", app)

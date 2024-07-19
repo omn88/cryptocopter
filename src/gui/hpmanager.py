@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import Dict, List, Optional
 import uuid
 from binance import BinanceSocketManager
@@ -126,42 +127,47 @@ class HpManager(BoxLayout):
             return
         asyncio.create_task(
             self.add_record(
+                open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 symbol=self.symbol_input.selected_value,
-                price_low=self.symbol_input.price_low_input.text,
-                price_high=self.symbol_input.price_high_input.text,
-                side=self.ids.side_input.text,
-                budget=self.ids.budget_input.text,
-                order_trigger=self.ids.order_trigger_input.text,
-                mode=self.ids.mode_input.text,
+                price_low=float(self.symbol_input.price_low_input.text),
+                price_high=float(self.symbol_input.price_high_input.text),
+                side=PositionSide.LONG
+                if self.ids.side_input.text == PositionSide.LONG.value
+                else PositionSide.SHORT,
+                budget=float(self.ids.budget_input.text),
+                order_trigger=float(self.ids.order_trigger_input.text),
+                mode=Mode.DCA
+                if self.ids.mode_input.text == Mode.DCA.value
+                else Mode.SINGLE,
             )
         )
 
     async def add_record(
         self,
-        symbol,
-        side,
-        price_low,
-        price_high,
-        budget,
-        order_trigger,
-        mode,
-        last_state=None,
+        symbol: str,
+        side: PositionSide,
+        price_low: float,
+        price_high: float,
+        budget: float,
+        order_trigger: float,
+        mode: Mode,
+        open_time: Optional[str] = None,
+        last_state: Optional[State] = None,
         system_id: Optional[str] = None,
     ) -> None:
         if system_id is None:
             system_id = str(uuid.uuid4())
 
         config = StrategyConfig(
+            open_time=open_time,
             system_id=system_id,
             symbol_info=self.symbols_info[symbol],
-            side=PositionSide.LONG
-            if side == PositionSide.LONG.value
-            else PositionSide.SHORT,
-            price_low=float(price_low),
-            price_high=float(price_high),
-            budget=float(budget),
-            order_trigger=float(order_trigger),
-            mode=Mode.DCA if mode == Mode.DCA.value else Mode.SINGLE,
+            side=side,
+            price_low=price_low,
+            price_high=price_high,
+            budget=budget,
+            order_trigger=order_trigger,
+            mode=mode,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
         await self.strategy_executor.config_queue.put([last_state, config])
@@ -186,76 +192,13 @@ class HpManager(BoxLayout):
     def trigger_remove_record(
         self,
         system_id,
-        symbol,
-        side,
-        mode,
-        price_low,
-        price_high,
-        budget,
-        order_trigger,
-        orders_opened,
-        orders_total,
-        orders_filled,
         *args,
     ) -> None:
-        asyncio.create_task(
-            self.remove_record(
-                system_id=system_id,
-                symbol=symbol,
-                side=side,
-                mode=mode,
-                price_high=price_high,
-                price_low=price_low,
-                budget=budget,
-                order_trigger=order_trigger,
-                orders_filled=orders_filled,
-                orders_total=orders_total,
-                orders_opened=orders_opened,
-            )
-        )
+        asyncio.create_task(self.remove_record(system_id=system_id))
 
-    async def remove_record(
-        self,
-        system_id,
-        symbol,
-        side,
-        mode,
-        price_low,
-        price_high,
-        budget,
-        order_trigger,
-        orders_opened,
-        orders_total,
-        orders_filled,
-    ) -> None:
-        state = State.CLOSED
-        config = StrategyConfig(
-            symbol_info=SymbolInfo(symbol=symbol),
-            system_id=system_id,
-            side=PositionSide.LONG if side == "BUY" else PositionSide.SHORT,
-            mode=Mode.DCA if mode == "DCA" else Mode.SINGLE,
-            price_high=price_high,
-            price_low=price_low,
-            budget=budget,
-            order_trigger=order_trigger,
-        )
-
+    async def remove_record(self, system_id) -> None:
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
-
-        # if orders_filled != orders_total:
-        #     # Update GUI asynchronously
-        #     await self.gui_handler.put(
-        #         PositionData(
-        #             config=config,
-        #             orders_opened=orders_opened,
-        #             orders_total=orders_total,
-        #             orders_filled=orders_filled,
-        #             state=state,
-        #         )
-        #     )
-
-        #     await self.db.update_price_level(config=config, state=state)
 
     async def update_ui(self) -> None:
         while True:
@@ -273,11 +216,16 @@ class HpManager(BoxLayout):
             if isinstance(data, PositionData):
                 self.strategy_logger.debug("Received position data: %s", data)
                 if data.recovering:
-                    if data.state == State.OPEN.value:
+                    if data.state == State.OPEN:
                         self.strategy_logger.logger.debug(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
+                    if data.state == State.NEW:
+                        self.strategy_logger.logger.debug(
+                            "Recovering position to idle tab in GUI: %s", data
+                        )
+                        self.recovery_to_idle(data=data)
 
                 elif any(
                     record["system_id"] == data.config.system_id
@@ -296,6 +244,10 @@ class HpManager(BoxLayout):
                     )
                     self.update_idle_position(data=data)
                 else:
+                    self.strategy_logger.debug(
+                        "New position added to Idle, system id: %s",
+                        data.config.system_id,
+                    )
                     self.add_new_position(data=data)
                 self.strategy_logger.debug(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
@@ -306,6 +258,7 @@ class HpManager(BoxLayout):
 
     def add_new_position(self, data: PositionData) -> None:
         new_position = {
+            "open_time": data.config.open_time,
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
             "side": str(data.config.side.value),
@@ -325,6 +278,7 @@ class HpManager(BoxLayout):
 
     def recovery_to_active(self, data: PositionData) -> None:
         new_position = {
+            "open_time": data.config.open_time,
             "system_id": data.config.system_id,
             "symbol": data.config.symbol_info.symbol,
             "side": str(data.config.side.value),
@@ -335,12 +289,34 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
+            "mode": str(data.config.mode.value),
             "state": str(data.state),
         }
 
         self.active_records.append(new_position)
         self.filter_records("active", "All")
 
+    def recovery_to_idle(self, data: PositionData) -> None:
+        new_position = {
+            "open_time": data.config.open_time,
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_trigger": str(data.config.order_trigger),
+            "orders_opened": str(data.orders_opened),
+            "orders_total": str(data.orders_total),
+            "orders_filled": str(data.orders_filled),
+            "mode": str(data.config.mode.value),
+            "state": str(data.state),
+        }
+
+        self.idle_records.append(new_position)
+        self.filter_records("idle", "All")
+
+    # ToDO: Recovery to stagnated and update stagnated position to be added?!!!
     def update_active_position(
         self,
         data: PositionData,
@@ -361,19 +337,7 @@ class HpManager(BoxLayout):
                     self.strategy_logger.debug("Archiving price level: %s", position)
                     if data.orders_total == data.orders_filled:
                         asyncio.create_task(
-                            self.remove_record(
-                                system_id=data.config.system_id,
-                                symbol=data.config.symbol_info.symbol,
-                                mode=data.config.mode,
-                                price_high=data.config.price_high,
-                                price_low=data.config.price_low,
-                                side=data.config.side,
-                                budget=data.config.budget,
-                                order_trigger=data.config.order_trigger,
-                                orders_filled=data.orders_filled,
-                                orders_opened=data.orders_opened,
-                                orders_total=data.orders_total,
-                            )
+                            self.remove_record(system_id=data.config.system_id)
                         )
 
         self.filter_records("active", "All")
