@@ -70,7 +70,6 @@ async def main():
     )
 
     symbols_info = await fetch_symbol_info(client=client)
-    logger.debug("Symbols: %s, count: %s", symbols_info, len(symbols_info))
 
     app = AsyncApp(client=client, db=db, symbols_info=symbols_info)
     logger.info("Created %s", app)

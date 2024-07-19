@@ -25,13 +25,14 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
+from src.common.identifiers.spot import State
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
-from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.database import Database
 
 logger = logging.getLogger("async_app")
@@ -103,7 +104,7 @@ class AsyncApp(App):
         for strategy in active_strategies:
             await self.restore_strategy(strategy)
 
-    async def restore_strategy(self, strategy):
+    async def restore_strategy(self, strategy) -> None:
         if strategy.get("name") == "HPManager":
             logger.info("Found instance of HPManager, restoring last known state.")
 
@@ -121,14 +122,18 @@ class AsyncApp(App):
             for price_level in active_price_levels:
                 await hp_manager.add_record(
                     system_id=price_level.get("price_level_id"),
-                    symbol=price_level.get("symbol"),
-                    side=price_level.get("side"),
-                    price_low=price_level.get("price_low"),
-                    price_high=price_level.get("price_high"),
-                    budget=price_level.get("budget"),
-                    order_trigger=price_level.get("order_trigger"),
-                    last_state=price_level.get("state"),
-                    mode=price_level.get("mode"),
+                    symbol=price_level["symbol"],
+                    side=PositionSide.LONG
+                    if price_level["side"] == PositionSide.LONG.value
+                    else PositionSide.SHORT,
+                    price_low=float(price_level["price_low"]),
+                    price_high=float(price_level["price_high"]),
+                    budget=float(price_level["budget"]),
+                    order_trigger=float(price_level["order_trigger"]),
+                    last_state=State[price_level["state"]],
+                    mode=Mode.DCA
+                    if price_level.get("mode") == Mode.DCA.value
+                    else Mode.SINGLE,
                 )
 
     def __str__(self):
