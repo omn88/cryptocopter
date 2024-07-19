@@ -346,6 +346,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
+            "mode": str(data.config.mode.value),
             "state": str(data.state),
         }
 
@@ -364,6 +365,7 @@ class HpManager(BoxLayout):
             "orders_opened": str(data.orders_opened),
             "orders_total": str(data.orders_total),
             "orders_filled": str(data.orders_filled),
+            "mode": str(data.config.mode.value),
             "state": str(data.state),
         }
 
