@@ -239,7 +239,9 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.NEW
         )
-        self.logger.debug("Recovering system: %s to state NEW: %s.", self.config, condition)
+        self.logger.debug(
+            "Recovering system: %s to state NEW: %s.", self.config, condition
+        )
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -249,7 +251,9 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.OPEN
         )
-        self.logger.debug("Recovering system: %s to state OPEN: %s.", self.config, condition)
+        self.logger.debug(
+            "Recovering system: %s to state OPEN: %s.", self.config, condition
+        )
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -259,7 +263,9 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.STAGNATED
         )
-        self.logger.debug("Recovering system: %s to state STAGNATED: %s.", self.config, condition)
+        self.logger.debug(
+            "Recovering system: %s to state STAGNATED: %s.", self.config, condition
+        )
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
@@ -710,7 +716,7 @@ class HpManager:
         )
 
     async def handle_recovery_to_new(self, *args, **kwargs):
-        self.logger.debug("Handle recovery to new")
+        self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
 
         await self.position_handler.gui_handler.put(
             PositionData(
@@ -726,20 +732,62 @@ class HpManager:
     async def handle_recovery_to_open(self, *args, **kwargs):
         self.logger.debug("Handle recovery to open")
 
-        orders = await self.db.fetch_orders_for_price_level(
+        orders_from_db = await self.db.fetch_orders_for_price_level(
             price_level_id=self.config.system_id
         )
-
         self.logger.debug(
-            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+            "Fetched orders for price level: %s: \n%s",
+            self.config.system_id,
+            orders_from_db,
         )
 
+        updated_orders = [
+            await self.position_handler.order_handler.update_order_status(
+                symbol=self.config.symbol_info.symbol, order=order
+            )
+            for order in orders_from_db
+        ]
+
         for order in self.position_handler.orders:
-            for fetched_order in orders:
-                if order.price == fetched_order.get("price"):
-                    order.order_id = fetched_order.get("order_id")
-                    order.quantity -= fetched_order.get("realized_quantity")
-                    order.status = fetched_order.get("status")
+            for updated_order in updated_orders:
+                if order.price == updated_order.get("price"):
+                    order.order_id = updated_order.get("order_id")
+                    updated_realized_quantity = updated_order.get("realized_quantity")
+
+                    if order.realized_quantity != updated_realized_quantity:
+                        self.logger.info(
+                            "Order quantity has changed during outage, old: %s, new: %s",
+                            order.realized_quantity,
+                            updated_realized_quantity,
+                        )
+
+                        order.realized_quantity = updated_realized_quantity
+                        order.status = updated_order.get("status")
+
+                        await self.db.update_order(
+                            price=order.price,
+                            quantity=order.quantity,
+                            quantity_stable=order.quantity_stable,
+                            realized_quantity=order.realized_quantity,
+                            time_in_force=order.time_in_force,
+                            status=order.status,
+                            order_type=order.order_type,
+                            order_id=order.order_id,
+                            price_level_id=self.config.system_id,
+                        )
+
+                        if all(
+                            order.status == ORDER_STATUS_FILLED
+                            for order in self.position_handler.orders
+                        ):
+                            signal = Signal.HP_ALL_ORDERS_FILLED
+                            self.logger.info("All orders filled, sending: %s", signal)
+                            await self.queue.put(
+                                Event(
+                                    name=EventName.SIGNAL,
+                                    content=SignalUpdate(signal=signal),
+                                )
+                            )
 
         orders_opened = len(
             [
@@ -755,8 +803,6 @@ class HpManager:
                 if order.status == ORDER_STATUS_FILLED
             ]
         )
-
-        ### WHOLE CHECK AT BINANCE IS NOT IMPLEMENTED
 
         await self.position_handler.gui_handler.put(
             PositionData(
