@@ -239,7 +239,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.NEW
         )
-        self.logger.debug("Recovering to state NEW: %s.", condition)
+        self.logger.debug("Recovering system: %s to state NEW: %s.", self.config, condition)
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -249,7 +249,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.OPEN
         )
-        self.logger.debug("Recovering to state OPEN: %s.", condition)
+        self.logger.debug("Recovering system: %s to state OPEN: %s.", self.config, condition)
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -259,7 +259,7 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.STAGNATED
         )
-        self.logger.debug("Recovering to state STAGNATED: %s.", condition)
+        self.logger.debug("Recovering system: %s to state STAGNATED: %s.", self.config, condition)
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
@@ -755,6 +755,8 @@ class HpManager:
                 if order.status == ORDER_STATUS_FILLED
             ]
         )
+
+        ### WHOLE CHECK AT BINANCE IS NOT IMPLEMENTED
 
         await self.position_handler.gui_handler.put(
             PositionData(
