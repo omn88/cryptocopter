@@ -214,3 +214,33 @@ class OrderHandler:
                 self.strategy_logger.debug("Cancelled new order_id: %s", order.order_id)
 
         return orders
+
+    async def update_order_status(self, order: Order, symbol: str) -> Order:
+        """Retrieve the latest status and update the Order object.
+
+        Args:
+            order: The Order object to be updated.
+            symbol: The symbol for the order (e.g., 'BTCUSDT').
+
+        Returns:
+            The updated Order object.
+        """
+        try:
+            resp = await self.client.get_order(symbol=symbol, orderId=order.order_id)
+            order.status = resp["status"]
+            order.realized_quantity = float(resp["executedQty"])
+            self.strategy_logger.info(
+                f"Updated status for order {order.order_id}: {order.status}"
+            )
+        except (
+            BinanceAPIException,
+            BinanceOrderException,
+            BinanceRequestException,
+        ) as exception:
+            self.strategy_logger.error(
+                "Failed to update order status due to %s: %s",
+                type(exception).__name__,
+                exception,
+            )
+            raise exception
+        return order
