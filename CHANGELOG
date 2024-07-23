@@ -1,0 +1,90 @@
+############################################# CHANGELOG #############################################
+
+### NEW FEATURES
+- Add budget for strategy -> new feature which will remove previous "automation" so also the mode DCA/FULL has to be refactored, aligned to new reality.
+- Add datetime in the UI DONE
+- Add Logger to GUI in HP Strategy - Added
+- Add trade limits retrieval so round_quantity method from order handler can properly round particular symbols - Added
+- Add buttons related to change the margin type or leverage or provide validations that the configuration is proper. DONE
+- Add leverage as well as PNL in USDT to the strategy table. DONE
+- Implement database (unique strategy_id) DONE
+- Implement Strategy Pattern for Strategies + abstractclass(maybe), but code sample is in notepad++ DONE ELEGANTLY!!
+- Make the strategy look and work as in PoC with logger tab etc and dynamic change of the ui widgets (for the first strategy) DONE
+- Implement order execution validation
+
+### IMPROVEMENTS
+- Replace multiple parameters sending with StrategyConfig where possible DONE
+- Filtering works now only for BTCUSDT and ETHUSDT! FIXED
+- UI input validation before adding a record DONE
+- Provide quantity to the orders displayed DONE
+- Handle better open time, take profit does not have it DONE
+- Colorize buy and sell to red and green respectively DONE
+- After switch, old position is not added. DONE
+- Cancel button implementation DONE
+- Get open time from the OrderUpdate? updateTime DONE
+
+### FIXES
+- RESTORATION IMPLEMENTED PARTIALLY, AFTER RETRIEVING LATEST STATUS FROM THE DB, IT HAS TO BE COMPARED WITH LATEST DATA TAKEN FROM THE EXCHANGE. DONE
+- When recovering, the MODE is missing in GUI! ADDED
+- ALL NEW RECORDS ARE ADDED TO ACTIVE FIXED
+- Most probably due to process order which was executed for the same Symbol. Added restriction that execution type has to be in the list of order ids of particular strategy.
+- CONFIG CANT HAVE THE STATUS VALUE, DYNAMIC UPDATE CAUSES TROUBLE DONE with last_state in position handler (for recovery) and state from the strategy for the rest. REMEMBER ABOUT MECHANISM ASSIGNING LAST STATE TO POSITION HANDLER DONE
+- Align all prices and quantities for symbols DONE
+- Add all Symbols DONE
+- Tests should verify content of the GUI queue and database. DONE
+- Implement database where I will be able to store data, artifacts, trade info and history. DONE
+- Futures get position info needs refactor as it always takes the position[0]! So per symbol check is necessary -> It is called with symbol NO JOB REQUIRED
+- Implement backtest redesign DONE. Backtesting to work with backtrading library. First tasks are to implement current strategies in backtrader and provide the data in pandas format.
+- Index price does not update when there is no position. I need to stick with Mark Price only! DONE but I stay with index price here
+- Check scenario if strategy would start with short special or long special, it must not. DONE BY EXCLUDING SPECIAL SIGNALS DURING DETERMINING START POSITION
+- Kline tests need to be rewritten to not use whole worker method. DONE
+- GUI with KIVY !!!! DONE
+
+### REFACTORING
+- Make order handler methods more generic, so there is one method for sending market, take profit, etc., which is a wrapper over standard create_order method(). These methods have to be separate because market does not have good till cancel field used at all.
+- Probably put DF related stuff to the position handler class. DF_Handler class created which elegantly took the DF management stuff from many places, DONE
+- Per strategy logging implementation. For this, the order_handle module probably has to be refactored to be one class so the logger can be sent once instead of each separate function. Basically created order handler and position handler and GUI handler classes which seem to simplify stuff, however have to be tested properly.
+- Move the determination of start position to other place, not the futures user socket. DONE, moved to initialize trading environment
+- Shorten the time of the kline handling tests as they wait for the worker for three seconds many times DONE WITH MOCKING THE WHOLE CLIENT
+- Implement update of the old positions order updates and close of the position when all artifacts are gathered. ADDITIONAL RULES FOR ORDERS IS NEEDED OF WHETHER NEW POSITIONS OR OLD POSITIONS ORDER IS TO BE UPDATED -> DONE
+- Fix MARKET ORDER HANDLING, LOG FROM 17.05, critical issue FIXED WITH ADDITIONAL TESTS
+- Consider LEVERAGE NUMBER OF DCA ORDERS as CONSTANTS? NO NEED FOR sending it everywhere SYMBOL AS WELL... AND DCA_SPAN | DONE
+- Move functions from orders to other folders if possible. | DONE
+- Remove position from tests | DONE
+- Data Validation IS NEEDED | DONE
+- Gather artifacts everywhere | DONE
+- Add level to artifacts for order quantity check | DONE
+- Redesign order quantity so its sum of all DCA orders, so if you realized 2/4 orders and got 100%, its marked as 50%. | THIS AND MORE CAN BE CALCULATED WITH ARTIFACTS
+- Move closing position into one function meaning closing limit orders, take profit, and creating new current position object. | DONE, USE IT WHEN SIGNAL CLOSES POSITION
+- Create one function for opening position. | DONE
+- After take profit is taken, position in DF is not updated. Add DF position validation to tests/ added. | DONE
+- Order quantity check provides wrong data as it should go to 5USDT from 2USDT per order, where it goes from 2USDT to 1USDT. | DONE
+- Recheck all mandatory parameters | DONE
+- Refactor MARKET ORDERS, GET RESP AS PRICE WAS NOT RETRIEVED | DONE with quite big refactor
+- Create mechanism to shut everything gracefully, when using ctrl + c | Not an easy thing, but DONE with event loop signal handlers!!!
+- Refactor position and current position classes | DONE
+- Number of DCA orders and order quantity list must be in position | DONE
+- REFACTOR futures_long_position_close and other issues | DONE
+- Verify tests with position.status asserts!!! | DONE
+- Module for special long / special short. PARTIALLY DONE, handle scenarios when already in such position. DONE AS WELL, ONLY TESTS LEFT!!! | DONE
+- In cancel order, proper orderId is not provided, possibly it does not update in time | FIXED
+- Take profit order arrives as NEW order and shows order_id = 0, to be investigated | FIXED
+- Logging shows wrong time, wtf? 8h and 10 min difference? | FIXED + NEW LOGGING THANKS TO CHAT GPT :D
+- Logging in CLI sometimes drops messages? Improve logging by enabling artifacts retrieving | DEBUG LOGS IN FILE
+- Implement liquidation properly | New implementation done
+- Try to use TERMINAL instead of whole Pycharm IDE?????? | 70 MB of RAM used instead of 2GB :D
+- Order updates must be matched by order_id order_id = order_update["i"] | DONE
+- Handle Target Reached Partially | DONE
+- The time is not updated properly | DONE, but if it happens again, create cron job for sudo ntpdate ntp.ubuntu.com
+
+### OTHER
+- Implement scenario for the only one order to be sent which will be from different side for buy and sell. SO SINGLE, NOW ITS ONLY DCA!! DONE
+- When symbol is chosen provide its bid and ask to price low price high DONE
+- Store and restore strategies DONE
+- Confirmed with graceful closure of strategy related producers.
+- Separate custom logger for logs stored in the GUI. DONE
+- Fix graceful shutdown PARTIALLY FINISHED SO THE POSITION IS CLOSED AND ORDERS ARE CANCELLED BUT STILL SOME QUEUES ARE WORKING, SO IT IS NOT SHUT DOWN TOTALLY GRACEFULLY, follow up task created DONE
+- Backtest has closed with market, but the price was far better than the real one. FIXED
+- Artifacts are created too often, every valid update? Tests create artifacts :D And after Market order, artifacts are created, but new LIMIT realized immediately is MARKET AS WELL, NOT SURE. FIXED
+- Try to use TERMINAL instead of whole Pycharm IDE?????? | 70 MB of RAM used instead of 2GB :D
+- Implement liquidation properly | New implementation done
