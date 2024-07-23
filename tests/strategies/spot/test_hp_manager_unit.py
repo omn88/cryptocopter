@@ -88,11 +88,11 @@ async def test_conditions_for_cancelling_buy_orders(spot_buy):
     strategy.position_handler.stagnation_counter = 8
 
     # Condition met
-    strategy.ticker_update = MagicMock(last_price=1415)
+    strategy.ticker_update = MagicMock(last_price=1429)
     assert strategy.conditions_for_cancelling_buy_orders() is True
 
     # Condition not met
-    strategy.ticker_update = MagicMock(last_price=1414)
+    strategy.ticker_update = MagicMock(last_price=1428)
     assert strategy.conditions_for_cancelling_buy_orders() is False
 
 
@@ -103,17 +103,16 @@ async def test_conditions_for_cancelling_sell_orders(spot_sell):
     strategy.position_handler.config.side = PositionSide.SHORT
     strategy.position_handler.stagnation_counter = 8
 
-    print("order trigger ", strategy.trigger_orders_price)
-
     # Condition met
     strategy.ticker_update = MagicMock(
-        last_price=989
+        last_price=979
     )  # price_low * (1 - order_trigger / 100) - 1
+
     assert strategy.conditions_for_cancelling_sell_orders() is True
 
     # Condition not met
     strategy.ticker_update = MagicMock(
-        last_price=991
+        last_price=980
     )  # price_low * (1 - order_trigger / 100)
     assert strategy.conditions_for_cancelling_sell_orders() is False
 

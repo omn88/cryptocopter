@@ -107,13 +107,21 @@ class OrderHandler:
         self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
         return orders
 
+    def format_price(self, price, precision):
+        # Step 1: Round the float to the desired precision
+        rounded_price = round(price, precision)
+        # Step 2: Convert the rounded float to a string with the specified number of decimal places
+        price_str = f"{rounded_price:.{precision}f}"
+
+        return float(price_str)
+
     async def create_order(
         self, side: PositionSide, order: Order, symbol_info: SymbolInfo
     ) -> Order:
         last_exception = None
         for _ in range(self.MAX_RETRIES):
             try:
-                price = round(order.price, symbol_info.price_precision)
+                price = self.format_price(order.price, symbol_info.price_precision)
                 quantity = symbol_info.adjust_quantity(order.quantity)
                 symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(

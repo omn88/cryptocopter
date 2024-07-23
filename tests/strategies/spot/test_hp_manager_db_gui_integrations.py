@@ -163,7 +163,7 @@ async def test_default_buy_scenario(trading_system_factory):
     # Set initial condition
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_send_orders_price() == 1414
 
     # Simulate price outside of the threshold
     await process_ticker(strategy=strategy, last_price=1415)
@@ -246,7 +246,7 @@ async def test_default_sell_scenario(trading_system_factory):
     # Set initial condition
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_send_orders_price() == 990
     await process_ticker(strategy=strategy, last_price=989)
     assert strategy.state == State.NEW
 
@@ -326,7 +326,7 @@ async def test_stagnation_buy_position(trading_system_factory):
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_send_orders_price() == 1414
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
@@ -352,7 +352,7 @@ async def test_stagnation_buy_position(trading_system_factory):
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=1415)
+    await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
 
@@ -409,7 +409,7 @@ async def test_stagnation_sell_position(trading_system_factory):
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_send_orders_price() == 990
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
@@ -435,7 +435,7 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=989)
+    await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
 
@@ -493,7 +493,7 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_send_orders_price() == 1414
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
@@ -531,7 +531,7 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=1415)
+    await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
 
@@ -594,7 +594,7 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_send_orders_price() == 990
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
@@ -632,7 +632,7 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=989)
+    await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
 
@@ -695,7 +695,7 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_send_orders_price() == 1414
 
     await process_ticker(strategy=strategy, last_price=1400)
     assert strategy.state == State.OPEN
@@ -749,7 +749,7 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=1415)
+    await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
 
@@ -812,7 +812,7 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = trading_system.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_send_orders_price() == 990
 
     await process_ticker(strategy=strategy, last_price=1000)
     assert strategy.state == State.OPEN
@@ -866,7 +866,7 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
 
-    await process_ticker(strategy=strategy, last_price=989)
+    await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
 
@@ -929,7 +929,7 @@ async def test_multiple_trading_systems(trading_system_factory):
     )
     strategy1 = trading_system1.strategy
     assert isinstance(strategy1, HpManager)
-    assert strategy1.trigger_orders_price == 1414
+    assert strategy1.calculate_trigger_send_orders_price() == 1414
 
     # Set initial condition for trading system 2
     trading_system2 = await trading_system_factory(
@@ -947,7 +947,7 @@ async def test_multiple_trading_systems(trading_system_factory):
     )
     strategy2 = trading_system2.strategy
     assert isinstance(strategy2, HpManager)
-    assert strategy2.trigger_orders_price == 424.2
+    assert strategy2.calculate_trigger_send_orders_price() == 424.2
 
     # Simulate price outside of the threshold
     await process_ticker(strategy=strategy1, last_price=1415)

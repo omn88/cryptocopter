@@ -23,7 +23,7 @@ async def test_default_scenario_buy(spot_buy):
     # Set initial condition
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_send_orders_price() == 1414
     last_price = 1500
     logger.info(
         "Processing ticker with last price outside of threshold: %s", last_price
@@ -269,7 +269,7 @@ async def test_order_cancellation_sell(spot_sell):
     spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_sell.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_cancel_orders_price() == 980
     last_price = 1000
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -293,7 +293,7 @@ async def test_order_cancellation_sell(spot_sell):
     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
 
     # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=989)
+    strategy.ticker_update = TickerUpdate(last_price=979)
     await strategy.process_ticker()
 
     assert strategy.state == State.STAGNATED
@@ -327,7 +327,7 @@ async def test_order_cancellation_buy(spot_buy):
     spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_cancel_orders_price() == 1428
     last_price = 1400
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -350,7 +350,7 @@ async def test_order_cancellation_buy(spot_buy):
     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
 
     # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=1415)
+    strategy.ticker_update = TickerUpdate(last_price=1429)
     await strategy.process_ticker()
 
     assert strategy.state == State.STAGNATED
@@ -384,7 +384,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_sell.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 990
+    assert strategy.calculate_trigger_cancel_orders_price() == 980
     last_price = 1000
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -428,7 +428,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
 
     # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=989)
+    strategy.ticker_update = TickerUpdate(last_price=979)
     await strategy.process_ticker()
 
     assert strategy.state == State.STAGNATED
@@ -466,7 +466,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
     strategy = spot_buy.strategy
     assert isinstance(strategy, HpManager)
-    assert strategy.trigger_orders_price == 1414
+    assert strategy.calculate_trigger_cancel_orders_price() == 1428
     last_price = 1400
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -509,7 +509,7 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
 
     # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=1415)
+    strategy.ticker_update = TickerUpdate(last_price=1429)
     await strategy.process_ticker()
     assert strategy.state == State.STAGNATED
 
