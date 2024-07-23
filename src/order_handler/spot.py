@@ -31,16 +31,16 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
 
-    def round_quantity(self, quantity: float) -> float:
-        if quantity >= 1:
-            return round(quantity, 2)
+    # def round_quantity(self, quantity: float) -> float:
+    #     if quantity >= 1:
+    #         return round(quantity, 2)
 
-        # Count the number of leading zeros after the decimal point
-        str_quantity = f"{quantity:.10f}"
-        zeros_after_decimal = len(str_quantity.split(".")[1]) - len(
-            str_quantity.split(".")[1].lstrip("0")
-        )
-        return round(quantity, zeros_after_decimal + 4)
+    #     # Count the number of leading zeros after the decimal point
+    #     str_quantity = f"{quantity:.10f}"
+    #     zeros_after_decimal = len(str_quantity.split(".")[1]) - len(
+    #         str_quantity.split(".")[1].lstrip("0")
+    #     )
+    #     return round(quantity, zeros_after_decimal + 4)
 
     def prepare_orders(
         self,
@@ -50,6 +50,7 @@ class OrderHandler:
         min_notional: float,
         mode: Mode,
         side: PositionSide,
+        symbol_info: SymbolInfo,
     ) -> List[Order]:
         orders = []
 
@@ -57,9 +58,9 @@ class OrderHandler:
             order_price = price_high if side == PositionSide.LONG else price_low
             orders.append(
                 Order(
-                    quantity=self.round_quantity(budget / order_price),
+                    quantity=round(budget / order_price, 2),
                     price=order_price,
-                    quantity_stable=self.round_quantity(budget),
+                    quantity_stable=round(budget, 2),
                 )
             )
 
@@ -79,9 +80,9 @@ class OrderHandler:
                 order_price = price_high if side == PositionSide.LONG else price_low
                 orders.append(
                     Order(
-                        quantity=self.round_quantity(budget / order_price),
-                        price=order_price,
-                        quantity_stable=self.round_quantity(budget),
+                        quantity=symbol_info.adjust_quantity(budget / order_price),
+                        price=round(order_price, symbol_info.price_precision),
+                        quantity_stable=round(budget, symbol_info.price_precision),
                     )
                 )
             else:
@@ -96,11 +97,13 @@ class OrderHandler:
 
                     orders.append(
                         Order(
-                            quantity=self.round_quantity(
+                            quantity=symbol_info.adjust_quantity(
                                 order_quantity_stable / order_price
                             ),
-                            price=order_price,
-                            quantity_stable=self.round_quantity(order_quantity_stable),
+                            price=round(order_price, symbol_info.price_precision),
+                            quantity_stable=round(
+                                order_quantity_stable, symbol_info.price_precision
+                            ),
                         )
                     )
 
