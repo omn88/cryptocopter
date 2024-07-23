@@ -45,7 +45,9 @@ class PositionHandler:
         self.last_state: Optional[State] = last_state
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
-        self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
+        self.next_monitor_position_time: str = datetime.datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     async def open_position(
         self,
@@ -55,9 +57,9 @@ class PositionHandler:
         self.orders = await self.order_handler.create_orders(
             side=side, orders=self.orders, symbol_info=symbol_info
         )
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
-        )
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
         state = State.OPEN
 
@@ -75,7 +77,12 @@ class PositionHandler:
             await self.db.insert_order(
                 price_level_id=self.config.system_id, order=order
             )
-        await self.db.update_price_level(self.config, state=state)
+        await self.db.update_price_level(
+            self.config,
+            state=state,
+            stagnation_counter=self.stagnation_counter,
+            next_monitor_time=self.next_monitor_position_time,
+        )
 
         self.strategy_logger.debug("Position opened successfully.")
 
@@ -102,7 +109,12 @@ class PositionHandler:
                     price_level_id=self.config.system_id,
                 )
 
-        await self.db.update_price_level(config=self.config, state=state)
+        await self.db.update_price_level(
+            config=self.config,
+            state=state,
+            stagnation_counter=self.stagnation_counter,
+            next_monitor_time=self.next_monitor_position_time,
+        )
 
         await self.gui_handler.put(
             PositionData(
@@ -133,8 +145,14 @@ class PositionHandler:
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
 
         self.stagnation_counter = 0
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        await self.db.update_price_level(
+            config=self.config,
+            state=State.OPEN,
+            stagnation_counter=self.stagnation_counter,
+            next_monitor_time=self.next_monitor_position_time,
         )
 
         self.strategy_logger.info(
@@ -171,8 +189,14 @@ class PositionHandler:
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         self.stagnation_counter = 0
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        await self.db.update_price_level(
+            config=self.config,
+            state=State.OPEN,
+            stagnation_counter=self.stagnation_counter,
+            next_monitor_time=self.next_monitor_position_time,
         )
         for order in self.orders:
             if execution_report.order_id == order.order_id:

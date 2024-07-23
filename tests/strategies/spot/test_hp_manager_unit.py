@@ -120,7 +120,9 @@ async def test_conditions_for_cancelling_sell_orders(spot_sell):
 async def test_handle_ticker(spot_buy):
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
-    strategy.position_handler.next_monitor_position_time = datetime.now()
+    strategy.position_handler.next_monitor_position_time = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     await strategy.increase_stagnation_counter()
     assert strategy.position_handler.stagnation_counter == 1
 
@@ -129,7 +131,9 @@ async def test_process_ticker_updates_state(spot_buy):
     # Set initial conditions
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
-    strategy.position_handler.next_monitor_position_time = datetime.now()
+    strategy.position_handler.next_monitor_position_time = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     strategy.ticker_update = MagicMock(last_price=1200)  # Mocked TickerUpdate
     initial_stagnation_counter = strategy.position_handler.stagnation_counter
 
@@ -140,7 +144,10 @@ async def test_process_ticker_updates_state(spot_buy):
     assert (
         strategy.position_handler.stagnation_counter == initial_stagnation_counter + 1
     )
-    assert strategy.position_handler.next_monitor_position_time > datetime.now()
+    assert (
+        strategy.position_handler.next_monitor_position_time
+        > datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
 
     strategy.logger.info(
         "Stagnation counter increase due to crossing stagnation timer: %s, time now: %s, stagnation counter: %s",

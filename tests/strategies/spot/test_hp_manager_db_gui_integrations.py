@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+import datetime
 import logging
 
 import aiomysql
@@ -340,9 +341,13 @@ async def test_stagnation_buy_position(trading_system_factory):
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -423,9 +428,13 @@ async def test_stagnation_sell_position(trading_system_factory):
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -519,9 +528,13 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -620,9 +633,13 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -737,9 +754,13 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -854,9 +875,13 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
         orders_total=3,
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):

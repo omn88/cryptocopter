@@ -151,6 +151,8 @@ class HpManager(BoxLayout):
         budget: float,
         order_trigger: float,
         mode: Mode,
+        stagnation_counter: int = 0,
+        next_monitor_time: str = "",
         open_time: Optional[str] = None,
         last_state: Optional[State] = None,
         system_id: Optional[str] = None,
@@ -170,7 +172,9 @@ class HpManager(BoxLayout):
             mode=mode,
         )
         self.strategy_logger.info(f"Adding new record with config: {config}")
-        await self.strategy_executor.config_queue.put([last_state, config])
+        await self.strategy_executor.config_queue.put(
+            [last_state, config, stagnation_counter, next_monitor_time]
+        )
 
         if (
             last_state is None

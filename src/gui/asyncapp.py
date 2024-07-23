@@ -135,6 +135,8 @@ class AsyncApp(App):
                     mode=Mode.DCA
                     if price_level.get("mode") == Mode.DCA.value
                     else Mode.SINGLE,
+                    stagnation_counter=int(price_level["stagnation_counter"]),
+                    next_monitor_time=price_level["next_monitor_time"],
                 )
 
     def __str__(self):
