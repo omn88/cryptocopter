@@ -61,9 +61,6 @@ class PositionHandler:
 
         state = State.OPEN
 
-        self.strategy_logger.info(
-            "INVEST, SENDING POS DATA FOR CONFIG AFTER POSITION OPEN: %s", self.config
-        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
@@ -83,7 +80,9 @@ class PositionHandler:
         self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self, state: State) -> None:
-        self.strategy_logger.info("Start canceling orders")
+        self.strategy_logger.info("Start canceling position")
+
+        self.stagnation_counter = 0
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
@@ -138,16 +137,16 @@ class PositionHandler:
             hours=1
         )
 
+        self.strategy_logger.info(
+            "Stagnation counter reset for system: %s", self.config.system_id
+        )
+
         orders_opened = len(
             [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
         )
 
         orders_filled = len(
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
-        self.strategy_logger.info(
-            "INVEST, SENDING POS DATA FOR CONFIG AFTER ORDER  PARTIALLY FILLED: %s",
-            self.config,
         )
         await self.gui_handler.put(
             PositionData(
@@ -158,7 +157,6 @@ class PositionHandler:
                 state=State.OPEN,
             )
         )
-        self.strategy_logger.info("status: %s", execution_report.current_order_status)
         await self.db.update_order(
             order_id=execution_report.order_id,
             price_level_id=self.config.system_id,
@@ -172,31 +170,31 @@ class PositionHandler:
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
+        self.stagnation_counter = 0
+        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
+            hours=1
+        )
         for order in self.orders:
             if execution_report.order_id == order.order_id:
                 order.status = execution_report.current_order_status
                 order.price = execution_report.price
                 order.quantity = execution_report.quantity
                 order.realized_quantity = execution_report.cumulative_filled_quantity
-                self.strategy_logger.info("Order: %s filled", order.order_id)
+                self.strategy_logger.info(
+                    "Order: %s filled, symbol: %s, price: %s",
+                    order.order_id,
+                    execution_report.symbol,
+                    order.price,
+                )
 
-        self.stagnation_counter = 0
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
-        )
         self.strategy_logger.info(
-            "Reseting stagation counter, current value: %s", self.stagnation_counter
+            "Stagnation counter reset for system: %s", self.config.system_id
         )
         orders_opened = len(
             [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
         )
-
         orders_filled = len(
             [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
-
-        self.strategy_logger.info(
-            "INVEST, SENDING POS DATA FOR CONFIG AFTER ORDER FILLED: %s", self.config
         )
         await self.gui_handler.put(
             PositionData(

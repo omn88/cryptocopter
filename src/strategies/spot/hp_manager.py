@@ -72,7 +72,6 @@ class HpManager:
         self.ticker_update: TickerUpdate = TickerUpdate()
         self.account_position: AccountPosition = AccountPosition()
 
-        self.trigger_orders_price = self.calculate_trigger_orders_price()
         self.transitions = self.get_transitions()
 
     def __str__(self):
@@ -80,7 +79,6 @@ class HpManager:
             f"HpManager(client={self.client}, config={self.config}, "
             f"logger={self.logger}, "
             f"balance={self.balance}, state={self.state}, "
-            f"trigger_orders_price={self.trigger_orders_price}, "
             f"position_handler={self.position_handler})"
         )
 
@@ -219,7 +217,7 @@ class HpManager:
             },
         ]
 
-    def calculate_trigger_orders_price(self):
+    def calculate_trigger_send_orders_price(self):
         return (
             round(
                 self.config.price_low * (1 - (self.config.order_trigger / 100)),
@@ -228,6 +226,19 @@ class HpManager:
             if self.config.side == PositionSide.SHORT
             else round(
                 self.config.price_high * (1 + (self.config.order_trigger / 100)),
+                2,
+            )
+        )
+
+    def calculate_trigger_cancel_orders_price(self):
+        return (
+            round(
+                self.config.price_low * (1 - (2 * self.config.order_trigger / 100)),
+                2,
+            )
+            if self.config.side == PositionSide.SHORT
+            else round(
+                self.config.price_high * (1 + (2 * self.config.order_trigger / 100)),
                 2,
             )
         )
@@ -362,7 +373,8 @@ class HpManager:
         condition = (
             self.state == State.NEW
             and self.config.side == PositionSide.LONG
-            and self.ticker_update.last_price <= self.trigger_orders_price
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_send_orders_price()
         )
         self.logger.debug(
             "Send buy orders: %s, side: %s, state: %s",
@@ -377,7 +389,8 @@ class HpManager:
         condition = (
             self.state == State.STAGNATED
             and self.config.side == PositionSide.LONG
-            and self.ticker_update.last_price <= self.trigger_orders_price
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_send_orders_price()
         )
         self.logger.debug("Resend buy orders: %s, state: %s", condition, self.state)
 
@@ -387,7 +400,8 @@ class HpManager:
         condition = (
             self.state == State.NEW
             and self.config.side == PositionSide.SHORT
-            and self.ticker_update.last_price >= self.trigger_orders_price
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_send_orders_price()
         )
         self.logger.debug(
             "Send sell orders: %s, side: %s, state: %s",
@@ -402,7 +416,8 @@ class HpManager:
         condition = (
             self.state == State.STAGNATED
             and self.config.side == PositionSide.SHORT
-            and self.ticker_update.last_price >= self.trigger_orders_price
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_send_orders_price()
         )
         self.logger.debug("Resend sell orders: %s, state: %s", condition, self.state)
 
@@ -413,7 +428,8 @@ class HpManager:
             self.state == State.OPEN
             and self.position_handler.config.side == PositionSide.LONG
             and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
-            and self.ticker_update.last_price > self.trigger_orders_price
+            and self.ticker_update.last_price
+            > self.calculate_trigger_cancel_orders_price()
         )
         self.logger.debug(
             "Cancel BUY orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
@@ -421,7 +437,7 @@ class HpManager:
             self.position_handler.stagnation_counter,
             STAGNATION_LIMIT,
             self.ticker_update.last_price,
-            self.trigger_orders_price,
+            self.calculate_trigger_cancel_orders_price(),
         )
 
         return condition
@@ -431,7 +447,8 @@ class HpManager:
             self.state == State.OPEN
             and self.position_handler.config.side == PositionSide.SHORT
             and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
-            and self.ticker_update.last_price < self.trigger_orders_price
+            and self.ticker_update.last_price
+            < self.calculate_trigger_cancel_orders_price()
         )
         self.logger.debug(
             "Cancel SELL orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
@@ -439,7 +456,7 @@ class HpManager:
             self.position_handler.stagnation_counter,
             STAGNATION_LIMIT,
             self.ticker_update.last_price,
-            self.trigger_orders_price,
+            self.calculate_trigger_cancel_orders_price(),
         )
 
         return condition
@@ -650,10 +667,22 @@ class HpManager:
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
         self.position_handler.stagnation_counter += 1
-        self.logger.info(
-            "Orders stagnated for one hour, stagnation counter increased to: %s",
-            self.position_handler.stagnation_counter,
-        )
+
+        if self.position_handler.stagnation_counter < STAGNATION_LIMIT:
+            self.logger.info(
+                "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
+                self.config.system_id,
+                self.position_handler.stagnation_counter,
+                STAGNATION_LIMIT,
+            )
+        else:
+            self.logger.info(
+                "[%s]: Stagnation limit reached, current price: %s, order trigger price: %s",
+                self.config.system_id,
+                self.ticker_update.last_price,
+                self.calculate_trigger_send_orders_price(),
+            )
+
         self.position_handler.next_monitor_position_time += timedelta(hours=1)
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
