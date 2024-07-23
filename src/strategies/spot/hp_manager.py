@@ -464,9 +464,8 @@ class HpManager:
     def conditions_for_position_stagnation(self, *args, **kwargs) -> bool:
         date_time_now = datetime.now()
 
-        condition = (
-            self.state == State.OPEN
-            and date_time_now > self.position_handler.next_monitor_position_time
+        condition = self.state == State.OPEN and date_time_now > datetime.strptime(
+            self.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
         )
         self.logger.debug(
             "Handle position stagnation: %s, time now: %s, monitor time: %s",
@@ -695,8 +694,13 @@ class HpManager:
                 self.ticker_update.last_price,
                 self.calculate_trigger_send_orders_price(),
             )
-
-        self.position_handler.next_monitor_position_time += timedelta(hours=1)
+        time_date = datetime.strptime(
+            self.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+        )
+        time_date += timedelta(hours=1)
+        self.position_handler.next_monitor_position_time = time_date.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
         for order in self.position_handler.orders:

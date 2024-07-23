@@ -45,7 +45,9 @@ class PositionHandler:
         self.last_state: Optional[State] = last_state
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []
-        self.next_monitor_position_time: datetime.datetime = datetime.datetime.now()
+        self.next_monitor_position_time: str = datetime.datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     async def open_position(
         self,
@@ -55,9 +57,9 @@ class PositionHandler:
         self.orders = await self.order_handler.create_orders(
             side=side, orders=self.orders, symbol_info=symbol_info
         )
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
-        )
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
         state = State.OPEN
 
@@ -143,10 +145,10 @@ class PositionHandler:
                 self.strategy_logger.info("Order: %s partially filled", order.order_id)
 
         self.stagnation_counter = 0
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
-        )
-        self.db.update_price_level(
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        await self.db.update_price_level(
             config=self.config,
             state=State.OPEN,
             stagnation_counter=self.stagnation_counter,
@@ -187,10 +189,10 @@ class PositionHandler:
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         self.stagnation_counter = 0
-        self.next_monitor_position_time = datetime.datetime.now() + datetime.timedelta(
-            hours=1
-        )
-        self.db.update_price_level(
+        self.next_monitor_position_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        await self.db.update_price_level(
             config=self.config,
             state=State.OPEN,
             stagnation_counter=self.stagnation_counter,

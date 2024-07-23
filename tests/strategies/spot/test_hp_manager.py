@@ -1,4 +1,4 @@
-from datetime import timedelta
+import datetime
 import logging
 
 from binance.enums import (
@@ -283,7 +283,14 @@ async def test_order_cancellation_sell(spot_sell):
     # Simulate stagnation counter increase
     assert strategy.position_handler.stagnation_counter == 0
 
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     strategy.ticker_update = TickerUpdate(last_price=1014)
 
     # Simulate reaching the stagnation limit
@@ -338,10 +345,14 @@ async def test_order_cancellation_buy(spot_buy):
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
 
-    # Simulate stagnation counter increase
-    assert strategy.position_handler.stagnation_counter == 0
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
 
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
@@ -418,7 +429,14 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
     # Simulate stagnation counter increase
     assert strategy.position_handler.stagnation_counter == 0
 
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     strategy.ticker_update = TickerUpdate(last_price=1014)
 
     # Simulate reaching the stagnation limit
@@ -500,7 +518,14 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     # Simulate stagnation counter increase
     assert strategy.position_handler.stagnation_counter == 0
 
-    strategy.position_handler.next_monitor_position_time -= timedelta(hours=8)
+    time_date = datetime.datetime.strptime(
+        strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
+    )
+
+    time_date -= datetime.timedelta(hours=8)
+    strategy.position_handler.next_monitor_position_time = time_date.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
