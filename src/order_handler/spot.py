@@ -31,17 +31,6 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
 
-    # def round_quantity(self, quantity: float) -> float:
-    #     if quantity >= 1:
-    #         return round(quantity, 2)
-
-    #     # Count the number of leading zeros after the decimal point
-    #     str_quantity = f"{quantity:.10f}"
-    #     zeros_after_decimal = len(str_quantity.split(".")[1]) - len(
-    #         str_quantity.split(".")[1].lstrip("0")
-    #     )
-    #     return round(quantity, zeros_after_decimal + 4)
-
     def prepare_orders(
         self,
         price_low: float,
