@@ -37,12 +37,21 @@ class StrategyExecutor:
                 assert isinstance(config[1], StrategyConfig)
                 asyncio.create_task(
                     self.initialize_trading_system(
-                        config=config[1], db=self.db, last_state=config[0]
+                        config=config[1],
+                        db=self.db,
+                        last_state=config[0],
+                        stagnation_counter=config[2],
+                        next_monitor_time=config[3],
                     )
                 )
 
     async def initialize_trading_system(
-        self, config: StrategyConfig, db: Database, last_state: Optional[State]
+        self,
+        config: StrategyConfig,
+        db: Database,
+        last_state: Optional[State],
+        stagnation_counter: int,
+        next_monitor_time: str,
     ) -> None:
         trading_system = TradingSystem(
             client=self.client,
@@ -53,6 +62,11 @@ class StrategyExecutor:
             db=db,
         )
         await trading_system.initialize_strategy(last_state=last_state)
+        assert trading_system.strategy is not None
+        trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
+        trading_system.strategy.position_handler.next_monitor_position_time = (
+            next_monitor_time
+        )
 
         self.id_to_system[config.system_id] = trading_system
         self.logger.debug("Starting trading system for %s", config)
