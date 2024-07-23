@@ -63,6 +63,13 @@ class StrategyExecutor:
         )
         await trading_system.initialize_strategy(last_state=last_state)
         assert trading_system.strategy is not None
+        if stagnation_counter > 0:
+            self.logger.info(
+                "[%s] Assigning stagnation counter: %s, next monitor time: %s",
+                config.system_id,
+                stagnation_counter,
+                next_monitor_time,
+            )
         trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
         trading_system.strategy.position_handler.next_monitor_position_time = (
             next_monitor_time
