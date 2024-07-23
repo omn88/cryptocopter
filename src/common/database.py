@@ -37,10 +37,13 @@ CREATE TABLE IF NOT EXISTS price_levels (
     budget FLOAT NOT NULL,
     state VARCHAR(20) NOT NULL,
     mode VARCHAR(10) NOT NULL,
+    stagnation_counter INT NOT NULL DEFAULT 0,
+    next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 """
 
 CREATE_ORDERS_TABLE = """
@@ -206,7 +209,13 @@ class Database:
                 result = await cur.fetchall()
                 return result
 
-    async def update_price_level(self, config: StrategyConfig, state: State) -> None:
+    async def update_price_level(
+        self,
+        config: StrategyConfig,
+        state: State,
+        stagnation_counter: int,
+        next_monitor_time: str,
+    ) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
@@ -218,8 +227,8 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    open_time, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                    open_time, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                 """
                 await cur.execute(
                     insert_query,
@@ -235,6 +244,8 @@ class Database:
                         config.budget,
                         state.value,
                         version_timestamp,
+                        stagnation_counter,
+                        next_monitor_time,
                     ),
                 )
                 await conn.commit()

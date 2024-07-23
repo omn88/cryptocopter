@@ -529,7 +529,12 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(self.config, state=self.state)
+        await self.db.update_price_level(
+            self.config,
+            state=self.state,
+            stagnation_counter=self.position_handler.stagnation_counter,
+            next_monitor_time=self.position_handler.next_monitor_position_time,
+        )
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -590,7 +595,12 @@ class HpManager:
                 order_id=order.order_id,
                 price_level_id=self.config.system_id,
             )
-        await self.db.update_price_level(config=self.config, state=self.state)
+        await self.db.update_price_level(
+            config=self.config,
+            state=self.state,
+            stagnation_counter=self.position_handler.stagnation_counter,
+            next_monitor_time=self.position_handler.next_monitor_position_time,
+        )
 
         orders_total = len(self.position_handler.orders)
         orders_filled = len(
@@ -662,7 +672,10 @@ class HpManager:
         )
 
         await self.position_handler.db.update_price_level(
-            config=self.config, state=self.state
+            config=self.config,
+            state=self.state,
+            stagnation_counter=self.position_handler.stagnation_counter,
+            next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
