@@ -4,7 +4,7 @@ from typing import Dict, List
 import uuid
 import aiomysql
 
-from src.common.identifiers.common import Order
+from src.common.identifiers.spot import Order
 from src.common.identifiers.spot import State, StrategyConfig
 
 logger = logging.getLogger("database")

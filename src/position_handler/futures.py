@@ -5,7 +5,6 @@ from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.common.identifiers.common import (
     BinanceClient,
-    Order,
     PositionSide,
 )
 from src.common.identifiers.futures import (
@@ -15,6 +14,7 @@ from src.common.identifiers.futures import (
     PositionStatus,
     StrategyConfig,
     SignalUpdate,
+    Order,
 )
 from src.gui.gui_handler.futures import GuiHandler
 from src.order_handler.futures import OrderHandler

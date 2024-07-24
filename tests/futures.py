@@ -8,13 +8,13 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.common import signal_to_state
-from src.common.identifiers.common import Order
 from src.common.identifiers.futures import (
     Position,
     Signal,
     SignalUpdate,
     State,
     OrderUpdate,
+    Order,
 )
 
 

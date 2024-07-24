@@ -21,10 +21,10 @@ from src.common.identifiers.spot import (
     State,
     StrategyConfig,
     TickerUpdate,
+    Order,
 )
 from src.common.identifiers.common import (
     BinanceClient,
-    Order,
     PositionSide,
 )
 from src.gui.identifiers.spot import PositionData
@@ -503,6 +503,8 @@ class HpManager:
                     quantity_stable=self.config.symbol_info.adjust_price(
                         (order.quantity - order.realized_quantity) * order.price
                     ),
+                    precision=self.config.symbol_info.precision,
+                    price_precision=self.config.symbol_info.price_precision,
                 )
                 new_orders.append(order)
                 self.logger.info("New order prepared: %s", order)
@@ -573,6 +575,8 @@ class HpManager:
                     quantity_stable=self.config.symbol_info.adjust_price(
                         (order.quantity - order.realized_quantity) * order.price
                     ),
+                    precision=self.config.symbol_info.precision,
+                    price_precision=self.config.symbol_info.price_precision,
                 )
                 new_orders.append(order)
                 self.logger.info("New order prepared: %s", order)

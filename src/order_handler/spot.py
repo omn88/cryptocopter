@@ -16,7 +16,8 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
-from src.common.identifiers.common import BinanceClient, Mode, Order, PositionSide
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
+from src.common.identifiers.spot import Order
 from src.common.symbol_info import SymbolInfo
 
 
@@ -89,6 +90,8 @@ class OrderHandler:
                             quantity_stable=symbol_info.adjust_price(
                                 order_quantity_stable
                             ),
+                            precision=symbol_info.precision,
+                            price_precision=symbol_info.price_precision,
                         )
                     )
 
