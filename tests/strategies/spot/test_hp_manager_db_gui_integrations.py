@@ -360,6 +360,7 @@ async def test_stagnation_buy_position(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -447,6 +448,7 @@ async def test_stagnation_sell_position(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -547,6 +549,7 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -652,6 +655,7 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -773,6 +777,7 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     await process_ticker(strategy=strategy, last_price=1429)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id
@@ -894,6 +899,7 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     await process_ticker(strategy=strategy, last_price=979)
 
     assert strategy.state == State.STAGNATED
+    assert strategy.position_handler.stagnation_counter == 0
 
     orders = await strategy.db.fetch_orders_for_price_level(
         price_level_id=strategy.config.system_id

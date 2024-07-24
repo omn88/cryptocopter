@@ -496,9 +496,11 @@ class HpManager:
         for order in self.position_handler.orders:
             if order.status != ORDER_STATUS_FILLED:
                 order = Order(
-                    quantity=order.quantity - order.realized_quantity,
-                    price=order.price,
-                    quantity_stable=self.position_handler.order_handler.round_quantity(
+                    quantity=self.config.symbol_info.adjust_quantity(
+                        order.quantity - order.realized_quantity
+                    ),
+                    price=self.config.symbol_info.adjust_price(order.price),
+                    quantity_stable=self.config.symbol_info.adjust_price(
                         (order.quantity - order.realized_quantity) * order.price
                     ),
                 )
@@ -564,9 +566,11 @@ class HpManager:
         for order in self.position_handler.orders:
             if order.status != ORDER_STATUS_FILLED:
                 order = Order(
-                    quantity=order.quantity - order.realized_quantity,
-                    price=order.price,
-                    quantity_stable=self.position_handler.order_handler.round_quantity(
+                    quantity=self.config.symbol_info.adjust_quantity(
+                        order.quantity - order.realized_quantity
+                    ),
+                    price=self.config.symbol_info.adjust_price(order.price),
+                    quantity_stable=self.config.symbol_info.adjust_price(
                         (order.quantity - order.realized_quantity) * order.price
                     ),
                 )

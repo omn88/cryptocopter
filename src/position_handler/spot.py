@@ -41,6 +41,7 @@ class PositionHandler:
             min_notional=self.config.symbol_info.min_notional,
             mode=self.config.mode,
             side=self.config.side,
+            symbol_info=self.config.symbol_info,
         )
         self.last_state: Optional[State] = last_state
         self.stagnation_counter: int = 0
