@@ -1,5 +1,4 @@
 import asyncio
-from datetime import timedelta
 import datetime
 import logging
 
@@ -14,7 +13,7 @@ from binance.enums import (
 import pytest
 
 from src.common.database import Database
-from src.common.identifiers.common import Order, PositionSide
+from src.common.identifiers.common import PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager, STAGNATION_LIMIT
@@ -23,6 +22,7 @@ from src.common.identifiers.spot import (
     StrategyConfig,
     TickerUpdate,
     State,
+    Order,
 )
 from tests.spot import get_cancel_order, get_new_orders
 

@@ -5,8 +5,8 @@ from typing import List, Optional
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient, Order, PositionSide
-from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig
+from src.common.identifiers.common import BinanceClient, PositionSide
+from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig, Order
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler

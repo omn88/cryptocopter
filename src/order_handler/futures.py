@@ -19,8 +19,8 @@ from src.common.identifiers.futures import (
     Position,
     PositionMode,
 )
-from src.gui.gui_handler.futures import GuiHandler
-from src.common.identifiers.common import BinanceClient, Order, PositionSide
+from src.gui.gui_handler.futures import GuiHandler, Order
+from src.common.identifiers.common import BinanceClient, PositionSide
 
 
 class OrderHandler:

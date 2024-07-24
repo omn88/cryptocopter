@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import List, NamedTuple, Optional, Union
-
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from src.common.identifiers.common import (
     Mode,
     PositionSide,
@@ -37,6 +37,30 @@ class EventName(Enum):
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
+
+
+@dataclass
+class Order:
+    quantity: float
+    precision: int
+    price_precision: int
+    price: float = 0
+    quantity_stable: float = 0
+    order_id: int = 0
+    realized_quantity: float = 0
+    open_time = None
+    time_in_force: str = TIME_IN_FORCE_GTC
+    status: str = "PREPARED"
+    order_type: str = ORDER_TYPE_LIMIT
+
+    def __repr__(self) -> str:
+        return (
+            f"Order(price={self.price:.{self.price_precision}f}, quantity={self.quantity:.{self.precision}f}, "
+            f"quantity_stable={self.quantity_stable:.{self.price_precision}f}, order_id={self.order_id}, "
+            f"realized_quantity={self.realized_quantity:.{self.precision}f}, open_time={self.open_time}, "
+            f"time_in_force={self.time_in_force}, status={self.status}, "
+            f"order_type={self.order_type})"
+        )
 
 
 @dataclass

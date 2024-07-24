@@ -5,9 +5,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import NamedTuple, List, Union, Dict
 
-from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT
+from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from src.common.identifiers.common import (
-    Order,
     PositionSide,
     SentinelUpdate,
 )
@@ -53,6 +52,28 @@ class KlineUpdate(NamedTuple):
             f"high_price={self.high_price}, low_price={self.low_price}, "
             f"close_price={self.close_price}, volume={self.volume}, "
             f"open_interest={self.open_interest})"
+        )
+
+
+@dataclass
+class Order:
+    quantity: float
+    price: float = 0
+    quantity_stable: float = 0
+    order_id: int = 0
+    realized_quantity: float = 0
+    open_time = None
+    time_in_force: str = TIME_IN_FORCE_GTC
+    status: str = "PREPARED"
+    order_type: str = ORDER_TYPE_LIMIT
+
+    def __repr__(self) -> str:
+        return (
+            f"Order(price={self.price}, quantity={self.quantity}, "
+            f"quantity_stable={self.quantity_stable}, order_id={self.order_id}, "
+            f"realized_quantity={self.realized_quantity}, open_time={self.open_time}, "
+            f"time_in_force={self.time_in_force}, status={self.status}, "
+            f"order_type={self.order_type})"
         )
 
 
