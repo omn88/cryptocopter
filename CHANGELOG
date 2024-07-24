@@ -25,6 +25,7 @@
 - Get open time from the OrderUpdate? updateTime DONE
 
 ### FIXES
+- Assured that stagnation counter is resetted after changing state to stagnated.
 - Replace round quantity method with proper methods from SymbolInfo class
 - RESTORATION IMPLEMENTED PARTIALLY, AFTER RETRIEVING LATEST STATUS FROM THE DB, IT HAS TO BE COMPARED WITH LATEST DATA TAKEN FROM THE EXCHANGE. DONE
 - When recovering, the MODE is missing in GUI! ADDED

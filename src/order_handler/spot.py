@@ -41,17 +41,20 @@ class OrderHandler:
         side: PositionSide,
         symbol_info: SymbolInfo,
     ) -> List[Order]:
-        orders = []
-
-        if mode == Mode.SINGLE:
+        def prepare_single_order():
             order_price = price_high if side == PositionSide.LONG else price_low
             orders.append(
                 Order(
-                    quantity=round(budget / order_price, 2),
-                    price=order_price,
-                    quantity_stable=round(budget, 2),
+                    quantity=symbol_info.adjust_quantity(budget / order_price),
+                    price=symbol_info.adjust_price(order_price),
+                    quantity_stable=symbol_info.adjust_price(budget),
                 )
             )
+
+        orders = []
+
+        if mode == Mode.SINGLE:
+            prepare_single_order()
 
         if mode == Mode.DCA:
             num_orders = 3
@@ -66,14 +69,7 @@ class OrderHandler:
                 num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
             if num_orders == 1:
-                order_price = price_high if side == PositionSide.LONG else price_low
-                orders.append(
-                    Order(
-                        quantity=symbol_info.adjust_quantity(budget / order_price),
-                        price=round(order_price, symbol_info.price_precision),
-                        quantity_stable=round(budget, symbol_info.price_precision),
-                    )
-                )
+                prepare_single_order()
             else:
                 price_increment = (price_high - price_low) / (num_orders - 1)
 
@@ -89,9 +85,9 @@ class OrderHandler:
                             quantity=symbol_info.adjust_quantity(
                                 order_quantity_stable / order_price
                             ),
-                            price=round(order_price, symbol_info.price_precision),
-                            quantity_stable=round(
-                                order_quantity_stable, symbol_info.price_precision
+                            price=symbol_info.adjust_price(order_price),
+                            quantity_stable=symbol_info.adjust_price(
+                                order_quantity_stable
                             ),
                         )
                     )
@@ -99,21 +95,13 @@ class OrderHandler:
         self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
         return orders
 
-    def format_price(self, price, precision):
-        # Step 1: Round the float to the desired precision
-        rounded_price = round(price, precision)
-        # Step 2: Convert the rounded float to a string with the specified number of decimal places
-        price_str = f"{rounded_price:.{precision}f}"
-
-        return float(price_str)
-
     async def create_order(
         self, side: PositionSide, order: Order, symbol_info: SymbolInfo
     ) -> Order:
         last_exception = None
         for _ in range(self.MAX_RETRIES):
             try:
-                price = self.format_price(order.price, symbol_info.price_precision)
+                price = symbol_info.adjust_price(order.price)
                 quantity = symbol_info.adjust_quantity(order.quantity)
                 symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(

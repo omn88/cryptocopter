@@ -499,10 +499,9 @@ class HpManager:
                     quantity=self.config.symbol_info.adjust_quantity(
                         order.quantity - order.realized_quantity
                     ),
-                    price=round(order.price, self.config.symbol_info.price_precision),
-                    quantity_stable=round(
-                        (order.quantity - order.realized_quantity) * order.price,
-                        self.config.symbol_info.price_precision,
+                    price=self.config.symbol_info.adjust_price(order.price),
+                    quantity_stable=self.config.symbol_info.adjust_price(
+                        (order.quantity - order.realized_quantity) * order.price
                     ),
                 )
                 new_orders.append(order)
@@ -570,10 +569,9 @@ class HpManager:
                     quantity=self.config.symbol_info.adjust_quantity(
                         order.quantity - order.realized_quantity
                     ),
-                    price=round(order.price, self.config.symbol_info.price_precision),
-                    quantity_stable=round(
-                        (order.quantity - order.realized_quantity) * order.price,
-                        self.config.symbol_info.price_precision,
+                    price=self.config.symbol_info.adjust_price(order.price),
+                    quantity_stable=self.config.symbol_info.adjust_price(
+                        (order.quantity - order.realized_quantity) * order.price
                     ),
                 )
                 new_orders.append(order)
