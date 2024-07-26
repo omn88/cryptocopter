@@ -1,7 +1,5 @@
 import asyncio
-import csv
 from typing import Dict, List, Optional
-import uuid
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient
