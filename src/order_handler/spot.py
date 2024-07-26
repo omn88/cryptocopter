@@ -48,7 +48,9 @@ class OrderHandler:
                 Order(
                     quantity=symbol_info.adjust_quantity(budget / order_price),
                     price=symbol_info.adjust_price(order_price),
-                    quantity_stable=symbol_info.adjust_price(budget),
+                    quantity_stable=budget,
+                    precision=symbol_info.precision,
+                    price_precision=symbol_info.price_precision,
                 )
             )
 
@@ -87,9 +89,7 @@ class OrderHandler:
                                 order_quantity_stable / order_price
                             ),
                             price=symbol_info.adjust_price(order_price),
-                            quantity_stable=symbol_info.adjust_price(
-                                order_quantity_stable
-                            ),
+                            quantity_stable=round(order_quantity_stable, 2),
                             precision=symbol_info.precision,
                             price_precision=symbol_info.price_precision,
                         )
@@ -122,7 +122,8 @@ class OrderHandler:
             ) as exception:
                 last_exception = exception
                 self.strategy_logger.error(
-                    "Failed to create spot order due to %s: %s",
+                    "Failed to create spot order: %s due to %s: %s",
+                    order,
                     type(exception).__name__,
                     exception,
                 )

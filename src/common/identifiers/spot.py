@@ -39,6 +39,16 @@ class EventName(Enum):
     TICKER = "Ticker"
 
 
+class CsvConfig(NamedTuple):
+    symbol: str
+    side: str
+    price_low: float
+    price_high: float
+    budget: float
+    order_trigger: float
+    mode: str
+
+
 @dataclass
 class Order:
     quantity: float

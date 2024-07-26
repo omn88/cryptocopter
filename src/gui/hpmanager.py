@@ -1,4 +1,5 @@
 import asyncio
+import csv
 from datetime import datetime
 from typing import Dict, List, Optional
 import uuid
@@ -15,6 +16,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     AccountPosition,
+    CsvConfig,
     Event,
     EventName,
     State,
@@ -23,6 +25,7 @@ from src.common.identifiers.spot import (
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.gui.searchable_drop_down import SearchableDropDown
+from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
 
 
@@ -38,6 +41,7 @@ class HpManager(BoxLayout):
     archive_filter = StringProperty("All")
 
     log_display = ObjectProperty(None)
+    file_name_input = ObjectProperty(None)
     symbols = ListProperty()
 
     def __init__(
@@ -203,6 +207,108 @@ class HpManager(BoxLayout):
     async def remove_record(self, system_id) -> None:
         # Send a command to the strategy executor to stop the trading process
         await self.strategy_executor.remove_record(system_id=system_id)
+
+    def save_config(self) -> None:
+        file_name = self.file_name_input.text.strip()
+        if not file_name:
+            # Provide feedback to the user if the file name is empty
+            print("Please enter a file name.")
+            return
+
+        config_data = self.get_current_configuration()
+        with open(f"{file_name}.csv", "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            # Write the headers
+            writer.writerow(
+                [
+                    "Symbol",
+                    "Side",
+                    "Price Low",
+                    "Price High",
+                    "Budget",
+                    "Order Trigger",
+                    "Mode",
+                ]
+            )  # Adjust according to your actual parameters
+            # Write the data
+            writer.writerows(
+                [
+                    [
+                        cd.symbol,
+                        cd.side,
+                        cd.price_low,
+                        cd.price_high,
+                        cd.budget,
+                        cd.order_trigger,
+                        cd.mode,
+                    ]
+                    for cd in config_data
+                ]
+            )
+
+    def load_config(self) -> None:
+        file_name = self.file_name_input.text.strip()
+        if not file_name:
+            # Provide feedback to the user if the file name is empty
+            print("Please enter a file name.")
+            return
+
+        try:
+            with open(f"{file_name}.csv", "r", encoding="utf-8") as csvfile:
+                reader = csv.reader(csvfile)
+                headers = next(reader)  # Skip the headers
+                config_data = list(reader)
+                self.apply_configuration(
+                    [
+                        CsvConfig(
+                            symbol=cd[0],
+                            side=cd[1],
+                            price_low=float(cd[2]),
+                            price_high=float(cd[3]),
+                            budget=float(cd[4]),
+                            order_trigger=float(cd[5]),
+                            mode=cd[6],
+                        )
+                        for cd in config_data
+                    ]
+                )
+        except FileNotFoundError:
+            # Provide feedback to the user if the file is not found
+            print(f"File {file_name}.csv not found.")
+
+    def get_current_configuration(self) -> List[CsvConfig]:
+        hp_config = []
+        for item in self.strategy_executor.id_to_system:
+            assert isinstance(item, TradingSystem)
+            hp_config.append(
+                CsvConfig(
+                    symbol=item.config.symbol_info.symbol,
+                    side=item.config.side.value,
+                    price_low=item.config.price_low,
+                    price_high=item.config.price_high,
+                    budget=item.config.budget,
+                    order_trigger=item.config.order_trigger,
+                    mode=item.config.mode.value,
+                )
+            )
+        return hp_config
+
+    def apply_configuration(self, config_data: List[CsvConfig]) -> None:
+        for data in config_data:
+            asyncio.create_task(
+                self.add_record(
+                    open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    symbol=data.symbol,
+                    price_low=data.price_low,
+                    price_high=data.price_high,
+                    side=PositionSide.LONG
+                    if data.side == PositionSide.LONG.value
+                    else PositionSide.SHORT,
+                    budget=data.budget,
+                    order_trigger=data.order_trigger,
+                    mode=Mode.DCA if data.mode == Mode.DCA.value else Mode.SINGLE,
+                )
+            )
 
     async def update_ui(self) -> None:
         while True:

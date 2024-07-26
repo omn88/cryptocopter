@@ -92,6 +92,21 @@
                     size_hint_y: None
                     height: '30dp'
 
+                # New TextInput for file name
+                TextInput:
+                    id: file_name_input
+                    hint_text: 'Enter config file name'
+
+                # New Save Button
+                Button:
+                    text: 'Save Config'
+                    on_press: root.save_config()
+
+                # New Load Button
+                Button:
+                    text: 'Load Config'
+                    on_press: root.load_config()
+
     # Bottom section with tabbed panels for records
     TabbedPanel:
         do_default_tab: False
