@@ -207,6 +207,7 @@ class Database:
                     price_level_id,
                 )
                 result = await cur.fetchall()
+
                 return result
 
     async def update_price_level(
