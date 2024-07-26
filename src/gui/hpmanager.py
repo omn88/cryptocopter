@@ -1,6 +1,7 @@
 import asyncio
 import csv
 from datetime import datetime
+import os
 from typing import Dict, List, Optional
 import uuid
 from binance import BinanceSocketManager
@@ -43,6 +44,8 @@ class HpManager(BoxLayout):
     log_display = ObjectProperty(None)
     file_name_input = ObjectProperty(None)
     symbols = ListProperty()
+
+    config_dir = os.path.join('src', 'strategies', 'spot')
 
     def __init__(
         self,
@@ -215,8 +218,15 @@ class HpManager(BoxLayout):
             print("Please enter a file name.")
             return
 
+        # Ensure the directory exists
+        os.makedirs(self.config_dir, exist_ok=True)
+
+        file_path = os.path.join(self.config_dir, f'{file_name}.csv')
+
         config_data = self.get_current_configuration()
-        with open(f"{file_name}.csv", "w", newline="", encoding="utf-8") as csvfile:
+
+        self.strategy_logger.info("Trying to write to: %s", file_path)
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             # Write the headers
             writer.writerow(
@@ -253,8 +263,10 @@ class HpManager(BoxLayout):
             print("Please enter a file name.")
             return
 
+        file_path = os.path.join(self.config_dir, f'{file_name}.csv')
+
         try:
-            with open(f"{file_name}.csv", "r", encoding="utf-8") as csvfile:
+            with open(file_path, 'r', encoding='utf-8') as csvfile:
                 reader = csv.reader(csvfile)
                 headers = next(reader)  # Skip the headers
                 config_data = list(reader)
