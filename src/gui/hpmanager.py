@@ -45,7 +45,7 @@ class HpManager(BoxLayout):
     file_name_input = ObjectProperty(None)
     symbols = ListProperty()
 
-    config_dir = os.path.join('src', 'strategies', 'spot')
+    config_dir = os.path.join("src", "strategies", "spot")
 
     def __init__(
         self,
@@ -221,7 +221,7 @@ class HpManager(BoxLayout):
         # Ensure the directory exists
         os.makedirs(self.config_dir, exist_ok=True)
 
-        file_path = os.path.join(self.config_dir, f'{file_name}.csv')
+        file_path = os.path.join(self.config_dir, f"{file_name}.csv")
 
         config_data = self.get_current_configuration()
 
@@ -263,10 +263,10 @@ class HpManager(BoxLayout):
             print("Please enter a file name.")
             return
 
-        file_path = os.path.join(self.config_dir, f'{file_name}.csv')
+        file_path = os.path.join(self.config_dir, f"{file_name}.csv")
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as csvfile:
+            with open(file_path, "r", encoding="utf-8") as csvfile:
                 reader = csv.reader(csvfile)
                 headers = next(reader)  # Skip the headers
                 config_data = list(reader)
