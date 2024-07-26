@@ -39,6 +39,16 @@ class EventName(Enum):
     TICKER = "Ticker"
 
 
+class CsvConfig(NamedTuple):
+    symbol: str
+    side: str
+    price_low: float
+    price_high: float
+    budget: float
+    order_trigger: float
+    mode: str
+
+
 @dataclass
 class Order:
     quantity: float
@@ -56,7 +66,7 @@ class Order:
     def __repr__(self) -> str:
         return (
             f"Order(price={self.price:.{self.price_precision}f}, quantity={self.quantity:.{self.precision}f}, "
-            f"quantity_stable={self.quantity_stable:.{self.price_precision}f}, order_id={self.order_id}, "
+            f"quantity_stable={self.quantity_stable}, order_id={self.order_id}, "
             f"realized_quantity={self.realized_quantity:.{self.precision}f}, open_time={self.open_time}, "
             f"time_in_force={self.time_in_force}, status={self.status}, "
             f"order_type={self.order_type})"

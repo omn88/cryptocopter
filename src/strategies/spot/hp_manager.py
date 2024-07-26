@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
+from typing import Dict, List
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -500,8 +501,8 @@ class HpManager:
                         order.quantity - order.realized_quantity
                     ),
                     price=self.config.symbol_info.adjust_price(order.price),
-                    quantity_stable=self.config.symbol_info.adjust_price(
-                        (order.quantity - order.realized_quantity) * order.price
+                    quantity_stable=round(
+                        (order.quantity - order.realized_quantity) * order.price, 2
                     ),
                     precision=self.config.symbol_info.precision,
                     price_precision=self.config.symbol_info.price_precision,
@@ -572,8 +573,8 @@ class HpManager:
                         order.quantity - order.realized_quantity
                     ),
                     price=self.config.symbol_info.adjust_price(order.price),
-                    quantity_stable=self.config.symbol_info.adjust_price(
-                        (order.quantity - order.realized_quantity) * order.price
+                    quantity_stable=round(
+                        (order.quantity - order.realized_quantity) * order.price, 2
                     ),
                     precision=self.config.symbol_info.precision,
                     price_precision=self.config.symbol_info.price_precision,
@@ -769,7 +770,7 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-    async def handle_recovery_to_new(self, *args, **kwargs):
+    async def handle_recovery_to_new(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
 
         await self.position_handler.gui_handler.put(
@@ -783,40 +784,61 @@ class HpManager:
             )
         )
 
-    async def handle_recovery_to_open(self, *args, **kwargs):
+    async def handle_recovery_to_open(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to open")
 
-        orders_from_db = await self.db.fetch_orders_for_price_level(
+        orders_from_db: List[Dict] = await self.db.fetch_orders_for_price_level(
             price_level_id=self.config.system_id
         )
         self.logger.debug(
-            "Fetched orders for price level: %s: \n%s",
+            "Fetched orders from DB for price level: %s: \n%s",
             self.config.system_id,
             orders_from_db,
         )
 
-        updated_orders = [
-            await self.position_handler.order_handler.update_order_status(
-                symbol=self.config.symbol_info.symbol, order=order
+        orders = [
+            Order(
+                quantity=float(order["quantity"]),
+                precision=0,
+                price_precision=0,
+                price=float(order["price"]),
+                order_id=int(order["order_id"]),
             )
             for order in orders_from_db
         ]
 
         for order in self.position_handler.orders:
-            for updated_order in updated_orders:
-                if order.price == updated_order.get("price"):
-                    order.order_id = updated_order.get("order_id")
-                    updated_realized_quantity = updated_order.get("realized_quantity")
+            for db_order in orders:
+                if order.price == db_order.price:
+                    order.realized_quantity = db_order.realized_quantity
+                    order.order_id = db_order.order_id
+                    order.open_time = db_order.open_time
+                    order.status = db_order.status
 
-                    if order.realized_quantity != updated_realized_quantity:
+        updated_orders = [
+            await self.position_handler.order_handler.update_order_status(
+                symbol=self.config.symbol_info.symbol, order=order
+            )
+            for order in orders
+        ]
+        self.logger.debug(
+            "Fetched orders from Binance for price level: %s: \n%s",
+            self.config.system_id,
+            updated_orders,
+        )
+
+        for order in self.position_handler.orders:
+            for updated_order in updated_orders:
+                if order.order_id == updated_order.order_id:
+                    if order.realized_quantity != updated_order.realized_quantity:
                         self.logger.info(
                             "Order quantity has changed during outage, old: %s, new: %s",
                             order.realized_quantity,
-                            updated_realized_quantity,
+                            updated_order.realized_quantity,
                         )
 
-                        order.realized_quantity = updated_realized_quantity
-                        order.status = updated_order.get("status")
+                        order.realized_quantity = updated_order.realized_quantity
+                        order.status = updated_order.status
 
                         await self.db.update_order(
                             price=order.price,
@@ -869,23 +891,34 @@ class HpManager:
             )
         )
 
-    async def handle_recovery_to_stagnated(self, *args, **kwargs):
+    async def handle_recovery_to_stagnated(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to stagnated")
 
-        orders = await self.db.fetch_orders_for_price_level(
+        orders_from_db = await self.db.fetch_orders_for_price_level(
             price_level_id=self.config.system_id
         )
-
         self.logger.debug(
-            "Fetched orders for price level: %s: \n%s", self.config.system_id, orders
+            "Fetched orders for price level: %s: \n%s",
+            self.config.system_id,
+            orders_from_db,
         )
+        orders = [
+            Order(
+                quantity=float(order["quantity"]),
+                precision=0,
+                price_precision=0,
+                price=float(order["price"]),
+                order_id=int(order["order_id"]),
+            )
+            for order in orders_from_db
+        ]
 
         for order in self.position_handler.orders:
             for fetched_order in orders:
-                if order.price == fetched_order.get("price"):
-                    order.order_id = fetched_order.get("order_id")
-                    order.quantity -= fetched_order.get("realized_quantity")
-                    order.status = fetched_order.get("status")
+                if order.price == fetched_order.price:
+                    order.order_id = fetched_order.order_id
+                    order.realized_quantity = fetched_order.realized_quantity
+                    order.status = fetched_order.status
 
         orders_opened = len(
             [
@@ -911,7 +944,7 @@ class HpManager:
             )
         )
 
-    async def allow_messages(self, *args, **kwargs):
+    async def allow_messages(self, *args, **kwargs) -> None:
         self.logger.info(
             "Ticker update from allow messages method: %s",
             self.ticker_update.last_price,

@@ -32,7 +32,7 @@ class SymbolInfo:
         return round(max(self.min_qty, min(quantity, self.max_qty)), self.precision)
 
     def adjust_price(self, price):
-        return round(max(self.min_notional, price), self.price_precision)
+        return round(price, self.price_precision)
 
     def validate_order(self, price, quantity):
         notional = price * quantity

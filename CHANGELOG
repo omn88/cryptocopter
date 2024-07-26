@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- Input for filename + buttons to load or save the hp configuration.
 - Stagnation counter and next monitor time variables are added to the price level table and maintained during the restoration.
 - Add budget for strategy -> new feature which will remove previous "automation" so also the mode DCA/FULL has to be refactored, aligned to new reality.
 - Add datetime in the UI DONE
