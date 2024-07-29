@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- Handle no fund available scenario by adding balance related data to transition condition.
 - Input for filename + buttons to load or save the hp configuration.
 - Stagnation counter and next monitor time variables are added to the price level table and maintained during the restoration.
 - Add budget for strategy -> new feature which will remove previous "automation" so also the mode DCA/FULL has to be refactored, aligned to new reality.

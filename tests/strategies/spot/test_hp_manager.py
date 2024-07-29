@@ -564,10 +564,6 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     logger.info("All valid orders reopened.")
 
 
-
-
-
-
 async def test_default_scenario_buy_with_low_budget(spot_buy):
     spot_buy.strategy.client.create_order.side_effect = get_new_orders(
         price_low=spot_buy.strategy.config.price_low,
@@ -610,7 +606,6 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
     await strategy.process_ticker()
     assert strategy.state == State.NEW
 
-
     strategy.balance = 10000
     logger.info(
         "After balance is enough for sending orders: %s, budget: %s",
@@ -620,7 +615,6 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
     strategy.ticker_update = TickerUpdate(last_price=last_price)
     await strategy.process_ticker()
     assert strategy.state == State.OPEN
-
 
     assert all(
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
@@ -720,6 +714,7 @@ async def test_default_scenario_sell_with_low_budget(spot_sell):
 
     assert strategy.state == State.CLOSED
 
+
 async def test_order_reopen_with_filled_orders_low_budget_sell(spot_sell):
     spot_sell.strategy.client.create_order.side_effect = get_new_orders(
         price_low=spot_sell.strategy.config.price_low,
@@ -794,7 +789,11 @@ async def test_order_reopen_with_filled_orders_low_budget_sell(spot_sell):
 
     last_price = 1000
     strategy.balance = 30
-    logger.info("Ticker inside: %s, but do not reopen orders due to low balance: %s", last_price, strategy.balance)
+    logger.info(
+        "Ticker inside: %s, but do not reopen orders due to low balance: %s",
+        last_price,
+        strategy.balance,
+    )
 
     strategy.ticker_update = TickerUpdate(last_price=last_price)
     await strategy.process_ticker()
@@ -803,7 +802,11 @@ async def test_order_reopen_with_filled_orders_low_budget_sell(spot_sell):
 
     strategy.balance = 30000
     await strategy.process_ticker()
-    logger.info("Ticker inside: %s, reopen orders due to sufficient balance: %s", last_price, strategy.balance)
+    logger.info(
+        "Ticker inside: %s, reopen orders due to sufficient balance: %s",
+        last_price,
+        strategy.balance,
+    )
     assert strategy.state == State.OPEN
 
     assert all(
@@ -891,7 +894,11 @@ async def test_order_reopen_with_filled_orders_low_budget_buy(spot_buy):
 
     strategy.balance = 30
     last_price = 1400
-    logger.info("Ticker inside: %s, but do not reopen orders due to low balance: %s", last_price, strategy.balance)
+    logger.info(
+        "Ticker inside: %s, but do not reopen orders due to low balance: %s",
+        last_price,
+        strategy.balance,
+    )
 
     strategy.ticker_update = TickerUpdate(last_price=last_price)
     await strategy.process_ticker()
@@ -900,7 +907,11 @@ async def test_order_reopen_with_filled_orders_low_budget_buy(spot_buy):
 
     strategy.balance = 30000
     last_price = 1400
-    logger.info("Ticker inside: %s, reopen orders due to sufficient balance: %s", last_price, strategy.balance)
+    logger.info(
+        "Ticker inside: %s, reopen orders due to sufficient balance: %s",
+        last_price,
+        strategy.balance,
+    )
 
     strategy.ticker_update = TickerUpdate(last_price=last_price)
     await strategy.process_ticker()
