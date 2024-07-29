@@ -785,6 +785,9 @@ class HpManager:
                 # )
 
     async def handle_account(self, *args, **kwargs):
+        for balance in self.account_position.balances:
+            if balance.asset == "USDT":
+                self.balance = round(balance.free, 2)
         self.logger.debug("Account update: %s", self.account_position)
 
     async def handle_order_filled(self, *args, **kwargs):
