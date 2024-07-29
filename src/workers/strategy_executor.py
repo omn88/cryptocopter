@@ -14,11 +14,13 @@ class StrategyExecutor:
         logger: StrategyLogger,
         gui_handler: asyncio.Queue,
         db: Database,
+        usdt_balance: float
     ):
         self.client = client
         self.logger = logger
         self.gui_handler = gui_handler
         self.db = db
+        self.usdt_balance = usdt_balance
         self.config_queue: asyncio.Queue = asyncio.Queue()
         self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
 
@@ -42,6 +44,7 @@ class StrategyExecutor:
                         last_state=config[0],
                         stagnation_counter=config[2],
                         next_monitor_time=config[3],
+                        usdt_balance=self.usdt_balance
                     )
                 )
 
@@ -52,6 +55,7 @@ class StrategyExecutor:
         last_state: Optional[State],
         stagnation_counter: int,
         next_monitor_time: str,
+        usdt_balance: float
     ) -> None:
         trading_system = TradingSystem(
             client=self.client,

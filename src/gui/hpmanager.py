@@ -53,6 +53,7 @@ class HpManager(BoxLayout):
         db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
+        usdt_balance: float,
         symbols_info: Dict[str, SymbolInfo],
         **kwargs,
     ):
@@ -64,6 +65,7 @@ class HpManager(BoxLayout):
         self.gui_handler: asyncio.Queue = asyncio.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
+        self.usdt_balance = usdt_balance
         self.strategy_executor = StrategyExecutor(
             client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
         )

@@ -34,18 +34,17 @@ class TradingSystem:
         self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
-        self.balance = 0
         self.state_machine: Optional[TradingStateMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize_strategy(self, last_state: Optional[State]):
+    async def initialize_strategy(self, last_state: Optional[State], usdt_balance: float):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
             gui_handler=self.gui_handler,
             logger=self.strategy_logger,
             config=self.config,
-            balance=self.balance,
+            balance=usdt_balance,
             db=self.db,
         )
 
