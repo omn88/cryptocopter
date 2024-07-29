@@ -412,6 +412,7 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
         current_order_status=ORDER_STATUS_FILLED,
         order_id=445860,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
+        quantity=strategy.position_handler.orders[0].quantity,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -499,8 +500,11 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=445862,
+        order_id=445860,
         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
+        quantity=strategy.position_handler.orders[0].quantity,
+        symbol=strategy.config.symbol_info.symbol,
+        price=strategy.position_handler.orders[0].price,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -511,6 +515,8 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
         order_id=445861,
         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
+        symbol=strategy.config.symbol_info.symbol,
+        price=strategy.position_handler.orders[1].price,
     )
     await strategy.process_order()
     assert strategy.state == State.OPEN
@@ -534,7 +540,8 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
 
     # Simulate price being outside the threshold
-    strategy.ticker_update = TickerUpdate(last_price=1429)
+    last_price = 1429
+    strategy.ticker_update = TickerUpdate(last_price=last_price)
     await strategy.process_ticker()
     assert strategy.state == State.STAGNATED
 

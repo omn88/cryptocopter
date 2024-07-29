@@ -99,7 +99,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
-    async def create_trading_system(config: ConfigSpot, balance: float = 1000):
+    async def create_trading_system(config: ConfigSpot, balance: float = 10000):
         gui_handler: asyncio.Queue = asyncio.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
@@ -123,7 +123,7 @@ async def spot_buy(mock_AsyncClient):
     config = ConfigSpot(
         open_time="",
         system_id="1234",
-        symbol_info=SymbolInfo(symbol="BTCUSDT"),
+        symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
         side=PositionSide.LONG,
         price_low=1000,
         price_high=1400,
@@ -134,7 +134,7 @@ async def spot_buy(mock_AsyncClient):
 
     strategy = StrategyHP(
         client=mock_AsyncClient,
-        balance=1000,
+        balance=10000,
         config=config,
         gui_handler=gui_handler,
         logger=logger,
@@ -151,7 +151,7 @@ async def spot_sell(mock_AsyncClient):
     config = ConfigSpot(
         open_time="",
         system_id="1234",
-        symbol_info=SymbolInfo(symbol="BTCUSDT"),
+        symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
         side=PositionSide.SHORT,
         price_low=1000,
         price_high=1400,
@@ -165,7 +165,7 @@ async def spot_sell(mock_AsyncClient):
 
     strategy = StrategyHP(
         client=mock_AsyncClient,
-        balance=1000,
+        balance=10000,
         config=config,
         gui_handler=gui_handler,
         logger=logger,

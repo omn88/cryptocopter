@@ -11,11 +11,14 @@ def get_new_orders(price_low: float, price_high: float):
     first_order_id = round(price_low * price_high / 3.14)
     order_list = []
     for item in range(number_of_orders):
+        price = price_low + item * ((price_high - price_low) / (number_of_orders - 1))
+        quantity = 333 / number_of_orders / price
+
         order_list.append(
             {
                 "orderId": first_order_id + item,
-                "price": price_low
-                + item * ((price_high - price_low) / (number_of_orders - 1)),
+                "price": price,
+                "quantity": quantity,
                 "status": ORDER_STATUS_NEW,
                 "updateTime": 1566818724722,
             }

@@ -84,6 +84,7 @@ class HpManager:
         )
 
     def get_transitions(self):
+        # add balance conditions where orders are to be send and update the variable after orders are cancelled.
         return [
             {
                 "trigger": "process_recovery",
@@ -376,24 +377,48 @@ class HpManager:
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price
             <= self.calculate_trigger_send_orders_price()
+            and self.balance > self.config.budget
         )
         self.logger.debug(
-            "Send buy orders: %s, side: %s, state: %s",
+            "Send buy orders: %s, side: %s, state: %s, budget: %s, balance: %s",
             condition,
             self.config.side,
             self.state,
+            self.config.budget,
+            self.balance,
         )
 
         return condition
 
+    def get_remaining_quantity(self, *args, **kwargs) -> float:
+        rem_quant = 0.0
+        for order in self.position_handler.orders:
+            rem_quant += order.quantity_stable - order.quantity_stable * (
+                order.realized_quantity / order.quantity
+            )
+        self.logger.debug(
+            "Remaining quantity: %s for %s",
+            rem_quant,
+            self.position_handler.config.symbol_info.symbol,
+        )
+        return rem_quant
+
     def conditions_for_resending_buy_orders(self, *args, **kwargs) -> bool:
+        remaining_quant = self.get_remaining_quantity()
         condition = (
             self.state == State.STAGNATED
             and self.config.side == PositionSide.LONG
             and self.ticker_update.last_price
             <= self.calculate_trigger_send_orders_price()
+            and self.balance > remaining_quant
         )
-        self.logger.debug("Resend buy orders: %s, state: %s", condition, self.state)
+        self.logger.debug(
+            "Resend buy orders: %s, state: %s, balance: %s, remaining quantity: %s",
+            condition,
+            self.state,
+            self.balance,
+            remaining_quant,
+        )
 
         return condition
 
@@ -403,24 +428,35 @@ class HpManager:
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price()
+            and self.balance > self.config.budget
         )
         self.logger.debug(
-            "Send sell orders: %s, side: %s, state: %s",
+            "Send sell orders: %s, side: %s, state: %s, budget: %s, balance: %s",
             condition,
             self.config.side,
             self.state,
+            self.config.budget,
+            self.balance,
         )
 
         return condition
 
     def conditions_for_resending_sell_orders(self, *args, **kwargs) -> bool:
+        remaining_quant = self.get_remaining_quantity()
         condition = (
             self.state == State.STAGNATED
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price()
+            and self.balance > remaining_quant
         )
-        self.logger.debug("Resend sell orders: %s, state: %s", condition, self.state)
+        self.logger.debug(
+            "Resend sell orders: %s, state: %s, balance: %s, remaining quantity: %s",
+            condition,
+            self.state,
+            self.balance,
+            remaining_quant,
+        )
 
         return condition
 
@@ -481,6 +517,7 @@ class HpManager:
         self.logger.info(
             "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
         )
+        self.balance -= self.config.budget
 
         await self.position_handler.open_position(
             side=self.config.side,
@@ -491,7 +528,7 @@ class HpManager:
         self.logger.info(
             "Resending %s %s", self.config.symbol_info.symbol, self.config.side.value
         )
-
+        self.balance -= self.get_remaining_quantity()
         new_orders = []
 
         for order in self.position_handler.orders:
@@ -563,7 +600,7 @@ class HpManager:
         self.logger.info(
             "Resending %s %s", self.config.symbol_info.symbol, self.config.side.value
         )
-
+        self.balance -= self.get_remaining_quantity()
         new_orders = []
 
         for order in self.position_handler.orders:
@@ -633,6 +670,7 @@ class HpManager:
         self.logger.info(
             "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
         )
+        self.balance -= self.config.budget
 
         await self.position_handler.open_position(
             side=self.config.side,
@@ -642,11 +680,14 @@ class HpManager:
     async def cancel_buy_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
         self.state = State.STAGNATED
+        self.logger.info("Orders: %s", self.position_handler.orders)
+        self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.position_handler.config.side)
         self.state = State.STAGNATED
+        self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)
 
     async def close_filled_position(self, *args, **kwargs) -> None:

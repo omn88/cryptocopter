@@ -133,7 +133,9 @@ async def db_and_gui_assertions(
 def get_strategy_config(
     side: PositionSide,
     system_id: str = "1234",
-    symbol_info: SymbolInfo = SymbolInfo(),
+    symbol_info: SymbolInfo = SymbolInfo(
+        symbol="BTCUSDT", precision=2, price_precision=2
+    ),
     price_low: float = 1000,
     price_high: float = 1400,
     order_trigger: float = 1.0,

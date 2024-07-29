@@ -314,7 +314,7 @@ class AsyncApp(App):
             db=self.db,
             strategy_id=strategy_id,
             symbols_info=symbols_info,
-            usdt_balance=self.spot_usdt
+            usdt_balance=self.spot_usdt,
         )
 
         tab = TabbedPanelItem(

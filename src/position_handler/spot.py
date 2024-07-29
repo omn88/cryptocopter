@@ -203,7 +203,6 @@ class PositionHandler:
             if execution_report.order_id == order.order_id:
                 order.status = execution_report.current_order_status
                 order.price = execution_report.price
-                order.quantity = execution_report.quantity
                 order.realized_quantity = execution_report.cumulative_filled_quantity
                 self.strategy_logger.info(
                     "Order: %s filled, symbol: %s, price: %s",
