@@ -8,6 +8,7 @@ for each strategy.
 import asyncio
 import logging
 from typing import Dict, List
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -40,6 +41,12 @@ logger = logging.getLogger("async_app")
 # Load the common_widgets.kv file first
 Builder.load_file("src/gui/common_widgets.kv")
 Builder.load_file("src/gui/strategytab.kv")
+
+strategy_mapping = {
+    "RSI Basic": "RB",
+    "RSI Extended": "RE",
+    "RSI Special": "RS",
+}
 
 
 class AsyncApp(App):
@@ -79,15 +86,12 @@ class AsyncApp(App):
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.strategies: Dict = {}
-        self.strategy_mapping = {
-            "RSI Basic": "RB",
-            "RSI Extended": "RE",
-            "RSI Special": "RS",
-        }
+        self.spot_usdt = 0
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
 
     async def initialize(self):
+        self.spot_usdt = await self.get_usdt_balance()
         await self.load_all_active_strategies()
         await self.update_ui()
         logger.info("Initialization finished!")
@@ -139,6 +143,23 @@ class AsyncApp(App):
                     next_monitor_time=price_level["next_monitor_time"],
                 )
 
+    async def get_usdt_balance(self) -> float:
+        """
+        Retrieve the USDT balance from the spot market.
+
+        :return: The balance of USDT in the account.
+        :raises: BinanceAPIException, BinanceRequestException
+        """
+        try:
+            account_info = await self.client.get_account()
+            for asset in account_info['balances']:
+                if asset['asset'] == 'USDT':
+                    return float(asset['free'])
+            return 0.0
+        except (BinanceAPIException, BinanceRequestException) as e:
+            self.logger.error("Failed to retrieve USDT balance: %s", e)
+            raise e
+
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
 
@@ -189,7 +210,7 @@ class AsyncApp(App):
         if strategy_name.startswith("RSI"):
             config = self.futures_strategy_config_retrieve()
             strategy_name_short = (
-                f"{self.strategy_mapping[config.name]}_{config.symbol}"
+                f"{strategy_mapping[config.name]}_{config.symbol}"
             )
             if config.symbol != "Choose Symbol":
                 for strategy in self.active_strategies:
@@ -313,7 +334,7 @@ class AsyncApp(App):
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
-        tab = self.strategies[f"{self.strategy_mapping[strategy_name]}_{symbol}"]
+        tab = self.strategies[f"{strategy_mapping[strategy_name]}_{symbol}"]
 
         # Remove the tab from the TabbedPanel
         self.root.remove_widget(tab)
