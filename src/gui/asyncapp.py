@@ -152,9 +152,9 @@ class AsyncApp(App):
         """
         try:
             account_info = await self.client.get_account()
-            for asset in account_info['balances']:
-                if asset['asset'] == 'USDT':
-                    return float(asset['free'])
+            for asset in account_info["balances"]:
+                if asset["asset"] == "USDT":
+                    return float(asset["free"])
             return 0.0
         except (BinanceAPIException, BinanceRequestException) as e:
             self.logger.error("Failed to retrieve USDT balance: %s", e)
@@ -209,9 +209,7 @@ class AsyncApp(App):
         strategy_name: str = self.root.ids.strategy_spinner.text
         if strategy_name.startswith("RSI"):
             config = self.futures_strategy_config_retrieve()
-            strategy_name_short = (
-                f"{strategy_mapping[config.name]}_{config.symbol}"
-            )
+            strategy_name_short = f"{strategy_mapping[config.name]}_{config.symbol}"
             if config.symbol != "Choose Symbol":
                 for strategy in self.active_strategies:
                     if (
@@ -316,6 +314,7 @@ class AsyncApp(App):
             db=self.db,
             strategy_id=strategy_id,
             symbols_info=symbols_info,
+            usdt_balance=self.spot_usdt
         )
 
         tab = TabbedPanelItem(

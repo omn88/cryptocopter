@@ -65,9 +65,12 @@ class HpManager(BoxLayout):
         self.gui_handler: asyncio.Queue = asyncio.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
-        self.usdt_balance = usdt_balance
         self.strategy_executor = StrategyExecutor(
-            client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
+            client=client,
+            logger=strategy_logger,
+            gui_handler=self.gui_handler,
+            db=db,
+            usdt_balance=usdt_balance,
         )
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)
