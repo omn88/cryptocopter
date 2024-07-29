@@ -53,6 +53,7 @@ class HpManager(BoxLayout):
         db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
+        usdt_balance: float,
         symbols_info: Dict[str, SymbolInfo],
         **kwargs,
     ):
@@ -65,7 +66,11 @@ class HpManager(BoxLayout):
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
         self.strategy_executor = StrategyExecutor(
-            client=client, logger=strategy_logger, gui_handler=self.gui_handler, db=db
+            client=client,
+            logger=strategy_logger,
+            gui_handler=self.gui_handler,
+            db=db,
+            usdt_balance=usdt_balance,
         )
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)

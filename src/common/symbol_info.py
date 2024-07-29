@@ -29,7 +29,7 @@ class SymbolInfo:
         )
 
     def adjust_quantity(self, quantity):
-        return round(max(self.min_qty, min(quantity, self.max_qty)), self.precision)
+        return round(quantity, self.precision)
 
     def adjust_price(self, price):
         return round(price, self.price_precision)

@@ -83,6 +83,11 @@ class OrderHandler:
                         else (price_high - i * price_increment)
                     )
 
+                    # quantity = symbol_info.adjust_quantity(
+                    #             order_quantity_stable / order_price
+                    #         )
+                    # self.strategy_logger.debug("WHY ZEROO??: %s, oqs: %s, op: %s", quantity, order_quantity_stable, order_price)
+
                     orders.append(
                         Order(
                             quantity=symbol_info.adjust_quantity(
