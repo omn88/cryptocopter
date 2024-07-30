@@ -71,6 +71,7 @@ class Order:
             f"order_type={self.order_type})"
         )
 
+
 @dataclass
 class ExecutionReport:
     symbol: str = ""

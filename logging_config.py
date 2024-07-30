@@ -19,7 +19,9 @@ if not os.path.exists(LOG_DIR):
 
 # get current date and time
 now = datetime.now()
-log_filename = os.path.join(LOG_DIR, f"cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log")
+log_filename = os.path.join(
+    LOG_DIR, f"cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+)
 
 # Configure the main logger with a basic configuration
 logging.basicConfig(
@@ -29,7 +31,9 @@ logging.basicConfig(
 )
 
 # Create a rotating file handler
-file_handler = RotatingFileHandler(log_filename, maxBytes=32*1024*1024, backupCount=16)
+file_handler = RotatingFileHandler(
+    log_filename, maxBytes=32 * 1024 * 1024, backupCount=16
+)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
