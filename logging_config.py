@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from logging.handlers import RotatingFileHandler
 import os
 
 # Get the environment variable
@@ -18,15 +19,23 @@ if not os.path.exists(LOG_DIR):
 
 # get current date and time
 now = datetime.now()
+log_filename = os.path.join(LOG_DIR, f"cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log")
 
-# setup basic config for all loggers
+# Configure the main logger with a basic configuration
 logging.basicConfig(
     level=logging.DEBUG,
-    filename=f"artifacts/cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log",
-    filemode="w",
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+# Create a rotating file handler
+file_handler = RotatingFileHandler(log_filename, maxBytes=32*1024*1024, backupCount=16)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
+logging.getLogger().addHandler(file_handler)
+
 
 # create a console handler
 console_handler = logging.StreamHandler()

@@ -3,7 +3,7 @@ import asyncio
 import datetime
 import psutil
 
-from logging_config import logger
+from logger_config import logger
 
 
 def get_process_info(pid):

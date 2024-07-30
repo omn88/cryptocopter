@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from typing import List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
@@ -71,7 +70,6 @@ class Order:
             f"time_in_force={self.time_in_force}, status={self.status}, "
             f"order_type={self.order_type})"
         )
-
 
 @dataclass
 class ExecutionReport:
