@@ -7,3 +7,4 @@ kivy==2.2.0
 aiomysql==0.2.0
 sqlalchemy==2.0.30
 cryptography==42.0.7
+psutil==6.0.0
