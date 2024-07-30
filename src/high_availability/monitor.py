@@ -35,25 +35,31 @@ async def monitor_process(
     script,
     original_create_time,
     original_name,
-    interval=10,
+    monitor_interval=10,
+    log_interval=300,
     max_retries=3,
     retry_delay=5,
 ):
     retries = 0
+    last_log_time = datetime.datetime.now()
+    last_status_message = None
+
     while True:
         pid, status, create_time, name = get_process_info(pid)
+        current_time = datetime.datetime.now()
+
         if (
             pid
             and status == psutil.STATUS_RUNNING
             and create_time == original_create_time
             and name == original_name
         ):
-            logger.info(
-                "Process %d is running, status: %s, started at: %s",
-                pid,
-                status,
-                create_time,
-            )
+            uptime = current_time - original_create_time
+            status_message = f"Process {pid} is running. Uptime: {uptime}"
+            if (current_time - last_log_time).seconds >= log_interval:
+                logger.info(status_message)
+                last_log_time = current_time
+                last_status_message = status_message
             retries = 0  # Reset retries on successful check
         else:
             if retries < max_retries:
@@ -89,7 +95,7 @@ async def monitor_process(
                 retries = 0
                 logger.info("Restarted process '%s' with PID: %d", script, pid)
 
-        await asyncio.sleep(interval)
+        await asyncio.sleep(monitor_interval)
 
 
 async def main():
