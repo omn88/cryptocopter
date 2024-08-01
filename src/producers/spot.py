@@ -20,22 +20,39 @@ async def spot_user_socket(
     queue: asyncio.Queue,
     stop_event: asyncio.Event,
 ):
-    socket = socket_manager.user_socket()  # This should be the spot user socket
-    async with socket:
-        logger.info("Spot user socket connected.")
-        while not stop_event.is_set():
-            try:
-                msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-                logger.debug("[Event]: %s", msg)
-                event_type = msg.get("e")
-                if event_type == EventName.EXECUTION_REPORT.value:
-                    await handle_execution_report(msg, queue)
-                elif event_type == EventName.ACCOUNT_POSITION.value:
-                    await handle_outbound_account_position(msg, queue)
-                else:
-                    logger.info("Unhandled message type: %s", msg)
-            except asyncio.TimeoutError:
-                continue
+    reconnect_attempts = 5  # Number of times to attempt reconnection
+
+    while not stop_event.is_set():
+        try:
+            socket = socket_manager.user_socket()  # Initialize the WebSocket connection
+            async with socket:
+                logger.info("Spot user socket connected.")
+                while not stop_event.is_set():
+                    try:
+                        msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
+                        logger.debug("[Event]: %s", msg)
+                        event_type = msg.get("e")
+                        if event_type == EventName.EXECUTION_REPORT.value:
+                            await handle_execution_report(msg, queue)
+                        elif event_type == EventName.ACCOUNT_POSITION.value:
+                            await handle_outbound_account_position(msg, queue)
+                        else:
+                            logger.info("Unhandled message type: %s", msg)
+                    except asyncio.TimeoutError:
+                        continue
+        except ConnectionResetError as e:
+            logger.error("Connection was reset: %s. Reconnecting...", e)
+            for attempt in range(reconnect_attempts):
+                if stop_event.is_set():
+                    return  # Exit if stop_event is set
+
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                logger.info("Reconnecting attempt %d...", attempt + 1)
+                break  # Break out of the retry loop to re-establish the connection
+
+        except Exception as e:
+            logger.error("Unexpected error: %s", e)
+            break
 
 
 async def handle_execution_report(msg, queue):
@@ -105,37 +122,55 @@ async def spot_ticker_socket(
     symbol_info: SymbolInfo,
     stop_event: asyncio.Event,
 ):
-    logger.info("Entering spot ticker socket")
-    socket = socket_manager.symbol_ticker_socket(symbol=symbol_info.symbol)
-    async with socket:
-        logger.info("Spot ticker socket connected.")
-        while not stop_event.is_set():
-            try:
-                msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
-                await queue.put(
-                    Event(
-                        name=EventName.TICKER,
-                        content=TickerUpdate(
-                            symbol=str(msg["s"]),
-                            last_price=round(
-                                float(msg["c"]), symbol_info.price_precision
-                            ),  # Last price
-                            best_bid_price=round(
-                                float(msg.get("b", "0")), symbol_info.price_precision
-                            ),  # Best bid price, with safe default if 'b' is absent
-                            best_ask_price=round(
-                                float(msg.get("a", "0")), symbol_info.price_precision
-                            ),  # Best ask price, with safe default if 'a' is absent
-                            high_price=round(
-                                float(msg["h"]), symbol_info.price_precision
-                            ),  # High price of the day
-                            low_price=round(
-                                float(msg["l"]), symbol_info.price_precision
-                            ),  # Low price of the day
-                            volume=float(msg["v"]),  # Total traded base asset volume
-                        ),
-                    )
-                )
+    reconnect_attempts = 5  # Number of times to attempt reconnection
 
-            except asyncio.TimeoutError:
-                continue
+    while not stop_event.is_set():
+        try:
+            socket = socket_manager.symbol_ticker_socket(symbol=symbol_info.symbol)  # Initialize the WebSocket connection
+            async with socket:
+                logger.info("Spot ticker socket connected.")
+                while not stop_event.is_set():
+                    try:
+                        msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
+                        logger.debug("[Event]: %s", msg)
+                        await queue.put(
+                            Event(
+                                name=EventName.TICKER,
+                                content=TickerUpdate(
+                                    symbol=str(msg["s"]),
+                                    last_price=round(
+                                        float(msg["c"]), symbol_info.price_precision
+                                    ),  # Last price
+                                    best_bid_price=round(
+                                        float(msg.get("b", "0")), symbol_info.price_precision
+                                    ),  # Best bid price, with safe default if 'b' is absent
+                                    best_ask_price=round(
+                                        float(msg.get("a", "0")), symbol_info.price_precision
+                                    ),  # Best ask price, with safe default if 'a' is absent
+                                    high_price=round(
+                                        float(msg["h"]), symbol_info.price_precision
+                                    ),  # High price of the day
+                                    low_price=round(
+                                        float(msg["l"]), symbol_info.price_precision
+                                    ),  # Low price of the day
+                                    volume=float(msg["v"]),  # Total traded base asset volume
+                                ),
+                            )
+                        )
+
+                    except asyncio.TimeoutError:
+                        continue
+
+        except ConnectionResetError as e:
+            logger.error("Connection was reset: %s. Reconnecting...", e)
+            for attempt in range(reconnect_attempts):
+                if stop_event.is_set():
+                    return  # Exit if stop_event is set
+
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                logger.info("Reconnecting attempt %d...", attempt + 1)
+                break  # Break out of the retry loop to re-establish the connection
+
+        except Exception as e:
+            logger.error("Unexpected error: %s", e)
+            break
