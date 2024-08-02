@@ -46,7 +46,7 @@ async def spot_user_socket(
                 if stop_event.is_set():
                     return  # Exit if stop_event is set
 
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2**attempt)  # Exponential backoff
                 logger.info("Reconnecting attempt %d...", attempt + 1)
                 break  # Break out of the retry loop to re-establish the connection
 
@@ -126,7 +126,9 @@ async def spot_ticker_socket(
 
     while not stop_event.is_set():
         try:
-            socket = socket_manager.symbol_ticker_socket(symbol=symbol_info.symbol)  # Initialize the WebSocket connection
+            socket = socket_manager.symbol_ticker_socket(
+                symbol=symbol_info.symbol
+            )  # Initialize the WebSocket connection
             async with socket:
                 logger.info("Spot ticker socket connected.")
                 while not stop_event.is_set():
@@ -142,10 +144,12 @@ async def spot_ticker_socket(
                                         float(msg["c"]), symbol_info.price_precision
                                     ),  # Last price
                                     best_bid_price=round(
-                                        float(msg.get("b", "0")), symbol_info.price_precision
+                                        float(msg.get("b", "0")),
+                                        symbol_info.price_precision,
                                     ),  # Best bid price, with safe default if 'b' is absent
                                     best_ask_price=round(
-                                        float(msg.get("a", "0")), symbol_info.price_precision
+                                        float(msg.get("a", "0")),
+                                        symbol_info.price_precision,
                                     ),  # Best ask price, with safe default if 'a' is absent
                                     high_price=round(
                                         float(msg["h"]), symbol_info.price_precision
@@ -153,7 +157,9 @@ async def spot_ticker_socket(
                                     low_price=round(
                                         float(msg["l"]), symbol_info.price_precision
                                     ),  # Low price of the day
-                                    volume=float(msg["v"]),  # Total traded base asset volume
+                                    volume=float(
+                                        msg["v"]
+                                    ),  # Total traded base asset volume
                                 ),
                             )
                         )
@@ -167,7 +173,7 @@ async def spot_ticker_socket(
                 if stop_event.is_set():
                     return  # Exit if stop_event is set
 
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2**attempt)  # Exponential backoff
                 logger.info("Reconnecting attempt %d...", attempt + 1)
                 break  # Break out of the retry loop to re-establish the connection
 
