@@ -296,7 +296,6 @@ class HpManager(BoxLayout):
     def get_current_configuration(self) -> List[CsvConfig]:
         hp_config = []
         for info, item in self.strategy_executor.id_to_system.items():
-            self.strategy_logger.info("Item to: %s, typ: %s", item, type(item))
             assert isinstance(item, TradingSystem)
             hp_config.append(
                 CsvConfig(

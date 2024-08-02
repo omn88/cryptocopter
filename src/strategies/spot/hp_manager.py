@@ -843,6 +843,7 @@ class HpManager:
         orders = [
             Order(
                 quantity=float(order["quantity"]),
+                realized_quantity=float(order["realized_quantity"]),
                 precision=0,
                 price_precision=0,
                 price=float(order["price"]),
@@ -949,6 +950,7 @@ class HpManager:
         orders = [
             Order(
                 quantity=float(order["quantity"]),
+                realized_quantity=float(order["realized_quantity"]),
                 precision=0,
                 price_precision=0,
                 price=float(order["price"]),
