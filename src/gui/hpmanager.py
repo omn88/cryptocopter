@@ -467,9 +467,13 @@ class HpManager(BoxLayout):
                         asyncio.create_task(
                             self.remove_record(system_id=data.config.system_id)
                         )
-
+                        self.filter_records("archive", "All")
+                if data.state == State.STAGNATED:
+                    self.active_records.remove(position)
+                    self.idle_records.append(position)
+                    self.strategy_logger.debug("Price level stagnated: %s", position)
+                    self.filter_records("idle", "All")
         self.filter_records("active", "All")
-        self.filter_records("archive", "All")
 
     def update_idle_position(
         self,
