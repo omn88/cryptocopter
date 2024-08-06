@@ -20,7 +20,7 @@ async def spot_user_socket(
     queue: asyncio.Queue,
     stop_event: asyncio.Event,
 ):
-    reconnect_attempts = 5  # Number of times to attempt reconnection
+    reconnect_attempts = 10  # Number of times to attempt reconnection
 
     while not stop_event.is_set():
         try:
@@ -122,7 +122,7 @@ async def spot_ticker_socket(
     symbol_info: SymbolInfo,
     stop_event: asyncio.Event,
 ):
-    reconnect_attempts = 5  # Number of times to attempt reconnection
+    reconnect_attempts = 10  # Number of times to attempt reconnection
 
     while not stop_event.is_set():
         try:
