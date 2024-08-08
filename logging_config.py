@@ -34,7 +34,7 @@ logging.basicConfig(
 file_handler = RotatingFileHandler(
     log_filename, maxBytes=32 * 1024 * 1024, backupCount=16
 )
-file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )
@@ -43,7 +43,7 @@ logging.getLogger().addHandler(file_handler)
 
 # create a console handler
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )
