@@ -252,9 +252,10 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.NEW
         )
-        self.logger.debug(
-            "Recovering system: %s to state NEW: %s.", self.config, condition
-        )
+        if condition:
+            self.logger.info(
+                "Recovering system: %s to state NEW: %s.", self.config, condition
+            )
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -264,9 +265,10 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.OPEN
         )
-        self.logger.debug(
-            "Recovering system: %s to state OPEN: %s.", self.config, condition
-        )
+        if condition:
+            self.logger.info(
+                "Recovering system: %s to state OPEN: %s.", self.config, condition
+            )
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -276,9 +278,10 @@ class HpManager:
             self.state == State.RECOVERING
             and self.position_handler.last_state == State.STAGNATED
         )
-        self.logger.debug(
-            "Recovering system: %s to state STAGNATED: %s.", self.config, condition
-        )
+        if condition:
+            self.logger.info(
+                "Recovering system: %s to state STAGNATED: %s.", self.config, condition
+            )
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
@@ -292,12 +295,13 @@ class HpManager:
             ]
             and self.execution_report.current_order_status == ORDER_STATUS_NEW
         )
-        self.logger.debug(
-            "New order confirmation: %s, order type: %s order status: %s",
-            condition,
-            self.execution_report.order_type,
-            self.execution_report.current_order_status,
-        )
+        if condition:
+            self.logger.info(
+                "New order confirmation: %s, order type: %s order status: %s",
+                condition,
+                self.execution_report.order_type,
+                self.execution_report.current_order_status,
+            )
         return condition
 
     def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
@@ -305,11 +309,12 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
         )
-        self.logger.debug(
-            "Order cancelled: %s, order update status: %s",
-            condition,
-            self.execution_report.current_order_status,
-        )
+        if condition:
+            self.logger.info(
+                "Order cancelled: %s, order update status: %s",
+                condition,
+                self.execution_report.current_order_status,
+            )
         return condition
 
     def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
@@ -317,11 +322,12 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
         )
-        self.logger.debug(
-            "Order expired: %s, order update status: %s",
-            condition,
-            self.execution_report.current_order_status,
-        )
+        if condition:
+            self.logger.info(
+                "Order expired: %s, order update status: %s",
+                condition,
+                self.execution_report.current_order_status,
+            )
         return condition
 
     def conditions_for_order_filled(self, *args, **kwargs):
@@ -331,12 +337,12 @@ class HpManager:
             and self.execution_report.order_id
             in [order.order_id for order in self.position_handler.orders]
         )
-
-        self.logger.debug(
-            "Order filled: %s, order status: %s",
-            condition,
-            self.execution_report.current_order_status,
-        )
+        if condition:
+            self.logger.info(
+                "Order filled: %s, order status: %s",
+                condition,
+                self.execution_report.current_order_status,
+            )
         return condition
 
     def conditions_for_order_partially_filled(self, *args, **kwargs):
@@ -347,11 +353,12 @@ class HpManager:
             and self.execution_report.order_id
             in [order.order_id for order in self.position_handler.orders]
         )
-        self.logger.debug(
-            "Order partially filled: %s, order update status: %s",
-            condition,
-            self.execution_report.current_order_status,
-        )
+        if condition:
+            self.logger.info(
+                "Order partially filled: %s, order update status: %s",
+                condition,
+                self.execution_report.current_order_status,
+            )
         return condition
 
     def conditions_for_all_orders_filled(self, *args, **kwargs):
@@ -363,12 +370,12 @@ class HpManager:
             )
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
-
-        self.logger.debug(
-            "All orders filled: %s, signal update: %s",
-            condition,
-            self.signal_update.signal,
-        )
+        if condition:
+            self.logger.info(
+                "All orders filled: %s, signal update: %s",
+                condition,
+                self.signal_update.signal,
+            )
         return condition
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
@@ -379,14 +386,15 @@ class HpManager:
             <= self.calculate_trigger_send_orders_price()
             and self.balance > self.config.budget
         )
-        self.logger.debug(
-            "Send buy orders: %s, side: %s, state: %s, budget: %s, balance: %s",
-            condition,
-            self.config.side,
-            self.state,
-            self.config.budget,
-            self.balance,
-        )
+        if condition:
+            self.logger.info(
+                "Send buy orders: %s, side: %s, state: %s, budget: %s, balance: %s",
+                condition,
+                self.config.side,
+                self.state,
+                self.config.budget,
+                self.balance,
+            )
 
         return condition
 
@@ -412,13 +420,14 @@ class HpManager:
             <= self.calculate_trigger_send_orders_price()
             and self.balance > remaining_quant
         )
-        self.logger.debug(
-            "Resend buy orders: %s, state: %s, balance: %s, remaining quantity: %s",
-            condition,
-            self.state,
-            self.balance,
-            remaining_quant,
-        )
+        if condition:
+            self.logger.info(
+                "Resend buy orders: %s, state: %s, balance: %s, remaining quantity: %s",
+                condition,
+                self.state,
+                self.balance,
+                remaining_quant,
+            )
 
         return condition
 
@@ -430,14 +439,15 @@ class HpManager:
             >= self.calculate_trigger_send_orders_price()
             and self.balance > self.config.budget
         )
-        self.logger.debug(
-            "Send sell orders: %s, side: %s, state: %s, budget: %s, balance: %s",
-            condition,
-            self.config.side,
-            self.state,
-            self.config.budget,
-            self.balance,
-        )
+        if condition:
+            self.logger.info(
+                "Send sell orders: %s, side: %s, state: %s, budget: %s, balance: %s",
+                condition,
+                self.config.side,
+                self.state,
+                self.config.budget,
+                self.balance,
+            )
 
         return condition
 
@@ -450,13 +460,14 @@ class HpManager:
             >= self.calculate_trigger_send_orders_price()
             and self.balance > remaining_quant
         )
-        self.logger.debug(
-            "Resend sell orders: %s, state: %s, balance: %s, remaining quantity: %s",
-            condition,
-            self.state,
-            self.balance,
-            remaining_quant,
-        )
+        if condition:
+            self.logger.info(
+                "Resend sell orders: %s, state: %s, balance: %s, remaining quantity: %s",
+                condition,
+                self.state,
+                self.balance,
+                remaining_quant,
+            )
 
         return condition
 
@@ -468,14 +479,15 @@ class HpManager:
             and self.ticker_update.last_price
             > self.calculate_trigger_cancel_orders_price()
         )
-        self.logger.debug(
-            "Cancel BUY orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-            condition,
-            self.position_handler.stagnation_counter,
-            STAGNATION_LIMIT,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price(),
-        )
+        if condition:
+            self.logger.info(
+                "Cancel BUY orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                condition,
+                self.position_handler.stagnation_counter,
+                STAGNATION_LIMIT,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price(),
+            )
 
         return condition
 
@@ -487,14 +499,15 @@ class HpManager:
             and self.ticker_update.last_price
             < self.calculate_trigger_cancel_orders_price()
         )
-        self.logger.debug(
-            "Cancel SELL orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-            condition,
-            self.position_handler.stagnation_counter,
-            STAGNATION_LIMIT,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price(),
-        )
+        if condition:
+            self.logger.info(
+                "Cancel SELL orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                condition,
+                self.position_handler.stagnation_counter,
+                STAGNATION_LIMIT,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price(),
+            )
 
         return condition
 
@@ -504,12 +517,13 @@ class HpManager:
         condition = self.state == State.OPEN and date_time_now > datetime.strptime(
             self.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
         )
-        self.logger.debug(
-            "Handle position stagnation: %s, time now: %s, monitor time: %s",
-            condition,
-            date_time_now,
-            self.position_handler.next_monitor_position_time,
-        )
+        if condition:
+            self.logger.info(
+                "Handle position stagnation: %s, time now: %s, monitor time: %s",
+                condition,
+                date_time_now,
+                self.position_handler.next_monitor_position_time,
+            )
 
         return condition
 
@@ -843,6 +857,7 @@ class HpManager:
         orders = [
             Order(
                 quantity=float(order["quantity"]),
+                realized_quantity=float(order["realized_quantity"]),
                 precision=0,
                 price_precision=0,
                 price=float(order["price"]),
@@ -949,6 +964,7 @@ class HpManager:
         orders = [
             Order(
                 quantity=float(order["quantity"]),
+                realized_quantity=float(order["realized_quantity"]),
                 precision=0,
                 price_precision=0,
                 price=float(order["price"]),
