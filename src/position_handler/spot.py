@@ -34,14 +34,7 @@ class PositionHandler:
             client=client,
             strategy_logger=strategy_logger,
         )
-        self.orders: List[Order] = self.order_handler.prepare_orders(
-            budget=config.budget,
-            price_low=config.price_low,
-            price_high=config.price_high,
-            mode=self.config.mode,
-            side=self.config.side,
-            symbol_info=self.config.symbol_info,
-        )
+        self.orders: List[Order] = self.order_handler.prepare_orders(config=config)
         self.last_state: Optional[State] = last_state
         self.stagnation_counter: int = 0
         self.prev_orders: List[Order] = []

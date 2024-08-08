@@ -18,7 +18,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import Order
+from src.common.identifiers.spot import Order, StrategyConfig
 from src.common.symbol_info import SymbolInfo
 
 
@@ -37,53 +37,47 @@ class OrderHandler:
         self.client = client
 
     def prepare_orders(
-        self,
-        price_low: float,
-        price_high: float,
-        budget: float,
-        mode: Mode,
-        side: PositionSide,
-        symbol_info: SymbolInfo,
+        self, config: StrategyConfig
     ) -> List[Order]:
         def prepare_single_order():
-            order_price = price_high if side == PositionSide.LONG else price_low
+            order_price = config.price_high if config.side == PositionSide.LONG else config.price_low
             orders.append(
                 Order(
-                    quantity=symbol_info.adjust_quantity(budget / order_price),
-                    price=symbol_info.adjust_price(order_price),
-                    quantity_stable=budget,
-                    precision=symbol_info.precision,
-                    price_precision=symbol_info.price_precision,
+                    quantity=config.symbol_info.adjust_quantity(config.budget / order_price),
+                    price=config.symbol_info.adjust_price(order_price),
+                    quantity_stable=config.budget,
+                    precision=config.symbol_info.precision,
+                    price_precision=config.symbol_info.price_precision,
                 )
             )
 
         orders = []
 
-        if mode == Mode.SINGLE:
+        if config.mode == Mode.SINGLE:
             prepare_single_order()
 
-        if mode == Mode.DCA:
+        if config.mode == Mode.DCA:
             num_orders = 3
 
-            min_budget_for_max_orders = num_orders * symbol_info.min_notional
+            min_budget_for_max_orders = num_orders * config.symbol_info.min_notional
 
-            if budget >= min_budget_for_max_orders:
-                order_quantity_stable = budget / num_orders
+            if config.budget >= min_budget_for_max_orders:
+                order_quantity_stable = config.budget / num_orders
             else:
-                order_quantity_stable = symbol_info.min_notional
-                num_orders = int(budget / symbol_info.min_notional)
+                order_quantity_stable = config.symbol_info.min_notional
+                num_orders = int(config.budget / config.symbol_info.min_notional)
                 num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
             if num_orders == 1:
                 prepare_single_order()
             else:
-                price_increment = (price_high - price_low) / (num_orders - 1)
+                price_increment = (config.price_high - config.price_low) / (num_orders - 1)
 
                 for i in range(num_orders):
                     order_price = (
-                        (price_low + i * price_increment)
-                        if side == PositionSide.SHORT
-                        else (price_high - i * price_increment)
+                        (config.price_low + i * price_increment)
+                        if config.side == PositionSide.SHORT
+                        else (config.price_high - i * price_increment)
                     )
 
                     # quantity = symbol_info.adjust_quantity(
@@ -93,20 +87,20 @@ class OrderHandler:
 
                     orders.append(
                         Order(
-                            quantity=symbol_info.adjust_quantity(
+                            quantity=config.symbol_info.adjust_quantity(
                                 order_quantity_stable / order_price
                             ),
-                            price=symbol_info.adjust_price(order_price),
+                            price=config.symbol_info.adjust_price(order_price),
                             quantity_stable=round(order_quantity_stable, 2),
-                            precision=symbol_info.precision,
-                            price_precision=symbol_info.price_precision,
+                            precision=config.symbol_info.precision,
+                            price_precision=config.symbol_info.price_precision,
                         )
                     )
 
         logger.info(
             "Orders prepared:\n%s\n for position: %s",
             pprint.pformat(list(orders)),
-            symbol_info.symbol,
+            config.symbol_info.symbol,
         )
         return orders
 
