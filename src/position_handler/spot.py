@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from typing import List, Optional
-
+import logging
 from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -11,7 +11,6 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
-import logging
 
 logger = logging.getLogger("pos_handler")
 
@@ -77,10 +76,10 @@ class PositionHandler:
             next_monitor_time=self.next_monitor_position_time,
         )
 
-        self.strategy_logger.debug("Position opened successfully.")
+        logger.debug("Position opened successfully.")
 
     async def cancel_position(self, state: State) -> None:
-        self.strategy_logger.info(
+        logger.info(
             "Start canceling position: %s %s, system id: %s",
             self.config.symbol_info.symbol,
             self.config.side,
@@ -140,7 +139,7 @@ class PositionHandler:
                 order.quantity_stable -= (
                     execution_report.price * execution_report.last_executed_quantity
                 )
-                self.strategy_logger.info("Order: %s partially filled", order.order_id)
+                logger.info("Order: %s partially filled", order.order_id)
 
         self.stagnation_counter = 0
         self.next_monitor_position_time = (
@@ -153,9 +152,7 @@ class PositionHandler:
             next_monitor_time=self.next_monitor_position_time,
         )
 
-        self.strategy_logger.info(
-            "Stagnation counter reset for system: %s", self.config.system_id
-        )
+        logger.info("Stagnation counter reset for system: %s", self.config.system_id)
 
         orders_opened = len(
             [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
@@ -201,16 +198,14 @@ class PositionHandler:
                 order.status = execution_report.current_order_status
                 order.price = execution_report.price
                 order.realized_quantity = execution_report.cumulative_filled_quantity
-                self.strategy_logger.info(
+                logger.info(
                     "Order: %s filled, symbol: %s, price: %s",
                     order.order_id,
                     execution_report.symbol,
                     order.price,
                 )
 
-        self.strategy_logger.info(
-            "Stagnation counter reset for system: %s", self.config.system_id
-        )
+        logger.info("Stagnation counter reset for system: %s", self.config.system_id)
         orders_opened = len(
             [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
         )

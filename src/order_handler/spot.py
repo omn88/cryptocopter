@@ -36,14 +36,18 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
 
-    def prepare_orders(
-        self, config: StrategyConfig
-    ) -> List[Order]:
+    def prepare_orders(self, config: StrategyConfig) -> List[Order]:
         def prepare_single_order():
-            order_price = config.price_high if config.side == PositionSide.LONG else config.price_low
+            order_price = (
+                config.price_high
+                if config.side == PositionSide.LONG
+                else config.price_low
+            )
             orders.append(
                 Order(
-                    quantity=config.symbol_info.adjust_quantity(config.budget / order_price),
+                    quantity=config.symbol_info.adjust_quantity(
+                        config.budget / order_price
+                    ),
                     price=config.symbol_info.adjust_price(order_price),
                     quantity_stable=config.budget,
                     precision=config.symbol_info.precision,
@@ -71,7 +75,9 @@ class OrderHandler:
             if num_orders == 1:
                 prepare_single_order()
             else:
-                price_increment = (config.price_high - config.price_low) / (num_orders - 1)
+                price_increment = (config.price_high - config.price_low) / (
+                    num_orders - 1
+                )
 
                 for i in range(num_orders):
                     order_price = (
@@ -127,7 +133,7 @@ class OrderHandler:
                 BinanceRequestException,
             ) as exception:
                 last_exception = exception
-                self.strategy_logger.error(
+                logger.error(
                     "Failed to create spot order: %s due to %s: %s",
                     order,
                     type(exception).__name__,
