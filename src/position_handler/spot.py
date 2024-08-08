@@ -38,7 +38,6 @@ class PositionHandler:
             budget=config.budget,
             price_low=config.price_low,
             price_high=config.price_high,
-            min_notional=self.config.symbol_info.min_notional,
             mode=self.config.mode,
             side=self.config.side,
             symbol_info=self.config.symbol_info,
@@ -88,7 +87,12 @@ class PositionHandler:
         self.strategy_logger.debug("Position opened successfully.")
 
     async def cancel_position(self, state: State) -> None:
-        self.strategy_logger.info("Start canceling position")
+        self.strategy_logger.info(
+            "Start canceling position: %s %s, system id: %s",
+            self.config.symbol_info.symbol,
+            self.config.side,
+            self.config.system_id,
+        )
 
         self.stagnation_counter = 0
 

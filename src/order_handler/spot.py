@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import pprint
 from typing import List
 from binance.enums import (
@@ -21,6 +22,9 @@ from src.common.identifiers.spot import Order
 from src.common.symbol_info import SymbolInfo
 
 
+logger = logging.getLogger("order_handler")
+
+
 class OrderHandler:
     MAX_RETRIES = 10
 
@@ -37,7 +41,6 @@ class OrderHandler:
         price_low: float,
         price_high: float,
         budget: float,
-        min_notional: float,
         mode: Mode,
         side: PositionSide,
         symbol_info: SymbolInfo,
@@ -62,13 +65,13 @@ class OrderHandler:
         if mode == Mode.DCA:
             num_orders = 3
 
-            min_budget_for_max_orders = num_orders * min_notional
+            min_budget_for_max_orders = num_orders * symbol_info.min_notional
 
             if budget >= min_budget_for_max_orders:
                 order_quantity_stable = budget / num_orders
             else:
-                order_quantity_stable = min_notional
-                num_orders = int(budget / min_notional)
+                order_quantity_stable = symbol_info.min_notional
+                num_orders = int(budget / symbol_info.min_notional)
                 num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
 
             if num_orders == 1:
@@ -100,7 +103,11 @@ class OrderHandler:
                         )
                     )
 
-        self.strategy_logger.debug("Orders prepared:\n%s", pprint.pformat(list(orders)))
+        logger.info(
+            "Orders prepared:\n%s\n for position: %s",
+            pprint.pformat(list(orders)),
+            symbol_info.symbol,
+        )
         return orders
 
     async def create_order(
@@ -166,7 +173,7 @@ class OrderHandler:
             ]
         )
         for order in results:
-            self.strategy_logger.info(
+            logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
                 side.value,
                 symbol_info.symbol,
@@ -179,13 +186,13 @@ class OrderHandler:
     async def cancel_order(self, order_id: int, symbol: str) -> None:
         try:
             resp = await self.client.cancel_order(symbol=symbol, orderId=order_id)
-            self.strategy_logger.debug(f"Cancelled order {order_id}: {resp}")
+            logger.info("Cancelled order %s: %s", order_id, resp)
         except (
             BinanceAPIException,
             BinanceOrderException,
             BinanceRequestException,
         ) as exception:
-            self.strategy_logger.error(
+            logger.error(
                 "Failed to cancel order due to %s: %s",
                 type(exception).__name__,
                 exception,
@@ -195,20 +202,20 @@ class OrderHandler:
     async def cancel_remaining_limit_orders(
         self, orders: List[Order], symbol: str
     ) -> List[Order]:
-        self.strategy_logger.debug("Cancelling remaining limit orders")
+        logger.info("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
 
-                self.strategy_logger.debug(
-                    "Cancelled partially filled order_id: %s", order.order_id
+                logger.info(
+                    "Cancelled partially filled order with id: %s", order.order_id
                 )
             elif order.status == ORDER_STATUS_NEW:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
-                self.strategy_logger.debug("Cancelled new order_id: %s", order.order_id)
+                logger.info("Cancelled new order with id: %s", order.order_id)
 
         return orders
 
@@ -226,15 +233,13 @@ class OrderHandler:
             resp = await self.client.get_order(symbol=symbol, orderId=order.order_id)
             order.status = resp["status"]
             order.realized_quantity = float(resp["executedQty"])
-            self.strategy_logger.info(
-                f"Updated status for order {order.order_id}: {order.status}"
-            )
+            logger.info("Updated status for order %s: %s", order.order_id, order.status)
         except (
             BinanceAPIException,
             BinanceOrderException,
             BinanceRequestException,
         ) as exception:
-            self.strategy_logger.error(
+            logger.error(
                 "Failed to update order status due to %s: %s",
                 type(exception).__name__,
                 exception,
