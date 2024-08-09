@@ -141,6 +141,70 @@
         text: root.state
 
 
+<RecordListItemActive@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    open_time: ''
+    system_id: ''
+    symbol: ''
+    side: ''
+    mode: ''
+    price_low: ''
+    price_high: ''
+    order_cancel: ''
+    stagnation_counter: ''
+    stagnation_limit: ''
+    current_price: ''
+    budget: ''
+    completeness_ratio: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
+
+    Label:
+        text: root.open_time
+        size_hint_x: 0.13
+    Label:
+        text: root.symbol
+        size_hint_x: 0.08
+    Label:
+        text: root.side
+        size_hint_x: 0.05
+    Label:
+        text: root.mode
+        size_hint_x: 0.08
+    Label:
+        text: root.price_low
+        size_hint_x: 0.08
+    Label:
+        text: root.price_high
+        size_hint_x: 0.08
+    Label:
+        text: root.order_cancel
+        size_hint_x: 0.1
+    Label:
+        text: root.stagnation_counter
+        size_hint_x: 0.08
+    Label:
+        text: root.current_price
+        size_hint_x: 0.08
+    Label:
+        text: root.budget
+        size_hint_x: 0.06
+    Label:
+        text: root.completeness_ratio
+        size_hint_x: 0.08
+    Button:
+        text: 'Remove'
+        size_hint_x: 0.1
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.orders_opened, root.orders_total, root.orders_filled)
+
+
 <RecordListItem@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
@@ -202,8 +266,4 @@
         text: 'Remove'
         size_hint_x: 0.1
         on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.orders_opened, root.orders_total, root.orders_filled)
-
-
-
-
 

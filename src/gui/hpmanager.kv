@@ -149,19 +149,19 @@
                         text: 'Price High'
                         size_hint_x: 0.08
                     Label:
+                        text: 'Order Cancel'
+                        size_hint_x: 0.1
+                    Label:
+                        text: 'Stagnation'
+                        size_hint_x: 0.08
+                    Label:
+                        text: 'Current Price'
+                        size_hint_x: 0.08
+                    Label:
                         text: 'Budget'
                         size_hint_x: 0.06
                     Label:
-                        text: 'Order Trigger'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Orders Opened'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Orders Total'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Orders Filled'
+                        text: 'Completeness'
                         size_hint_x: 0.08
                     Label:
                         text: ''
@@ -169,7 +169,7 @@
                 RecycleView:
                     id: active_records_list
                     data: root.filtered_active_records
-                    viewclass: 'RecordListItem'
+                    viewclass: 'RecordListItemActive'
                     RecycleBoxLayout:
                         default_size: None, dp(56)  # Adjust the height as necessary
                         default_size_hint: 1, None
