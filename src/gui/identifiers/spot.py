@@ -6,23 +6,26 @@ class PositionData:
         self,
         config: StrategyConfig,
         state: State,
-        orders_opened: int = 0,
-        orders_total: int = 0,
-        orders_filled: int = 0,
+        stagnation_counter: int,
+        completeness: float,
+        stagnation_limit: int = 8,
         recovering: bool = False,
     ):
         self.config = config
         self.state = state
-        self.orders_opened = orders_opened
-        self.orders_total = orders_total
-        self.orders_filled = orders_filled
+        self.stagnation_counter = stagnation_counter
+        self.stagnation_limit = stagnation_limit
+        self.order_cancel = 2 * config.order_trigger
+        self.completeness = completeness
         self.recovering = recovering
 
     def __repr__(self) -> str:
         return (
             f"PositionData(config={self.config}, "
             f"state={self.state}, "
-            f"orders_opened={self.orders_opened}, "
-            f"orders_total={self.orders_total}, "
-            f"orders_filled={self.orders_filled}, recovering={self.recovering})"
+            f"stagnation_counter={self.stagnation_counter}, "
+            f"stagnation_limit={self.stagnation_limit}, "
+            f"order_cancel={self.order_cancel}, "
+            f"completeness={self.completeness:.2f}, "
+            f"recovering={self.recovering})"
         )

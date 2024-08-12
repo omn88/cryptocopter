@@ -603,9 +603,15 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_total - orders_filled,
-                orders_filled=orders_filled,
-                orders_total=orders_total,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
                 state=self.state,
             )
         )
@@ -661,21 +667,18 @@ class HpManager:
             next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
-        orders_total = len(self.position_handler.orders)
-        orders_filled = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status == ORDER_STATUS_FILLED
-            ]
-        )
-
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_total - orders_filled,
-                orders_filled=orders_filled,
-                orders_total=orders_total,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
                 state=self.state,
             )
         )
@@ -708,28 +711,18 @@ class HpManager:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
 
-        orders_opened = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status in [ORDER_STATUS_NEW, ORDER_STATUS_PARTIALLY_FILLED]
-            ]
-        )
-
-        orders_filled = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status == ORDER_STATUS_FILLED
-            ]
-        )
-
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_opened,
-                orders_filled=orders_filled,
-                orders_total=len(self.position_handler.orders),
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
                 state=self.state,
             )
         )
@@ -834,9 +827,8 @@ class HpManager:
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=0,
-                orders_filled=0,
-                orders_total=0,
+                stagnation_counter=0,
+                completeness=0,
                 recovering=True,
                 state=State.NEW,
             )
@@ -924,27 +916,18 @@ class HpManager:
                                 )
                             )
 
-        orders_opened = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status != ORDER_STATUS_FILLED
-            ]
-        )
-        orders_filled = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status == ORDER_STATUS_FILLED
-            ]
-        )
-
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_opened,
-                orders_filled=orders_filled,
-                orders_total=orders_opened + orders_filled,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
                 recovering=True,
                 state=State.OPEN,
             )
@@ -980,26 +963,18 @@ class HpManager:
                     order.realized_quantity = fetched_order.realized_quantity
                     order.status = fetched_order.status
 
-        orders_opened = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status != ORDER_STATUS_FILLED
-            ]
-        )
-        orders_filled = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status == ORDER_STATUS_FILLED
-            ]
-        )
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_opened,
-                orders_filled=orders_filled,
-                orders_total=orders_opened + orders_filled,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
                 state=State.STAGNATED,
             )
         )

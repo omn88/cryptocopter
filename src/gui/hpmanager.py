@@ -195,9 +195,8 @@ class HpManager(BoxLayout):
             await self.gui_handler.put(
                 PositionData(
                     config=config,
-                    orders_opened=0,
-                    orders_filled=0,
-                    orders_total=0,
+                    stagnation_counter=0,
+                    completeness=0,
                     state=state,
                 )
             )
@@ -375,7 +374,7 @@ class HpManager(BoxLayout):
                         "New position added to Idle, system id: %s",
                         data.config.system_id,
                     )
-                    self.add_new_position(data=data)
+                    self.add_new_position_to_idle(data=data)
                 self.strategy_logger.debug(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                     self.active_records,
@@ -383,7 +382,7 @@ class HpManager(BoxLayout):
                     self.archive_records,
                 )
 
-    def add_new_position(self, data: PositionData) -> None:
+    def add_new_position_to_idle(self, data: PositionData) -> None:
         new_position = {
             "open_time": data.config.open_time,
             "system_id": data.config.system_id,
@@ -394,14 +393,54 @@ class HpManager(BoxLayout):
             "price_high": str(data.config.price_high),
             "budget": str(data.config.budget),
             "order_trigger": str(data.config.order_trigger),
-            "orders_opened": str(data.orders_opened),
-            "orders_total": str(data.orders_total),
-            "orders_filled": str(data.orders_filled),
             "state": str(data.state),
+            "completeness": str(data.completeness),
+            "stagnation_counter": str(data.stagnation_counter),
+            "stagnation_limit": str(data.stagnation_limit),
         }
 
         self.idle_records.append(new_position)
         self.filter_records("idle", "All")
+
+    def add_new_position_to_active(self, data: PositionData) -> None:
+        new_position = {
+            "open_time": data.config.open_time,
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "mode": str(data.config.mode.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_cancel": str(data.config.order_trigger),
+            "stagnation_counter": str(data.stagnation_counter),
+            "stagnation_limit": str(data.stagnation_limit),
+            "completeness": str(data.completeness),
+            "state": str(data.state),
+        }
+
+        self.active_records.append(new_position)
+        self.filter_records("active", "All")
+
+    def add_position_to_archive(self, data: PositionData) -> None:
+        new_position = {
+            "open_time": data.config.open_time,
+            "system_id": data.config.system_id,
+            "symbol": data.config.symbol_info.symbol,
+            "side": str(data.config.side.value),
+            "mode": str(data.config.mode.value),
+            "price_low": str(data.config.price_low),
+            "price_high": str(data.config.price_high),
+            "budget": str(data.config.budget),
+            "order_cancel": str(data.config.order_trigger),
+            "stagnation_counter": str(data.stagnation_counter),
+            "stagnation_limit": str(data.stagnation_limit),
+            "completeness": str(data.completeness),
+            "state": str(data.state),
+        }
+
+        self.archive_records.append(new_position)
+        self.filter_records("archive", "All")
 
     def recovery_to_active(self, data: PositionData) -> None:
         new_position = {
@@ -412,10 +451,10 @@ class HpManager(BoxLayout):
             "price_low": str(data.config.price_low),
             "price_high": str(data.config.price_high),
             "budget": str(data.config.budget),
-            "order_trigger": str(data.config.order_trigger),
-            "orders_opened": str(data.orders_opened),
-            "orders_total": str(data.orders_total),
-            "orders_filled": str(data.orders_filled),
+            "order_cancel": str(data.config.order_trigger),
+            "stagnation_counter": str(data.stagnation_counter),
+            "stagnation_limit": str(data.stagnation_limit),
+            "completeness": str(data.completeness),
             "mode": str(data.config.mode.value),
             "state": str(data.state),
         }
@@ -433,11 +472,11 @@ class HpManager(BoxLayout):
             "price_high": str(data.config.price_high),
             "budget": str(data.config.budget),
             "order_trigger": str(data.config.order_trigger),
-            "orders_opened": str(data.orders_opened),
-            "orders_total": str(data.orders_total),
-            "orders_filled": str(data.orders_filled),
+            "completeness": str(data.completeness),
             "mode": str(data.config.mode.value),
             "state": str(data.state),
+            "stagnation_counter": str(data.stagnation_counter),
+            "stagnation_limit": str(data.stagnation_limit),
         }
 
         self.idle_records.append(new_position)
@@ -452,9 +491,9 @@ class HpManager(BoxLayout):
             if position["system_id"] == data.config.system_id:
                 position.update(
                     {
-                        "orders_opened": str(data.orders_opened),
-                        "orders_total": str(data.orders_total),
-                        "orders_filled": str(data.orders_filled),
+                        "stagnation_counter": str(data.stagnation_counter),
+                        "stagnation_limit": str(data.stagnation_limit),
+                        "completeness": str(data.completeness),
                         "state": str(data.state),
                     }
                 )
@@ -462,7 +501,7 @@ class HpManager(BoxLayout):
                     self.active_records.remove(position)
                     self.archive_records.append(position)
                     self.strategy_logger.debug("Archiving price level: %s", position)
-                    if data.orders_total == data.orders_filled:
+                    if data.completeness == 1.0:
                         asyncio.create_task(
                             self.remove_record(system_id=data.config.system_id)
                         )
@@ -483,9 +522,9 @@ class HpManager(BoxLayout):
                 self.strategy_logger.debug("Will update position")
                 position.update(
                     {
-                        "orders_opened": str(data.orders_opened),
-                        "orders_total": str(data.orders_total),
-                        "orders_filled": str(data.orders_filled),
+                        "stagnation_counter": str(data.stagnation_counter),
+                        "stagnation_limit": str(data.stagnation_limit),
+                        "completeness": str(data.completeness),
                         "state": str(data.state),
                     }
                 )

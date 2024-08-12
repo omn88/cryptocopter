@@ -54,11 +54,11 @@ async def assert_db_price_level_content(
 
 async def assert_gui_position_data_content(
     gui_handler: asyncio.Queue,
-    orders_filled: int,
-    orders_total: int,
-    orders_opened: int,
     config: StrategyConfig,
     state: State,
+    completeness: float,
+    stagnation_counter: int,
+    stagnation_limit: int,
 ):
     # Verify GUI queue content
     logger.info("GUI queue size: %s", gui_handler.qsize())
@@ -73,10 +73,11 @@ async def assert_gui_position_data_content(
     assert gui_msg.config.price_low == config.price_low
     assert gui_msg.config.price_high == config.price_high
     assert gui_msg.config.order_trigger == config.order_trigger
-    assert gui_msg.orders_filled == orders_filled
-    assert gui_msg.orders_total == orders_total
-    assert gui_msg.orders_opened == orders_opened
     assert gui_msg.config.budget == config.budget
+    assert gui_msg.completeness == completeness
+    assert gui_msg.stagnation_counter == stagnation_counter
+    assert gui_msg.stagnation_limit == stagnation_limit
+    assert gui_msg.order_cancel == 2 * config.order_trigger
 
 
 async def process_ticker(strategy: HpManager, last_price: float):
@@ -115,18 +116,21 @@ async def simulate_order_partially_filled(
 
 
 async def db_and_gui_assertions(
-    strategy: HpManager, orders_filled: int, orders_opened: int, orders_total: int
+    strategy: HpManager,
+    completeness: float,
+    stagnation_counter: int,
+    stagnation_limit: int,
 ):
     await assert_db_price_level_content(
         db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
     await assert_gui_position_data_content(
         gui_handler=strategy.position_handler.gui_handler,
-        orders_filled=orders_filled,
-        orders_opened=orders_opened,
-        orders_total=orders_total,
         config=strategy.config,
         state=strategy.state,
+        completeness=completeness,
+        stagnation_counter=stagnation_counter,
+        stagnation_limit=stagnation_limit,
     )
 
 
@@ -180,9 +184,9 @@ async def test_default_buy_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=0,
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -190,11 +194,12 @@ async def test_default_buy_scenario(trading_system_factory):
         strategy=strategy,
         order=strategy.position_handler.orders[2],
     )
+
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate second order being filled
@@ -204,9 +209,9 @@ async def test_default_buy_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=2,
-        orders_opened=1,
-        orders_total=3,
+        completeness=round(2 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate last order being filled
@@ -216,9 +221,9 @@ async def test_default_buy_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=3,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(3 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Retrieve all orders filled signal from the queue and close the position.
@@ -230,9 +235,9 @@ async def test_default_buy_scenario(trading_system_factory):
     assert strategy.state == State.CLOSED
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=3,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(3 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
 
@@ -261,9 +266,9 @@ async def test_default_sell_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -273,9 +278,9 @@ async def test_default_sell_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate second order being filled
@@ -286,9 +291,9 @@ async def test_default_sell_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=2,
-        orders_opened=1,
-        orders_total=3,
+        completeness=round(2 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate last order being filled
@@ -298,9 +303,9 @@ async def test_default_sell_scenario(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=3,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(3 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Retrieve all orders filled signal from the queue and close the position.
@@ -311,9 +316,9 @@ async def test_default_sell_scenario(trading_system_factory):
     assert strategy.state == State.CLOSED
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=3,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(3 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
 
@@ -338,9 +343,9 @@ async def test_stagnation_buy_position(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -374,9 +379,9 @@ async def test_stagnation_buy_position(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
@@ -399,9 +404,9 @@ async def test_stagnation_buy_position(trading_system_factory):
         assert order.get("status") == ORDER_STATUS_NEW
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
 
@@ -426,9 +431,9 @@ async def test_stagnation_sell_position(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -462,9 +467,9 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=900)
@@ -488,9 +493,9 @@ async def test_stagnation_sell_position(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
 
@@ -515,9 +520,9 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -527,9 +532,9 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -563,9 +568,9 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
@@ -593,9 +598,9 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=2,
-        orders_total=2,
+        completeness=round(0 / 2, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
     logger.info("All valid orders reopened.")
 
@@ -621,9 +626,9 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -633,9 +638,9 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -669,9 +674,9 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=900)
@@ -699,9 +704,9 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=2,
-        orders_total=2,
+        completeness=round(0 / 2, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
     logger.info("All valid orders reopened.")
 
@@ -727,9 +732,9 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -739,9 +744,9 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -755,9 +760,9 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -791,9 +796,9 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
@@ -821,9 +826,9 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=2,
-        orders_total=2,
+        completeness=round(0 / 2, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
     logger.info("All valid orders reopened.")
 
@@ -849,9 +854,9 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -861,9 +866,9 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     )
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # Simulate first order filled
@@ -877,9 +882,9 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=2,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     time_date = datetime.datetime.strptime(
@@ -913,9 +918,9 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=1,
-        orders_opened=0,
-        orders_total=3,
+        completeness=round(1 / 3, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     await process_ticker(strategy=strategy, last_price=900)
@@ -943,9 +948,9 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
 
     await db_and_gui_assertions(
         strategy=strategy,
-        orders_filled=0,
-        orders_opened=2,
-        orders_total=2,
+        completeness=round(0 / 2, 2),
+        stagnation_counter=strategy.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
     logger.info("All valid orders reopened.")
 
@@ -996,9 +1001,9 @@ async def test_multiple_trading_systems(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy1,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy1.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
     # Strategy2
     await process_ticker(strategy=strategy2, last_price=424)
@@ -1008,9 +1013,9 @@ async def test_multiple_trading_systems(trading_system_factory):
     )
     await db_and_gui_assertions(
         strategy=strategy2,
-        orders_filled=0,
-        orders_opened=3,
-        orders_total=3,
+        completeness=round(0 / 3, 2),
+        stagnation_counter=strategy2.position_handler.stagnation_counter,
+        stagnation_limit=STAGNATION_LIMIT,
     )
 
     # # Simulate first order filled
