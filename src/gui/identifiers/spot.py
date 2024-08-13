@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import NamedTuple, Optional
 from src.common.identifiers.spot import State, StrategyConfig
 
 
@@ -29,3 +31,52 @@ class PositionData:
             f"completeness={self.completeness:.2f}, "
             f"recovering={self.recovering})"
         )
+
+
+@dataclass
+class IdlePosition:
+    open_time: Optional[str]
+    system_id: str
+    symbol: str
+    side: str
+    mode: str
+    price_low: str
+    price_high: str
+    budget: str
+    order_trigger: str
+    state: str
+    completeness: str
+    stagnation_counter: str
+    stagnation_limit: str
+
+
+@dataclass
+class ActivePosition:
+    open_time: Optional[str]
+    system_id: str
+    symbol: str
+    side: str
+    mode: str
+    price_low: str
+    price_high: str
+    budget: str
+    order_cancel: str
+    state: str
+    completeness: str
+    stagnation_counter: str
+    stagnation_limit: str
+
+
+@dataclass
+class ArchivedPosition:
+    open_time: Optional[str]
+    close_time: Optional[str]
+    system_id: str
+    symbol: str
+    side: str
+    mode: str
+    price_low: str
+    price_high: str
+    budget: str
+    order_trigger: str
+    completeness: str

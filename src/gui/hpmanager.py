@@ -2,7 +2,7 @@ import asyncio
 import csv
 from datetime import datetime
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import uuid
 from binance import BinanceSocketManager
 from kivy.properties import (
@@ -24,19 +24,24 @@ from src.common.identifiers.spot import (
     StrategyConfig,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import PositionData
+from src.gui.identifiers.spot import (
+    ActivePosition,
+    ArchivedPosition,
+    IdlePosition,
+    PositionData,
+)
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
 
 
 class HpManager(BoxLayout):
-    active_records: List[Dict] = ListProperty([])
-    idle_records: List[Dict] = ListProperty([])
-    archive_records: List[Dict] = ListProperty([])
-    filtered_active_records: List[Dict] = ListProperty([])
-    filtered_idle_records: List[Dict] = ListProperty([])
-    filtered_archive_records: List[Dict] = ListProperty([])
+    active_records: List[ActivePosition] = ListProperty([])
+    idle_records: List[IdlePosition] = ListProperty([])
+    archive_records: List[ArchivedPosition] = ListProperty([])
+    filtered_active_records: List[ActivePosition] = ListProperty([])
+    filtered_idle_records: List[IdlePosition] = ListProperty([])
+    filtered_archive_records: List[ArchivedPosition] = ListProperty([])
     active_filter = StringProperty("All")
     idle_filter = StringProperty("All")
     archive_filter = StringProperty("All")
@@ -90,19 +95,19 @@ class HpManager(BoxLayout):
     def update_active_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.active_records:
-            symbols.add(record.get("symbol", ""))
+            symbols.add(record.symbol)
         self.ids.active_filter_input.values = sorted(list(symbols))
 
     def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
-            symbols.add(record.get("symbol", ""))
+            symbols.add(record.symbol)
         self.ids.idle_filter_input.values = sorted(list(symbols))
 
     def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
-            symbols.add(record.get("symbol", ""))
+            symbols.add(record.symbol)
         self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def validate_inputs(self) -> bool:
@@ -354,7 +359,7 @@ class HpManager(BoxLayout):
                         self.recovery_to_idle(data=data)
 
                 elif any(
-                    record["system_id"] == data.config.system_id
+                    record.system_id == data.config.system_id
                     for record in self.active_records
                 ):
                     self.strategy_logger.debug(
@@ -362,7 +367,7 @@ class HpManager(BoxLayout):
                     )
                     self.update_active_position(data=data)
                 elif any(
-                    record["system_id"] == data.config.system_id
+                    record.system_id == data.config.system_id
                     for record in self.idle_records
                 ):
                     self.strategy_logger.debug(
@@ -383,103 +388,102 @@ class HpManager(BoxLayout):
                 )
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
-        new_position = {
-            "open_time": data.config.open_time,
-            "system_id": data.config.system_id,
-            "symbol": data.config.symbol_info.symbol,
-            "side": str(data.config.side.value),
-            "mode": str(data.config.mode.value),
-            "price_low": str(data.config.price_low),
-            "price_high": str(data.config.price_high),
-            "budget": str(data.config.budget),
-            "order_trigger": str(data.config.order_trigger),
-            "state": str(data.state),
-            "completeness": str(data.completeness),
-            "stagnation_counter": str(data.stagnation_counter),
-            "stagnation_limit": str(data.stagnation_limit),
-        }
-
-        self.idle_records.append(new_position)
+        self.idle_records.append(
+            IdlePosition(
+                open_time=data.config.open_time,
+                system_id=data.config.system_id,
+                symbol=data.config.symbol_info.symbol,
+                side=str(data.config.side.value),
+                mode=str(data.config.mode.value),
+                price_low=str(data.config.price_low),
+                price_high=str(data.config.price_high),
+                budget=str(data.config.budget),
+                order_trigger=str(data.config.order_trigger),
+                state=str(data.state),
+                completeness=str(data.completeness),
+                stagnation_counter=str(data.stagnation_counter),
+                stagnation_limit=str(data.stagnation_limit),
+            )
+        )
         self.filter_records("idle", "All")
 
     def add_new_position_to_active(self, data: PositionData) -> None:
-        new_position = {
-            "open_time": data.config.open_time,
-            "system_id": data.config.system_id,
-            "symbol": data.config.symbol_info.symbol,
-            "side": str(data.config.side.value),
-            "mode": str(data.config.mode.value),
-            "price_low": str(data.config.price_low),
-            "price_high": str(data.config.price_high),
-            "budget": str(data.config.budget),
-            "order_cancel": str(data.config.order_trigger),
-            "stagnation_counter": str(data.stagnation_counter),
-            "stagnation_limit": str(data.stagnation_limit),
-            "completeness": str(data.completeness),
-            "state": str(data.state),
-        }
-
-        self.active_records.append(new_position)
+        self.active_records.append(
+            ActivePosition(
+                open_time=data.config.open_time,
+                system_id=data.config.system_id,
+                symbol=data.config.symbol_info.symbol,
+                side=str(data.config.side.value),
+                mode=str(data.config.mode.value),
+                price_low=str(data.config.price_low),
+                price_high=str(data.config.price_high),
+                budget=str(data.config.budget),
+                order_cancel=str(data.config.order_trigger),
+                stagnation_counter=str(data.stagnation_counter),
+                stagnation_limit=str(data.stagnation_limit),
+                completeness=str(data.completeness),
+                state=str(data.state),
+            )
+        )
         self.filter_records("active", "All")
 
     def add_position_to_archive(self, data: PositionData) -> None:
-        new_position = {
-            "open_time": data.config.open_time,
-            "system_id": data.config.system_id,
-            "symbol": data.config.symbol_info.symbol,
-            "side": str(data.config.side.value),
-            "mode": str(data.config.mode.value),
-            "price_low": str(data.config.price_low),
-            "price_high": str(data.config.price_high),
-            "budget": str(data.config.budget),
-            "order_cancel": str(data.config.order_trigger),
-            "stagnation_counter": str(data.stagnation_counter),
-            "stagnation_limit": str(data.stagnation_limit),
-            "completeness": str(data.completeness),
-            "state": str(data.state),
-        }
-
-        self.archive_records.append(new_position)
+        data.config.close_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.archive_records.append(
+            ArchivedPosition(
+                open_time=data.config.open_time,
+                close_time=data.config.close_time,
+                system_id=data.config.system_id,
+                symbol=data.config.symbol_info.symbol,
+                side=str(data.config.side.value),
+                mode=str(data.config.mode.value),
+                price_low=str(data.config.price_low),
+                price_high=str(data.config.price_high),
+                budget=str(data.config.budget),
+                order_trigger=str(data.config.order_trigger),
+                completeness=str(data.completeness),
+            )
+        )
         self.filter_records("archive", "All")
 
     def recovery_to_active(self, data: PositionData) -> None:
-        new_position = {
-            "open_time": data.config.open_time,
-            "system_id": data.config.system_id,
-            "symbol": data.config.symbol_info.symbol,
-            "side": str(data.config.side.value),
-            "price_low": str(data.config.price_low),
-            "price_high": str(data.config.price_high),
-            "budget": str(data.config.budget),
-            "order_cancel": str(data.config.order_trigger),
-            "stagnation_counter": str(data.stagnation_counter),
-            "stagnation_limit": str(data.stagnation_limit),
-            "completeness": str(data.completeness),
-            "mode": str(data.config.mode.value),
-            "state": str(data.state),
-        }
-
-        self.active_records.append(new_position)
+        self.active_records.append(
+            ActivePosition(
+                open_time=data.config.open_time,
+                system_id=data.config.system_id,
+                symbol=data.config.symbol_info.symbol,
+                side=str(data.config.side.value),
+                mode=str(data.config.mode.value),
+                price_low=str(data.config.price_low),
+                price_high=str(data.config.price_high),
+                budget=str(data.config.budget),
+                order_cancel=str(data.config.order_trigger),
+                stagnation_counter=str(data.stagnation_counter),
+                stagnation_limit=str(data.stagnation_limit),
+                completeness=str(data.completeness),
+                state=str(data.state),
+            )
+        )
         self.filter_records("active", "All")
 
     def recovery_to_idle(self, data: PositionData) -> None:
-        new_position = {
-            "open_time": data.config.open_time,
-            "system_id": data.config.system_id,
-            "symbol": data.config.symbol_info.symbol,
-            "side": str(data.config.side.value),
-            "price_low": str(data.config.price_low),
-            "price_high": str(data.config.price_high),
-            "budget": str(data.config.budget),
-            "order_trigger": str(data.config.order_trigger),
-            "completeness": str(data.completeness),
-            "mode": str(data.config.mode.value),
-            "state": str(data.state),
-            "stagnation_counter": str(data.stagnation_counter),
-            "stagnation_limit": str(data.stagnation_limit),
-        }
-
-        self.idle_records.append(new_position)
+        self.idle_records.append(
+            IdlePosition(
+                open_time=data.config.open_time,
+                system_id=data.config.system_id,
+                symbol=data.config.symbol_info.symbol,
+                side=str(data.config.side.value),
+                mode=str(data.config.mode.value),
+                price_low=str(data.config.price_low),
+                price_high=str(data.config.price_high),
+                budget=str(data.config.budget),
+                order_trigger=str(data.config.order_trigger),
+                state=str(data.state),
+                completeness=str(data.completeness),
+                stagnation_counter=str(data.stagnation_counter),
+                stagnation_limit=str(data.stagnation_limit),
+            )
+        )
         self.filter_records("idle", "All")
 
     # ToDO: Recovery to stagnated and update stagnated position to be added?!!!
@@ -488,18 +492,32 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
-            if position["system_id"] == data.config.system_id:
-                position.update(
-                    {
-                        "stagnation_counter": str(data.stagnation_counter),
-                        "stagnation_limit": str(data.stagnation_limit),
-                        "completeness": str(data.completeness),
-                        "state": str(data.state),
-                    }
-                )
+            if position.system_id == data.config.system_id:
+                position.stagnation_counter = str(data.stagnation_counter)
+                position.stagnation_limit = str(data.stagnation_limit)
+                position.completeness = str(data.completeness)
+                position.state = str(data.state)
+
                 if data.state == State.CLOSED:
+                    data.config.close_time = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                     self.active_records.remove(position)
-                    self.archive_records.append(position)
+                    self.archive_records.append(
+                        ArchivedPosition(
+                            open_time=data.config.open_time,
+                            close_time=data.config.close_time,
+                            system_id=data.config.system_id,
+                            symbol=data.config.symbol_info.symbol,
+                            side=str(data.config.side.value),
+                            mode=str(data.config.mode.value),
+                            price_low=str(data.config.price_low),
+                            price_high=str(data.config.price_high),
+                            budget=str(data.config.budget),
+                            order_trigger=str(data.config.order_trigger),
+                            completeness=str(data.completeness),
+                        )
+                    )
                     self.strategy_logger.debug("Archiving price level: %s", position)
                     if data.completeness == 1.0:
                         asyncio.create_task(
@@ -508,7 +526,23 @@ class HpManager(BoxLayout):
                         self.filter_records("archive", "All")
                 if data.state == State.STAGNATED:
                     self.active_records.remove(position)
-                    self.idle_records.append(position)
+                    self.idle_records.append(
+                        IdlePosition(
+                            open_time=data.config.open_time,
+                            system_id=data.config.system_id,
+                            symbol=data.config.symbol_info.symbol,
+                            side=str(data.config.side.value),
+                            mode=str(data.config.mode.value),
+                            price_low=str(data.config.price_low),
+                            price_high=str(data.config.price_high),
+                            budget=str(data.config.budget),
+                            order_trigger=str(data.config.order_trigger),
+                            state=str(data.state),
+                            completeness=str(data.completeness),
+                            stagnation_counter=str(data.stagnation_counter),
+                            stagnation_limit=str(data.stagnation_limit),
+                        )
+                    )
                     self.strategy_logger.debug("Price level stagnated: %s", position)
                     self.filter_records("idle", "All")
         self.filter_records("active", "All")
@@ -518,23 +552,52 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if position["system_id"] == data.config.system_id:
+            if position.system_id == data.config.system_id:
                 self.strategy_logger.debug("Will update position")
-                position.update(
-                    {
-                        "stagnation_counter": str(data.stagnation_counter),
-                        "stagnation_limit": str(data.stagnation_limit),
-                        "completeness": str(data.completeness),
-                        "state": str(data.state),
-                    }
-                )
+                position.stagnation_counter = str(data.stagnation_counter)
+                position.stagnation_limit = str(data.stagnation_limit)
+                position.completeness = str(data.completeness)
+                position.state = str(data.state)
                 if data.state == State.OPEN:
                     self.idle_records.remove(position)
-                    self.active_records.append(position)
+                    self.active_records.append(
+                        ActivePosition(
+                            open_time=data.config.open_time,
+                            system_id=data.config.system_id,
+                            symbol=data.config.symbol_info.symbol,
+                            side=str(data.config.side.value),
+                            mode=str(data.config.mode.value),
+                            price_low=str(data.config.price_low),
+                            price_high=str(data.config.price_high),
+                            budget=str(data.config.budget),
+                            order_cancel=str(data.config.order_trigger),
+                            stagnation_counter=str(data.stagnation_counter),
+                            stagnation_limit=str(data.stagnation_limit),
+                            completeness=str(data.completeness),
+                            state=str(data.state),
+                        )
+                    )
                     self.strategy_logger.debug("Activating price level: %s", position)
                 if data.state == State.CLOSED:
+                    data.config.close_time = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                     self.idle_records.remove(position)
-                    self.archive_records.append(position)
+                    self.archive_records.append(
+                        ArchivedPosition(
+                            open_time=data.config.open_time,
+                            close_time=data.config.close_time,
+                            system_id=data.config.system_id,
+                            symbol=data.config.symbol_info.symbol,
+                            side=str(data.config.side.value),
+                            mode=str(data.config.mode.value),
+                            price_low=str(data.config.price_low),
+                            price_high=str(data.config.price_high),
+                            budget=str(data.config.budget),
+                            order_trigger=str(data.config.order_trigger),
+                            completeness=str(data.completeness),
+                        )
+                    )
                     self.strategy_logger.debug("Archiving price level: %s", position)
 
         self.filter_records("idle", "All")
@@ -547,21 +610,21 @@ class HpManager(BoxLayout):
             self.filtered_active_records = [
                 record
                 for record in self.active_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
+                if symbol_filter == "All" or record.symbol == symbol_filter
             ]
         elif tab == "idle":
             self.idle_filter = symbol_filter
             self.filtered_idle_records = [
                 record
                 for record in self.idle_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
+                if symbol_filter == "All" or record.symbol == symbol_filter
             ]
         elif tab == "archive":
             self.archive_filter = symbol_filter
             self.filtered_archive_records = [
                 record
                 for record in self.archive_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
+                if symbol_filter == "All" or record.symbol == symbol_filter
             ]
 
         self.ids.active_records_list.refresh_from_data()
