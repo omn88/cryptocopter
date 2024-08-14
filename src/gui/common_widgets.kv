@@ -158,7 +158,7 @@
     stagnation_limit: ''
     current_price: ''
     budget: ''
-    completeness_ratio: ''
+    completeness: ''
 
     canvas.before:
         Color:
@@ -197,12 +197,12 @@
         text: root.budget
         size_hint_x: 0.06
     Label:
-        text: root.completeness_ratio
+        text: root.completeness
         size_hint_x: 0.08
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.orders_opened, root.orders_total, root.orders_filled)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
 
 
 <RecordListItemIdle@BoxLayout>:
@@ -220,7 +220,7 @@
     order_trigger: ''
     current_price: ''
     budget: ''
-    completeness_ratio: ''
+    completeness: ''
 
     canvas.before:
         Color:
@@ -256,12 +256,12 @@
         text: root.budget
         size_hint_x: 0.1
     Label:
-        text: root.completeness_ratio
+        text: root.completeness
         size_hint_x: 0.1
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness_ratio)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
 
 
 <RecordListItemArchive@BoxLayout>:
@@ -279,7 +279,7 @@
     price_high: ''
     order_trigger: ''
     budget: ''
-    completeness_ratio: ''
+    completeness: ''
 
     canvas.before:
         Color:
@@ -315,5 +315,5 @@
         text: root.budget
         size_hint_x: 0.1
     Label:
-        text: root.completeness_ratio
+        text: root.completeness
         size_hint_x: 0.1

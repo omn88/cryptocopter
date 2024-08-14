@@ -95,19 +95,19 @@ class HpManager(BoxLayout):
     def update_active_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.active_records:
-            symbols.add(record.symbol)
+            symbols.add(record.get("symbol", ""))
         self.ids.active_filter_input.values = sorted(list(symbols))
 
     def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
-            symbols.add(record.symbol)
+            symbols.add(record.get("symbol", ""))
         self.ids.idle_filter_input.values = sorted(list(symbols))
 
     def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
-            symbols.add(record.symbol)
+            symbols.add(record.get("symbol", ""))
         self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def validate_inputs(self) -> bool:
@@ -359,7 +359,7 @@ class HpManager(BoxLayout):
                         self.recovery_to_idle(data=data)
 
                 elif any(
-                    record.system_id == data.config.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.active_records
                 ):
                     self.strategy_logger.debug(
@@ -367,7 +367,7 @@ class HpManager(BoxLayout):
                     )
                     self.update_active_position(data=data)
                 elif any(
-                    record.system_id == data.config.system_id
+                    record["system_id"] == data.config.system_id
                     for record in self.idle_records
                 ):
                     self.strategy_logger.debug(
@@ -613,21 +613,21 @@ class HpManager(BoxLayout):
             self.filtered_active_records = [
                 record
                 for record in self.active_records
-                if symbol_filter == "All" or record.symbol == symbol_filter
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
         elif tab == "idle":
             self.idle_filter = symbol_filter
             self.filtered_idle_records = [
                 record
                 for record in self.idle_records
-                if symbol_filter == "All" or record.symbol == symbol_filter
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
         elif tab == "archive":
             self.archive_filter = symbol_filter
             self.filtered_archive_records = [
                 record
                 for record in self.archive_records
-                if symbol_filter == "All" or record.symbol == symbol_filter
+                if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
 
         self.ids.active_records_list.refresh_from_data()
