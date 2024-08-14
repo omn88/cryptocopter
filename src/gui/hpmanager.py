@@ -406,7 +406,6 @@ class HpManager(BoxLayout):
             self.ids.archive_records_list.refresh_from_data()
             await asyncio.sleep(1)
 
-
     def add_new_position_to_idle(self, data: PositionData) -> None:
         trigger_price = data.config.symbol_info.adjust_price(
             (
@@ -429,8 +428,6 @@ class HpManager(BoxLayout):
                 order_trigger=f"{data.config.order_trigger}({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
-                stagnation_counter=str(data.stagnation_counter),
-                stagnation_limit=str(data.stagnation_limit),
             ).to_dict()
         )
         self.filter_records("idle", "All")
@@ -455,8 +452,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
-                stagnation_counter=str(data.stagnation_counter),
-                stagnation_limit=str(data.stagnation_limit),
+                stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state),
             ).to_dict()
@@ -502,8 +498,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
-                stagnation_counter=str(data.stagnation_counter),
-                stagnation_limit=str(data.stagnation_limit),
+                stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state),
             ).to_dict()
@@ -532,8 +527,6 @@ class HpManager(BoxLayout):
                 order_trigger=f"{data.config.order_trigger}({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
-                stagnation_counter=str(data.stagnation_counter),
-                stagnation_limit=str(data.stagnation_limit),
             ).to_dict()
         )
         self.filter_records("idle", "All")
@@ -601,8 +594,6 @@ class HpManager(BoxLayout):
                         order_trigger=f"{data.config.order_trigger}({trigger_price})",
                         state=str(data.state),
                         completeness=str(data.completeness),
-                        stagnation_counter=str(data.stagnation_counter),
-                        stagnation_limit=str(data.stagnation_limit),
                     )
                     self.idle_records.append(idle_position.to_dict())
                     self.strategy_logger.debug(
@@ -642,8 +633,7 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
-                        stagnation_counter=str(data.stagnation_counter),
-                        stagnation_limit=str(data.stagnation_limit),
+                        stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                         completeness=str(data.completeness),
                         state=str(data.state),
                     )

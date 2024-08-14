@@ -46,8 +46,6 @@ class IdlePosition:
     order_trigger: str = field(default="")
     state: str = field(default="")
     completeness: str = field(default="")
-    stagnation_counter: str = field(default="")
-    stagnation_limit: str = field(default="")
     current_price: str = field(default="")
 
     def to_dict(self):
@@ -67,8 +65,7 @@ class ActivePosition:
     order_cancel: str = field(default="")
     state: str = field(default="")
     completeness: str = field(default="")
-    stagnation_counter: str = field(default="")
-    stagnation_limit: str = field(default="")
+    stagnation: str = field(default="")
     current_price: str = field(default="")
 
     def to_dict(self):
