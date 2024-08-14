@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
 from src.common.identifiers.spot import State, StrategyConfig
 
@@ -35,48 +35,57 @@ class PositionData:
 
 @dataclass
 class IdlePosition:
-    open_time: Optional[str]
-    system_id: str
-    symbol: str
-    side: str
-    mode: str
-    price_low: str
-    price_high: str
-    budget: str
-    order_trigger: str
-    state: str
-    completeness: str
-    stagnation_counter: str
-    stagnation_limit: str
+    open_time: Optional[str] = field(default=None)
+    system_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    mode: str = field(default="")
+    price_low: str = field(default="")
+    price_high: str = field(default="")
+    budget: str = field(default="")
+    order_trigger: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    stagnation_counter: str = field(default="")
+    stagnation_limit: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
 
 
 @dataclass
 class ActivePosition:
-    open_time: Optional[str]
-    system_id: str
-    symbol: str
-    side: str
-    mode: str
-    price_low: str
-    price_high: str
-    budget: str
-    order_cancel: str
-    state: str
-    completeness: str
-    stagnation_counter: str
-    stagnation_limit: str
+    open_time: Optional[str] = field(default=None)
+    system_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    mode: str = field(default="")
+    price_low: str = field(default="")
+    price_high: str = field(default="")
+    budget: str = field(default="")
+    order_cancel: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    stagnation_counter: str = field(default="")
+    stagnation_limit: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
 
 
 @dataclass
 class ArchivedPosition:
-    open_time: Optional[str]
-    close_time: Optional[str]
-    system_id: str
-    symbol: str
-    side: str
-    mode: str
-    price_low: str
-    price_high: str
-    budget: str
-    order_trigger: str
-    completeness: str
+    open_time: Optional[str] = field(default=None)
+    close_time: Optional[str] = field(default=None)
+    system_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    mode: str = field(default="")
+    price_low: str = field(default="")
+    price_high: str = field(default="")
+    budget: str = field(default="")
+    order_trigger: str = field(default="")
+    completeness: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
