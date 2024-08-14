@@ -84,6 +84,7 @@ class HpManager(BoxLayout):
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
+        asyncio.create_task(self.refresh_ui())
 
         # Create the SearchableDropDown instance with the client
         self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
@@ -391,11 +392,20 @@ class HpManager(BoxLayout):
             if isinstance(data, PriceData):
                 for strategy in self.active_records:
                     if strategy["symbol"] == data.symbol:
-                        strategy["current_price"] = data.price
+                        strategy["current_price"] = str(data.price)
 
                 for strategy in self.idle_records:
                     if strategy["symbol"] == data.symbol:
-                        strategy["current_price"] = data.price
+                        strategy["current_price"] = str(data.price)
+
+    async def refresh_ui(self):
+        while True:
+            # Reassign the data to trigger the UI update
+            self.ids.active_records_list.refresh_from_data()
+            self.ids.idle_records_list.refresh_from_data()
+            self.ids.archive_records_list.refresh_from_data()
+            await asyncio.sleep(1)
+
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
         trigger_price = data.config.symbol_info.adjust_price(
