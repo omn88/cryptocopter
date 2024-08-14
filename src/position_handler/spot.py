@@ -2,7 +2,7 @@ import asyncio
 import datetime
 from typing import List, Optional
 import logging
-from binance.enums import ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
+from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, PositionSide
@@ -58,10 +58,13 @@ class PositionHandler:
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=len(self.orders),
-                orders_filled=0,
-                orders_total=len(self.orders),
                 state=state,
+                stagnation_counter=self.stagnation_counter,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.orders)
+                    / sum(order.quantity for order in self.orders),
+                    2,
+                ),
             )
         )
 
@@ -116,15 +119,12 @@ class PositionHandler:
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=0,
-                orders_filled=len(
-                    [
-                        order
-                        for order in self.orders
-                        if order.status == ORDER_STATUS_FILLED
-                    ]
+                stagnation_counter=self.stagnation_counter,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.orders)
+                    / sum(order.quantity for order in self.orders),
+                    2,
                 ),
-                orders_total=len(self.orders),
                 state=state,
             )
         )
@@ -154,19 +154,15 @@ class PositionHandler:
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
 
-        orders_opened = len(
-            [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
-        )
-
-        orders_filled = len(
-            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_opened,
-                orders_filled=orders_filled,
-                orders_total=orders_opened + orders_filled,
+                stagnation_counter=self.stagnation_counter,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.orders)
+                    / sum(order.quantity for order in self.orders),
+                    2,
+                ),
                 state=State.OPEN,
             )
         )
@@ -206,18 +202,15 @@ class PositionHandler:
                 )
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
-        orders_opened = len(
-            [order for order in self.orders if order.status != ORDER_STATUS_FILLED]
-        )
-        orders_filled = len(
-            [order for order in self.orders if order.status == ORDER_STATUS_FILLED]
-        )
         await self.gui_handler.put(
             PositionData(
                 config=self.config,
-                orders_opened=orders_opened,
-                orders_filled=orders_filled,
-                orders_total=orders_opened + orders_filled,
+                stagnation_counter=self.stagnation_counter,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.orders)
+                    / sum(order.quantity for order in self.orders),
+                    2,
+                ),
                 state=State.OPEN,
             )
         )

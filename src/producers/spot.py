@@ -11,6 +11,7 @@ from src.common.identifiers.spot import (
     TickerUpdate,
 )
 from src.common.symbol_info import SymbolInfo
+from src.gui.identifiers.spot import PriceData
 
 logger = logging.getLogger("spot_producers")
 
@@ -119,6 +120,7 @@ async def handle_outbound_account_position(msg, queue):
 async def spot_ticker_socket(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
+    ui_queue: asyncio.Queue,
     symbol_info: SymbolInfo,
     stop_event: asyncio.Event,
 ):
@@ -140,30 +142,31 @@ async def spot_ticker_socket(
                                 name=EventName.TICKER,
                                 content=TickerUpdate(
                                     symbol=str(msg["s"]),
-                                    last_price=round(
-                                        float(msg["c"]), symbol_info.price_precision
-                                    ),  # Last price
-                                    best_bid_price=round(
-                                        float(msg.get("b", "0")),
-                                        symbol_info.price_precision,
-                                    ),  # Best bid price, with safe default if 'b' is absent
-                                    best_ask_price=round(
-                                        float(msg.get("a", "0")),
-                                        symbol_info.price_precision,
-                                    ),  # Best ask price, with safe default if 'a' is absent
-                                    high_price=round(
-                                        float(msg["h"]), symbol_info.price_precision
-                                    ),  # High price of the day
-                                    low_price=round(
-                                        float(msg["l"]), symbol_info.price_precision
-                                    ),  # Low price of the day
-                                    volume=float(
-                                        msg["v"]
-                                    ),  # Total traded base asset volume
+                                    last_price=symbol_info.adjust_price(
+                                        float(msg["c"])
+                                    ),
+                                    best_bid_price=symbol_info.adjust_price(
+                                        float(msg.get("b", "0"))
+                                    ),
+                                    best_ask_price=symbol_info.adjust_price(
+                                        float(msg.get("a", "0"))
+                                    ),
+                                    high_price=symbol_info.adjust_price(
+                                        float(msg.get("h", "0"))
+                                    ),
+                                    low_price=symbol_info.adjust_price(
+                                        float(msg.get("l", "0"))
+                                    ),
+                                    volume=float(msg["v"]),
                                 ),
                             )
                         )
-
+                        await ui_queue.put(
+                            PriceData(
+                                symbol=msg["s"],
+                                price=symbol_info.adjust_price(float(msg["c"])),
+                            )
+                        )
                     except asyncio.TimeoutError:
                         continue
 

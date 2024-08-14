@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- Customized tabs for active, idle and archived positions.
 - introduce HA with use of psutil lib
 - Handle no fund available scenario by adding balance related data to transition condition.
 - Input for filename + buttons to load or save the hp configuration.
