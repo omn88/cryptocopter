@@ -388,6 +388,14 @@ class HpManager(BoxLayout):
                 )
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
+        trigger_price = data.config.symbol_info.adjust_price(
+            (
+                (1 + (data.config.order_trigger / 100)) * data.config.price_high
+                if data.config.side.value == PositionSide.LONG.value
+                else (1 - (data.config.order_trigger / 100)) * data.config.price_low
+            )
+        )
+
         self.idle_records.append(
             IdlePosition(
                 open_time=data.config.open_time,
@@ -398,7 +406,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_trigger=str(data.config.order_trigger),
+                order_trigger=f"{data.config.order_trigger}({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
                 stagnation_counter=str(data.stagnation_counter),
@@ -408,6 +416,14 @@ class HpManager(BoxLayout):
         self.filter_records("idle", "All")
 
     def add_new_position_to_active(self, data: PositionData) -> None:
+        cancel_price = data.config.symbol_info.adjust_price(
+            (
+                (1 + (2 * data.config.order_trigger / 100)) * data.config.price_high
+                if data.config.side.value == PositionSide.LONG.value
+                else (1 - (2 * data.config.order_trigger / 100)) * data.config.price_low
+            )
+        )
+
         self.active_records.append(
             ActivePosition(
                 open_time=data.config.open_time,
@@ -418,7 +434,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_cancel=str(data.config.order_trigger),
+                order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
                 stagnation_counter=str(data.stagnation_counter),
                 stagnation_limit=str(data.stagnation_limit),
                 completeness=str(data.completeness),
@@ -447,6 +463,14 @@ class HpManager(BoxLayout):
         self.filter_records("archive", "All")
 
     def recovery_to_active(self, data: PositionData) -> None:
+        cancel_price = data.config.symbol_info.adjust_price(
+            (
+                (1 + (2 * data.config.order_trigger / 100)) * data.config.price_high
+                if data.config.side.value == PositionSide.LONG.value
+                else (1 - (2 * data.config.order_trigger / 100)) * data.config.price_low
+            )
+        )
+
         self.active_records.append(
             ActivePosition(
                 open_time=data.config.open_time,
@@ -457,7 +481,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_cancel=str(data.config.order_trigger),
+                order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
                 stagnation_counter=str(data.stagnation_counter),
                 stagnation_limit=str(data.stagnation_limit),
                 completeness=str(data.completeness),
@@ -467,6 +491,14 @@ class HpManager(BoxLayout):
         self.filter_records("active", "All")
 
     def recovery_to_idle(self, data: PositionData) -> None:
+        trigger_price = data.config.symbol_info.adjust_price(
+            (
+                (1 + (data.config.order_trigger / 100)) * data.config.price_high
+                if data.config.side.value == PositionSide.LONG.value
+                else (1 - (data.config.order_trigger / 100)) * data.config.price_low
+            )
+        )
+
         self.idle_records.append(
             IdlePosition(
                 open_time=data.config.open_time,
@@ -477,7 +509,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_trigger=str(data.config.order_trigger),
+                order_trigger=f"{data.config.order_trigger}({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
                 stagnation_counter=str(data.stagnation_counter),
@@ -526,6 +558,16 @@ class HpManager(BoxLayout):
                         )
                         self.filter_records("archive", "All")
                 if data.state == State.STAGNATED:
+                    trigger_price = data.config.symbol_info.adjust_price(
+                        (
+                            (1 + (data.config.order_trigger / 100))
+                            * data.config.price_high
+                            if data.config.side.value == PositionSide.LONG.value
+                            else (1 - (data.config.order_trigger / 100))
+                            * data.config.price_low
+                        )
+                    )
+
                     self.active_records.remove(position)
                     idle_position = IdlePosition(
                         open_time=data.config.open_time,
@@ -536,7 +578,7 @@ class HpManager(BoxLayout):
                         price_low=str(data.config.price_low),
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
-                        order_trigger=str(data.config.order_trigger),
+                        order_trigger=f"{data.config.order_trigger}({trigger_price})",
                         state=str(data.state),
                         completeness=str(data.completeness),
                         stagnation_counter=str(data.stagnation_counter),
@@ -561,6 +603,15 @@ class HpManager(BoxLayout):
                 position["state"] = str(data.state)
                 if data.state == State.OPEN:
                     self.idle_records.remove(position)
+                    cancel_price = data.config.symbol_info.adjust_price(
+                        (
+                            (1 + (2 * data.config.order_trigger / 100))
+                            * data.config.price_high
+                            if data.config.side.value == PositionSide.LONG.value
+                            else (1 - (2 * data.config.order_trigger / 100))
+                            * data.config.price_low
+                        )
+                    )
                     active_position = ActivePosition(
                         open_time=data.config.open_time,
                         system_id=data.config.system_id,
@@ -570,7 +621,7 @@ class HpManager(BoxLayout):
                         price_low=str(data.config.price_low),
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
-                        order_cancel=str(data.config.order_trigger),
+                        order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
                         stagnation_counter=str(data.stagnation_counter),
                         stagnation_limit=str(data.stagnation_limit),
                         completeness=str(data.completeness),
