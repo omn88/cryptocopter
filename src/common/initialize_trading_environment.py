@@ -64,6 +64,7 @@ def futures_prepare_producers(
 def spot_prepare_producers(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
+    ui_queue: asyncio.Queue,
     stop_event: asyncio.Event,
     symbol_info: SymbolInfo,
 ):
@@ -79,6 +80,7 @@ def spot_prepare_producers(
                 stop_event=stop_event,
                 symbol_info=symbol_info,
                 queue=queue,
+                ui_queue=ui_queue,
             )
         ),
     ]

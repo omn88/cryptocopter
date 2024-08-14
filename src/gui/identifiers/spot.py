@@ -48,6 +48,7 @@ class IdlePosition:
     completeness: str = field(default="")
     stagnation_counter: str = field(default="")
     stagnation_limit: str = field(default="")
+    current_price: str = field(default="")
 
     def to_dict(self):
         return asdict(self)
@@ -68,6 +69,7 @@ class ActivePosition:
     completeness: str = field(default="")
     stagnation_counter: str = field(default="")
     stagnation_limit: str = field(default="")
+    current_price: str = field(default="")
 
     def to_dict(self):
         return asdict(self)
@@ -89,3 +91,8 @@ class ArchivedPosition:
 
     def to_dict(self):
         return asdict(self)
+
+
+class PriceData(NamedTuple):
+    price: float
+    symbol: str

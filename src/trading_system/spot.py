@@ -73,6 +73,7 @@ class TradingSystem:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
+                ui_queue=self.gui_handler,
                 symbol_info=self.config.symbol_info,
             ),
             asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),

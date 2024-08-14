@@ -29,6 +29,7 @@ from src.gui.identifiers.spot import (
     ArchivedPosition,
     IdlePosition,
     PositionData,
+    PriceData,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
@@ -386,6 +387,15 @@ class HpManager(BoxLayout):
                     self.idle_records,
                     self.archive_records,
                 )
+
+            if isinstance(data, PriceData):
+                for strategy in self.active_records:
+                    if strategy["symbol"] == data.symbol:
+                        strategy["current_price"] = data.price
+
+                for strategy in self.idle_records:
+                    if strategy["symbol"] == data.symbol:
+                        strategy["current_price"] = data.price
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
         trigger_price = data.config.symbol_info.adjust_price(

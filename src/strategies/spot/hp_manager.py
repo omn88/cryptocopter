@@ -591,15 +591,6 @@ class HpManager:
             next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
-        orders_total = len(self.position_handler.orders)
-        orders_filled = len(
-            [
-                order
-                for order in self.position_handler.orders
-                if order.status == ORDER_STATUS_FILLED
-            ]
-        )
-
         await self.position_handler.gui_handler.put(
             PositionData(
                 config=self.config,
