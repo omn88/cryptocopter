@@ -71,7 +71,7 @@ def spot_prepare_producers(
     return [
         asyncio.create_task(
             spot_user_socket(
-                socket_manager=socket_manager, queue=queue, stop_event=stop_event
+                socket_manager=socket_manager, queue=queue, stop_event=stop_event, symbol_info=symbol_info
             ),
         ),
         asyncio.create_task(

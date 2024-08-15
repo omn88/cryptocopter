@@ -20,6 +20,7 @@ async def spot_user_socket(
     socket_manager: BinanceSocketManager,
     queue: asyncio.Queue,
     stop_event: asyncio.Event,
+    symbol_info: SymbolInfo,
 ):
     reconnect_attempts = 10  # Number of times to attempt reconnection
 
@@ -33,12 +34,17 @@ async def spot_user_socket(
                         msg = await asyncio.wait_for(socket.recv(), timeout=1.0)
                         logger.debug("[Event]: %s", msg)
                         event_type = msg.get("e")
-                        if event_type == EventName.EXECUTION_REPORT.value:
+                        symbol = msg.get("s")
+                        if (
+                            event_type == EventName.EXECUTION_REPORT.value
+                            and symbol == symbol_info.symbol
+                        ):
                             await handle_execution_report(msg, queue)
-                        elif event_type == EventName.ACCOUNT_POSITION.value:
+                        if (
+                            event_type == EventName.ACCOUNT_POSITION.value
+                            and symbol == symbol_info.symbol
+                        ):
                             await handle_outbound_account_position(msg, queue)
-                        else:
-                            logger.info("Unhandled message type: %s", msg)
                     except asyncio.TimeoutError:
                         continue
         except ConnectionResetError as e:

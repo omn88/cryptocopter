@@ -253,9 +253,7 @@ class HpManager:
             and self.position_handler.last_state == State.NEW
         )
         if condition:
-            self.logger.info(
-                "[Recovering] %s to state NEW: %s.", self.config
-            )
+            self.logger.info("[Recovering] %s to state NEW: %s.", self.config)
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -266,9 +264,7 @@ class HpManager:
             and self.position_handler.last_state == State.OPEN
         )
         if condition:
-            self.logger.info(
-                "[Recovering] %s to state OPEN: %s.", self.config
-            )
+            self.logger.info("[Recovering] %s to state OPEN: %s.", self.config)
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -279,13 +275,10 @@ class HpManager:
             and self.position_handler.last_state == State.STAGNATED
         )
         if condition:
-            self.logger.info(
-                "[Recovering] %s to state STAGNATED: %s.", self.config
-            )
+            self.logger.info("[Recovering] %s to state STAGNATED: %s.", self.config)
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
-
         condition = (
             self.execution_report.order_type
             in [
@@ -379,7 +372,7 @@ class HpManager:
             self.logger.info(
                 "[All orders filled] %s %s",
                 self.config.symbol_info.symbol,
-                self.config.side
+                self.config.side,
             )
         return condition
 
