@@ -221,27 +221,23 @@ class HpManager:
 
     def calculate_trigger_send_orders_price(self):
         return (
-            round(
-                self.config.price_low * (1 - (self.config.order_trigger / 100)),
-                2,
+            self.config.symbol_info.adjust_price(
+                self.config.price_low * (1 - (self.config.order_trigger / 100))
             )
             if self.config.side == PositionSide.SHORT
-            else round(
-                self.config.price_high * (1 + (self.config.order_trigger / 100)),
-                2,
+            else self.config.symbol_info.adjust_price(
+                self.config.price_high * (1 + (self.config.order_trigger / 100))
             )
         )
 
     def calculate_trigger_cancel_orders_price(self):
         return (
-            round(
-                self.config.price_low * (1 - (2 * self.config.order_trigger / 100)),
-                2,
+            self.config.symbol_info.adjust_price(
+                self.config.price_low * (1 - (2 * self.config.order_trigger / 100))
             )
             if self.config.side == PositionSide.SHORT
-            else round(
-                self.config.price_high * (1 + (2 * self.config.order_trigger / 100)),
-                2,
+            else self.config.symbol_info.adjust_price(
+                self.config.price_high * (1 + (2 * self.config.order_trigger / 100))
             )
         )
 
