@@ -253,7 +253,7 @@ class HpManager:
             and self.position_handler.last_state == State.NEW
         )
         if condition:
-            self.logger.info("[Recovering] %s to state NEW: %s.", self.config)
+            self.logger.info("[Recovering] %s to state NEW", self.config)
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -264,7 +264,7 @@ class HpManager:
             and self.position_handler.last_state == State.OPEN
         )
         if condition:
-            self.logger.info("[Recovering] %s to state OPEN: %s.", self.config)
+            self.logger.info("[Recovering] %s to state OPEN", self.config)
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -275,7 +275,7 @@ class HpManager:
             and self.position_handler.last_state == State.STAGNATED
         )
         if condition:
-            self.logger.info("[Recovering] %s to state STAGNATED: %s.", self.config)
+            self.logger.info("[Recovering] %s to state STAGNATED", self.config)
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
