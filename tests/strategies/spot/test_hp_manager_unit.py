@@ -10,14 +10,15 @@ from binance.enums import (
 )
 from src.common.identifiers.spot import ExecutionReport, State
 from src.common.identifiers.common import PositionSide
+from src.strategies.spot.hp_manager import HpManager
 
 
-async def test_initialize_strategy(spot_sell):
+async def test_initialize_strategy(spot_sell) -> None:
     strategy = spot_sell.strategy
     assert strategy.state == State.NEW
 
 
-async def test_configuration_settings(spot_buy):
+async def test_configuration_settings(spot_buy) -> None:
     strategy = spot_buy.strategy
     assert strategy.config.price_low == 1000
     assert strategy.config.price_high == 1400
@@ -25,23 +26,27 @@ async def test_configuration_settings(spot_buy):
     assert strategy.config.budget == 1000
 
 
-async def test_conditions_for_new_order_confirmation(spot_sell):
-    strategy = spot_sell.strategy
+async def test_conditions_for_new_order_confirmation(spot_sell) -> None:
+    strategy: HpManager = spot_sell.strategy
     strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_NEW
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
 
-async def test_conditions_for_order_cancellation(spot_sell):
-    strategy = spot_sell.strategy
+async def test_conditions_for_order_cancellation(spot_sell) -> None:
+    strategy: HpManager = spot_sell.strategy
     strategy.execution_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_CANCELED
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_order_cancellation()
 
 
-async def test_conditions_for_order_expiration(spot_sell):
+async def test_conditions_for_order_expiration(spot_sell) -> None:
     strategy = spot_sell.strategy
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
@@ -49,7 +54,7 @@ async def test_conditions_for_order_expiration(spot_sell):
     assert strategy.conditions_for_order_expiration()
 
 
-async def test_conditions_for_order_filled(spot_sell):
+async def test_conditions_for_order_filled(spot_sell) -> None:
     strategy = spot_sell.strategy
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
@@ -57,7 +62,7 @@ async def test_conditions_for_order_filled(spot_sell):
     assert strategy.conditions_for_order_filled()
 
 
-async def test_conditions_for_order_partially_filled(spot_sell):
+async def test_conditions_for_order_partially_filled(spot_sell) -> None:
     strategy = spot_sell.strategy
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_PARTIALLY_FILLED
@@ -65,7 +70,7 @@ async def test_conditions_for_order_partially_filled(spot_sell):
     assert strategy.conditions_for_order_partially_filled()
 
 
-async def test_conditions_for_sending_buy_orders(spot_buy):
+async def test_conditions_for_sending_buy_orders(spot_buy) -> None:
     strategy = spot_buy.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.LONG
@@ -73,7 +78,7 @@ async def test_conditions_for_sending_buy_orders(spot_buy):
     assert strategy.conditions_for_sending_buy_orders()
 
 
-async def test_conditions_for_sending_sell_orders(spot_sell):
+async def test_conditions_for_sending_sell_orders(spot_sell) -> None:
     strategy = spot_sell.strategy
     strategy.state = State.NEW
     strategy.config.side = PositionSide.SHORT
@@ -81,7 +86,7 @@ async def test_conditions_for_sending_sell_orders(spot_sell):
     assert strategy.conditions_for_sending_sell_orders()
 
 
-async def test_conditions_for_cancelling_buy_orders(spot_buy):
+async def test_conditions_for_cancelling_buy_orders(spot_buy) -> None:
     strategy = spot_buy.strategy
     strategy.state = State.OPEN
     strategy.position_handler.config.side = PositionSide.LONG
@@ -96,7 +101,7 @@ async def test_conditions_for_cancelling_buy_orders(spot_buy):
     assert strategy.conditions_for_cancelling_buy_orders() is False
 
 
-async def test_conditions_for_cancelling_sell_orders(spot_sell):
+async def test_conditions_for_cancelling_sell_orders(spot_sell) -> None:
     strategy = spot_sell.strategy
     strategy.state = State.OPEN
     strategy.config.side = PositionSide.SHORT
