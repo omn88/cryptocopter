@@ -2,6 +2,7 @@ import asyncio
 import csv
 from datetime import datetime
 import os
+import logging
 from typing import Dict, List, Optional, Union
 import uuid
 from binance import BinanceSocketManager
@@ -34,6 +35,9 @@ from src.gui.identifiers.spot import (
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
+
+
+logger = logging.getLogger("HP_GUI")
 
 
 class HpManager(BoxLayout):
@@ -347,10 +351,10 @@ class HpManager(BoxLayout):
                 pass  # handle account update
 
             if isinstance(data, PositionData):
-                self.strategy_logger.debug("Received position data: %s", data)
+                self.strategy_logger.info("Received position data: %s", data)
                 if data.recovering:
                     if data.state == State.OPEN:
-                        self.strategy_logger.logger.debug(
+                        self.strategy_logger.logger.info(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
@@ -425,7 +429,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_trigger=f"{data.config.order_trigger}({trigger_price})",
+                order_trigger=f"{data.config.order_trigger},({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
             ).to_dict()
@@ -451,7 +455,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
+                order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state),
@@ -497,7 +501,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
+                order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state),
@@ -524,7 +528,7 @@ class HpManager(BoxLayout):
                 price_low=str(data.config.price_low),
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
-                order_trigger=f"{data.config.order_trigger}({trigger_price})",
+                order_trigger=f"{data.config.order_trigger},({trigger_price})",
                 state=str(data.state),
                 completeness=str(data.completeness),
             ).to_dict()
@@ -591,7 +595,7 @@ class HpManager(BoxLayout):
                         price_low=str(data.config.price_low),
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
-                        order_trigger=f"{data.config.order_trigger}({trigger_price})",
+                        order_trigger=f"{data.config.order_trigger},({trigger_price})",
                         state=str(data.state),
                         completeness=str(data.completeness),
                     )
@@ -632,7 +636,7 @@ class HpManager(BoxLayout):
                         price_low=str(data.config.price_low),
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
-                        order_cancel=f"{2 * data.config.order_trigger}({cancel_price})",
+                        order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                         stagnation=f"{data.stagnation_counter}/{data.stagnation_limit}",
                         completeness=str(data.completeness),
                         state=str(data.state),

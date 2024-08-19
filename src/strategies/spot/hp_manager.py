@@ -214,34 +214,29 @@ class HpManager:
                 "trigger": "process_ticker",
                 "source": State.CLOSED,
                 "dest": "=",
-                "conditions": "conditions_for_position_closure_messages",
                 "after": "allow_messages",
             },
         ]
 
     def calculate_trigger_send_orders_price(self):
         return (
-            round(
-                self.config.price_low * (1 - (self.config.order_trigger / 100)),
-                2,
+            self.config.symbol_info.adjust_price(
+                self.config.price_low * (1 - (self.config.order_trigger / 100))
             )
             if self.config.side == PositionSide.SHORT
-            else round(
-                self.config.price_high * (1 + (self.config.order_trigger / 100)),
-                2,
+            else self.config.symbol_info.adjust_price(
+                self.config.price_high * (1 + (self.config.order_trigger / 100))
             )
         )
 
     def calculate_trigger_cancel_orders_price(self):
         return (
-            round(
-                self.config.price_low * (1 - (2 * self.config.order_trigger / 100)),
-                2,
+            self.config.symbol_info.adjust_price(
+                self.config.price_low * (1 - (2 * self.config.order_trigger / 100))
             )
             if self.config.side == PositionSide.SHORT
-            else round(
-                self.config.price_high * (1 + (2 * self.config.order_trigger / 100)),
-                2,
+            else self.config.symbol_info.adjust_price(
+                self.config.price_high * (1 + (2 * self.config.order_trigger / 100))
             )
         )
 
@@ -253,9 +248,7 @@ class HpManager:
             and self.position_handler.last_state == State.NEW
         )
         if condition:
-            self.logger.info(
-                "Recovering system: %s to state NEW: %s.", self.config, condition
-            )
+            self.logger.info("[Recovering] %s to state NEW", self.config)
         return condition
 
     def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
@@ -266,9 +259,7 @@ class HpManager:
             and self.position_handler.last_state == State.OPEN
         )
         if condition:
-            self.logger.info(
-                "Recovering system: %s to state OPEN: %s.", self.config, condition
-            )
+            self.logger.info("[Recovering] %s to state OPEN", self.config)
         return condition
 
     def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
@@ -279,14 +270,10 @@ class HpManager:
             and self.position_handler.last_state == State.STAGNATED
         )
         if condition:
-            self.logger.info(
-                "Recovering system: %s to state STAGNATED: %s.", self.config, condition
-            )
+            self.logger.info("[Recovering] %s to state STAGNATED", self.config)
         return condition
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
-        # This has to figure out whether this is new target order or just limit dca, or not?
-
         condition = (
             self.execution_report.order_type
             in [
@@ -294,11 +281,12 @@ class HpManager:
                 ORDER_TYPE_MARKET,
             ]
             and self.execution_report.current_order_status == ORDER_STATUS_NEW
+            and self.execution_report.symbol == self.config.symbol_info.symbol
         )
         if condition:
             self.logger.info(
-                "New order confirmation: %s, order type: %s order status: %s",
-                condition,
+                "[New Order] %s, order type: %s order status: %s",
+                self.execution_report.symbol,
                 self.execution_report.order_type,
                 self.execution_report.current_order_status,
             )
@@ -308,12 +296,14 @@ class HpManager:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
+            and self.execution_report.symbol == self.config.symbol_info.symbol
         )
         if condition:
             self.logger.info(
-                "Order cancelled: %s, order update status: %s",
-                condition,
-                self.execution_report.current_order_status,
+                "[Cancelled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
             )
         return condition
 
@@ -324,9 +314,10 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Order expired: %s, order update status: %s",
-                condition,
-                self.execution_report.current_order_status,
+                "[Expired order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
             )
         return condition
 
@@ -339,9 +330,10 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Order filled: %s, order status: %s",
-                condition,
-                self.execution_report.current_order_status,
+                "[Filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
             )
         return condition
 
@@ -355,9 +347,10 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Order partially filled: %s, order update status: %s",
-                condition,
-                self.execution_report.current_order_status,
+                "[Partially filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
             )
         return condition
 
@@ -372,9 +365,9 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "All orders filled: %s, signal update: %s",
-                condition,
-                self.signal_update.signal,
+                "[All orders filled] %s %s",
+                self.config.symbol_info.symbol,
+                self.config.side,
             )
         return condition
 
@@ -388,8 +381,8 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Send buy orders: %s, side: %s, state: %s, budget: %s, balance: %s",
-                condition,
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s",
+                self.config.symbol_info.symbol,
                 self.config.side,
                 self.state,
                 self.config.budget,
@@ -407,7 +400,7 @@ class HpManager:
         self.logger.debug(
             "Remaining quantity: %s for %s",
             rem_quant,
-            self.position_handler.config.symbol_info.symbol,
+            self.config.symbol_info.symbol,
         )
         return rem_quant
 
@@ -422,8 +415,8 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Resend buy orders: %s, state: %s, balance: %s, remaining quantity: %s",
-                condition,
+                "[Resend buy orders] %s, state: %s, balance: %s, remaining quantity: %s",
+                self.config.symbol_info.symbol,
                 self.state,
                 self.balance,
                 remaining_quant,
@@ -441,8 +434,8 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Send sell orders: %s, side: %s, state: %s, budget: %s, balance: %s",
-                condition,
+                "[Send sell orders] %s, side: %s, state: %s, budget: %s, balance: %s",
+                self.config.symbol_info.symbol,
                 self.config.side,
                 self.state,
                 self.config.budget,
@@ -462,8 +455,8 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Resend sell orders: %s, state: %s, balance: %s, remaining quantity: %s",
-                condition,
+                "[Resend sell orders] %s, state: %s, balance: %s, remaining quantity: %s",
+                self.config.symbol_info.symbol,
                 self.state,
                 self.balance,
                 remaining_quant,
@@ -474,15 +467,15 @@ class HpManager:
     def conditions_for_cancelling_buy_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
-            and self.position_handler.config.side == PositionSide.LONG
+            and self.config.side == PositionSide.LONG
             and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
             and self.ticker_update.last_price
             > self.calculate_trigger_cancel_orders_price()
         )
         if condition:
             self.logger.info(
-                "Cancel BUY orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                condition,
+                "[Stagnation Cancel BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.config.symbol_info.symbol,
                 self.position_handler.stagnation_counter,
                 STAGNATION_LIMIT,
                 self.ticker_update.last_price,
@@ -494,15 +487,15 @@ class HpManager:
     def conditions_for_cancelling_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
-            and self.position_handler.config.side == PositionSide.SHORT
+            and self.config.side == PositionSide.SHORT
             and self.position_handler.stagnation_counter >= STAGNATION_LIMIT
             and self.ticker_update.last_price
             < self.calculate_trigger_cancel_orders_price()
         )
         if condition:
             self.logger.info(
-                "Cancel SELL orders due to stagnation: %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                condition,
+                "[Stagnation Cancel SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.config.symbol_info.symbol,
                 self.position_handler.stagnation_counter,
                 STAGNATION_LIMIT,
                 self.ticker_update.last_price,
@@ -519,7 +512,7 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "Handle position stagnation: %s, time now: %s, monitor time: %s",
+                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
                 self.position_handler.next_monitor_position_time,
@@ -528,9 +521,6 @@ class HpManager:
         return condition
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info(
-            "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
-        )
         self.balance -= self.config.budget
 
         await self.position_handler.open_position(
@@ -564,8 +554,8 @@ class HpManager:
         self.position_handler.orders = new_orders
 
         await self.position_handler.order_handler.create_orders(
-            side=self.position_handler.config.side,
-            symbol_info=self.position_handler.config.symbol_info,
+            side=self.config.side,
+            symbol_info=self.config.symbol_info,
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
@@ -633,8 +623,8 @@ class HpManager:
         self.position_handler.orders = new_orders
 
         await self.position_handler.order_handler.create_orders(
-            side=self.position_handler.config.side,
-            symbol_info=self.position_handler.config.symbol_info,
+            side=self.config.side,
+            symbol_info=self.config.symbol_info,
             orders=self.position_handler.orders,
         )
         self.state = State.OPEN
@@ -686,14 +676,14 @@ class HpManager:
         )
 
     async def cancel_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.position_handler.config.side)
+        self.logger.info("Cancelling %s", self.config.side.value)
         self.state = State.STAGNATED
         self.logger.info("Orders: %s", self.position_handler.orders)
         self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.position_handler.config.side)
+        self.logger.info("Cancelling %s", self.config.side.value)
         self.state = State.STAGNATED
         self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)
@@ -737,10 +727,10 @@ class HpManager:
             )
         else:
             self.logger.info(
-                "[%s]: Stagnation limit reached, current price: %s, order trigger price: %s",
+                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
                 self.config.system_id,
                 self.ticker_update.last_price,
-                self.calculate_trigger_send_orders_price(),
+                self.calculate_trigger_cancel_orders_price(),
             )
         time_date = datetime.strptime(
             self.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
@@ -748,6 +738,28 @@ class HpManager:
         time_date += timedelta(hours=1)
         self.position_handler.next_monitor_position_time = time_date.strftime(
             "%Y-%m-%d %H:%M:%S"
+        )
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                config=self.config,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
+                state=self.state,
+            )
+        )
+
+        await self.position_handler.db.update_price_level(
+            config=self.config,
+            state=self.state,
+            stagnation_counter=self.position_handler.stagnation_counter,
+            next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
