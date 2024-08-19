@@ -214,7 +214,6 @@ class HpManager:
                 "trigger": "process_ticker",
                 "source": State.CLOSED,
                 "dest": "=",
-                "conditions": "conditions_for_position_closure_messages",
                 "after": "allow_messages",
             },
         ]
@@ -728,10 +727,10 @@ class HpManager:
             )
         else:
             self.logger.info(
-                "[%s]: Stagnation limit reached, current price: %s, order trigger price: %s",
+                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
                 self.config.system_id,
                 self.ticker_update.last_price,
-                self.calculate_trigger_send_orders_price(),
+                self.calculate_trigger_cancel_orders_price(),
             )
         time_date = datetime.strptime(
             self.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
@@ -739,6 +738,28 @@ class HpManager:
         time_date += timedelta(hours=1)
         self.position_handler.next_monitor_position_time = time_date.strftime(
             "%Y-%m-%d %H:%M:%S"
+        )
+        await self.position_handler.gui_handler.put(
+            PositionData(
+                config=self.config,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                completeness=round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.position_handler.orders
+                    )
+                    / sum(order.quantity for order in self.position_handler.orders),
+                    2,
+                ),
+                state=self.state,
+            )
+        )
+
+        await self.position_handler.db.update_price_level(
+            config=self.config,
+            state=self.state,
+            stagnation_counter=self.position_handler.stagnation_counter,
+            next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
     async def confirm_new_order(self, *args, **kwargs) -> None:

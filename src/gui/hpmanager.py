@@ -2,6 +2,7 @@ import asyncio
 import csv
 from datetime import datetime
 import os
+import logging
 from typing import Dict, List, Optional, Union
 import uuid
 from binance import BinanceSocketManager
@@ -34,6 +35,9 @@ from src.gui.identifiers.spot import (
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
+
+
+logger = logging.getLogger("HP_GUI")
 
 
 class HpManager(BoxLayout):
@@ -347,10 +351,10 @@ class HpManager(BoxLayout):
                 pass  # handle account update
 
             if isinstance(data, PositionData):
-                self.strategy_logger.debug("Received position data: %s", data)
+                self.strategy_logger.info("Received position data: %s", data)
                 if data.recovering:
                     if data.state == State.OPEN:
-                        self.strategy_logger.logger.debug(
+                        self.strategy_logger.logger.info(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
