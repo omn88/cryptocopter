@@ -25,7 +25,7 @@ log_filename = os.path.join(
 
 # Configure the main logger with a basic configuration
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )

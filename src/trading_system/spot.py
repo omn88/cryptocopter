@@ -50,7 +50,7 @@ class TradingSystem:
             db=self.db,
         )
 
-        self.strategy_logger.debug("Config status: %s", last_state)
+        self.strategy_logger.info("Config status: %s", last_state)
 
         if last_state is not None:
             self.strategy_logger.debug(

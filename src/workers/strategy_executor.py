@@ -57,6 +57,7 @@ class StrategyExecutor:
         next_monitor_time: str,
         usdt_balance: float,
     ) -> None:
+        self.logger.info("Initializing trading system: %s", config)
         trading_system = TradingSystem(
             client=self.client,
             gui_handler=self.gui_handler,
@@ -76,13 +77,13 @@ class StrategyExecutor:
                 stagnation_counter,
                 next_monitor_time,
             )
-        trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
-        trading_system.strategy.position_handler.next_monitor_position_time = (
-            next_monitor_time
-        )
+            trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
+            trading_system.strategy.position_handler.next_monitor_position_time = (
+                next_monitor_time
+            )
 
         self.id_to_system[config.system_id] = trading_system
-        self.logger.debug("Starting trading system for %s", config)
+        self.logger.info("Starting trading system for %s", config)
         await trading_system.start_trading()
 
     async def remove_record(self, system_id: str) -> None:

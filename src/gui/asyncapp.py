@@ -142,6 +142,7 @@ class AsyncApp(App):
                     stagnation_counter=int(price_level["stagnation_counter"]),
                     next_monitor_time=price_level["next_monitor_time"],
                 )
+                await asyncio.sleep(1)
 
     async def get_usdt_balance(self) -> float:
         """
