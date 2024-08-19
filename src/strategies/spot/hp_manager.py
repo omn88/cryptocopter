@@ -676,14 +676,14 @@ class HpManager:
         )
 
     async def cancel_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.config.side)
+        self.logger.info("Cancelling %s", self.config.side.value)
         self.state = State.STAGNATED
         self.logger.info("Orders: %s", self.position_handler.orders)
         self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.config.side)
+        self.logger.info("Cancelling %s", self.config.side.value)
         self.state = State.STAGNATED
         self.balance += self.get_remaining_quantity()
         await self.position_handler.cancel_position(state=self.state)

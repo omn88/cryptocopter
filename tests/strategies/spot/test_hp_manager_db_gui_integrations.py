@@ -267,6 +267,19 @@ async def test_stagnation_buy_position(trading_system_factory):
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
 
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
@@ -367,6 +380,19 @@ async def test_stagnation_sell_position(trading_system_factory):
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
 
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
@@ -484,6 +510,19 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
 
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
@@ -606,7 +645,19 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
-
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
@@ -748,7 +799,19 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
-
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
@@ -890,7 +953,19 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     # Simulate reaching the stagnation limit
     for _ in range(STAGNATION_LIMIT):
         await strategy.process_ticker()
-
+        await db_and_gui_assertions(
+            strategy=strategy,
+            completeness=round(
+                sum(
+                    order.realized_quantity
+                    for order in strategy.position_handler.orders
+                )
+                / sum(order.quantity for order in strategy.position_handler.orders),
+                2,
+            ),
+            stagnation_counter=strategy.position_handler.stagnation_counter,
+            stagnation_limit=STAGNATION_LIMIT,
+        )
     assert strategy.position_handler.stagnation_counter >= STAGNATION_LIMIT
 
     logger.info("Stagnation Limit achieved but the price is still within the area")
@@ -973,7 +1048,7 @@ async def test_multiple_trading_systems(trading_system_factory):
     trading_system2 = await trading_system_factory(
         get_strategy_config(
             side=PositionSide.LONG,
-            symbol_info=SymbolInfo(symbol="ETHUSDT"),
+            symbol_info=SymbolInfo(symbol="ETHUSDT", precision=2, price_precision=2),
             system_id="5678",
             price_low=300,
             price_high=420,
