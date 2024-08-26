@@ -22,7 +22,9 @@ from src.common.identifiers.spot import (
     CsvConfig,
     Event,
     EventName,
+    PositionSetup,
     State,
+    StateInfo,
     StrategyConfig,
 )
 from src.common.symbol_info import SymbolInfo
@@ -90,11 +92,45 @@ class HpManager(BoxLayout):
         asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
         asyncio.create_task(self.refresh_ui())
+        asyncio.create_task(self.initialize())
 
         # Create the SearchableDropDown instance with the client
         self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
         # Add it to the layout where needed
         self.ids.symbol_container.add_widget(self.symbol_input)
+
+    async def initialize(self):
+        active_price_levels = self.db.fetch_all_active_price_levels()
+        if not active_price_levels:
+            logger.info("No active price levels found")
+            return
+        logger.info("Current active price levels: %s", active_price_levels)
+
+        for price_level in active_price_levels:
+            self.strategy_executor.config_queue.put(
+                PositionSetup(
+                    config=StrategyConfig(
+                        open_time=price_level.get("open_time"),
+                        system_id=price_level.get("price_level_id"),
+                        symbol_info=self.symbols_info[price_level["symbol"]],
+                        side=PositionSide.LONG
+                        if price_level["side"] == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=float(price_level["price_low"]),
+                        price_high=float(price_level["price_high"]),
+                        budget=float(price_level["budget"]),
+                        order_trigger=float(price_level["order_trigger"]),
+                        mode=Mode.DCA
+                        if price_level.get("mode") == Mode.DCA.value
+                        else Mode.SINGLE,
+                    ),
+                    state_info=StateInfo(
+                        last_state=State[price_level["state"]],
+                        stagnation_counter=int(price_level["stagnation_counter"]),
+                        next_monitor_time=price_level["next_monitor_time"],
+                    ),
+                )
+            )
 
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
@@ -181,38 +217,47 @@ class HpManager(BoxLayout):
         last_state: Optional[State] = None,
         system_id: Optional[str] = None,
     ) -> None:
-        if system_id is None:
-            system_id = str(uuid.uuid4())
-
-        config = StrategyConfig(
-            open_time=open_time,
-            system_id=system_id,
-            symbol_info=self.symbols_info[symbol],
-            side=side,
-            price_low=price_low,
-            price_high=price_high,
-            budget=budget,
-            order_trigger=order_trigger,
-            mode=mode,
+        position_setup = PositionSetup(
+            config=StrategyConfig(
+                open_time=open_time,
+                system_id=str(uuid.uuid4()) if system_id is None else system_id,
+                symbol_info=self.symbols_info[symbol],
+                side=side,
+                price_low=price_low,
+                price_high=price_high,
+                budget=budget,
+                order_trigger=order_trigger,
+                mode=mode,
+            ),
+            state_info=StateInfo(
+                last_state=last_state,
+                stagnation_counter=stagnation_counter,
+                next_monitor_time=next_monitor_time,
+            ),
         )
-        self.strategy_logger.info(f"Adding new record with config: {config}")
-        await self.strategy_executor.config_queue.put(
-            [last_state, config, stagnation_counter, next_monitor_time]
+
+        self.strategy_executor.config_queue.put(position_setup)
+        logger.info(
+            "Adding new record with config: %s, state info: %s",
+            position_setup.config,
+            position_setup.state_info,
         )
 
         if (
             last_state is None
         ):  # inserting level only if there is no last known status, recovery will
-            state = State.NEW
+            last_state = State.NEW
             self.ui_queue.put(
                 PositionData(
-                    config=config,
+                    config=position_setup.config,
                     stagnation_counter=0,
                     completeness=0,
-                    state=state,
+                    state=last_state,
                 )
             )
-            await self.db.insert_price_level(config=config, state=state)
+            await self.db.insert_price_level(
+                config=position_setup.config, state=last_state
+            )
 
         self.filter_records(tab="idle", symbol_filter="All")
 

@@ -195,3 +195,14 @@ class StrategyConfig:
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
             f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time}, close_time={self.close_time})"
         )
+
+
+class StateInfo(NamedTuple):
+    last_state: Optional[State]
+    stagnation_counter: int
+    next_monitor_time: str
+
+
+class PositionSetup(NamedTuple):
+    config: StrategyConfig
+    state_info: StateInfo

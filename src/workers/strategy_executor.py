@@ -22,7 +22,7 @@ class StrategyExecutor:
         self.ui_queue = ui_queue
         self.db = db
         self.usdt_balance = usdt_balance
-        self.config_queue: asyncio.Queue = asyncio.Queue()
+        self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
 
     async def run(self) -> None:

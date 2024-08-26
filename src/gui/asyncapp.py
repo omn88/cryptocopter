@@ -115,34 +115,6 @@ class AsyncApp(App):
             self.setup_hp_manager_gui(
                 strategy_id=strategy.get("id"), symbols_info=self.symbols_info
             )
-            assert isinstance(self.strategies["HPManager"].content, HpManager)
-            active_price_levels = await self.db.fetch_all_active_price_levels()
-            if not active_price_levels:
-                logger.info("No active price levels found")
-                return
-            logger.info("Current active price levels: %s", active_price_levels)
-            hp_manager = self.strategies["HPManager"].content
-
-            for price_level in active_price_levels:
-                await hp_manager.add_record(
-                    open_time=price_level.get("open_time"),
-                    system_id=price_level.get("price_level_id"),
-                    symbol=price_level["symbol"],
-                    side=PositionSide.LONG
-                    if price_level["side"] == PositionSide.LONG.value
-                    else PositionSide.SHORT,
-                    price_low=float(price_level["price_low"]),
-                    price_high=float(price_level["price_high"]),
-                    budget=float(price_level["budget"]),
-                    order_trigger=float(price_level["order_trigger"]),
-                    last_state=State[price_level["state"]],
-                    mode=Mode.DCA
-                    if price_level.get("mode") == Mode.DCA.value
-                    else Mode.SINGLE,
-                    stagnation_counter=int(price_level["stagnation_counter"]),
-                    next_monitor_time=price_level["next_monitor_time"],
-                )
-                await asyncio.sleep(1)
 
     async def get_usdt_balance(self) -> float:
         """
