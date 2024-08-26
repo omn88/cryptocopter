@@ -12,7 +12,6 @@ from src.common.identifiers.spot import Event, EventName, State, StrategyConfig
 from src.common.initialize_trading_environment import spot_prepare_producers
 from src.strategies.spot.hp_manager import HpManager
 from src.workers import worker_spot
-from src.workers.trading_state_machine import TradingStateMachine
 
 # logger = logging.getLogger("trading_system")
 

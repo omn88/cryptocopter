@@ -1,4 +1,5 @@
 import asyncio
+from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.identifiers.common import SentinelUpdate
 from src.common.identifiers.spot import (
@@ -11,10 +12,9 @@ from src.common.identifiers.spot import (
     TickerUpdate,
 )
 from src.strategies.spot.hp_manager import HpManager
-from src.workers.trading_state_machine import TradingStateMachine
 
 
-async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
+async def worker(state_machine: AsyncMachine, logger: StrategyLogger):
     logger.debug("Worker sleep 5 secs before starting, so the sockets can start")
     await asyncio.sleep(5)
     logger.debug("Worker start now, state: %s.", state_machine.strategy.state)

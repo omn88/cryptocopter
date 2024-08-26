@@ -6,7 +6,6 @@
 # from src.gui.asyncapp import AsyncApp
 # from src.gui.identifiers import AccountData, OrderData, PositionData, StrategyData
 # from src.gui.strategytab import StrategyTab
-# from src.workers.trading_state_machine import TradingStateMachine
 
 
 # async def test_strategy_data_updates_ui(async_app, base):
@@ -42,7 +41,7 @@
 # # Additional test cases for OrderData and different scenarios
 
 
-# def test_update_order(base: TradingStateMachine):
+# def test_update_order(base: AsyncMachine):
 #     strategy_tab = StrategyTab(trading_system=base)
 #     async_app.trading_systems[0].state_machine = base
 #     order_id = "14"

@@ -20,7 +20,6 @@ from src.gui.identifiers.futures import AccountData
 from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.workers import worker_futures
-from src.workers.trading_state_machine import TradingStateMachine
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 
@@ -52,7 +51,7 @@ class TradingSystem:
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
-        self.state_machine: Optional[TradingStateMachine] = None
+        self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[BaseFuturesStrategy] = None
 
     async def initialize(self):
