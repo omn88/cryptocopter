@@ -8,10 +8,18 @@ from src.common.identifiers.common import (
     BinanceClient,
     SentinelUpdate,
 )
-from src.common.identifiers.spot import Event, EventName, State, StrategyConfig
 from src.common.initialize_trading_environment import spot_prepare_producers
 from src.strategies.spot.hp_manager import HpManager
-from src.workers import worker_spot
+from src.common.identifiers.spot import (
+    AccountPosition,
+    EventName,
+    Event,
+    ExecutionReport,
+    SignalUpdate,
+    State,
+    TickerUpdate,
+    StrategyConfig,
+)
 
 # logger = logging.getLogger("trading_system")
 
@@ -34,7 +42,7 @@ class TradingSystem:
         self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
-        self.state_machine: Optional[TradingStateMachine] = None
+        self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
 
     async def initialize_strategy(
@@ -70,9 +78,56 @@ class TradingSystem:
             queued=True,
         )
 
-    async def prepare_worker(self, logger: StrategyLogger):
+    async def worker(self, logger: StrategyLogger):
         if self.state_machine:
-            await worker_spot.worker(state_machine=self.state_machine, logger=logger)
+            assert isinstance(self.state_machine.model, HpManager)
+            logger.debug(
+                "Worker sleep 5 secs before starting, so the sockets can start"
+            )
+            await asyncio.sleep(5)
+            logger.debug("Worker start now, state: %s.", self.state_machine.model.state)
+            while True:
+                event = await self.state_machine.model.queue.get()
+                assert isinstance(event, Event)
+
+                logger.debug("New event: %s", event)
+
+                if EventName.TICKER == event.name:
+                    assert isinstance(event.content, TickerUpdate)
+                    self.state_machine.model.ticker_update = event.content
+                    if self.state_machine.model.state == State.RECOVERING:
+                        await self.state_machine.model.process_recovery()  # type: ignore
+                    else:
+                        await self.state_machine.model.process_ticker()  # type: ignore
+
+                elif EventName.EXECUTION_REPORT == event.name:
+                    assert isinstance(event.content, ExecutionReport)
+                    self.state_machine.model.execution_report = event.content
+                    await self.state_machine.model.process_order()  # type: ignore
+
+                elif EventName.ACCOUNT_POSITION == event.name:
+                    assert isinstance(event.content, AccountPosition)
+                    self.state_machine.model.account_position = event.content
+                    await self.state_machine.model.process_account()  # type: ignore
+
+                elif EventName.SIGNAL == event.name:
+                    assert isinstance(event.content, SignalUpdate)
+                    self.state_machine.model.signal_update = event.content
+                    await self.state_machine.model.process_signal()  # type: ignore
+
+                elif EventName.SENTINEL == event.name:
+                    assert isinstance(event.content, SentinelUpdate)
+                    self.state_machine.model.state = State.CLOSED
+                    await self.state_machine.model.position_handler.cancel_position(
+                        state=self.state_machine.model.state
+                    )
+                    logger.info(
+                        "Trading system: %s closed successfully.",
+                        self.state_machine.model.config.system_id,
+                    )
+                    return
+
+                self.state_machine.model.queue.task_done()
 
     async def start_trading(self):
         await asyncio.gather(
@@ -83,7 +138,7 @@ class TradingSystem:
                 ui_queue=self.gui_handler,
                 symbol_info=self.config.symbol_info,
             ),
-            asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
+            asyncio.create_task(self.worker(logger=self.strategy_logger)),
             return_exceptions=True,
         )
 
