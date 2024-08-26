@@ -7,12 +7,12 @@ from binance import BinanceSocketManager
 from src.common.identifiers.common import BinanceClient
 from src.common.symbol_info import SymbolInfo
 from src.gui.gui_handler.futures import GuiHandler
-from src.producers.futures import (
+from src.workers.producers.futures import (
     kline_futures_socket,
     futures_user_socket,
     futures_symbol_mark_price_socket,
 )
-from src.producers.spot import spot_ticker_socket, spot_user_socket
+from src.workers.producers.spot import spot_ticker_socket, spot_user_socket
 
 logger = logging.getLogger("initialize_trading_environment")
 

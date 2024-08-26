@@ -1,5 +1,5 @@
-import asyncio
 import datetime
+import queue
 from typing import List, Optional
 import logging
 from binance.enums import ORDER_STATUS_CANCELED
@@ -21,14 +21,14 @@ class PositionHandler:
         client: BinanceClient,
         strategy_logger: StrategyLogger,
         config: StrategyConfig,
-        gui_handler: asyncio.Queue,
+        ui_queue: queue.Queue,
         db: Database,
         last_state: Optional[State] = None,
     ):
         self.config = config
         self.strategy_logger = strategy_logger
         self.db = db
-        self.gui_handler: asyncio.Queue = gui_handler
+        self.ui_queue: queue.Queue = ui_queue
         self.order_handler = OrderHandler(
             client=client,
             strategy_logger=strategy_logger,
@@ -55,7 +55,7 @@ class PositionHandler:
 
         state = State.OPEN
 
-        await self.gui_handler.put(
+        self.ui_queue.put(
             PositionData(
                 config=self.config,
                 state=state,
@@ -116,7 +116,7 @@ class PositionHandler:
             next_monitor_time=self.next_monitor_position_time,
         )
 
-        await self.gui_handler.put(
+        self.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.stagnation_counter,
@@ -154,7 +154,7 @@ class PositionHandler:
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
 
-        await self.gui_handler.put(
+        self.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.stagnation_counter,
@@ -202,7 +202,7 @@ class PositionHandler:
                 )
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
-        await self.gui_handler.put(
+        self.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.stagnation_counter,

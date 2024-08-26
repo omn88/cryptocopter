@@ -2,6 +2,7 @@ import asyncio
 import csv
 from datetime import datetime
 import os
+import queue
 import logging
 from typing import Dict, List, Optional, Union
 import uuid
@@ -72,13 +73,13 @@ class HpManager(BoxLayout):
         self.client = client
         self.db = db
         self.strategy_id = strategy_id
-        self.gui_handler: asyncio.Queue = asyncio.Queue()
+        self.ui_queue: queue.Queue = queue.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
         self.strategy_executor = StrategyExecutor(
             client=client,
             logger=strategy_logger,
-            gui_handler=self.gui_handler,
+            ui_queue=self.ui_queue,
             db=db,
             usdt_balance=usdt_balance,
         )
@@ -203,7 +204,7 @@ class HpManager(BoxLayout):
             last_state is None
         ):  # inserting level only if there is no last known status, recovery will
             state = State.NEW
-            await self.gui_handler.put(
+            self.ui_queue.put(
                 PositionData(
                     config=config,
                     stagnation_counter=0,
@@ -339,10 +340,10 @@ class HpManager(BoxLayout):
 
     async def update_ui(self) -> None:
         while True:
-            if self.gui_handler.qsize() == 0:
+            if self.ui_queue.qsize() == 0:
                 await asyncio.sleep(1)
                 continue
-            data = await self.gui_handler.get()
+            data = await self.ui_queue.get()
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 self.strategy_logger.info("Received sentinel event, exiting")
                 return

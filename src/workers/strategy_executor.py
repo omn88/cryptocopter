@@ -1,4 +1,5 @@
 import asyncio
+import queue
 from typing import Dict, List, Optional
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -12,13 +13,13 @@ class StrategyExecutor:
         self,
         client: BinanceClient,
         logger: StrategyLogger,
-        gui_handler: asyncio.Queue,
+        ui_queue: queue.Queue,
         db: Database,
         usdt_balance: float,
     ):
         self.client = client
         self.logger = logger
-        self.gui_handler = gui_handler
+        self.ui_queue = ui_queue
         self.db = db
         self.usdt_balance = usdt_balance
         self.config_queue: asyncio.Queue = asyncio.Queue()
@@ -60,7 +61,7 @@ class StrategyExecutor:
         self.logger.info("Initializing trading system: %s", config)
         trading_system = TradingSystem(
             client=self.client,
-            gui_handler=self.gui_handler,
+            ui_queue=self.ui_queue,
             strategy_logger=self.logger,
             config=config,
             system_id=config.system_id,

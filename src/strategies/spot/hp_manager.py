@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
+import queue
 from typing import Dict, List
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -41,7 +42,7 @@ class HpManager:
         config: StrategyConfig,
         logger: StrategyLogger,
         balance: float,
-        gui_handler: asyncio.Queue,
+        ui_queue: queue.Queue,
         db: Database,
     ):
         self.client = client
@@ -54,7 +55,7 @@ class HpManager:
             client=client,
             strategy_logger=logger,
             config=config,
-            gui_handler=gui_handler,
+            ui_queue=ui_queue,
             db=db,
         )
         self.state = State.NEW
@@ -581,7 +582,7 @@ class HpManager:
             next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,
@@ -648,7 +649,7 @@ class HpManager:
             next_monitor_time=self.position_handler.next_monitor_position_time,
         )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,
@@ -692,7 +693,7 @@ class HpManager:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,
@@ -739,7 +740,7 @@ class HpManager:
         self.position_handler.next_monitor_position_time = time_date.strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,
@@ -788,11 +789,6 @@ class HpManager:
                 self.logger.debug(
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
-                # await self.gui_handler.update_order(
-                #     order=order,
-                #     symbol=self.position_handler.position.symbol,
-                #     side=self.position_handler.position.side,
-                # )
 
     async def handle_account(self, *args, **kwargs):
         for balance in self.account_position.balances:
@@ -827,7 +823,7 @@ class HpManager:
     async def handle_recovery_to_new(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=0,
@@ -919,7 +915,7 @@ class HpManager:
                                 )
                             )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,
@@ -966,7 +962,7 @@ class HpManager:
                     order.realized_quantity = fetched_order.realized_quantity
                     order.status = fetched_order.status
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
                 stagnation_counter=self.position_handler.stagnation_counter,

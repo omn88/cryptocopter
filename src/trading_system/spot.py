@@ -1,4 +1,5 @@
 import asyncio
+import queue
 from typing import Optional
 from binance import BinanceSocketManager
 from transitions.extensions.asyncio import AsyncMachine
@@ -29,7 +30,7 @@ class TradingSystem:
         self,
         system_id: str,
         client: BinanceClient,
-        gui_handler: asyncio.Queue,
+        ui_queue: queue.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
         db: Database,
@@ -37,7 +38,7 @@ class TradingSystem:
         self.system_id = system_id
         self.client = client
         self.config = config
-        self.gui_handler = gui_handler
+        self.ui_queue = ui_queue
         self.strategy_logger = strategy_logger
         self.db = db
         self.binance_socket_manager = BinanceSocketManager(client=client)
@@ -51,7 +52,7 @@ class TradingSystem:
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
-            gui_handler=self.gui_handler,
+            ui_queue=self.ui_queue,
             logger=self.strategy_logger,
             config=self.config,
             balance=usdt_balance,
@@ -135,7 +136,7 @@ class TradingSystem:
                 socket_manager=self.binance_socket_manager,
                 stop_event=self.stop_producers_event,
                 queue=self.strategy.queue,
-                ui_queue=self.gui_handler,
+                ui_queue=self.ui_queue,
                 symbol_info=self.config.symbol_info,
             ),
             asyncio.create_task(self.worker(logger=self.strategy_logger)),

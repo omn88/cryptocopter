@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import queue
 
 import aiomysql
 from binance.enums import (
@@ -47,7 +48,7 @@ async def assert_db_price_level_content(
 
 
 async def assert_gui_position_data_content(
-    gui_handler: asyncio.Queue,
+    ui_queue: queue.Queue,
     config: StrategyConfig,
     state: State,
     completeness: float,
@@ -55,8 +56,8 @@ async def assert_gui_position_data_content(
     stagnation_limit: int,
 ):
     # Verify GUI queue content
-    logger.info("GUI queue size: %s", gui_handler.qsize())
-    gui_msg = await gui_handler.get()
+    logger.info("GUI queue size: %s", ui_queue.qsize())
+    gui_msg = ui_queue.get()
     assert gui_msg
     logger.info("GUI msg: %s", gui_msg)
     assert isinstance(gui_msg, PositionData)
@@ -119,7 +120,7 @@ async def db_and_gui_assertions(
         db=strategy.position_handler.db, config=strategy.config, state=strategy.state
     )
     await assert_gui_position_data_content(
-        gui_handler=strategy.position_handler.gui_handler,
+        ui_queue=strategy.position_handler.ui_queue,
         config=strategy.config,
         state=strategy.state,
         completeness=completeness,

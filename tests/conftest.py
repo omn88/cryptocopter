@@ -1,8 +1,9 @@
 import asyncio
 import logging
+import queue
 from typing import Dict
 from transitions.extensions.asyncio import AsyncMachine
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
@@ -99,12 +100,12 @@ async def test_db():
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(config: ConfigSpot, balance: float = 10000):
-        gui_handler: asyncio.Queue = asyncio.Queue()
+        ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
             balance=balance,
             config=config,
-            gui_handler=gui_handler,
+            ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
         )
@@ -124,7 +125,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
 
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
-    gui_handler = AsyncMock()
+    ui_queue = MagicMock()
     db = AsyncMock()
 
     config = ConfigSpot(
@@ -143,7 +144,7 @@ async def spot_buy(mock_AsyncClient):
         client=mock_AsyncClient,
         balance=10000,
         config=config,
-        gui_handler=gui_handler,
+        ui_queue=ui_queue,
         logger=logger,
         db=db,
     )
@@ -175,14 +176,14 @@ async def spot_sell(mock_AsyncClient):
         mode=Mode.DCA,
     )
 
-    gui_handler = AsyncMock()
+    ui_queue = MagicMock()
     db = AsyncMock()
 
     strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=10000,
         config=config,
-        gui_handler=gui_handler,
+        ui_queue=ui_queue,
         logger=logger,
         db=db,
     )
