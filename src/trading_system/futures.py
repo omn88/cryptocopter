@@ -1,6 +1,7 @@
 import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
+from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.common import futures_get_balance
 from src.common.identifiers.common import (
@@ -79,7 +80,15 @@ class TradingSystem:
             logger=self.strategy_logger,
         )
 
-        self.state_machine = TradingStateMachine(strategy=self.strategy)
+        # Trading State Machine initialization
+        self.state_machine = AsyncMachine(
+            model=self.strategy,
+            states=self.strategy.states,
+            transitions=self.strategy.transitions,
+            initial=self.strategy.state,
+            send_event=True,
+            queued=True,
+        )
 
         await self.gui_handler.main_ui_queue.put(AccountData(balance=self.balance))
 

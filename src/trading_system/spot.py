@@ -1,6 +1,7 @@
 import asyncio
 from typing import Optional
 from binance import BinanceSocketManager
+from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import (
@@ -61,7 +62,14 @@ class TradingSystem:
             self.strategy.position_handler.last_state = last_state
 
         # Trading State Machine initialization
-        self.state_machine = TradingStateMachine(strategy=self.strategy)
+        self.state_machine = AsyncMachine(
+            model=self.strategy,
+            states=self.strategy.states,
+            transitions=self.strategy.transitions,
+            initial=self.strategy.state,
+            send_event=True,
+            queued=True,
+        )
 
     async def prepare_worker(self, logger: StrategyLogger):
         if self.state_machine:

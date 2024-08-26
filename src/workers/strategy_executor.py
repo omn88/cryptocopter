@@ -77,7 +77,9 @@ class StrategyExecutor:
                 stagnation_counter,
                 next_monitor_time,
             )
-            trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
+            trading_system.strategy.position_handler.stagnation_counter = (
+                stagnation_counter
+            )
             trading_system.strategy.position_handler.next_monitor_position_time = (
                 next_monitor_time
             )

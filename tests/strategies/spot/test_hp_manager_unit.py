@@ -14,12 +14,12 @@ from src.strategies.spot.hp_manager import HpManager
 
 
 async def test_initialize_strategy(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     assert strategy.state == State.NEW
 
 
 async def test_configuration_settings(spot_buy) -> None:
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     assert strategy.config.price_low == 1000
     assert strategy.config.price_high == 1400
     assert strategy.config.order_trigger == 1
@@ -27,7 +27,7 @@ async def test_configuration_settings(spot_buy) -> None:
 
 
 async def test_conditions_for_new_order_confirmation(spot_sell) -> None:
-    strategy: HpManager = spot_sell.strategy
+    strategy: HpManager = spot_sell.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
@@ -37,7 +37,7 @@ async def test_conditions_for_new_order_confirmation(spot_sell) -> None:
 
 
 async def test_conditions_for_order_cancellation(spot_sell) -> None:
-    strategy: HpManager = spot_sell.strategy
+    strategy: HpManager = spot_sell.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
@@ -47,7 +47,7 @@ async def test_conditions_for_order_cancellation(spot_sell) -> None:
 
 
 async def test_conditions_for_order_expiration(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
@@ -55,7 +55,7 @@ async def test_conditions_for_order_expiration(spot_sell) -> None:
 
 
 async def test_conditions_for_order_filled(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
     )
@@ -63,7 +63,7 @@ async def test_conditions_for_order_filled(spot_sell) -> None:
 
 
 async def test_conditions_for_order_partially_filled(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_PARTIALLY_FILLED
     )
@@ -71,7 +71,7 @@ async def test_conditions_for_order_partially_filled(spot_sell) -> None:
 
 
 async def test_conditions_for_sending_buy_orders(spot_buy) -> None:
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     strategy.state = State.NEW
     strategy.config.side = PositionSide.LONG
     strategy.ticker_update = MagicMock(last_price=1300)
@@ -79,7 +79,7 @@ async def test_conditions_for_sending_buy_orders(spot_buy) -> None:
 
 
 async def test_conditions_for_sending_sell_orders(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     strategy.state = State.NEW
     strategy.config.side = PositionSide.SHORT
     strategy.ticker_update = MagicMock(last_price=1500)
@@ -87,7 +87,7 @@ async def test_conditions_for_sending_sell_orders(spot_sell) -> None:
 
 
 async def test_conditions_for_cancelling_buy_orders(spot_buy) -> None:
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     strategy.state = State.OPEN
     strategy.position_handler.config.side = PositionSide.LONG
     strategy.position_handler.stagnation_counter = 8
@@ -102,7 +102,7 @@ async def test_conditions_for_cancelling_buy_orders(spot_buy) -> None:
 
 
 async def test_conditions_for_cancelling_sell_orders(spot_sell) -> None:
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     strategy.state = State.OPEN
     strategy.config.side = PositionSide.SHORT
     strategy.position_handler.config.side = PositionSide.SHORT
@@ -123,7 +123,7 @@ async def test_conditions_for_cancelling_sell_orders(spot_sell) -> None:
 
 
 async def test_handle_ticker(spot_buy):
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     strategy.state = State.OPEN
     strategy.position_handler.next_monitor_position_time = datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
@@ -134,7 +134,7 @@ async def test_handle_ticker(spot_buy):
 
 async def test_process_ticker_updates_state(spot_buy):
     # Set initial conditions
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     strategy.state = State.OPEN
     strategy.position_handler.next_monitor_position_time = datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
