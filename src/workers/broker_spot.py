@@ -24,10 +24,10 @@ class Broker:
         stop_producers_event: asyncio.Event,
     ):
         self.client = client
-        self.data_queue = data_queue  # Queue to communicate with StrategyManager
+        self.data_queue = data_queue
         self.subscriptions: Dict = (
             {}
-        )  # Dictionary to hold subscriptions for each strategy
+        )
         self.loop = None
         self.stop_producers_event = stop_producers_event
         self.socket_manager = BinanceSocketManager(client=client)
@@ -42,14 +42,11 @@ class Broker:
 
     async def run(self):
         """Main entry point for running the broker."""
-
-        # Start the user and all ticker WebSocket connections
-        stop_event = asyncio.Event()
-
+        # Maby the stop producers event is not
         asyncio.create_task(
             self.handle_socket(
                 self.socket_manager.user_socket(),
-                stop_event,
+                self.stop_producers_event,
                 self.handle_user_message,
                 reconnect_attempts=10,
             )
@@ -58,7 +55,7 @@ class Broker:
         asyncio.create_task(
             self.handle_socket(
                 self.socket_manager.ticker_socket(),
-                stop_event,
+                self.stop_producers_event,
                 self.handle_ticker_message,
                 reconnect_attempts=10,
             )

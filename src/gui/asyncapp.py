@@ -90,6 +90,21 @@ class AsyncApp(App):
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
 
+    def __str__(self):
+        return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
+
+    def build(self):
+        """Builds the application.
+
+        Returns:
+            Widget: The root widget of the application.
+        """
+        # Set the minimum size of the application window
+        Window.minimum_width = 920  # Minimum width in pixels
+        Window.minimum_height = 600  # Minimum height in pixels
+        self.root = Builder.load_file("src/gui/asyncapp.kv")
+        return self.root
+
     async def initialize(self):
         self.spot_usdt = await self.get_usdt_balance()
         await self.load_all_active_strategies()
@@ -111,7 +126,6 @@ class AsyncApp(App):
     async def restore_strategy(self, strategy) -> None:
         if strategy.get("name") == "HPManager":
             logger.info("Found instance of HPManager, restoring last known state.")
-
             self.setup_hp_manager_gui(
                 strategy_id=strategy.get("id"), symbols_info=self.symbols_info
             )
@@ -132,21 +146,6 @@ class AsyncApp(App):
         except (BinanceAPIException, BinanceRequestException) as e:
             self.logger.error("Failed to retrieve USDT balance: %s", e)
             raise e
-
-    def __str__(self):
-        return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
-
-    def build(self):
-        """Builds the application.
-
-        Returns:
-            Widget: The root widget of the application.
-        """
-        # Set the minimum size of the application window
-        Window.minimum_width = 920  # Minimum width in pixels
-        Window.minimum_height = 600  # Minimum height in pixels
-        self.root = Builder.load_file("src/gui/asyncapp.kv")
-        return self.root
 
     def log_spinner_change(self, spinner, new_value):
         """Logs a message when a spinner value changes.
