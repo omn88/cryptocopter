@@ -16,7 +16,7 @@ from src.common.identifiers.spot import (
 logger = logging.getLogger("broker")
 
 
-class Broker:
+class BrokerSpot:
     def __init__(
         self,
         client: BinanceClient,
@@ -25,9 +25,7 @@ class Broker:
     ):
         self.client = client
         self.data_queue = data_queue
-        self.subscriptions: Dict = (
-            {}
-        )
+        self.subscriptions: Dict = {}
         self.loop = None
         self.stop_producers_event = stop_producers_event
         self.socket_manager = BinanceSocketManager(client=client)

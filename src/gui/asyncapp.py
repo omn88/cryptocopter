@@ -7,6 +7,7 @@ for each strategy.
 
 import asyncio
 import logging
+import queue
 from typing import Dict, List
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 from kivy.app import App
@@ -35,6 +36,7 @@ from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.database import Database
+from src.workers.broker_spot import BrokerSpot
 
 logger = logging.getLogger("async_app")
 
@@ -85,6 +87,11 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
+        self.broker_spot: BrokerSpot = BrokerSpot(
+            client=client,
+            data_queue=queue.Queue(),
+            stop_producers_event=asyncio.Event(),
+        )
         self.strategies: Dict = {}
         self.spot_usdt = 0
         self.dynamic_spinners: Dict = {}
@@ -287,6 +294,7 @@ class AsyncApp(App):
             strategy_id=strategy_id,
             symbols_info=symbols_info,
             usdt_balance=self.spot_usdt,
+            broker=self.broker_spot,
         )
 
         tab = TabbedPanelItem(

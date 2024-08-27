@@ -6,6 +6,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import PositionSetup
 from src.trading_system.spot import TradingSystem
+from src.workers.broker_spot import BrokerSpot
 
 
 class StrategyExecutor:
@@ -15,12 +16,14 @@ class StrategyExecutor:
         logger: StrategyLogger,
         ui_queue: queue.Queue,
         db: Database,
+        broker: BrokerSpot,
         usdt_balance: float,
     ):
         self.client = client
         self.logger = logger
         self.ui_queue = ui_queue
         self.db = db
+        self.broker = broker
         self.usdt_balance = usdt_balance
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
@@ -30,11 +33,11 @@ class StrategyExecutor:
         while True:
             config = await self.config_queue.get()
             self.logger.debug("New config for strategy executor: %s", config)
-            if config == "STOP":
-                break
+            # if config == "STOP":
+            #     break
 
-            if isinstance(config, str) and config.startswith("remove:"):
-                await self.remove_record(config.split(":")[1])
+            # if isinstance(config, str) and config.startswith("remove:"):
+            #     await self.remove_record(system_id=config.split(":")[1], symbol=config.split(":")[1])
 
             if isinstance(config, PositionSetup):
                 asyncio.create_task(
@@ -66,11 +69,34 @@ class StrategyExecutor:
 
         self.id_to_system[position_setup.config.system_id] = trading_system
         self.logger.info("Starting trading system for %s", position_setup.config)
+
+        self.broker.subscribe(
+            strategy=trading_system.strategy,
+            data_type="USER",
+            symbol=position_setup.config.symbol_info.symbol,
+        )
+        self.broker.subscribe(
+            strategy=trading_system.strategy,
+            data_type="PRICE",
+            symbol=position_setup.config.symbol_info.symbol,
+        )
+
         asyncio.create_task(trading_system.worker())
 
-    async def remove_record(self, system_id: str) -> None:
+    async def remove_record(self, system_id: str, symbol: str) -> None:
         if system_id in self.id_to_system:
             trading_system: TradingSystem = self.id_to_system.pop(system_id)
+
+            self.broker.subscribe(
+                strategy=trading_system.strategy,
+                data_type="USER",
+                symbol=symbol,
+            )
+            self.broker.subscribe(
+                strategy=trading_system.strategy,
+                data_type="PRICE",
+                symbol=symbol,
+            )
 
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")

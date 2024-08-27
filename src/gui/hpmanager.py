@@ -37,6 +37,7 @@ from src.gui.identifiers.spot import (
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
+from src.workers.broker_spot import BrokerSpot
 from src.workers.strategy_executor import StrategyExecutor
 
 
@@ -68,6 +69,7 @@ class HpManager(BoxLayout):
         strategy_id: str,
         usdt_balance: float,
         symbols_info: Dict[str, SymbolInfo],
+        broker: BrokerSpot,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -78,12 +80,14 @@ class HpManager(BoxLayout):
         self.ui_queue: queue.Queue = queue.Queue()
         self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
+        self.broker = broker
         self.strategy_executor = StrategyExecutor(
             client=client,
             logger=strategy_logger,
             ui_queue=self.ui_queue,
             db=db,
             usdt_balance=usdt_balance,
+            broker=broker,
         )
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)
@@ -264,13 +268,14 @@ class HpManager(BoxLayout):
     def trigger_remove_record(
         self,
         system_id,
+        symbol,
         *args,
     ) -> None:
-        asyncio.create_task(self.remove_record(system_id=system_id))
+        asyncio.create_task(self.remove_record(system_id=system_id, symbol=symbol))
 
-    async def remove_record(self, system_id) -> None:
+    async def remove_record(self, system_id: str, symbol: str) -> None:
         # Send a command to the strategy executor to stop the trading process
-        await self.strategy_executor.remove_record(system_id=system_id)
+        await self.strategy_executor.remove_record(system_id=system_id, symbol=symbol)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -617,7 +622,10 @@ class HpManager(BoxLayout):
                     )
                     if data.completeness == 1.0:
                         asyncio.create_task(
-                            self.remove_record(system_id=data.config.system_id)
+                            self.remove_record(
+                                system_id=data.config.system_id,
+                                symbol=data.config.symbol_info.symbol,
+                            )
                         )
                         self.filter_records("archive", "All")
                 if data.state == State.STAGNATED:
