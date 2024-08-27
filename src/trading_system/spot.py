@@ -1,7 +1,6 @@
 import asyncio
 import queue
 from typing import Optional
-from binance import BinanceSocketManager
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -9,7 +8,6 @@ from src.common.identifiers.common import (
     BinanceClient,
     SentinelUpdate,
 )
-from src.common.initialize_trading_environment import spot_prepare_producers
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
     AccountPosition,
@@ -41,7 +39,6 @@ class TradingSystem:
         self.ui_queue = ui_queue
         self.strategy_logger = strategy_logger
         self.db = db
-        self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
@@ -132,13 +129,6 @@ class TradingSystem:
 
     async def start_trading(self):
         await asyncio.gather(
-            *spot_prepare_producers(
-                socket_manager=self.binance_socket_manager,
-                stop_event=self.stop_producers_event,
-                queue=self.strategy.queue,
-                ui_queue=self.ui_queue,
-                symbol_info=self.config.symbol_info,
-            ),
             asyncio.create_task(self.worker(logger=self.strategy_logger)),
             return_exceptions=True,
         )
