@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import queue
 from typing import Optional
 from transitions.extensions.asyncio import AsyncMachine
@@ -16,24 +17,23 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     SignalUpdate,
     State,
+    StateInfo,
     TickerUpdate,
     StrategyConfig,
 )
 
-# logger = logging.getLogger("trading_system")
+logger = logging.getLogger("trading_system")
 
 
 class TradingSystem:
     def __init__(
         self,
-        system_id: str,
         client: BinanceClient,
         ui_queue: queue.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
         db: Database,
     ):
-        self.system_id = system_id
         self.client = client
         self.config = config
         self.ui_queue = ui_queue
@@ -43,9 +43,7 @@ class TradingSystem:
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize_strategy(
-        self, last_state: Optional[State], usdt_balance: float
-    ):
+    async def initialize_strategy(self, state_info: StateInfo, usdt_balance: float):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
@@ -56,15 +54,15 @@ class TradingSystem:
             db=self.db,
         )
 
-        self.strategy_logger.info("Config status: %s", last_state)
+        self.strategy_logger.info("Config status: %s", state_info.last_state)
 
-        if last_state is not None:
+        if state_info.last_state is not None:
             self.strategy_logger.debug(
                 "Old status is not None: %s, moving strategy state to recovering",
-                last_state,
+                state_info.last_state,
             )
             self.strategy.state = State.RECOVERING
-            self.strategy.position_handler.last_state = last_state
+            self.strategy.position_handler.last_state = state_info.last_state
 
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
@@ -76,7 +74,14 @@ class TradingSystem:
             queued=True,
         )
 
-    async def worker(self, logger: StrategyLogger):
+        self.strategy.position_handler.stagnation_counter = (
+            state_info.stagnation_counter
+        )
+        self.strategy.position_handler.next_monitor_position_time = (
+            state_info.next_monitor_time
+        )
+
+    async def worker(self):
         if self.state_machine:
             assert isinstance(self.state_machine.model, HpManager)
             logger.debug(
@@ -126,12 +131,6 @@ class TradingSystem:
                     return
 
                 self.state_machine.model.queue.task_done()
-
-    async def start_trading(self):
-        await asyncio.gather(
-            asyncio.create_task(self.worker(logger=self.strategy_logger)),
-            return_exceptions=True,
-        )
 
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.

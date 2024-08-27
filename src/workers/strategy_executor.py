@@ -1,10 +1,10 @@
 import asyncio
 import queue
-from typing import Dict, List, Optional
+from typing import Dict
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.spot import PositionSetup
 from src.trading_system.spot import TradingSystem
 
 
@@ -36,58 +36,37 @@ class StrategyExecutor:
             if isinstance(config, str) and config.startswith("remove:"):
                 await self.remove_record(config.split(":")[1])
 
-            if isinstance(config, List):
-                assert isinstance(config[1], StrategyConfig)
+            if isinstance(config, PositionSetup):
                 asyncio.create_task(
                     self.initialize_trading_system(
-                        config=config[1],
+                        position_setup=config,
                         db=self.db,
-                        last_state=config[0],
-                        stagnation_counter=config[2],
-                        next_monitor_time=config[3],
                         usdt_balance=self.usdt_balance,
                     )
                 )
 
     async def initialize_trading_system(
         self,
-        config: StrategyConfig,
+        position_setup: PositionSetup,
         db: Database,
-        last_state: Optional[State],
-        stagnation_counter: int,
-        next_monitor_time: str,
         usdt_balance: float,
     ) -> None:
-        self.logger.info("Initializing trading system: %s", config)
+        self.logger.info("Initializing trading system: %s", position_setup.config)
         trading_system = TradingSystem(
+            strategy_logger=self.logger,
             client=self.client,
             ui_queue=self.ui_queue,
-            strategy_logger=self.logger,
-            config=config,
-            system_id=config.system_id,
+            config=position_setup.config,
             db=db,
         )
         await trading_system.initialize_strategy(
-            last_state=last_state, usdt_balance=usdt_balance
+            state_info=position_setup.state_info, usdt_balance=usdt_balance
         )
         assert trading_system.strategy is not None
-        if stagnation_counter > 0:
-            self.logger.info(
-                "[%s] Assigning stagnation counter: %s, next monitor time: %s",
-                config.system_id,
-                stagnation_counter,
-                next_monitor_time,
-            )
-            trading_system.strategy.position_handler.stagnation_counter = (
-                stagnation_counter
-            )
-            trading_system.strategy.position_handler.next_monitor_position_time = (
-                next_monitor_time
-            )
 
-        self.id_to_system[config.system_id] = trading_system
-        self.logger.info("Starting trading system for %s", config)
-        await trading_system.start_trading()
+        self.id_to_system[position_setup.config.system_id] = trading_system
+        self.logger.info("Starting trading system for %s", position_setup.config)
+        asyncio.create_task(trading_system.worker())
 
     async def remove_record(self, system_id: str) -> None:
         if system_id in self.id_to_system:
