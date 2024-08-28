@@ -108,6 +108,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
+            core_queue=queue.Queue(),
         )
         # Trading State Machine initialization
         state_machine = AsyncMachine(
@@ -147,6 +148,7 @@ async def spot_buy(mock_AsyncClient):
         ui_queue=ui_queue,
         logger=logger,
         db=db,
+        core_queue=queue.Queue(),
     )
 
     # Trading State Machine initialization
@@ -186,6 +188,7 @@ async def spot_sell(mock_AsyncClient):
         ui_queue=ui_queue,
         logger=logger,
         db=db,
+        core_queue=queue.Queue(),
     )
 
     # Trading State Machine initialization

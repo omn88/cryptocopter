@@ -43,13 +43,14 @@ class HpManager:
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
+        core_queue: queue.Queue,
         db: Database,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
         self.db = db
-        self.queue: asyncio.Queue = asyncio.Queue()
+        self.queue: queue.Queue = core_queue
         self.config = config
         self.position_handler = PositionHandler(
             client=client,
@@ -809,7 +810,7 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
-            await self.queue.put(
+            self.queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
@@ -908,7 +909,7 @@ class HpManager:
                         ):
                             signal = Signal.HP_ALL_ORDERS_FILLED
                             self.logger.info("All orders filled, sending: %s", signal)
-                            await self.queue.put(
+                            self.queue.put(
                                 Event(
                                     name=EventName.SIGNAL,
                                     content=SignalUpdate(signal=signal),

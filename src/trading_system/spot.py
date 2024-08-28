@@ -30,6 +30,7 @@ class TradingSystem:
         self,
         client: BinanceClient,
         ui_queue: queue.Queue,
+        core_queue: queue.Queue,
         config: StrategyConfig,
         strategy_logger: StrategyLogger,
         db: Database,
@@ -37,6 +38,7 @@ class TradingSystem:
         self.client = client
         self.config = config
         self.ui_queue = ui_queue
+        self.core_queue = core_queue
         self.strategy_logger = strategy_logger
         self.db = db
         self.stop_producers_event = asyncio.Event()
@@ -52,6 +54,7 @@ class TradingSystem:
             config=self.config,
             balance=usdt_balance,
             db=self.db,
+            core_queue=self.core_queue,
         )
 
         self.strategy_logger.info("Config status: %s", state_info.last_state)
@@ -90,7 +93,7 @@ class TradingSystem:
             await asyncio.sleep(5)
             logger.debug("Worker start now, state: %s.", self.state_machine.model.state)
             while True:
-                event = await self.state_machine.model.queue.get()
+                event = self.state_machine.model.queue.get()
                 assert isinstance(event, Event)
 
                 logger.debug("New event: %s", event)
@@ -138,7 +141,7 @@ class TradingSystem:
         self.strategy_logger.info(
             "Closing trading system: %s", self.strategy.config.system_id
         )
-        await self.strategy.queue.put(
+        self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
         await asyncio.sleep(5)

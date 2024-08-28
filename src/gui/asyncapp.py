@@ -13,12 +13,10 @@ from binance.exceptions import BinanceAPIException, BinanceRequestException
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
-from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.identifiers.futures import (
@@ -27,14 +25,13 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
-from src.common.identifiers.spot import State
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
-from src.common.identifiers.common import BinanceClient, Mode, PositionSide
+from src.common.identifiers.common import BinanceClient
 from src.common.database import Database
 from src.workers.broker_spot import BrokerSpot
 
@@ -287,6 +284,8 @@ class AsyncApp(App):
     ):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
+
+        logger.info("Await before HP manager starts")
         hp_manager = HpManager(
             strategy_logger=strategy_logger,
             client=self.client,
@@ -417,27 +416,31 @@ class AsyncApp(App):
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
         while True:
-            data = await self.main_ui_queue.get()
-            if isinstance(data, Event):
-                if data.name == EventName.SENTINEL:
-                    logger.info(
-                        "Strategy %s send a SENTINEL.", data.content["strategy_name"]
-                    )
-                    await self.on_close_strategy(
-                        strategy_name=data.content["strategy_name"],
-                        symbol=data.content["symbol"],
-                    )
+            try:
+                data = await self.main_ui_queue.get()
+                if isinstance(data, Event):
+                    if data.name == EventName.SENTINEL:
+                        logger.info(
+                            "Strategy %s send a SENTINEL.",
+                            data.content["strategy_name"],
+                        )
+                        await self.on_close_strategy(
+                            strategy_name=data.content["strategy_name"],
+                            symbol=data.content["symbol"],
+                        )
 
-            if isinstance(data, StrategyData):
-                self.update_strategies(data=data)
+                if isinstance(data, StrategyData):
+                    self.update_strategies(data=data)
 
-            if isinstance(data, PriceData):
-                for strategy in self.active_strategies:
-                    if (
-                        strategy["symbol"] == data.symbol
-                        and strategy["status"] != PositionStatus.CLOSED.value
-                    ):
-                        self.active_strategies = self.update_price_data(data=data)
+                if isinstance(data, PriceData):
+                    for strategy in self.active_strategies:
+                        if (
+                            strategy["symbol"] == data.symbol
+                            and strategy["status"] != PositionStatus.CLOSED.value
+                        ):
+                            self.active_strategies = self.update_price_data(data=data)
+            except queue.Empty:
+                await asyncio.sleep(0.1)
 
     def calculate_pnl(
         self, quantity: float, index_price: float, entry_price: float, leverage: int

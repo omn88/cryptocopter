@@ -104,7 +104,9 @@ class HpManager(BoxLayout):
         self.ids.symbol_container.add_widget(self.symbol_input)
 
     async def initialize(self):
-        active_price_levels = self.db.fetch_all_active_price_levels()
+        # logger.info("Awaiting 100s before fetching price levels.")
+        # await asyncio.sleep(100)
+        active_price_levels = await self.db.fetch_all_active_price_levels()
         if not active_price_levels:
             logger.info("No active price levels found")
             return
@@ -391,9 +393,9 @@ class HpManager(BoxLayout):
     async def update_ui(self) -> None:
         while True:
             if self.ui_queue.qsize() == 0:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
                 continue
-            data = await self.ui_queue.get()
+            data = self.ui_queue.get()
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 self.strategy_logger.info("Received sentinel event, exiting")
                 return

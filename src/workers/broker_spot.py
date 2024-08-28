@@ -9,8 +9,10 @@ from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     AccountPosition,
     Balance,
+    Event,
     EventName,
     ExecutionReport,
+    TickerUpdate,
 )
 
 logger = logging.getLogger("broker")
@@ -25,7 +27,8 @@ class BrokerSpot:
     ):
         self.client = client
         self.data_queue = data_queue
-        self.subscriptions: Dict = {}
+        self.subscriptions: Dict[str, list] = {}
+        self.queues: Dict[str, queue.Queue] = {}
         self.loop = None
         self.stop_producers_event = stop_producers_event
         self.socket_manager = BinanceSocketManager(client=client)
@@ -41,83 +44,112 @@ class BrokerSpot:
     async def run(self):
         """Main entry point for running the broker."""
         # Maby the stop producers event is not
-        asyncio.create_task(
-            self.handle_socket(
-                self.socket_manager.user_socket(),
-                self.stop_producers_event,
-                self.handle_user_message,
-                reconnect_attempts=10,
-            )
+        logger.info(
+            "Main entry point for running the broker, thread: %s", self.thread.name
         )
 
-        asyncio.create_task(
-            self.handle_socket(
-                self.socket_manager.ticker_socket(),
-                self.stop_producers_event,
-                self.handle_ticker_message,
-                reconnect_attempts=10,
-            )
+        results = await asyncio.gather(
+            *[
+                self.handle_socket(
+                    self.socket_manager.ticker_socket(),
+                    self.stop_producers_event,
+                    self.handle_ticker_message,
+                    reconnect_attempts=10,
+                ),
+                self.handle_socket(
+                    self.socket_manager.user_socket(),
+                    self.stop_producers_event,
+                    self.handle_user_message,
+                    reconnect_attempts=10,
+                ),
+            ],
+            return_exceptions=True
         )
 
     async def handle_socket(
         self, socket, stop_event, message_handler, reconnect_attempts=10
     ):
         """Handles incoming data from the WebSocket with reconnection logic."""
+        logger.info("Entering handle_socket for %s", socket)
+
         while not stop_event.is_set():
             try:
+                logger.info("Trying to start a stream")
+                if not socket:
+                    logger.error("Socket is None or not properly initialized.")
+                    break  # Exit if socket is not valid
+
                 async with socket as stream:
                     logger.info("WebSocket connected.")
                     while not stop_event.is_set():
                         try:
                             msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
-                            logger.debug("[Event]: %s", msg)
-                            await message_handler(msg)
+                            # logger.info("[Event]: %s", msg)
+                            message_handler(msg)
                         except asyncio.TimeoutError:
                             continue
+                        except asyncio.CancelledError:
+                            logger.error("Async task was cancelled.")
+                            raise
+                        except Exception as e:
+                            logger.exception("Error while receiving data: %s", e)
+                            break  # Exit inner loop to reconnect
+
             except ConnectionResetError as e:
                 logger.error("Connection was reset: %s. Reconnecting...", e)
                 for attempt in range(reconnect_attempts):
                     if stop_event.is_set():
                         return  # Exit if stop_event is set
-
                     await asyncio.sleep(2**attempt)  # Exponential backoff
                     logger.info("Reconnecting attempt %d...", attempt + 1)
                     break  # Break out of the retry loop to re-establish the connection
+
             except Exception as e:
-                logger.error("Unexpected error: %s", e)
-                break
+                logger.exception("Unexpected error in handle_socket: %s", e)
+                break  # Exit the outer loop if an unexpected error occurs
 
     def handle_user_message(self, msg):
         """Handle user-specific WebSocket messages."""
         symbol = msg.get("s")
         event_type = msg.get("e")
         if event_type == EventName.EXECUTION_REPORT.value:
-            msg = self.create_execution_report(msg)
+            for strategy, criteria_list in self.subscriptions.items():
+                if ("USER", symbol) in criteria_list:
+                    self.queues[strategy].put(
+                        Event(
+                            name=EventName.EXECUTION_REPORT,
+                            content=self.create_execution_report(msg),
+                        )
+                    )
         if event_type == EventName.ACCOUNT_POSITION.value:
             msg = self.create_account_position(msg)
 
-        # Forward the user message to strategies subscribed to this symbol
-        for strategy, criteria_list in self.subscriptions.items():
-            if ("USER", symbol) in criteria_list:
-                self.data_queue.put((strategy, msg))  # Non-awaitable put operation
+            for strategy, criteria_list in self.subscriptions.items():
+                if ("USER", symbol) in criteria_list:
+                    self.queues[strategy].put(
+                        Event(
+                            name=EventName.ACCOUNT_POSITION,
+                            content=self.create_account_position(msg),
+                        )
+                    )
 
     def handle_ticker_message(self, msg):
         """Handle all market ticker WebSocket messages."""
-        # Assuming the message is a list of dictionaries, one for each symbol
         for ticker in msg:
             symbol = ticker.get("s")
             if symbol:
                 for strategy, criteria_list in self.subscriptions.items():
                     if ("PRICE", symbol) in criteria_list:
-                        # Send the entire ticker data related to this symbol to the strategy
-                        self.data_queue.put((strategy, ticker))
+                        self.queues[strategy].put(
+                            Event(name=EventName.TICKER, content=TickerUpdate(ticker))
+                        )
 
-    def subscribe(self, strategy, data_type, symbol):
+    def subscribe(self, strategy, data_type, symbol, core_queue):
         """Allows a strategy to subscribe to user data or specific symbol price feed."""
         criteria = (data_type, symbol)
         if strategy not in self.subscriptions:
             self.subscriptions[strategy] = []
-
+            self.queues[strategy] = core_queue
         if criteria not in self.subscriptions[strategy]:
             self.subscriptions[strategy].append(criteria)
 
@@ -130,6 +162,7 @@ class BrokerSpot:
             ]
             if not self.subscriptions[strategy]:
                 del self.subscriptions[strategy]
+                del self.queues[strategy]  # Remove the queue for this strategy
 
     def stop(self):
         """Stops the broker and closes all connections."""
@@ -140,7 +173,7 @@ class BrokerSpot:
         """Closes the AsyncClient and socket manager."""
         await self.client.close_connection()
 
-    async def create_execution_report(self, msg) -> ExecutionReport:
+    def create_execution_report(self, msg) -> ExecutionReport:
         return ExecutionReport(
             symbol=msg["s"],
             client_order_id=msg["c"],
@@ -176,7 +209,7 @@ class BrokerSpot:
             self_trade_prevention_mode=msg["V"],
         )
 
-    async def create_account_position(self, msg) -> AccountPosition:
+    def create_account_position(self, msg) -> AccountPosition:
         balances = [
             Balance(asset=b["a"], free=float(b["f"]), locked=float(b["l"]))
             for b in msg["B"]

@@ -73,7 +73,7 @@ async def test_default_scenario_buy(spot_buy):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -130,7 +130,7 @@ async def test_default_scenario_sell(spot_sell):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -193,7 +193,7 @@ async def test_partial_order_fill_buy(spot_buy):
         for order in strategy.position_handler.orders
     )
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
@@ -255,7 +255,7 @@ async def test_partial_order_fill_sell(spot_sell):
         for order in strategy.position_handler.orders
     )
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
@@ -637,7 +637,7 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -708,7 +708,7 @@ async def test_default_scenario_sell_with_low_budget(spot_sell):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
