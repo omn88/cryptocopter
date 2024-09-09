@@ -29,7 +29,7 @@ log_filename = os.path.join(
 
 # Configure the main logger with a basic configuration
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -38,7 +38,7 @@ logging.basicConfig(
 file_handler = RotatingFileHandler(
     log_filename, maxBytes=32 * 1024 * 1024, backupCount=16
 )
-file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 )

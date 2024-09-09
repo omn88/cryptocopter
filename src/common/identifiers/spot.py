@@ -206,3 +206,8 @@ class StateInfo(NamedTuple):
 class PositionSetup(NamedTuple):
     config: StrategyConfig
     state_info: StateInfo
+
+
+class RemoveRecord(NamedTuple):
+    system_id: str
+    symbol: str

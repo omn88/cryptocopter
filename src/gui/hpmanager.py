@@ -4,9 +4,8 @@ from datetime import datetime
 import os
 import queue
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 import uuid
-from binance import BinanceSocketManager
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -23,6 +22,7 @@ from src.common.identifiers.spot import (
     Event,
     EventName,
     PositionSetup,
+    RemoveRecord,
     State,
     StateInfo,
     StrategyConfig,
@@ -37,8 +37,6 @@ from src.gui.identifiers.spot import (
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.trading_system.spot import TradingSystem
-from src.workers.broker_spot import BrokerSpot
-from src.workers.strategy_executor import StrategyExecutor
 
 
 logger = logging.getLogger("HP_GUI")
@@ -67,9 +65,8 @@ class HpManager(BoxLayout):
         db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
-        usdt_balance: float,
+        config_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
-        broker: BrokerSpot,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -78,65 +75,19 @@ class HpManager(BoxLayout):
         self.db = db
         self.strategy_id = strategy_id
         self.ui_queue: queue.Queue = queue.Queue()
-        self.socket_manager = BinanceSocketManager(client=client)
         self.strategy_logger = strategy_logger
-        self.broker = broker
-        self.strategy_executor = StrategyExecutor(
-            client=client,
-            logger=strategy_logger,
-            ui_queue=self.ui_queue,
-            db=db,
-            usdt_balance=usdt_balance,
-            broker=broker,
-        )
+        self.config_queue = config_queue
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
-        asyncio.create_task(self.strategy_executor.run())
         asyncio.create_task(self.update_ui())
         asyncio.create_task(self.refresh_ui())
-        asyncio.create_task(self.initialize())
 
         # Create the SearchableDropDown instance with the client
         self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
         # Add it to the layout where needed
         self.ids.symbol_container.add_widget(self.symbol_input)
-
-    async def initialize(self):
-        # logger.info("Awaiting 100s before fetching price levels.")
-        # await asyncio.sleep(100)
-        active_price_levels = await self.db.fetch_all_active_price_levels()
-        if not active_price_levels:
-            logger.info("No active price levels found")
-            return
-        logger.info("Current active price levels: %s", active_price_levels)
-
-        for price_level in active_price_levels:
-            self.strategy_executor.config_queue.put(
-                PositionSetup(
-                    config=StrategyConfig(
-                        open_time=price_level.get("open_time"),
-                        system_id=price_level.get("price_level_id"),
-                        symbol_info=self.symbols_info[price_level["symbol"]],
-                        side=PositionSide.LONG
-                        if price_level["side"] == PositionSide.LONG.value
-                        else PositionSide.SHORT,
-                        price_low=float(price_level["price_low"]),
-                        price_high=float(price_level["price_high"]),
-                        budget=float(price_level["budget"]),
-                        order_trigger=float(price_level["order_trigger"]),
-                        mode=Mode.DCA
-                        if price_level.get("mode") == Mode.DCA.value
-                        else Mode.SINGLE,
-                    ),
-                    state_info=StateInfo(
-                        last_state=State[price_level["state"]],
-                        stagnation_counter=int(price_level["stagnation_counter"]),
-                        next_monitor_time=price_level["next_monitor_time"],
-                    ),
-                )
-            )
 
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
@@ -191,80 +142,31 @@ class HpManager(BoxLayout):
     def trigger_add_record(self, *args) -> None:
         if not self.validate_inputs():
             return
-        asyncio.create_task(
-            self.add_record(
-                open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                symbol=self.symbol_input.selected_value,
-                price_low=float(self.symbol_input.price_low_input.text),
-                price_high=float(self.symbol_input.price_high_input.text),
-                side=PositionSide.LONG
-                if self.ids.side_input.text == PositionSide.LONG.value
-                else PositionSide.SHORT,
-                budget=float(self.ids.budget_input.text),
-                order_trigger=float(self.ids.order_trigger_input.text),
-                mode=Mode.DCA
-                if self.ids.mode_input.text == Mode.DCA.value
-                else Mode.SINGLE,
-            )
-        )
 
-    async def add_record(
-        self,
-        symbol: str,
-        side: PositionSide,
-        price_low: float,
-        price_high: float,
-        budget: float,
-        order_trigger: float,
-        mode: Mode,
-        stagnation_counter: int = 0,
-        next_monitor_time: str = "",
-        open_time: Optional[str] = None,
-        last_state: Optional[State] = None,
-        system_id: Optional[str] = None,
-    ) -> None:
-        position_setup = PositionSetup(
-            config=StrategyConfig(
-                open_time=open_time,
-                system_id=str(uuid.uuid4()) if system_id is None else system_id,
-                symbol_info=self.symbols_info[symbol],
-                side=side,
-                price_low=price_low,
-                price_high=price_high,
-                budget=budget,
-                order_trigger=order_trigger,
-                mode=mode,
-            ),
-            state_info=StateInfo(
-                last_state=last_state,
-                stagnation_counter=stagnation_counter,
-                next_monitor_time=next_monitor_time,
-            ),
-        )
-
-        self.strategy_executor.config_queue.put(position_setup)
-        logger.info(
-            "Adding new record with config: %s, state info: %s",
-            position_setup.config,
-            position_setup.state_info,
-        )
-
-        if (
-            last_state is None
-        ):  # inserting level only if there is no last known status, recovery will
-            last_state = State.NEW
-            self.ui_queue.put(
-                PositionData(
-                    config=position_setup.config,
+        self.config_queue.put(
+            PositionSetup(
+                config=StrategyConfig(
+                    open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    system_id=str(uuid.uuid4()),
+                    symbol_info=self.symbols_info[self.symbol_input.selected_value],
+                    side=PositionSide.LONG
+                    if self.ids.side_input.text == PositionSide.LONG.value
+                    else PositionSide.SHORT,
+                    price_low=float(self.symbol_input.price_low_input.text),
+                    price_high=float(self.symbol_input.price_high_input.text),
+                    budget=float(self.ids.budget_input.text),
+                    order_trigger=float(self.ids.order_trigger_input.text),
+                    mode=Mode.DCA
+                    if self.ids.mode_input.text == Mode.DCA.value
+                    else Mode.SINGLE,
+                ),
+                state_info=StateInfo(
+                    last_state=State.NEW,
                     stagnation_counter=0,
-                    completeness=0,
-                    state=last_state,
-                )
+                    next_monitor_time="",
+                ),
             )
-            await self.db.insert_price_level(
-                config=position_setup.config, state=last_state
-            )
-
+        )
         self.filter_records(tab="idle", symbol_filter="All")
 
     def trigger_remove_record(
@@ -277,7 +179,7 @@ class HpManager(BoxLayout):
 
     async def remove_record(self, system_id: str, symbol: str) -> None:
         # Send a command to the strategy executor to stop the trading process
-        await self.strategy_executor.remove_record(system_id=system_id, symbol=symbol)
+        self.config_queue.put(RemoveRecord(system_id=system_id, symbol=symbol))
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -291,6 +193,7 @@ class HpManager(BoxLayout):
 
         file_path = os.path.join(self.config_dir, f"{file_name}.csv")
 
+        # TO BE MOVED TO BACKEND
         config_data = self.get_current_configuration()
 
         self.strategy_logger.info("Trying to write to: %s", file_path)
@@ -325,6 +228,7 @@ class HpManager(BoxLayout):
             )
 
     def load_config(self) -> None:
+        # TO BE MOVED TO BACKEND
         file_name = self.file_name_input.text.strip()
         if not file_name:
             # Provide feedback to the user if the file name is empty
@@ -375,6 +279,7 @@ class HpManager(BoxLayout):
 
     def apply_configuration(self, config_data: List[CsvConfig]) -> None:
         for data in config_data:
+            # TO BE PUT TO CONFIG QUEUE
             asyncio.create_task(
                 self.add_record(
                     open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

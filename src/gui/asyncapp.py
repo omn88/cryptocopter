@@ -34,6 +34,7 @@ from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient
 from src.common.database import Database
 from src.workers.broker_spot import BrokerSpot
+from src.workers.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
 
@@ -84,11 +85,7 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
-        self.broker_spot: BrokerSpot = BrokerSpot(
-            client=client,
-            data_queue=queue.Queue(),
-            stop_producers_event=asyncio.Event(),
-        )
+        self.broker_spot: BrokerSpot = BrokerSpot()
         self.strategies: Dict = {}
         self.spot_usdt = 0
         self.dynamic_spinners: Dict = {}
@@ -285,6 +282,14 @@ class AsyncApp(App):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
 
+        strategy_executor = StrategyExecutor(
+            logger=strategy_logger,
+            symbols_info=self.symbols_info,
+            db=self.db,
+            broker=self.broker_spot,
+            usdt_balance=self.spot_usdt,
+        )
+
         logger.info("Await before HP manager starts")
         hp_manager = HpManager(
             strategy_logger=strategy_logger,
@@ -293,7 +298,7 @@ class AsyncApp(App):
             strategy_id=strategy_id,
             symbols_info=symbols_info,
             usdt_balance=self.spot_usdt,
-            broker=self.broker_spot,
+            config_queue=strategy_executor.config_queue,
         )
 
         tab = TabbedPanelItem(

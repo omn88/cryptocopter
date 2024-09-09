@@ -1,33 +1,46 @@
 import asyncio
+import logging
 import queue
 import threading
-from typing import Dict
+from typing import Dict, List, Optional
+import uuid
+from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import PositionSetup
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
+from src.common.identifiers.spot import PositionSetup, State, StateInfo, StrategyConfig
+from src.common.symbol_info import SymbolInfo
+from src.gui.identifiers.spot import PositionData
 from src.trading_system.spot import TradingSystem
 from src.workers.broker_spot import BrokerSpot
+
+
+# Specify the path to the .env file
+DOTENV_FILE = "config/.env"
+config_env = Config(RepositoryEnv(DOTENV_FILE))
+
+
+logger = logging.getLogger("strategy_executor")
 
 
 class StrategyExecutor:
     def __init__(
         self,
-        client: BinanceClient,
         logger: StrategyLogger,
-        ui_queue: queue.Queue,
         db: Database,
         broker: BrokerSpot,
         usdt_balance: float,
+        symbols_info: Dict[str, SymbolInfo],
     ):
-        self.client = client
+        self.client: Optional[BinanceClient] = None
         self.logger = logger
-        self.ui_queue = ui_queue
         self.db = db
         self.broker = broker
         self.usdt_balance = usdt_balance
+        self.ui_queue: queue.Queue = queue.Queue()
         self.config_queue: queue.Queue = queue.Queue()
-        self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
+        self.id_to_system: Dict = {}
+        self.symbols_info = symbols_info
 
         self.loop = None
         self.thread = threading.Thread(target=self.start_loop)
@@ -41,9 +54,12 @@ class StrategyExecutor:
 
     async def run(self) -> None:
         self.logger.info("Strategy executor ready to retrieve the first config")
+        self.client = BinanceClient(
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+        )
+
         while True:
             try:
-                # This blocks until there's something in the queue
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
                 if isinstance(strategy_data, PositionSetup):
@@ -61,6 +77,7 @@ class StrategyExecutor:
         db: Database,
     ) -> None:
         self.logger.info("Initializing trading system: %s", position_setup.config)
+        assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
         trading_system = TradingSystem(
             strategy_logger=self.logger,
@@ -110,3 +127,93 @@ class StrategyExecutor:
 
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")
+
+    async def add_record(
+        self,
+        symbol: str,
+        side: PositionSide,
+        price_low: float,
+        price_high: float,
+        budget: float,
+        order_trigger: float,
+        mode: Mode,
+        stagnation_counter: int = 0,
+        next_monitor_time: str = "",
+        open_time: Optional[str] = None,
+        last_state: Optional[State] = None,
+        system_id: Optional[str] = None,
+    ) -> None:
+        position_setup = PositionSetup(
+            config=StrategyConfig(
+                open_time=open_time,
+                system_id=str(uuid.uuid4()) if system_id is None else system_id,
+                symbol_info=self.symbols_info[symbol],
+                side=side,
+                price_low=price_low,
+                price_high=price_high,
+                budget=budget,
+                order_trigger=order_trigger,
+                mode=mode,
+            ),
+            state_info=StateInfo(
+                last_state=last_state,
+                stagnation_counter=stagnation_counter,
+                next_monitor_time=next_monitor_time,
+            ),
+        )
+
+        self.config_queue.put(position_setup)
+        logger.info(
+            "Adding new record with config: %s, state info: %s",
+            position_setup.config,
+            position_setup.state_info,
+        )
+
+        if (
+            last_state is None
+        ):  # inserting level only if there is no last known status, recovery will
+            last_state = State.NEW
+            self.ui_queue.put(
+                PositionData(
+                    config=position_setup.config,
+                    stagnation_counter=0,
+                    completeness=0,
+                    state=last_state,
+                )
+            )
+            await self.db.insert_price_level(
+                config=position_setup.config, state=last_state
+            )
+
+    async def initialize_position_from_db(self):
+        active_price_levels = await self.db.fetch_all_active_price_levels()
+        if not active_price_levels:
+            logger.info("No active price levels found")
+            return
+        logger.info("Current active price levels: %s", active_price_levels)
+
+        for price_level in active_price_levels:
+            self.config_queue.put(
+                PositionSetup(
+                    config=StrategyConfig(
+                        open_time=price_level.get("open_time"),
+                        system_id=price_level.get("price_level_id"),
+                        symbol_info=self.symbols_info[price_level["symbol"]],
+                        side=PositionSide.LONG
+                        if price_level["side"] == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=float(price_level["price_low"]),
+                        price_high=float(price_level["price_high"]),
+                        budget=float(price_level["budget"]),
+                        order_trigger=float(price_level["order_trigger"]),
+                        mode=Mode.DCA
+                        if price_level.get("mode") == Mode.DCA.value
+                        else Mode.SINGLE,
+                    ),
+                    state_info=StateInfo(
+                        last_state=State[price_level["state"]],
+                        stagnation_counter=int(price_level["stagnation_counter"]),
+                        next_monitor_time=price_level["next_monitor_time"],
+                    ),
+                )
+            )

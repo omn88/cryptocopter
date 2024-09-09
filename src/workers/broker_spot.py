@@ -2,7 +2,9 @@ import asyncio
 import threading
 import queue
 import logging
-from typing import Dict
+from typing import Dict, Optional
+
+from decouple import Config, RepositoryEnv
 
 from binance import BinanceSocketManager
 from src.common.identifiers.common import BinanceClient
@@ -17,21 +19,18 @@ from src.common.identifiers.spot import (
 
 logger = logging.getLogger("broker")
 
+# Specify the path to the .env file
+DOTENV_FILE = "config/.env"
+config_env = Config(RepositoryEnv(DOTENV_FILE))
+
 
 class BrokerSpot:
-    def __init__(
-        self,
-        client: BinanceClient,
-        data_queue: queue.Queue,
-        stop_producers_event: asyncio.Event,
-    ):
-        self.client = client
-        self.data_queue = data_queue
+    def __init__(self) -> None:
+        self.client: Optional[BinanceClient] = None
         self.subscriptions: Dict[str, list] = {}
         self.queues: Dict[str, queue.Queue] = {}
         self.loop = None
-        self.stop_producers_event = stop_producers_event
-        self.socket_manager = BinanceSocketManager(client=client)
+        self.stop_producers_event: asyncio.Event = asyncio.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
@@ -48,23 +47,33 @@ class BrokerSpot:
             "Main entry point for running the broker, thread: %s", self.thread.name
         )
 
-        results = await asyncio.gather(
-            *[
+        self.client = BinanceClient(
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+        )
+
+        socket_manager = BinanceSocketManager(client=self.client)
+
+        tasks = [
+            self.loop.create_task(
                 self.handle_socket(
-                    self.socket_manager.ticker_socket(),
+                    socket_manager.ticker_socket(),
                     self.stop_producers_event,
                     self.handle_ticker_message,
                     reconnect_attempts=10,
-                ),
+                )
+            ),
+            self.loop.create_task(
                 self.handle_socket(
-                    self.socket_manager.user_socket(),
+                    socket_manager.user_socket(),
                     self.stop_producers_event,
                     self.handle_user_message,
                     reconnect_attempts=10,
-                ),
-            ],
-            return_exceptions=True
-        )
+                )
+            ),
+        ]
+
+        # Await all tasks
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def handle_socket(
         self, socket, stop_event, message_handler, reconnect_attempts=10
@@ -93,7 +102,7 @@ class BrokerSpot:
                             raise
                         except Exception as e:
                             logger.exception("Error while receiving data: %s", e)
-                            break  # Exit inner loop to reconnect
+                            break
 
             except ConnectionResetError as e:
                 logger.error("Connection was reset: %s. Reconnecting...", e)
