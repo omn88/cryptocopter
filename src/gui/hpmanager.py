@@ -21,8 +21,10 @@ from src.common.identifiers.spot import (
     CsvConfig,
     Event,
     EventName,
+    LoadConfig,
     PositionSetup,
     RemoveRecord,
+    SaveConfig,
     State,
     StateInfo,
     StrategyConfig,
@@ -175,10 +177,6 @@ class HpManager(BoxLayout):
         symbol,
         *args,
     ) -> None:
-        asyncio.create_task(self.remove_record(system_id=system_id, symbol=symbol))
-
-    async def remove_record(self, system_id: str, symbol: str) -> None:
-        # Send a command to the strategy executor to stop the trading process
         self.config_queue.put(RemoveRecord(system_id=system_id, symbol=symbol))
 
     def save_config(self) -> None:
@@ -188,112 +186,51 @@ class HpManager(BoxLayout):
             print("Please enter a file name.")
             return
 
-        # Ensure the directory exists
-        os.makedirs(self.config_dir, exist_ok=True)
-
-        file_path = os.path.join(self.config_dir, f"{file_name}.csv")
-
-        # TO BE MOVED TO BACKEND
-        config_data = self.get_current_configuration()
-
-        self.strategy_logger.info("Trying to write to: %s", file_path)
-        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            # Write the headers
-            writer.writerow(
-                [
-                    "Symbol",
-                    "Side",
-                    "Price Low",
-                    "Price High",
-                    "Budget",
-                    "Order Trigger",
-                    "Mode",
-                ]
-            )  # Adjust according to your actual parameters
-            # Write the data
-            writer.writerows(
-                [
-                    [
-                        cd.symbol,
-                        cd.side,
-                        cd.price_low,
-                        cd.price_high,
-                        cd.budget,
-                        cd.order_trigger,
-                        cd.mode,
-                    ]
-                    for cd in config_data
-                ]
-            )
+        # Put the SaveConfig NamedTuple into the config_queue
+        self.config_queue.put(SaveConfig(file_name=file_name))
+        self.strategy_logger.info(
+            f"Saving configuration request for {file_name} sent to backend."
+        )
 
     def load_config(self) -> None:
-        # TO BE MOVED TO BACKEND
         file_name = self.file_name_input.text.strip()
         if not file_name:
             # Provide feedback to the user if the file name is empty
             print("Please enter a file name.")
             return
 
-        file_path = os.path.join(self.config_dir, f"{file_name}.csv")
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as csvfile:
-                reader = csv.reader(csvfile)
-                headers = next(reader)  # Skip the headers
-                config_data = list(reader)
-                self.apply_configuration(
-                    [
-                        CsvConfig(
-                            symbol=cd[0],
-                            side=cd[1],
-                            price_low=float(cd[2]),
-                            price_high=float(cd[3]),
-                            budget=float(cd[4]),
-                            order_trigger=float(cd[5]),
-                            mode=cd[6],
-                        )
-                        for cd in config_data
-                    ]
-                )
-        except FileNotFoundError:
-            # Provide feedback to the user if the file is not found
-            print(f"File {file_name}.csv not found.")
-
-    def get_current_configuration(self) -> List[CsvConfig]:
-        hp_config = []
-        for info, item in self.strategy_executor.id_to_system.items():
-            assert isinstance(item, TradingSystem)
-            hp_config.append(
-                CsvConfig(
-                    symbol=item.config.symbol_info.symbol,
-                    side=item.config.side.value,
-                    price_low=item.config.price_low,
-                    price_high=item.config.price_high,
-                    budget=item.config.budget,
-                    order_trigger=item.config.order_trigger,
-                    mode=item.config.mode.value,
-                )
-            )
-        return hp_config
+        # Put the LoadConfig NamedTuple into the config_queue
+        self.config_queue.put(LoadConfig(file_name=file_name))
+        self.strategy_logger.info(
+            f"Loading configuration request for {file_name} sent to backend."
+        )
 
     def apply_configuration(self, config_data: List[CsvConfig]) -> None:
         for data in config_data:
-            # TO BE PUT TO CONFIG QUEUE
-            asyncio.create_task(
-                self.add_record(
-                    open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    symbol=data.symbol,
-                    price_low=data.price_low,
-                    price_high=data.price_high,
-                    side=PositionSide.LONG
-                    if data.side == PositionSide.LONG.value
-                    else PositionSide.SHORT,
-                    budget=data.budget,
-                    order_trigger=data.order_trigger,
-                    mode=Mode.DCA if data.mode == Mode.DCA.value else Mode.SINGLE,
+            # Instead of handling the logic in the GUI, put it into the config_queue
+            self.config_queue.put(
+                PositionSetup(
+                    config=StrategyConfig(
+                        open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        system_id=str(uuid.uuid4()),
+                        symbol_info=self.symbols_info[data.symbol],
+                        side=PositionSide.LONG
+                        if data.side == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=data.price_low,
+                        price_high=data.price_high,
+                        budget=data.budget,
+                        order_trigger=data.order_trigger,
+                        mode=Mode.DCA if data.mode == Mode.DCA.value else Mode.SINGLE,
+                    ),
+                    state_info=StateInfo(
+                        last_state=State.NEW,
+                        stagnation_counter=0,
+                        next_monitor_time="",
+                    ),
                 )
             )
+        self.strategy_logger.info("Applied configuration and sent to backend.")
 
     async def update_ui(self) -> None:
         while True:

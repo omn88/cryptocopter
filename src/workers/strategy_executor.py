@@ -1,5 +1,7 @@
 import asyncio
+import csv
 import logging
+import os
 import queue
 import threading
 from typing import Dict, List, Optional
@@ -8,7 +10,16 @@ from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import PositionSetup, State, StateInfo, StrategyConfig
+from src.common.identifiers.spot import (
+    CsvConfig,
+    LoadConfig,
+    PositionSetup,
+    RemoveRecord,
+    SaveConfig,
+    State,
+    StateInfo,
+    StrategyConfig,
+)
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.trading_system.spot import TradingSystem
@@ -68,6 +79,17 @@ class StrategyExecutor:
                             position_setup=strategy_data, db=self.db
                         )
                     )
+                if isinstance(strategy_data, RemoveRecord):
+                    asyncio.create_task(
+                        self.remove_record(
+                            system_id=strategy_data.system_id,
+                            symbol=strategy_data.symbol,
+                        )
+                    )
+                if isinstance(strategy_data, SaveConfig):
+                    await self.save_config(strategy_data.file_name)
+                if isinstance(strategy_data, LoadConfig):
+                    await self.load_config(strategy_data.file_name)
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -217,3 +239,96 @@ class StrategyExecutor:
                     ),
                 )
             )
+
+    async def save_config(self, file_name: str) -> None:
+        """Handle saving the current configuration to a CSV file."""
+        config_dir = "src/strategies/spot"
+        file_path = os.path.join(config_dir, f"{file_name}.csv")
+        os.makedirs(config_dir, exist_ok=True)
+
+        # Collect the current configuration
+        config_data = self.get_current_configuration()
+
+        self.logger.info(f"Saving configuration to {file_path}")
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(
+                [
+                    "Symbol",
+                    "Side",
+                    "Price Low",
+                    "Price High",
+                    "Budget",
+                    "Order Trigger",
+                    "Mode",
+                ]
+            )
+            for config in config_data:
+                writer.writerow(
+                    [
+                        config.symbol,
+                        config.side,
+                        config.price_low,
+                        config.price_high,
+                        config.budget,
+                        config.order_trigger,
+                        config.mode,
+                    ]
+                )
+        self.logger.info("Configuration saved successfully.")
+
+    async def load_config(self, file_name: str) -> None:
+        """Handle loading a configuration from a CSV file."""
+        config_dir = "src/strategies/spot"
+        file_path = os.path.join(config_dir, f"{file_name}.csv")
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as csvfile:
+                reader = csv.reader(csvfile)
+                headers = next(reader)  # Skip the headers
+                config_data = list(reader)
+                for cd in config_data:
+                    # Prepare the PositionSetup and put it in the queue
+                    self.config_queue.put(
+                        PositionSetup(
+                            config=StrategyConfig(
+                                symbol_info=SymbolInfo(symbol=cd[0]),
+                                side=PositionSide.LONG
+                                if cd[1] == PositionSide.LONG.value
+                                else PositionSide.SHORT,
+                                price_low=float(cd[2]),
+                                price_high=float(cd[3]),
+                                budget=float(cd[4]),
+                                order_trigger=float(cd[5]),
+                                mode=Mode.DCA
+                                if cd[6] == Mode.DCA.value
+                                else Mode.SINGLE,
+                            ),
+                            state_info=StateInfo(
+                                last_state=State.NEW,
+                                stagnation_counter=0,
+                                next_monitor_time="",
+                            ),
+                        )
+                    )
+            self.logger.info(f"Loaded configuration from {file_path}")
+        except FileNotFoundError:
+            self.logger.error(f"File {file_name}.csv not found.")
+
+    def get_current_configuration(self) -> List[CsvConfig]:
+        """Collect the current configurations."""
+        hp_config = []
+        for system_id, system in self.id_to_system.items():
+            assert isinstance(system, TradingSystem)
+            hp_config.append(
+                CsvConfig(
+                    symbol=system.config.symbol_info.symbol,
+                    side=system.config.side.value,
+                    price_low=system.config.price_low,
+                    price_high=system.config.price_high,
+                    budget=system.config.budget,
+                    order_trigger=system.config.order_trigger,
+                    mode=system.config.mode.value,
+                )
+            )
+        return hp_config

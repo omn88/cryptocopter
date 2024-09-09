@@ -211,3 +211,11 @@ class PositionSetup(NamedTuple):
 class RemoveRecord(NamedTuple):
     system_id: str
     symbol: str
+
+
+class SaveConfig(NamedTuple):
+    file_name: str
+
+
+class LoadConfig(NamedTuple):
+    file_name: str
