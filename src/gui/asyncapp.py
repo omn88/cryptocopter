@@ -145,7 +145,7 @@ class AsyncApp(App):
                     return float(asset["free"])
             return 0.0
         except (BinanceAPIException, BinanceRequestException) as e:
-            self.logger.error("Failed to retrieve USDT balance: %s", e)
+            logger.error("Failed to retrieve USDT balance: %s", e)
             raise e
 
     def log_spinner_change(self, spinner, new_value):
@@ -283,7 +283,7 @@ class AsyncApp(App):
         strategy_logger = StrategyLogger(name="HPManager")
 
         strategy_executor = StrategyExecutor(
-            logger=strategy_logger,
+            strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker_spot,

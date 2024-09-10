@@ -177,7 +177,9 @@ class HpManager(BoxLayout):
         symbol,
         *args,
     ) -> None:
-        self.config_queue.put(RemoveRecord(system_id=system_id, symbol=symbol))
+        record = RemoveRecord(system_id=system_id, symbol=symbol)
+        self.config_queue.put(record)
+        self.strategy_logger.info("Remove record: %s sent to backend.", record)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -189,7 +191,7 @@ class HpManager(BoxLayout):
         # Put the SaveConfig NamedTuple into the config_queue
         self.config_queue.put(SaveConfig(file_name=file_name))
         self.strategy_logger.info(
-            f"Saving configuration request for {file_name} sent to backend."
+            "Saving configuration request for %s sent to backend.", file_name
         )
 
     def load_config(self) -> None:
@@ -202,7 +204,7 @@ class HpManager(BoxLayout):
         # Put the LoadConfig NamedTuple into the config_queue
         self.config_queue.put(LoadConfig(file_name=file_name))
         self.strategy_logger.info(
-            f"Loading configuration request for {file_name} sent to backend."
+            "Loading configuration request for %s sent to backend.", file_name
         )
 
     def apply_configuration(self, config_data: List[CsvConfig]) -> None:

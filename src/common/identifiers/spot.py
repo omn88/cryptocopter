@@ -202,20 +202,35 @@ class StateInfo(NamedTuple):
     stagnation_counter: int
     next_monitor_time: str
 
+    def __str__(self):
+        return f"StateInfo(last_state={self.last_state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
+
 
 class PositionSetup(NamedTuple):
     config: StrategyConfig
     state_info: StateInfo
+
+    def __str__(self):
+        return f"PositionSetup(config={self.config}, state_info={self.state_info})"
 
 
 class RemoveRecord(NamedTuple):
     system_id: str
     symbol: str
 
+    def __str__(self):
+        return f"RemoveRecord(system_id='{self.system_id}', symbol='{self.symbol}')"
+
 
 class SaveConfig(NamedTuple):
     file_name: str
 
+    def __str__(self):
+        return f"SaveConfig(file_name='{self.file_name}')"
+
 
 class LoadConfig(NamedTuple):
     file_name: str
+
+    def __str__(self):
+        return f"LoadConfig(file_name='{self.file_name}')"

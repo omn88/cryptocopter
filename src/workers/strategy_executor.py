@@ -37,14 +37,14 @@ logger = logging.getLogger("strategy_executor")
 class StrategyExecutor:
     def __init__(
         self,
-        logger: StrategyLogger,
+        strategy_logger: StrategyLogger,
         db: Database,
         broker: BrokerSpot,
         usdt_balance: float,
         symbols_info: Dict[str, SymbolInfo],
     ):
         self.client: Optional[BinanceClient] = None
-        self.logger = logger
+        self.logger = strategy_logger
         self.db = db
         self.broker = broker
         self.usdt_balance = usdt_balance
