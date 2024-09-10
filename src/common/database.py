@@ -1,6 +1,9 @@
+import asyncio
 import datetime
 import logging
-from typing import Dict, List
+import threading
+import time
+from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
@@ -72,6 +75,43 @@ class Database:
         self.user = user
         self.password = password
         self.name = name
+        self.pool = None
+        self.loop = None
+        self.thread: Optional[threading.Thread] = None
+
+    async def initialize(self) -> None:
+        self.thread = threading.Thread(target=self.run_worker)
+        self.thread.start()
+        while self.loop is None:
+            print("loop is none, sleep 0.1s")
+            time.sleep(0.1)
+        print("loop is OK")
+        await asyncio.wrap_future(
+            asyncio.run_coroutine_threadsafe(
+                self.create_database_if_not_exists(), self.loop
+            )
+        )
+
+        await asyncio.wrap_future(
+            asyncio.run_coroutine_threadsafe(self.create_pool(), self.loop)
+        )
+
+    def run_worker(self):
+        """Sets up the event loop for this thread."""
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def stop_worker(self):
+        # Stop the event loop and join the thread
+        if self.loop is not None:
+            self.loop.call_soon_threadsafe(self.loop.stop)
+        if self.thread is not None:
+            self.thread.join()
+
+    def run_db_task(self, coro):
+        """Runs a coroutine in the worker's event loop."""
+        return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
     async def create_pool(self):
         self.pool = await aiomysql.create_pool(
@@ -125,6 +165,15 @@ class Database:
 
                 await conn.commit()
 
+    async def drop_tables(self):
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DROP TABLE IF EXISTS strategies")
+                await cur.execute("DROP TABLE IF EXISTS price_levels")
+                await cur.execute("DROP TABLE IF EXISTS orders")
+                await conn.commit()
+
     async def insert_strategy(self, name, description, status="ACTIVE"):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -141,6 +190,7 @@ class Database:
                 return strategy_id
 
     async def insert_order(self, price_level_id: str, order: Order) -> None:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -160,6 +210,7 @@ class Database:
                 await conn.commit()
 
     async def insert_price_level(self, config: StrategyConfig, state: State) -> None:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -180,6 +231,7 @@ class Database:
                 await conn.commit()
 
     async def fetch_all_active_strategies(self) -> List[Dict]:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
@@ -189,6 +241,7 @@ class Database:
                 return result
 
     async def fetch_all_active_price_levels(self) -> List[Dict]:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 query = """
@@ -200,6 +253,7 @@ class Database:
                 return result
 
     async def fetch_orders_for_price_level(self, price_level_id: str) -> List[Dict]:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
@@ -216,6 +270,7 @@ class Database:
         stagnation_counter: int,
         next_monitor_time: str,
     ) -> None:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
@@ -262,6 +317,7 @@ class Database:
         status: str,
         order_type: str,
     ) -> None:
+        assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current order as not current

@@ -564,22 +564,26 @@ class HpManager:
         self.logger.info("Will update orders: %s", self.position_handler.orders)
 
         for order in self.position_handler.orders:
-            await self.db.update_order(
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
-                time_in_force=order.time_in_force,
-                status=order.status,
-                order_type=order.order_type,
-                order_id=order.order_id,
-                price_level_id=self.config.system_id,
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    price_level_id=self.config.system_id,
+                )
             )
-        await self.db.update_price_level(
-            self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
         self.position_handler.ui_queue.put(
@@ -631,22 +635,26 @@ class HpManager:
         self.state = State.OPEN
 
         for order in self.position_handler.orders:
-            await self.db.update_order(
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
-                time_in_force=order.time_in_force,
-                status=order.status,
-                order_type=order.order_type,
-                order_id=order.order_id,
-                price_level_id=self.config.system_id,
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    price_level_id=self.config.system_id,
+                )
             )
-        await self.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
         self.position_handler.ui_queue.put(
@@ -708,12 +716,13 @@ class HpManager:
                 state=self.state,
             )
         )
-
-        await self.position_handler.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
@@ -756,11 +765,13 @@ class HpManager:
             )
         )
 
-        await self.position_handler.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
@@ -836,8 +847,8 @@ class HpManager:
     async def handle_recovery_to_open(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to open")
 
-        orders_from_db: List[Dict] = await self.db.fetch_orders_for_price_level(
-            price_level_id=self.config.system_id
+        orders_from_db: List[Dict] = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(price_level_id=self.config.system_id)
         )
         self.logger.debug(
             "Fetched orders from DB for price level: %s: \n%s",
@@ -890,16 +901,18 @@ class HpManager:
                         order.realized_quantity = updated_order.realized_quantity
                         order.status = updated_order.status
 
-                        await self.db.update_order(
-                            price=order.price,
-                            quantity=order.quantity,
-                            quantity_stable=order.quantity_stable,
-                            realized_quantity=order.realized_quantity,
-                            time_in_force=order.time_in_force,
-                            status=order.status,
-                            order_type=order.order_type,
-                            order_id=order.order_id,
-                            price_level_id=self.config.system_id,
+                        self.db.run_db_task(
+                            self.db.update_order(
+                                price=order.price,
+                                quantity=order.quantity,
+                                quantity_stable=order.quantity_stable,
+                                realized_quantity=order.realized_quantity,
+                                time_in_force=order.time_in_force,
+                                status=order.status,
+                                order_type=order.order_type,
+                                order_id=order.order_id,
+                                price_level_id=self.config.system_id,
+                            )
                         )
 
                         if all(
@@ -935,8 +948,8 @@ class HpManager:
     async def handle_recovery_to_stagnated(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to stagnated")
 
-        orders_from_db = await self.db.fetch_orders_for_price_level(
-            price_level_id=self.config.system_id
+        orders_from_db = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(price_level_id=self.config.system_id)
         )
         self.logger.debug(
             "Fetched orders for price level: %s: \n%s",

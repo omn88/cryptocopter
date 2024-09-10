@@ -204,12 +204,16 @@ class StrategyExecutor:
                     state=last_state,
                 )
             )
-            await self.db.insert_price_level(
-                config=position_setup.config, state=last_state
+            self.db.run_db_task(
+                self.db.insert_price_level(
+                    config=position_setup.config, state=last_state
+                )
             )
 
     async def initialize_position_from_db(self):
-        active_price_levels = await self.db.fetch_all_active_price_levels()
+        active_price_levels = self.db.run_db_task(
+            self.db.fetch_all_active_price_levels()
+        )
         if not active_price_levels:
             logger.info("No active price levels found")
             return

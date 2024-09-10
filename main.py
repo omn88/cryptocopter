@@ -64,9 +64,10 @@ async def main():
         password=config_db("DB_PASSWORD"),
         name=config_db("DB_NAME"),
     )
-    await db.create_database_if_not_exists()
-    await db.create_pool()
-    await db.setup_tables()
+    await db.initialize()
+    db.run_db_task(db.create_database_if_not_exists())
+    db.run_db_task(db.create_pool())
+    db.run_db_task(db.setup_tables())
 
     client = BinanceClient(
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
@@ -80,7 +81,8 @@ async def main():
     try:
         await app.async_run()
     finally:
-        await db.close_pool()
+        db.run_db_task(db.close_pool())
+        db.stop_worker()
 
 
 if __name__ == "__main__":

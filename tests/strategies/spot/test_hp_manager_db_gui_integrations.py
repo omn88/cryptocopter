@@ -290,8 +290,10 @@ async def test_stagnation_buy_position(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -310,8 +312,10 @@ async def test_stagnation_buy_position(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -320,8 +324,10 @@ async def test_stagnation_buy_position(trading_system_factory):
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -403,8 +409,10 @@ async def test_stagnation_sell_position(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -423,8 +431,10 @@ async def test_stagnation_sell_position(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -433,8 +443,10 @@ async def test_stagnation_sell_position(trading_system_factory):
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -533,8 +545,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -553,8 +567,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -564,8 +580,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -666,9 +684,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
-
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -687,8 +706,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -698,8 +719,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -821,8 +844,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -841,8 +866,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -852,8 +879,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -975,8 +1004,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -995,8 +1026,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -1006,8 +1039,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3

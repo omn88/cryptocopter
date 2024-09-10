@@ -69,14 +69,16 @@ class PositionHandler:
         )
 
         for order in self.orders:
-            await self.db.insert_order(
-                price_level_id=self.config.system_id, order=order
+            self.db.run_db_task(
+                self.db.insert_order(price_level_id=self.config.system_id, order=order)
             )
-        await self.db.update_price_level(
-            self.config,
-            state=state,
-            stagnation_counter=self.stagnation_counter,
-            next_monitor_time=self.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                self.config,
+                state=state,
+                stagnation_counter=self.stagnation_counter,
+                next_monitor_time=self.next_monitor_position_time,
+            )
         )
 
         logger.debug("Position opened successfully.")
@@ -97,23 +99,27 @@ class PositionHandler:
         )
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
-                await self.db.update_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    price_level_id=self.config.system_id,
+                self.db.run_db_task(
+                    self.db.update_order(
+                        price=order.price,
+                        quantity=order.quantity,
+                        quantity_stable=order.quantity_stable,
+                        realized_quantity=order.realized_quantity,
+                        time_in_force=order.time_in_force,
+                        status=order.status,
+                        order_type=order.order_type,
+                        order_id=order.order_id,
+                        price_level_id=self.config.system_id,
+                    )
                 )
 
-        await self.db.update_price_level(
-            config=self.config,
-            state=state,
-            stagnation_counter=self.stagnation_counter,
-            next_monitor_time=self.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=state,
+                stagnation_counter=self.stagnation_counter,
+                next_monitor_time=self.next_monitor_position_time,
+            )
         )
 
         self.ui_queue.put(
@@ -145,11 +151,13 @@ class PositionHandler:
         self.next_monitor_position_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
-        await self.db.update_price_level(
-            config=self.config,
-            state=State.OPEN,
-            stagnation_counter=self.stagnation_counter,
-            next_monitor_time=self.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=State.OPEN,
+                stagnation_counter=self.stagnation_counter,
+                next_monitor_time=self.next_monitor_position_time,
+            )
         )
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
@@ -166,16 +174,18 @@ class PositionHandler:
                 state=State.OPEN,
             )
         )
-        await self.db.update_order(
-            order_id=execution_report.order_id,
-            price_level_id=self.config.system_id,
-            quantity=execution_report.quantity,
-            realized_quantity=execution_report.cumulative_filled_quantity,
-            status=execution_report.current_order_status,
-            price=execution_report.price,
-            time_in_force=execution_report.time_in_force,
-            order_type=execution_report.order_type,
-            quantity_stable=self.orders[0].quantity_stable,
+        self.db.run_db_task(
+            self.db.update_order(
+                order_id=execution_report.order_id,
+                price_level_id=self.config.system_id,
+                quantity=execution_report.quantity,
+                realized_quantity=execution_report.cumulative_filled_quantity,
+                status=execution_report.current_order_status,
+                price=execution_report.price,
+                time_in_force=execution_report.time_in_force,
+                order_type=execution_report.order_type,
+                quantity_stable=self.orders[0].quantity_stable,
+            )
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
@@ -183,11 +193,13 @@ class PositionHandler:
         self.next_monitor_position_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
-        await self.db.update_price_level(
-            config=self.config,
-            state=State.OPEN,
-            stagnation_counter=self.stagnation_counter,
-            next_monitor_time=self.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=State.OPEN,
+                stagnation_counter=self.stagnation_counter,
+                next_monitor_time=self.next_monitor_position_time,
+            )
         )
         for order in self.orders:
             if execution_report.order_id == order.order_id:
@@ -215,14 +227,16 @@ class PositionHandler:
             )
         )
 
-        await self.db.update_order(
-            order_id=execution_report.order_id,
-            price_level_id=self.config.system_id,
-            quantity=execution_report.quantity,
-            realized_quantity=execution_report.cumulative_filled_quantity,
-            status=execution_report.current_order_status,
-            price=execution_report.price,
-            time_in_force=execution_report.time_in_force,
-            order_type=execution_report.order_type,
-            quantity_stable=self.orders[0].quantity_stable,
+        self.db.run_db_task(
+            self.db.update_order(
+                order_id=execution_report.order_id,
+                price_level_id=self.config.system_id,
+                quantity=execution_report.quantity,
+                realized_quantity=execution_report.cumulative_filled_quantity,
+                status=execution_report.current_order_status,
+                price=execution_report.price,
+                time_in_force=execution_report.time_in_force,
+                order_type=execution_report.order_type,
+                quantity_stable=self.orders[0].quantity_stable,
+            )
         )

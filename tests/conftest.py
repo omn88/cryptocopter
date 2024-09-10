@@ -76,25 +76,20 @@ async def test_db():
         password=config("DB_PASSWORD"),
         name=config("DB_TEST_NAME"),
     )
+    await db.initialize()
     try:
-        await db.create_database_if_not_exists()
-        await db.create_pool()
-
-        # Drop tables if they exist
-        async with db.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DROP TABLE IF EXISTS strategies")
-                await cur.execute("DROP TABLE IF EXISTS price_levels")
-                await cur.execute("DROP TABLE IF EXISTS orders")
-                await conn.commit()
-
-        await db.setup_tables()
+        db.run_db_task(db.create_database_if_not_exists())
+        # db.run_db_task(db.create_pool())
+        db.run_db_task(db.drop_tables())
+        db.run_db_task(db.setup_tables())
 
         yield db
     except Exception as err:
         logger.error("Error setting up the database: %s", err)
         raise err
-    await db.close_pool()
+    finally:
+        db.run_db_task(db.close_pool())
+        db.stop_worker()
 
 
 @pytest.fixture
