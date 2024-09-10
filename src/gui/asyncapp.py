@@ -9,7 +9,6 @@ import asyncio
 import logging
 import queue
 from typing import Dict, List
-from binance.exceptions import BinanceAPIException, BinanceRequestException
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -87,7 +86,6 @@ class AsyncApp(App):
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker_spot: BrokerSpot = BrokerSpot()
         self.strategies: Dict = {}
-        self.spot_usdt = 0
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
 
@@ -107,13 +105,8 @@ class AsyncApp(App):
         return self.root
 
     async def initialize(self):
-        self.spot_usdt = await self.get_usdt_balance()
         await self.load_all_active_strategies()
         await self.update_ui()
-        logger.info("Initialization finished!")
-
-    async def close_pool(self):
-        await self.db.close_pool()
 
     async def load_all_active_strategies(self):
         active_strategies = await self.db.fetch_all_active_strategies()
@@ -130,23 +123,6 @@ class AsyncApp(App):
             self.setup_hp_manager_gui(
                 strategy_id=strategy.get("id"), symbols_info=self.symbols_info
             )
-
-    async def get_usdt_balance(self) -> float:
-        """
-        Retrieve the USDT balance from the spot market.
-
-        :return: The balance of USDT in the account.
-        :raises: BinanceAPIException, BinanceRequestException
-        """
-        try:
-            account_info = await self.client.get_account()
-            for asset in account_info["balances"]:
-                if asset["asset"] == "USDT":
-                    return float(asset["free"])
-            return 0.0
-        except (BinanceAPIException, BinanceRequestException) as e:
-            logger.error("Failed to retrieve USDT balance: %s", e)
-            raise e
 
     def log_spinner_change(self, spinner, new_value):
         """Logs a message when a spinner value changes.
@@ -287,7 +263,6 @@ class AsyncApp(App):
             symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker_spot,
-            usdt_balance=self.spot_usdt,
         )
 
         logger.info("Await before HP manager starts")
@@ -297,7 +272,6 @@ class AsyncApp(App):
             db=self.db,
             strategy_id=strategy_id,
             symbols_info=symbols_info,
-            usdt_balance=self.spot_usdt,
             config_queue=strategy_executor.config_queue,
         )
 

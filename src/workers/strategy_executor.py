@@ -7,6 +7,7 @@ import threading
 from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
@@ -40,18 +41,17 @@ class StrategyExecutor:
         strategy_logger: StrategyLogger,
         db: Database,
         broker: BrokerSpot,
-        usdt_balance: float,
         symbols_info: Dict[str, SymbolInfo],
     ):
         self.client: Optional[BinanceClient] = None
         self.logger = strategy_logger
         self.db = db
         self.broker = broker
-        self.usdt_balance = usdt_balance
         self.ui_queue: queue.Queue = queue.Queue()
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
+        self.usdt_balance = 0
 
         self.loop = None
         self.thread = threading.Thread(target=self.start_loop)
@@ -68,6 +68,7 @@ class StrategyExecutor:
         self.client = BinanceClient(
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
+        self.usdt_balance = self.get_usdt_balance()
 
         while True:
             try:
@@ -332,3 +333,20 @@ class StrategyExecutor:
                 )
             )
         return hp_config
+
+    async def get_usdt_balance(self) -> float:
+        """
+        Retrieve the USDT balance from the spot market.
+
+        :return: The balance of USDT in the account.
+        :raises: BinanceAPIException, BinanceRequestException
+        """
+        try:
+            account_info = await self.client.get_account()
+            for asset in account_info["balances"]:
+                if asset["asset"] == "USDT":
+                    return float(asset["free"])
+            return 0.0
+        except (BinanceAPIException, BinanceRequestException) as e:
+            logger.error("Failed to retrieve USDT balance: %s", e)
+            raise e
