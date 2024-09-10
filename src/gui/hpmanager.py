@@ -64,7 +64,6 @@ class HpManager(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
-        db: Database,
         strategy_logger: StrategyLogger,
         strategy_id: str,
         config_queue: queue.Queue,
@@ -74,7 +73,6 @@ class HpManager(BoxLayout):
         super().__init__(**kwargs)
         self.symbols_info = symbols_info
         self.client = client
-        self.db = db
         self.strategy_id = strategy_id
         self.ui_queue: queue.Queue = queue.Queue()
         self.strategy_logger = strategy_logger

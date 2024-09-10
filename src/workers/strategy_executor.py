@@ -51,7 +51,7 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
-        self.usdt_balance = 0
+        self.usdt_balance = 0.0
 
         self.loop = None
         self.thread = threading.Thread(target=self.start_loop)
@@ -68,7 +68,7 @@ class StrategyExecutor:
         self.client = BinanceClient(
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
-        self.usdt_balance = self.get_usdt_balance()
+        self.usdt_balance = await self.get_usdt_balance()
 
         while True:
             try:
@@ -342,6 +342,7 @@ class StrategyExecutor:
         :raises: BinanceAPIException, BinanceRequestException
         """
         try:
+            assert self.client is not None
             account_info = await self.client.get_account()
             for asset in account_info["balances"]:
                 if asset["asset"] == "USDT":

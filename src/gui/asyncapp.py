@@ -115,24 +115,45 @@ class AsyncApp(App):
             return
         logger.info("Current active strategies: %s", active_strategies)
         for strategy in active_strategies:
-            await self.restore_strategy(strategy)
+            if strategy.get("name") == "HPManager":
+                logger.info("Found instance of HPManager, restoring last known state.")
+                self.setup_hp_manager(
+                    strategy_id=strategy.get("id"), symbols_info=self.symbols_info
+                )
 
-    async def restore_strategy(self, strategy) -> None:
-        if strategy.get("name") == "HPManager":
-            logger.info("Found instance of HPManager, restoring last known state.")
-            self.setup_hp_manager_gui(
-                strategy_id=strategy.get("id"), symbols_info=self.symbols_info
-            )
+    def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
+        Builder.load_file("src/gui/hpmanager.kv")
+        strategy_logger = StrategyLogger(name="HPManager")
 
-    def log_spinner_change(self, spinner, new_value):
-        """Logs a message when a spinner value changes.
+        back_end = StrategyExecutor(
+            strategy_logger=strategy_logger,
+            symbols_info=self.symbols_info,
+            db=self.db,
+            broker=self.broker_spot,
+        )
 
-        Args:
-            spinner (str): The name of the spinner.
-            new_value (str): The new value of the spinner.
-        """
-        if new_value not in ["Choose Strategy", "Choose Symbol"]:
-            logger.info("%s spinner value changed to %s", spinner, new_value)
+        logger.info("Await before HP manager starts")
+        front_end = HpManager(
+            strategy_logger=strategy_logger,
+            client=self.client,
+            strategy_id=strategy_id,
+            symbols_info=symbols_info,
+            config_queue=back_end.config_queue,
+        )
+
+        tab = TabbedPanelItem(
+            text="HPManager",
+            content=front_end,
+        )
+        # Set up a logging handler for the strategy
+        setup_logging_handler(
+            strategy_logger=strategy_logger,
+            log_display_widget=tab.content.log_display,
+        )
+        # Store a reference to the tab
+        self.strategies["HPManager"] = tab
+        # Add a new tab for the strategy
+        self.root.add_widget(tab)
 
     def start_strategy(self):
         """Starts a new strategy."""
@@ -247,47 +268,10 @@ class AsyncApp(App):
             strategy_id = await self.db.insert_strategy(
                 name="HPManager", description="HPManager"
             )
-            self.setup_hp_manager_gui(
+            self.setup_hp_manager(
                 strategy_id=strategy_id, symbols_info=self.symbols_info
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
-
-    def setup_hp_manager_gui(
-        self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]
-    ):
-        Builder.load_file("src/gui/hpmanager.kv")
-        strategy_logger = StrategyLogger(name="HPManager")
-
-        strategy_executor = StrategyExecutor(
-            strategy_logger=strategy_logger,
-            symbols_info=self.symbols_info,
-            db=self.db,
-            broker=self.broker_spot,
-        )
-
-        logger.info("Await before HP manager starts")
-        hp_manager = HpManager(
-            strategy_logger=strategy_logger,
-            client=self.client,
-            db=self.db,
-            strategy_id=strategy_id,
-            symbols_info=symbols_info,
-            config_queue=strategy_executor.config_queue,
-        )
-
-        tab = TabbedPanelItem(
-            text="HPManager",
-            content=hp_manager,
-        )
-        # Set up a logging handler for the strategy
-        setup_logging_handler(
-            strategy_logger=strategy_logger,
-            log_display_widget=tab.content.log_display,
-        )
-        # Store a reference to the tab
-        self.strategies["HPManager"] = tab
-        # Add a new tab for the strategy
-        self.root.add_widget(tab)
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
@@ -418,7 +402,7 @@ class AsyncApp(App):
                             and strategy["status"] != PositionStatus.CLOSED.value
                         ):
                             self.active_strategies = self.update_price_data(data=data)
-            except queue.Empty:
+            except asyncio.QueueEmpty:
                 await asyncio.sleep(0.1)
 
     def calculate_pnl(
@@ -539,3 +523,13 @@ class AsyncApp(App):
         logger.info(
             "Active strategies after adding position: %s", self.active_strategies
         )
+
+    def log_spinner_change(self, spinner, new_value):
+        """Logs a message when a spinner value changes.
+
+        Args:
+            spinner (str): The name of the spinner.
+            new_value (str): The new value of the spinner.
+        """
+        if new_value not in ["Choose Strategy", "Choose Symbol"]:
+            logger.info("%s spinner value changed to %s", spinner, new_value)
