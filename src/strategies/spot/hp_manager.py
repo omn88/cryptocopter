@@ -373,21 +373,24 @@ class HpManager:
         return condition
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price()
+        self.logger.info("Ticker update: %s", self.ticker_update)
         condition = (
             self.state == State.NEW
             and self.config.side == PositionSide.LONG
-            and self.ticker_update.last_price
-            <= self.calculate_trigger_send_orders_price()
+            and self.ticker_update.last_price <= trigger_send_orders_price
             and self.balance > self.config.budget
         )
         if condition:
             self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s",
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
                 self.config.symbol_info.symbol,
                 self.config.side,
                 self.state,
                 self.config.budget,
                 self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
             )
 
         return condition

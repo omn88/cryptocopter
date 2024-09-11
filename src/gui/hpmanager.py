@@ -144,24 +144,31 @@ class HpManager(BoxLayout):
         if not self.validate_inputs():
             return
 
+        config = StrategyConfig(
+            open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            system_id=str(uuid.uuid4()),
+            symbol_info=self.symbols_info[self.symbol_input.selected_value],
+            side=PositionSide.LONG
+            if self.ids.side_input.text == PositionSide.LONG.value
+            else PositionSide.SHORT,
+            price_low=float(self.symbol_input.price_low_input.text),
+            price_high=float(self.symbol_input.price_high_input.text),
+            budget=float(self.ids.budget_input.text),
+            order_trigger=float(self.ids.order_trigger_input.text),
+            mode=Mode.DCA
+            if self.ids.mode_input.text == Mode.DCA.value
+            else Mode.SINGLE,
+        )
+
         self.config_queue.put(
             PositionSetup(
-                config=StrategyConfig(
-                    open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    system_id=str(uuid.uuid4()),
-                    symbol_info=self.symbols_info[self.symbol_input.selected_value],
-                    side=PositionSide.LONG
-                    if self.ids.side_input.text == PositionSide.LONG.value
-                    else PositionSide.SHORT,
-                    price_low=float(self.symbol_input.price_low_input.text),
-                    price_high=float(self.symbol_input.price_high_input.text),
-                    budget=float(self.ids.budget_input.text),
-                    order_trigger=float(self.ids.order_trigger_input.text),
-                    mode=Mode.DCA
-                    if self.ids.mode_input.text == Mode.DCA.value
-                    else Mode.SINGLE,
-                ),
+                config=config,
                 state_info=StateInfo(),
+            )
+        )
+        self.ui_queue.put(
+            PositionData(
+                config=config, stagnation_counter=0, completeness=0, state=State.NEW
             )
         )
         self.filter_records(tab="idle", symbol_filter="All")

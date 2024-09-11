@@ -147,10 +147,30 @@ class BrokerSpot:
         for ticker in msg:
             symbol = ticker.get("s")
             if symbol:
+                # Extract the relevant fields from the ticker message
+                last_price = float(ticker.get("c", 0))  # Current last price
+                best_bid_price = float(ticker.get("b", 0))  # Best bid price
+                best_ask_price = float(ticker.get("a", 0))  # Best ask price
+                high_price = float(ticker.get("h", 0))  # High price
+                low_price = float(ticker.get("l", 0))  # Low price
+                volume = float(ticker.get("v", 0))  # Volume
+
+                # Create the TickerUpdate NamedTuple with the extracted values
+                ticker_update = TickerUpdate(
+                    symbol=symbol,
+                    last_price=last_price,
+                    best_bid_price=best_bid_price,
+                    best_ask_price=best_ask_price,
+                    high_price=high_price,
+                    low_price=low_price,
+                    volume=volume,
+                )
+
+                # Place the TickerUpdate event in the appropriate queue
                 for strategy, criteria_list in self.subscriptions.items():
                     if ("PRICE", symbol) in criteria_list:
                         self.queues[strategy].put(
-                            Event(name=EventName.TICKER, content=TickerUpdate(ticker))
+                            Event(name=EventName.TICKER, content=ticker_update)
                         )
 
     def subscribe(self, strategy, data_type, symbol, core_queue):
