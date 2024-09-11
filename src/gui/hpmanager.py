@@ -67,6 +67,7 @@ class HpManager(BoxLayout):
         strategy_logger: StrategyLogger,
         strategy_id: str,
         config_queue: queue.Queue,
+        ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
         **kwargs,
     ):
@@ -74,7 +75,7 @@ class HpManager(BoxLayout):
         self.symbols_info = symbols_info
         self.client = client
         self.strategy_id = strategy_id
-        self.ui_queue: queue.Queue = queue.Queue()
+        self.ui_queue = ui_queue
         self.strategy_logger = strategy_logger
         self.config_queue = config_queue
         self.bind(active_records=self.update_active_symbols)
@@ -160,11 +161,7 @@ class HpManager(BoxLayout):
                     if self.ids.mode_input.text == Mode.DCA.value
                     else Mode.SINGLE,
                 ),
-                state_info=StateInfo(
-                    last_state=State.NEW,
-                    stagnation_counter=0,
-                    next_monitor_time="",
-                ),
+                state_info=StateInfo(),
             )
         )
         self.filter_records(tab="idle", symbol_filter="All")
@@ -177,7 +174,7 @@ class HpManager(BoxLayout):
     ) -> None:
         record = RemoveRecord(system_id=system_id, symbol=symbol)
         self.config_queue.put(record)
-        self.strategy_logger.info("Remove record: %s sent to backend.", record)
+        logger.info("Remove record: %s sent to backend.", record)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -188,9 +185,7 @@ class HpManager(BoxLayout):
 
         # Put the SaveConfig NamedTuple into the config_queue
         self.config_queue.put(SaveConfig(file_name=file_name))
-        self.strategy_logger.info(
-            "Saving configuration request for %s sent to backend.", file_name
-        )
+        logger.info("Saving configuration request for %s sent to backend.", file_name)
 
     def load_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -201,9 +196,7 @@ class HpManager(BoxLayout):
 
         # Put the LoadConfig NamedTuple into the config_queue
         self.config_queue.put(LoadConfig(file_name=file_name))
-        self.strategy_logger.info(
-            "Loading configuration request for %s sent to backend.", file_name
-        )
+        logger.info("Loading configuration request for %s sent to backend.", file_name)
 
     def apply_configuration(self, config_data: List[CsvConfig]) -> None:
         for data in config_data:
@@ -230,40 +223,40 @@ class HpManager(BoxLayout):
                     ),
                 )
             )
-        self.strategy_logger.info("Applied configuration and sent to backend.")
+        logger.info("Applied configuration and sent to backend.")
 
     async def update_ui(self) -> None:
+        logger.info("Ready to receive UI updates")
         while True:
             if self.ui_queue.qsize() == 0:
                 await asyncio.sleep(0.1)
                 continue
             data = self.ui_queue.get()
+            logger.info("HP GUI received data: %s", data)
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
-                self.strategy_logger.info("Received sentinel event, exiting")
+                logger.info("Received sentinel event, exiting")
                 return
 
             if isinstance(data, AccountPosition):
                 pass  # handle account update
 
             if isinstance(data, PositionData):
-                self.strategy_logger.info("Received position data: %s", data)
+                logger.info("Received position data: %s", data)
                 if data.recovering:
                     if data.state == State.OPEN:
-                        self.strategy_logger.logger.info(
+                        logger.info(
                             "Recovering position to active tab in GUI: %s", data
                         )
                         self.recovery_to_active(data=data)
                     if data.state == State.NEW:
-                        self.strategy_logger.logger.debug(
-                            "Recovering position to idle tab in GUI: %s", data
-                        )
+                        logger.info("Recovering position to idle tab in GUI: %s", data)
                         self.recovery_to_idle(data=data)
 
                 elif any(
                     record["system_id"] == data.config.system_id
                     for record in self.active_records
                 ):
-                    self.strategy_logger.debug(
+                    logger.info(
                         "Record %s found in active records", data.config.system_id
                     )
                     self.update_active_position(data=data)
@@ -271,17 +264,17 @@ class HpManager(BoxLayout):
                     record["system_id"] == data.config.system_id
                     for record in self.idle_records
                 ):
-                    self.strategy_logger.debug(
+                    logger.info(
                         "Record %s found in idle records", data.config.system_id
                     )
                     self.update_idle_position(data=data)
                 else:
-                    self.strategy_logger.debug(
+                    logger.info(
                         "New position added to Idle, system id: %s",
                         data.config.system_id,
                     )
                     self.add_new_position_to_idle(data=data)
-                self.strategy_logger.debug(
+                logger.info(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                     self.active_records,
                     self.idle_records,
@@ -461,9 +454,7 @@ class HpManager(BoxLayout):
                         completeness=str(data.completeness),
                     )
                     self.archive_records.append(archived_position.to_dict())
-                    self.strategy_logger.debug(
-                        "Archiving price level: %s", archived_position
-                    )
+                    logger.info("Archiving price level: %s", archived_position)
                     if data.completeness == 1.0:
                         asyncio.create_task(
                             self.remove_record(
@@ -498,9 +489,7 @@ class HpManager(BoxLayout):
                         completeness=str(data.completeness),
                     )
                     self.idle_records.append(idle_position.to_dict())
-                    self.strategy_logger.debug(
-                        "Price level stagnated: %s", idle_position
-                    )
+                    logger.info("Price level stagnated: %s", idle_position)
                     self.filter_records("idle", "All")
         self.filter_records("active", "All")
 
@@ -514,6 +503,7 @@ class HpManager(BoxLayout):
                 position["stagnation_limit"] = str(data.stagnation_limit)
                 position["completeness"] = str(data.completeness)
                 position["state"] = str(data.state)
+                logger.info("Data state: %s", data.state)
                 if data.state == State.OPEN:
                     self.idle_records.remove(position)
                     cancel_price = data.config.symbol_info.adjust_price(
@@ -540,9 +530,7 @@ class HpManager(BoxLayout):
                         state=str(data.state),
                     )
                     self.active_records.append(active_position.to_dict())
-                    self.strategy_logger.debug(
-                        "Activating price level: %s", active_position
-                    )
+                    logger.info("Activating price level: %s", active_position)
                 if data.state == State.CLOSED:
                     data.config.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
@@ -562,9 +550,7 @@ class HpManager(BoxLayout):
                         completeness=str(data.completeness),
                     )
                     self.archive_records.append(archived_position.to_dict())
-                    self.strategy_logger.debug(
-                        "Archiving price level: %s", archived_position
-                    )
+                    logger.info("Archiving price level: %s", archived_position)
 
         self.filter_records("idle", "All")
         self.filter_records("active", "All")

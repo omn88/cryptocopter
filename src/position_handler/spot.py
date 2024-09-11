@@ -55,18 +55,20 @@ class PositionHandler:
 
         state = State.OPEN
 
-        self.ui_queue.put(
-            PositionData(
-                config=self.config,
-                state=state,
-                stagnation_counter=self.stagnation_counter,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
-            )
+        position_data = PositionData(
+            config=self.config,
+            state=state,
+            stagnation_counter=self.stagnation_counter,
+            completeness=round(
+                sum(order.realized_quantity for order in self.orders)
+                / sum(order.quantity for order in self.orders),
+                2,
+            ),
         )
+
+        logger.info("Going to send position data: %s", position_data)
+
+        self.ui_queue.put_nowait(position_data)
 
         for order in self.orders:
             self.db.run_db_task(
@@ -81,7 +83,7 @@ class PositionHandler:
             )
         )
 
-        logger.debug("Position opened successfully.")
+        logger.info("Position opened successfully.")
 
     async def cancel_position(self, state: State) -> None:
         logger.info(

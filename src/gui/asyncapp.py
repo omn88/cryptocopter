@@ -125,11 +125,14 @@ class AsyncApp(App):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
 
+        ui_queue: queue.Queue = queue.Queue()
+
         back_end = StrategyExecutor(
             strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker_spot,
+            ui_queue=ui_queue,
         )
 
         logger.info("Await before HP manager starts")
@@ -139,6 +142,7 @@ class AsyncApp(App):
             strategy_id=strategy_id,
             symbols_info=symbols_info,
             config_queue=back_end.config_queue,
+            ui_queue=ui_queue,
         )
 
         tab = TabbedPanelItem(

@@ -42,12 +42,13 @@ class StrategyExecutor:
         db: Database,
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
+        ui_queue: queue.Queue,
     ):
         self.client: Optional[BinanceClient] = None
         self.logger = strategy_logger
         self.db = db
         self.broker = broker
-        self.ui_queue: queue.Queue = queue.Queue()
+        self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
@@ -116,7 +117,6 @@ class StrategyExecutor:
         assert trading_system.strategy is not None
 
         self.id_to_system[position_setup.config.system_id] = trading_system
-        self.logger.info("Starting trading system for %s", position_setup.config)
 
         self.broker.subscribe(
             strategy=trading_system.strategy,

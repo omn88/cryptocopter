@@ -83,9 +83,9 @@ class Database:
         self.thread = threading.Thread(target=self.run_worker)
         self.thread.start()
         while self.loop is None:
-            print("loop is none, sleep 0.1s")
+            logger.info("loop is none, sleep 0.1s")
             time.sleep(0.1)
-        print("loop is OK")
+        logger.info("loop is OK")
         await asyncio.wrap_future(
             asyncio.run_coroutine_threadsafe(
                 self.create_database_if_not_exists(), self.loop

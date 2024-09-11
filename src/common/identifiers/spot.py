@@ -198,9 +198,9 @@ class StrategyConfig:
 
 
 class StateInfo(NamedTuple):
-    last_state: Optional[State]
-    stagnation_counter: int
-    next_monitor_time: str
+    last_state: Optional[State] = None
+    stagnation_counter: int = 0
+    next_monitor_time: str = ""
 
     def __str__(self):
         return f"StateInfo(last_state={self.last_state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"

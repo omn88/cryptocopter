@@ -87,16 +87,12 @@ class TradingSystem:
     async def worker(self):
         if self.state_machine:
             assert isinstance(self.state_machine.model, HpManager)
-            logger.debug(
-                "Worker sleep 5 secs before starting, so the sockets can start"
-            )
-            await asyncio.sleep(5)
-            logger.debug("Worker start now, state: %s.", self.state_machine.model.state)
+            logger.info("Worker start now, state: %s.", self.state_machine.model.state)
             while True:
                 event = self.state_machine.model.queue.get()
                 assert isinstance(event, Event)
 
-                logger.debug("New event: %s", event)
+                logger.info("New event: %s", event)
 
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
