@@ -135,6 +135,8 @@ class AsyncApp(App):
             ui_queue=ui_queue,
         )
 
+        self.trading_systems.append(back_end)
+
         logger.info("Await before HP manager starts")
         front_end = HpManager(
             strategy_logger=strategy_logger,
@@ -266,7 +268,9 @@ class AsyncApp(App):
                         config.name,
                     )
                     return
-
+            strat = {}
+            strat["name"] = strategy_name
+            self.active_strategies.append(strat)
             logger.info("Starting HP manager strategy")
 
             strategy_id = self.db.run_db_task(
@@ -291,8 +295,17 @@ class AsyncApp(App):
         asyncio.create_task(self.on_cancel())
 
     async def on_cancel(self):
-        for trading_system in self.trading_systems:
-            await trading_system.stop()
+        """Cancel all running strategies."""
+        logger.info("Cancelling all running strategies.")
+        if self.trading_systems:
+            # Gather cancellation tasks
+            cancellation_tasks = [system.stop() for system in self.trading_systems]
+            # Wait for all systems to stop
+            await asyncio.gather(*cancellation_tasks)
+            logger.info("All strategies stopped successfully.")
+            self.trading_systems.clear()  # Clear the list of systems once cancelled
+        else:
+            logger.info("No active strategies to cancel.")
 
     def on_strategy_change(self, strategy_name):
         self.log_spinner_change("Strategy", strategy_name)

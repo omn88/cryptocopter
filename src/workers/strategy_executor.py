@@ -55,6 +55,7 @@ class StrategyExecutor:
         self.usdt_balance = 0.0
 
         self.loop = None
+        self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
@@ -71,7 +72,7 @@ class StrategyExecutor:
         )
         self.usdt_balance = await self.get_usdt_balance()
 
-        while True:
+        while not self.stop_event.is_set():
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
@@ -94,6 +95,10 @@ class StrategyExecutor:
                     await self.load_config(strategy_data.file_name)
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    def stop(self):
+        self.stop_event.set()
+        self.thread.join()  # Wait for thread to finish
 
     async def initialize_trading_system(
         self,

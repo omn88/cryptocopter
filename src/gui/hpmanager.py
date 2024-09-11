@@ -269,11 +269,18 @@ class HpManager(BoxLayout):
                     )
                     self.update_idle_position(data=data)
                 else:
-                    logger.info(
-                        "New position added to Idle, system id: %s",
-                        data.config.system_id,
-                    )
-                    self.add_new_position_to_idle(data=data)
+                    if data.state == State.NEW:
+                        logger.info(
+                            "New position added to Idle, system id: %s",
+                            data.config.system_id,
+                        )
+                        self.add_new_position_to_idle(data=data)
+                    if data.state == State.OPEN:
+                        logger.info(
+                            "New position added to Active, system id: %s",
+                            data.config.system_id,
+                        )
+                        self.add_new_position_to_active(data=data)
                 logger.info(
                     "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                     self.active_records,
