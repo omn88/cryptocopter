@@ -29,18 +29,18 @@ class BrokerSpot:
         self.client: Optional[BinanceClient] = None
         self.subscriptions: Dict[str, list] = {}
         self.queues: Dict[str, queue.Queue] = {}
-        self.loop = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_producers_event: asyncio.Event = asyncio.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
-    def start_loop(self):
+    def start_loop(self) -> None:
         """Starts the asyncio loop in a new thread."""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.run())
 
-    async def run(self):
+    async def run(self) -> None:
         """Main entry point for running the broker."""
         # Maby the stop producers event is not
         logger.info(
@@ -52,7 +52,7 @@ class BrokerSpot:
         )
 
         socket_manager = BinanceSocketManager(client=self.client)
-
+        assert self.loop
         tasks = [
             self.loop.create_task(
                 self.handle_socket(
@@ -77,7 +77,7 @@ class BrokerSpot:
 
     async def handle_socket(
         self, socket, stop_event, message_handler, reconnect_attempts=10
-    ):
+    ) -> None:
         """Handles incoming data from the WebSocket with reconnection logic."""
         logger.info("Entering handle_socket for %s", socket)
 
@@ -117,7 +117,7 @@ class BrokerSpot:
                 logger.exception("Unexpected error in handle_socket: %s", e)
                 break  # Exit the outer loop if an unexpected error occurs
 
-    def handle_user_message(self, msg):
+    def handle_user_message(self, msg) -> None:
         """Handle user-specific WebSocket messages."""
         symbol = msg.get("s")
         event_type = msg.get("e")
@@ -142,7 +142,7 @@ class BrokerSpot:
                         )
                     )
 
-    def handle_ticker_message(self, msg):
+    def handle_ticker_message(self, msg) -> None:
         """Handle all market ticker WebSocket messages."""
         for ticker in msg:
             symbol = ticker.get("s")
@@ -173,33 +173,37 @@ class BrokerSpot:
                             Event(name=EventName.TICKER, content=ticker_update)
                         )
 
-    def subscribe(self, strategy, data_type, symbol, core_queue):
+    def subscribe(
+        self, system_id: str, data_type: str, symbol: str, queue_to_use: queue.Queue
+    ) -> None:
         """Allows a strategy to subscribe to user data or specific symbol price feed."""
         criteria = (data_type, symbol)
-        if strategy not in self.subscriptions:
-            self.subscriptions[strategy] = []
-            self.queues[strategy] = core_queue
-        if criteria not in self.subscriptions[strategy]:
-            self.subscriptions[strategy].append(criteria)
+        if system_id not in self.subscriptions:
+            self.subscriptions[system_id] = []
+            self.queues[system_id] = queue_to_use
+        if criteria not in self.subscriptions[system_id]:
+            self.subscriptions[system_id].append(criteria)
 
-    def unsubscribe(self, strategy, data_type, symbol):
+    def unsubscribe(self, system_id, data_type: str, symbol: str) -> None:
         """Allows a strategy to unsubscribe from a user or price feed."""
         criteria = (data_type, symbol)
-        if strategy in self.subscriptions:
-            self.subscriptions[strategy] = [
-                sub for sub in self.subscriptions[strategy] if sub != criteria
+        if system_id in self.subscriptions:
+            self.subscriptions[system_id] = [
+                sub for sub in self.subscriptions[system_id] if sub != criteria
             ]
-            if not self.subscriptions[strategy]:
-                del self.subscriptions[strategy]
-                del self.queues[strategy]  # Remove the queue for this strategy
+            if not self.subscriptions[system_id]:
+                del self.subscriptions[system_id]
+                del self.queues[system_id]
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the broker and closes all connections."""
+        assert self.loop
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
 
-    async def close(self):
+    async def close(self) -> None:
         """Closes the AsyncClient and socket manager."""
+        assert self.client
         await self.client.close_connection()
 
     def create_execution_report(self, msg) -> ExecutionReport:

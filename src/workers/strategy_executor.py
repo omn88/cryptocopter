@@ -124,16 +124,23 @@ class StrategyExecutor:
         self.id_to_system[position_setup.config.system_id] = trading_system
 
         self.broker.subscribe(
-            strategy=trading_system.strategy,
+            system_id=trading_system.strategy.config.system_id,
             data_type="USER",
             symbol=position_setup.config.symbol_info.symbol,
-            core_queue=core_queue,
+            queue_to_use=core_queue,
         )
         self.broker.subscribe(
-            strategy=trading_system.strategy,
+            system_id=trading_system.strategy.config.system_id,
             data_type="PRICE",
             symbol=position_setup.config.symbol_info.symbol,
-            core_queue=core_queue,
+            queue_to_use=core_queue,
+        )
+
+        self.broker.subscribe(
+            system_id=trading_system.strategy.config.system_id,
+            data_type="PRICE",
+            symbol=position_setup.config.symbol_info.symbol,
+            queue_to_use=self.ui_queue,
         )
 
         asyncio.create_task(trading_system.worker())
@@ -143,12 +150,12 @@ class StrategyExecutor:
             trading_system: TradingSystem = self.id_to_system.pop(system_id)
 
             self.broker.unsubscribe(
-                strategy=trading_system.strategy,
+                system_id=system_id,
                 data_type="USER",
                 symbol=symbol,
             )
             self.broker.unsubscribe(
-                strategy=trading_system.strategy,
+                system_id=system_id,
                 data_type="PRICE",
                 symbol=symbol,
             )
