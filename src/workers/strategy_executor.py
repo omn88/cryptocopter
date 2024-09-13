@@ -45,6 +45,7 @@ class StrategyExecutor:
         db: Database,
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
+        strategy_id: str,
         ui_queue: queue.Queue,
     ):
         self.client: Optional[BinanceClient] = None
@@ -53,6 +54,7 @@ class StrategyExecutor:
         self.broker = broker
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
+        self.strategy_id = strategy_id
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
         self.usdt_balance = 0.0
@@ -74,6 +76,16 @@ class StrategyExecutor:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
         self.usdt_balance = await self.get_usdt_balance()
+
+        self.broker.subscribe(
+            system_id=self.strategy_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",
+                target=SubscriptionTarget.FRONTEND,
+                queue=self.ui_queue,
+            ),
+        )
 
         while not self.stop_event.is_set():
             try:
@@ -139,16 +151,6 @@ class StrategyExecutor:
                 symbol=position_setup.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
-            ),
-        )
-
-        self.broker.subscribe(
-            system_id=trading_system.strategy.config.system_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=position_setup.config.symbol_info.symbol,
-                target=SubscriptionTarget.FRONTEND,
-                queue=self.ui_queue,
             ),
         )
 

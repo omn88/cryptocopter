@@ -15,6 +15,7 @@ from src.common.identifiers.spot import (
     EventName,
     ExecutionReport,
     SubscriptionInfo,
+    SubscriptionTarget,
     SubscriptionType,
     TickerUpdate,
 )
@@ -156,6 +157,15 @@ class BrokerSpot:
 
     def handle_ticker_message(self, msg) -> None:
         """Handle all market ticker WebSocket messages."""
+
+        # Send the full msg to FrontEnd if subscribed to "ALL" symbols
+        for strategy, subscriptions in self.subscriptions.items():
+            for subscription_info in subscriptions:
+                if subscription_info.symbol == "ALL":
+                    subscription_info.queue.put(
+                        Event(name=EventName.TICKER, content=msg)  # Send full message
+                    )
+
         for ticker in msg:
             symbol = ticker.get("s")
             if symbol:
@@ -178,7 +188,7 @@ class BrokerSpot:
                     volume=volume,
                 )
 
-                # Place the TickerUpdate event in the appropriate queue
+                # Send symbol-specific updates for other subscriptions
                 for strategy, subscriptions in self.subscriptions.items():
                     for subscription_info in subscriptions:
                         if (

@@ -28,6 +28,9 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     StrategyConfig,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (

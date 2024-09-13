@@ -133,6 +133,7 @@ class AsyncApp(App):
             db=self.db,
             broker=self.broker_spot,
             ui_queue=ui_queue,
+            strategy_id=strategy_id,
         )
 
         self.trading_systems.append(back_end)
