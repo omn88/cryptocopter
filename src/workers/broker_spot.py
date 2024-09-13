@@ -14,6 +14,8 @@ from src.common.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
+    SubscriptionInfo,
+    SubscriptionType,
     TickerUpdate,
 )
 
@@ -121,26 +123,36 @@ class BrokerSpot:
         """Handle user-specific WebSocket messages."""
         symbol = msg.get("s")
         event_type = msg.get("e")
+
         if event_type == EventName.EXECUTION_REPORT.value:
-            for strategy, criteria_list in self.subscriptions.items():
-                if ("USER", symbol) in criteria_list:
-                    self.queues[strategy].put(
-                        Event(
-                            name=EventName.EXECUTION_REPORT,
-                            content=self.create_execution_report(msg),
+            for strategy, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    if (
+                        subscription_info.data_type == SubscriptionType.USER
+                        and subscription_info.symbol == symbol
+                    ):
+                        subscription_info.queue.put(
+                            Event(
+                                name=EventName.EXECUTION_REPORT,
+                                content=self.create_execution_report(msg),
+                            )
                         )
-                    )
+
         if event_type == EventName.ACCOUNT_POSITION.value:
             msg = self.create_account_position(msg)
 
-            for strategy, criteria_list in self.subscriptions.items():
-                if ("USER", symbol) in criteria_list:
-                    self.queues[strategy].put(
-                        Event(
-                            name=EventName.ACCOUNT_POSITION,
-                            content=self.create_account_position(msg),
+            for strategy, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    if (
+                        subscription_info.data_type == SubscriptionType.USER
+                        and subscription_info.symbol == symbol
+                    ):
+                        subscription_info.queue.put(
+                            Event(
+                                name=EventName.ACCOUNT_POSITION,
+                                content=self.create_account_position(msg),
+                            )
                         )
-                    )
 
     def handle_ticker_message(self, msg) -> None:
         """Handle all market ticker WebSocket messages."""
@@ -167,33 +179,33 @@ class BrokerSpot:
                 )
 
                 # Place the TickerUpdate event in the appropriate queue
-                for strategy, criteria_list in self.subscriptions.items():
-                    if ("PRICE", symbol) in criteria_list:
-                        self.queues[strategy].put(
-                            Event(name=EventName.TICKER, content=ticker_update)
-                        )
+                for strategy, subscriptions in self.subscriptions.items():
+                    for subscription_info in subscriptions:
+                        if (
+                            subscription_info.data_type == SubscriptionType.PRICE
+                            and subscription_info.symbol == symbol
+                        ):
+                            subscription_info.queue.put(
+                                Event(name=EventName.TICKER, content=ticker_update)
+                            )
 
-    def subscribe(
-        self, system_id: str, data_type: str, symbol: str, queue_to_use: queue.Queue
-    ) -> None:
+    def subscribe(self, system_id: str, subscription_info: SubscriptionInfo) -> None:
         """Allows a strategy to subscribe to user data or specific symbol price feed."""
-        criteria = (data_type, symbol)
+
+        # If the system_id is not in subscriptions, create an empty list for it
         if system_id not in self.subscriptions:
             self.subscriptions[system_id] = []
-            self.queues[system_id] = queue_to_use
-        if criteria not in self.subscriptions[system_id]:
-            self.subscriptions[system_id].append(criteria)
 
-    def unsubscribe(self, system_id, data_type: str, symbol: str) -> None:
+        # Only add the subscription if it does not already exist
+        if subscription_info not in self.subscriptions[system_id]:
+            self.subscriptions[system_id].append(subscription_info)
+
+    def unsubscribe(self, system_id: str) -> None:
         """Allows a strategy to unsubscribe from a user or price feed."""
-        criteria = (data_type, symbol)
+
+        # Check if the system_id exists in the subscriptions
         if system_id in self.subscriptions:
-            self.subscriptions[system_id] = [
-                sub for sub in self.subscriptions[system_id] if sub != criteria
-            ]
-            if not self.subscriptions[system_id]:
-                del self.subscriptions[system_id]
-                del self.queues[system_id]
+            del self.subscriptions[system_id]
 
     def stop(self) -> None:
         """Stops the broker and closes all connections."""

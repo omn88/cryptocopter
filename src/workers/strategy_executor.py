@@ -20,6 +20,9 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     StrategyConfig,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
@@ -84,10 +87,7 @@ class StrategyExecutor:
                     )
                 if isinstance(strategy_data, RemoveRecord):
                     asyncio.create_task(
-                        self.remove_record(
-                            system_id=strategy_data.system_id,
-                            symbol=strategy_data.symbol,
-                        )
+                        self.remove_record(system_id=strategy_data.system_id)
                     )
                 if isinstance(strategy_data, SaveConfig):
                     await self.save_config(strategy_data.file_name)
@@ -125,40 +125,40 @@ class StrategyExecutor:
 
         self.broker.subscribe(
             system_id=trading_system.strategy.config.system_id,
-            data_type="USER",
-            symbol=position_setup.config.symbol_info.symbol,
-            queue_to_use=core_queue,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=position_setup.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
         )
         self.broker.subscribe(
             system_id=trading_system.strategy.config.system_id,
-            data_type="PRICE",
-            symbol=position_setup.config.symbol_info.symbol,
-            queue_to_use=core_queue,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=position_setup.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
         )
 
         self.broker.subscribe(
             system_id=trading_system.strategy.config.system_id,
-            data_type="PRICE",
-            symbol=position_setup.config.symbol_info.symbol,
-            queue_to_use=self.ui_queue,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=position_setup.config.symbol_info.symbol,
+                target=SubscriptionTarget.FRONTEND,
+                queue=self.ui_queue,
+            ),
         )
 
         asyncio.create_task(trading_system.worker())
 
-    async def remove_record(self, system_id: str, symbol: str) -> None:
+    async def remove_record(self, system_id: str) -> None:
         if system_id in self.id_to_system:
             trading_system: TradingSystem = self.id_to_system.pop(system_id)
 
-            self.broker.unsubscribe(
-                system_id=system_id,
-                data_type="USER",
-                symbol=symbol,
-            )
-            self.broker.unsubscribe(
-                system_id=system_id,
-                data_type="PRICE",
-                symbol=symbol,
-            )
+            self.broker.unsubscribe(system_id=system_id)
 
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")

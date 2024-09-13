@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, auto
+import queue
 from typing import List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from src.common.identifiers.common import (
@@ -195,6 +196,23 @@ class StrategyConfig:
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
             f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time}, close_time={self.close_time})"
         )
+
+
+class SubscriptionType(Enum):
+    PRICE = auto()
+    USER = auto()
+
+
+class SubscriptionTarget(Enum):
+    FRONTEND = auto()
+    BACKEND = auto()
+
+
+class SubscriptionInfo(NamedTuple):
+    data_type: SubscriptionType
+    symbol: str
+    target: SubscriptionTarget
+    queue: queue.Queue
 
 
 class StateInfo(NamedTuple):
