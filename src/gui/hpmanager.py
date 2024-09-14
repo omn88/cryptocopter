@@ -31,6 +31,7 @@ from src.common.identifiers.spot import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
+    TickerUpdate,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
@@ -242,7 +243,7 @@ class HpManager(BoxLayout):
                 await asyncio.sleep(0.1)
                 continue
             data = self.ui_queue.get()
-            logger.info("HP GUI received data: %s", data)
+            logger.info("HP GUI received data")
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 logger.info("Received sentinel event, exiting")
                 return
@@ -298,14 +299,19 @@ class HpManager(BoxLayout):
                     self.archive_records,
                 )
 
-            if isinstance(data, PriceData):
+            if data.name == EventName.ALL_TICKERS:
+                logger.info("Received all tickers")
                 for strategy in self.active_records:
-                    if strategy["symbol"] == data.symbol:
-                        strategy["current_price"] = str(data.price)
-
-                for strategy in self.idle_records:
-                    if strategy["symbol"] == data.symbol:
-                        strategy["current_price"] = str(data.price)
+                    for ticker in data.content:
+                        symbol = ticker.get("s")
+                        if symbol == strategy["symbol"]:
+                            logger.info("Updating price for: %s", symbol)
+                            strategy["current_price"] = str(ticker.get("c", 0))
+                            logger.info(
+                                "Current price for %s: %s",
+                                symbol,
+                                str(ticker.get("c", 0)),
+                            )
 
     async def refresh_ui(self):
         while True:

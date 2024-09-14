@@ -37,6 +37,7 @@ class EventName(Enum):
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
+    ALL_TICKERS = "All"
 
 
 class CsvConfig(NamedTuple):

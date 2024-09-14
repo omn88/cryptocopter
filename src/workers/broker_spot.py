@@ -163,7 +163,9 @@ class BrokerSpot:
             for subscription_info in subscriptions:
                 if subscription_info.symbol == "ALL":
                     subscription_info.queue.put(
-                        Event(name=EventName.TICKER, content=msg)  # Send full message
+                        Event(
+                            name=EventName.ALL_TICKERS, content=msg
+                        )  # Send full message
                     )
 
         for ticker in msg:
