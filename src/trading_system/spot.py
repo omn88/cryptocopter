@@ -91,7 +91,7 @@ class TradingSystem:
                 event = self.state_machine.model.queue.get()
                 assert isinstance(event, Event)
 
-                logger.info("New event: %s", event)
+                logger.debug("New event: %s", event)
 
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)

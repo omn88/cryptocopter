@@ -299,19 +299,20 @@ class HpManager(BoxLayout):
                     self.archive_records,
                 )
 
-            if data.name == EventName.ALL_TICKERS:
+            if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                 logger.info("Received all tickers")
                 for strategy in self.active_records:
                     for ticker in data.content:
                         symbol = ticker.get("s")
                         if symbol == strategy["symbol"]:
                             logger.info("Updating price for: %s", symbol)
-                            strategy["current_price"] = str(ticker.get("c", 0))
-                            logger.info(
-                                "Current price for %s: %s",
-                                symbol,
-                                str(ticker.get("c", 0)),
+                            price = str(
+                                self.symbols_info[symbol].adjust_price(
+                                    price=float(ticker["c"])
+                                )
                             )
+                            strategy["current_price"] = price
+                            logger.info("Current price for %s: %s", symbol, price)
 
     async def refresh_ui(self):
         while True:
