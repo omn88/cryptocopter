@@ -111,7 +111,8 @@ class StrategyExecutor:
     async def stop(self):
         logger.info("In the strategy executor stop method")
         self.stop_event.set()
-        # await self.client.close_connection()
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.client.close_connection())
         logger.info("Strategy executor stop event SET")
         self.thread.join()  # Wait for thread to finish
         logger.info("Strategy executor thread finished")

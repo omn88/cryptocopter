@@ -228,6 +228,7 @@ class BrokerSpot:
 
         # Set stop event to notify all tasks to exit
         self.stop_producers_event.set()
+
         self.shutdown()
 
     def join_thread(self):
@@ -269,6 +270,8 @@ class BrokerSpot:
 
         finally:
             # Ensure the thread is stopped even if errors occur
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.client.close_connection())
             self.join_thread()
 
             # Final log statement indicating complete shutdown
