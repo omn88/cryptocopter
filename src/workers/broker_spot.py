@@ -2,7 +2,7 @@ import asyncio
 import threading
 import queue
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from decouple import Config, RepositoryEnv
 
@@ -15,7 +15,6 @@ from src.common.identifiers.spot import (
     EventName,
     ExecutionReport,
     SubscriptionInfo,
-    SubscriptionTarget,
     SubscriptionType,
     TickerUpdate,
 )
@@ -34,6 +33,7 @@ class BrokerSpot:
         self.queues: Dict[str, queue.Queue] = {}
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_producers_event: asyncio.Event = asyncio.Event()
+        self.tasks: Optional[List[asyncio.Task]] = None
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
@@ -45,7 +45,6 @@ class BrokerSpot:
 
     async def run(self) -> None:
         """Main entry point for running the broker."""
-        # Maby the stop producers event is not
         logger.info(
             "Main entry point for running the broker, thread: %s", self.thread.name
         )
@@ -56,7 +55,7 @@ class BrokerSpot:
 
         socket_manager = BinanceSocketManager(client=self.client)
         assert self.loop
-        tasks = [
+        self.tasks = [
             self.loop.create_task(
                 self.handle_socket(
                     socket_manager.ticker_socket(),
@@ -76,7 +75,7 @@ class BrokerSpot:
         ]
 
         # Await all tasks
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*self.tasks, return_exceptions=True)
 
     async def handle_socket(
         self, socket, stop_event, message_handler, reconnect_attempts=10
@@ -119,6 +118,10 @@ class BrokerSpot:
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)
                 break  # Exit the outer loop if an unexpected error occurs
+
+        logger.info(
+            "Gracefully getting out of handle socket method for socket: %s", socket
+        )
 
     def handle_user_message(self, msg) -> None:
         """Handle user-specific WebSocket messages."""
@@ -219,16 +222,57 @@ class BrokerSpot:
         if system_id in self.subscriptions:
             del self.subscriptions[system_id]
 
-    def stop(self) -> None:
-        """Stops the broker and closes all connections."""
-        assert self.loop
-        self.loop.call_soon_threadsafe(self.loop.stop)
-        self.thread.join()
+    async def stop(self):
+        """Shut down BrokerSpot gracefully."""
+        logger.info("Stopping BrokerSpot gracefully.")
 
-    async def close(self) -> None:
-        """Closes the AsyncClient and socket manager."""
-        assert self.client
-        await self.client.close_connection()
+        # Set stop event to notify all tasks to exit
+        self.stop_producers_event.set()
+        self.shutdown()
+
+    def join_thread(self):
+        """Join the broker's thread."""
+        if self.thread.is_alive():
+            self.thread.join()
+
+    def shutdown(self):
+        """Shutdown the broker and close resources."""
+        logger.info("Shutting down BrokerSpot...")
+
+        try:
+            # Log current tasks before shutdown
+            logger.info("Current tasks: %s", asyncio.all_tasks())
+
+            if self.loop:
+                # Stop the event loop safel
+
+                # Give some time for pending tasks to handle cancellation
+                pending_tasks = [
+                    task for task in asyncio.all_tasks(self.loop) if not task.done()
+                ]
+
+                if pending_tasks:
+                    # Wait for the remaining tasks to be canceled or completed
+                    self.loop.run_until_complete(
+                        asyncio.gather(*pending_tasks, return_exceptions=True)
+                    )
+
+                self.loop.call_soon_threadsafe(self.loop.stop)
+
+        except RuntimeError as e:
+            # Handle the event loop stop error gracefully
+            logger.error(f"RuntimeError during shutdown: {e}")
+
+        except Exception as e:
+            # Catch any other exceptions
+            logger.error(f"Unexpected error during shutdown: {e}")
+
+        finally:
+            # Ensure the thread is stopped even if errors occur
+            self.join_thread()
+
+            # Final log statement indicating complete shutdown
+            logger.info("BrokerSpot shutdown complete.")
 
     def create_execution_report(self, msg) -> ExecutionReport:
         return ExecutionReport(

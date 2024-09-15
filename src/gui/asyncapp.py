@@ -293,20 +293,33 @@ class AsyncApp(App):
             self.root.switch_to(self.root.tab_list[0])
 
     def cancel_all_strategies(self):
-        asyncio.create_task(self.on_cancel())
+        asyncio.create_task(self.shutdown())
 
-    async def on_cancel(self):
-        """Cancel all running strategies."""
-        logger.info("Cancelling all running strategies.")
+    def on_stop(self):
+        """Override the on_stop method to handle application shutdown."""
+        logger.info("Application is shutting down. Cleaning up resources.")
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.shutdown())
+
+    async def shutdown(self):
+        """Handle the shutdown process for gracefully stopping all systems and resources."""
+        # First, cancel all running strategies
         if self.trading_systems:
-            # Gather cancellation tasks
-            cancellation_tasks = [system.stop() for system in self.trading_systems]
-            # Wait for all systems to stop
-            await asyncio.gather(*cancellation_tasks)
-            logger.info("All strategies stopped successfully.")
-            self.trading_systems.clear()  # Clear the list of systems once cancelled
-        else:
-            logger.info("No active strategies to cancel.")
+            logger.info("Stopping all active strategies...")
+            for system in self.trading_systems:
+                logger.info("System: %s", system)
+                assert isinstance(system, StrategyExecutor)
+                await system.stop()
+
+        # Stop the broker
+        logger.info("Stopping the broker...")
+        await self.broker_spot.stop()
+
+        # Stop the database worker
+        logger.info("Stopping the database worker...")
+        self.db.stop_worker()
+
+        logger.info("All systems stopped successfully. Application exiting.")
 
     def on_strategy_change(self, strategy_name):
         self.log_spinner_change("Strategy", strategy_name)

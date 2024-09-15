@@ -41,7 +41,6 @@ class TradingSystem:
         self.core_queue = core_queue
         self.strategy_logger = strategy_logger
         self.db = db
-        self.stop_producers_event = asyncio.Event()
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
 
@@ -140,5 +139,3 @@ class TradingSystem:
         self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
-        await asyncio.sleep(5)
-        self.stop_producers_event.set()

@@ -103,11 +103,12 @@ class Database:
         self.loop.run_forever()
 
     def stop_worker(self):
-        # Stop the event loop and join the thread
+        logger.info("DB: Stop the event loop and join the thread")
         if self.loop is not None:
             self.loop.call_soon_threadsafe(self.loop.stop)
         if self.thread is not None:
             self.thread.join()
+            logger.info("DB thread finished")
 
     def run_db_task(self, coro):
         """Runs a coroutine in the worker's event loop."""

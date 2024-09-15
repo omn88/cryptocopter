@@ -31,7 +31,7 @@ class BinanceClient(AsyncClient):
         self.sync_interval: int = sync_interval
         self.last_sync: float = 0.0
         self.logger = logging.getLogger(__name__)
-        asyncio.create_task(self.time_sync_loop())
+        # asyncio.create_task(self.time_sync_loop())
 
     async def time_sync_loop(self):
         while True:

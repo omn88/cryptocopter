@@ -78,11 +78,7 @@ async def main():
     app = AsyncApp(client=client, db=db, symbols_info=symbols_info)
     logger.info("Created %s", app)
 
-    try:
-        await app.async_run()
-    finally:
-        db.run_db_task(db.close_pool())
-        db.stop_worker()
+    await app.async_run()
 
 
 if __name__ == "__main__":
