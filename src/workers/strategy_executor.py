@@ -1,5 +1,6 @@
 import asyncio
 import csv
+from datetime import datetime
 import logging
 import os
 import queue
@@ -25,7 +26,6 @@ from src.common.identifiers.spot import (
     SubscriptionType,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import PositionData
 from src.trading_system.spot import TradingSystem
 from src.workers.broker_spot import BrokerSpot
 
@@ -113,8 +113,14 @@ class StrategyExecutor:
         db: Database,
     ) -> None:
         self.logger.info("Initializing trading system: %s", position_setup.config)
+        position_setup.config.symbol_info = self.symbols_info[
+            position_setup.config.symbol_info.symbol
+        ]
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
+
+        position_setup.config.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         trading_system = TradingSystem(
             strategy_logger=self.logger,
             client=self.client,
@@ -168,65 +174,6 @@ class StrategyExecutor:
 
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")
-
-    # async def add_record(
-    #     self,
-    #     symbol: str,
-    #     side: PositionSide,
-    #     price_low: float,
-    #     price_high: float,
-    #     budget: float,
-    #     order_trigger: float,
-    #     mode: Mode,
-    #     stagnation_counter: int = 0,
-    #     next_monitor_time: str = "",
-    #     open_time: Optional[str] = None,
-    #     last_state: Optional[State] = None,
-    #     system_id: Optional[str] = None,
-    # ) -> None:
-    #     position_setup = PositionSetup(
-    #         config=StrategyConfig(
-    #             open_time=open_time,
-    #             system_id=str(uuid.uuid4()) if system_id is None else system_id,
-    #             symbol_info=self.symbols_info[symbol],
-    #             side=side,
-    #             price_low=price_low,
-    #             price_high=price_high,
-    #             budget=budget,
-    #             order_trigger=order_trigger,
-    #             mode=mode,
-    #         ),
-    #         state_info=StateInfo(
-    #             last_state=last_state,
-    #             stagnation_counter=stagnation_counter,
-    #             next_monitor_time=next_monitor_time,
-    #         ),
-    #     )
-
-    #     self.config_queue.put(position_setup)
-    #     logger.info(
-    #         "Adding new record with config: %s, state info: %s",
-    #         position_setup.config,
-    #         position_setup.state_info,
-    #     )
-
-    #     if (
-    #         last_state is None
-    #     ):  # inserting level only if there is no last known status, recovery will
-    #         last_state = State.NEW
-    #         self.ui_queue.put(
-    #             PositionData(
-    #                 config=position_setup.config,
-    #                 stagnation_counter=0,
-    #                 completeness=0,
-    #                 state=last_state,
-    #             )
-    #         )
-    #         self.db.run_db_task(
-    #             self.db.insert_price_level(
-    #                 config=position_setup.config, state=last_state
-    #             )
-    #         )
 
     def initialize_positions_from_db(self):
         active_price_levels = self.db.run_db_task(
@@ -302,8 +249,8 @@ class StrategyExecutor:
 
     async def load_config(self, file_name: str) -> None:
         """Handle loading a configuration from a CSV file."""
-        config_dir = "src/strategies/spot"
-        file_path = os.path.join(config_dir, f"{file_name}.csv")
+        config_dir = "src/strategies/spot/"
+        file_path = f"{config_dir}{file_name}.csv"
 
         try:
             with open(file_path, "r", encoding="utf-8") as csvfile:
@@ -342,6 +289,7 @@ class StrategyExecutor:
         """Collect the current configurations."""
         hp_config = []
         for system_id, system in self.id_to_system.items():
+            logger.info("System id: %s, system: %s", system_id, system)
             assert isinstance(system, TradingSystem)
             hp_config.append(
                 CsvConfig(

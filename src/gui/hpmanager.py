@@ -1,5 +1,4 @@
 import asyncio
-import csv
 from datetime import datetime
 import os
 import queue
@@ -29,10 +28,6 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     StrategyConfig,
-    SubscriptionInfo,
-    SubscriptionTarget,
-    SubscriptionType,
-    TickerUpdate,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
@@ -40,10 +35,8 @@ from src.gui.identifiers.spot import (
     ArchivedPosition,
     IdlePosition,
     PositionData,
-    PriceData,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
-from src.trading_system.spot import TradingSystem
 
 
 logger = logging.getLogger("HP_GUI")
@@ -313,21 +306,18 @@ class HpManager(BoxLayout):
                                 )
                             )
                             strategy["current_price"] = price
-                            logger.info("Current price for %s: %s", symbol, price)
 
                 for strategy in self.idle_records:
                     assert isinstance(data.content, AllTickers)
                     for ticker in data.content.msg:
                         symbol = ticker.get("s")
                         if symbol == strategy["symbol"]:
-                            logger.info("Updating price for: %s", symbol)
                             price = str(
                                 self.symbols_info[symbol].adjust_price(
                                     price=float(ticker["c"])
                                 )
                             )
                             strategy["current_price"] = price
-                            logger.info("Current price for %s: %s", symbol, price)
 
     async def refresh_ui(self):
         while True:
