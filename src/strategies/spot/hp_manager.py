@@ -374,7 +374,6 @@ class HpManager:
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price()
-        self.logger.info("Ticker update: %s", self.ticker_update)
         condition = (
             self.state == State.NEW
             and self.config.side == PositionSide.LONG

@@ -245,7 +245,6 @@ class HpManager(BoxLayout):
                 await asyncio.sleep(0.1)
                 continue
             data = self.ui_queue.get()
-            logger.info("HP GUI received data")
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 logger.info("Received sentinel event, exiting")
                 return
@@ -302,7 +301,6 @@ class HpManager(BoxLayout):
                 )
 
             if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                logger.info("Received all tickers")
                 for strategy in self.active_records:
                     assert isinstance(data.content, AllTickers)
                     for ticker in data.content.msg:
