@@ -314,6 +314,19 @@ class HpManager(BoxLayout):
                             strategy["current_price"] = price
                             logger.info("Current price for %s: %s", symbol, price)
 
+                for strategy in self.idle_records:
+                    for ticker in data.content:
+                        symbol = ticker.get("s")
+                        if symbol == strategy["symbol"]:
+                            logger.info("Updating price for: %s", symbol)
+                            price = str(
+                                self.symbols_info[symbol].adjust_price(
+                                    price=float(ticker["c"])
+                                )
+                            )
+                            strategy["current_price"] = price
+                            logger.info("Current price for %s: %s", symbol, price)
+
     async def refresh_ui(self):
         while True:
             # Reassign the data to trigger the UI update
