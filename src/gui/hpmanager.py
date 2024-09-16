@@ -18,6 +18,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     AccountPosition,
+    AllTickers,
     CsvConfig,
     Event,
     EventName,
@@ -175,6 +176,7 @@ class HpManager(BoxLayout):
                 config=config, stagnation_counter=0, completeness=0, state=State.NEW
             )
         )
+
         self.filter_records(tab="idle", symbol_filter="All")
 
     def trigger_remove_record(
@@ -302,7 +304,8 @@ class HpManager(BoxLayout):
             if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                 logger.info("Received all tickers")
                 for strategy in self.active_records:
-                    for ticker in data.content:
+                    assert isinstance(data.content, AllTickers)
+                    for ticker in data.content.msg:
                         symbol = ticker.get("s")
                         if symbol == strategy["symbol"]:
                             logger.info("Updating price for: %s", symbol)
@@ -315,7 +318,8 @@ class HpManager(BoxLayout):
                             logger.info("Current price for %s: %s", symbol, price)
 
                 for strategy in self.idle_records:
-                    for ticker in data.content:
+                    assert isinstance(data.content, AllTickers)
+                    for ticker in data.content.msg:
                         symbol = ticker.get("s")
                         if symbol == strategy["symbol"]:
                             logger.info("Updating price for: %s", symbol)
@@ -460,7 +464,6 @@ class HpManager(BoxLayout):
         )
         self.filter_records("idle", "All")
 
-    # ToDO: Recovery to stagnated and update stagnated position to be added?!!!
     def update_active_position(
         self,
         data: PositionData,

@@ -10,6 +10,7 @@ from binance import BinanceSocketManager
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     AccountPosition,
+    AllTickers,
     Balance,
     Event,
     EventName,
@@ -166,9 +167,7 @@ class BrokerSpot:
             for subscription_info in subscriptions:
                 if subscription_info.symbol == "ALL":
                     subscription_info.queue.put(
-                        Event(
-                            name=EventName.ALL_TICKERS, content=msg
-                        )  # Send full message
+                        Event(name=EventName.ALL_TICKERS, content=AllTickers(msg=msg))
                     )
 
         for ticker in msg:

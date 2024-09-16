@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import queue
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from src.common.identifiers.common import (
     Mode,
@@ -150,6 +150,10 @@ class AccountPosition:
         )
 
 
+class AllTickers(NamedTuple):
+    msg: List[Dict]
+
+
 class TickerUpdate(NamedTuple):
     symbol: str = ""
     last_price: float = 0
@@ -170,7 +174,12 @@ class TickerUpdate(NamedTuple):
 class Event(NamedTuple):
     name: EventName
     content: Union[
-        SignalUpdate, TickerUpdate, SentinelUpdate, ExecutionReport, AccountPosition
+        SignalUpdate,
+        TickerUpdate,
+        SentinelUpdate,
+        ExecutionReport,
+        AccountPosition,
+        AllTickers,
     ]
 
     def __repr__(self) -> str:

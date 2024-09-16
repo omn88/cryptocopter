@@ -24,6 +24,11 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
+from src.common.identifiers.spot import (
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
+)
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -124,8 +129,17 @@ class AsyncApp(App):
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
         Builder.load_file("src/gui/hpmanager.kv")
         strategy_logger = StrategyLogger(name="HPManager")
-
         ui_queue: queue.Queue = queue.Queue()
+
+        self.broker_spot.subscribe(
+            system_id=strategy_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",
+                target=SubscriptionTarget.FRONTEND,
+                queue=ui_queue,
+            ),
+        )
 
         back_end = StrategyExecutor(
             strategy_logger=strategy_logger,
@@ -133,7 +147,6 @@ class AsyncApp(App):
             db=self.db,
             broker=self.broker_spot,
             ui_queue=ui_queue,
-            strategy_id=strategy_id,
         )
 
         self.trading_systems.append(back_end)

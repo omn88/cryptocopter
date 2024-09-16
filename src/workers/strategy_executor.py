@@ -45,7 +45,6 @@ class StrategyExecutor:
         db: Database,
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
-        strategy_id: str,
         ui_queue: queue.Queue,
     ):
         self.client: Optional[BinanceClient] = None
@@ -54,7 +53,6 @@ class StrategyExecutor:
         self.broker = broker
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
-        self.strategy_id = strategy_id
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
         self.usdt_balance = 0.0
@@ -77,15 +75,7 @@ class StrategyExecutor:
         )
         self.usdt_balance = await self.get_usdt_balance()
 
-        self.broker.subscribe(
-            system_id=self.strategy_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol="ALL",
-                target=SubscriptionTarget.FRONTEND,
-                queue=self.ui_queue,
-            ),
-        )
+        self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
@@ -159,6 +149,15 @@ class StrategyExecutor:
             ),
         )
 
+        db.run_db_task(
+            db.insert_price_level(
+                config=position_setup.config,
+                state=State.NEW
+                if position_setup.state_info.last_state is None
+                else position_setup.state_info.last_state,
+            )
+        )
+
         asyncio.create_task(trading_system.worker())
 
     async def remove_record(self, system_id: str) -> None:
@@ -170,66 +169,66 @@ class StrategyExecutor:
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")
 
-    async def add_record(
-        self,
-        symbol: str,
-        side: PositionSide,
-        price_low: float,
-        price_high: float,
-        budget: float,
-        order_trigger: float,
-        mode: Mode,
-        stagnation_counter: int = 0,
-        next_monitor_time: str = "",
-        open_time: Optional[str] = None,
-        last_state: Optional[State] = None,
-        system_id: Optional[str] = None,
-    ) -> None:
-        position_setup = PositionSetup(
-            config=StrategyConfig(
-                open_time=open_time,
-                system_id=str(uuid.uuid4()) if system_id is None else system_id,
-                symbol_info=self.symbols_info[symbol],
-                side=side,
-                price_low=price_low,
-                price_high=price_high,
-                budget=budget,
-                order_trigger=order_trigger,
-                mode=mode,
-            ),
-            state_info=StateInfo(
-                last_state=last_state,
-                stagnation_counter=stagnation_counter,
-                next_monitor_time=next_monitor_time,
-            ),
-        )
+    # async def add_record(
+    #     self,
+    #     symbol: str,
+    #     side: PositionSide,
+    #     price_low: float,
+    #     price_high: float,
+    #     budget: float,
+    #     order_trigger: float,
+    #     mode: Mode,
+    #     stagnation_counter: int = 0,
+    #     next_monitor_time: str = "",
+    #     open_time: Optional[str] = None,
+    #     last_state: Optional[State] = None,
+    #     system_id: Optional[str] = None,
+    # ) -> None:
+    #     position_setup = PositionSetup(
+    #         config=StrategyConfig(
+    #             open_time=open_time,
+    #             system_id=str(uuid.uuid4()) if system_id is None else system_id,
+    #             symbol_info=self.symbols_info[symbol],
+    #             side=side,
+    #             price_low=price_low,
+    #             price_high=price_high,
+    #             budget=budget,
+    #             order_trigger=order_trigger,
+    #             mode=mode,
+    #         ),
+    #         state_info=StateInfo(
+    #             last_state=last_state,
+    #             stagnation_counter=stagnation_counter,
+    #             next_monitor_time=next_monitor_time,
+    #         ),
+    #     )
 
-        self.config_queue.put(position_setup)
-        logger.info(
-            "Adding new record with config: %s, state info: %s",
-            position_setup.config,
-            position_setup.state_info,
-        )
+    #     self.config_queue.put(position_setup)
+    #     logger.info(
+    #         "Adding new record with config: %s, state info: %s",
+    #         position_setup.config,
+    #         position_setup.state_info,
+    #     )
 
-        if (
-            last_state is None
-        ):  # inserting level only if there is no last known status, recovery will
-            last_state = State.NEW
-            self.ui_queue.put(
-                PositionData(
-                    config=position_setup.config,
-                    stagnation_counter=0,
-                    completeness=0,
-                    state=last_state,
-                )
-            )
-            self.db.run_db_task(
-                self.db.insert_price_level(
-                    config=position_setup.config, state=last_state
-                )
-            )
+    #     if (
+    #         last_state is None
+    #     ):  # inserting level only if there is no last known status, recovery will
+    #         last_state = State.NEW
+    #         self.ui_queue.put(
+    #             PositionData(
+    #                 config=position_setup.config,
+    #                 stagnation_counter=0,
+    #                 completeness=0,
+    #                 state=last_state,
+    #             )
+    #         )
+    #         self.db.run_db_task(
+    #             self.db.insert_price_level(
+    #                 config=position_setup.config, state=last_state
+    #             )
+    #         )
 
-    async def initialize_position_from_db(self):
+    def initialize_positions_from_db(self):
         active_price_levels = self.db.run_db_task(
             self.db.fetch_all_active_price_levels()
         )

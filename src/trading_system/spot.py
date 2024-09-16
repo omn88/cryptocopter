@@ -97,9 +97,9 @@ class TradingSystem:
                     assert isinstance(event.content, TickerUpdate)
                     self.state_machine.model.ticker_update = event.content
                     if self.state_machine.model.state == State.RECOVERING:
-                        await self.state_machine.model.process_recovery()  # type: ignore
+                        await self.state_machine.model.process_recovery()
                     else:
-                        await self.state_machine.model.process_ticker()  # type: ignore
+                        await self.state_machine.model.process_ticker()
 
                 elif EventName.EXECUTION_REPORT == event.name:
                     assert isinstance(event.content, ExecutionReport)
