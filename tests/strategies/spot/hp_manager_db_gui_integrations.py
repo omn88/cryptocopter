@@ -66,13 +66,13 @@ def assert_gui_position_data_content(
 
         assert gui_msg.config.symbol_info.symbol == config.symbol_info.symbol
         assert gui_msg.config.side == config.side
-        assert gui_msg.state == state
+        assert gui_msg.state_info.last_state == state
         assert gui_msg.config.price_low == config.price_low
         assert gui_msg.config.price_high == config.price_high
         assert gui_msg.config.order_trigger == config.order_trigger
         assert gui_msg.config.budget == config.budget
         assert gui_msg.completeness == completeness
-        assert gui_msg.stagnation_counter == stagnation_counter
+        assert gui_msg.state_info.stagnation_counter == stagnation_counter
         assert gui_msg.stagnation_limit == stagnation_limit
         assert gui_msg.order_cancel == 2 * config.order_trigger
 

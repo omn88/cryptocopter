@@ -26,6 +26,7 @@ from src.common.identifiers.spot import (
     SubscriptionType,
 )
 from src.common.symbol_info import SymbolInfo
+from src.gui.identifiers.spot import PositionData
 from src.trading_system.spot import TradingSystem
 from src.workers.broker_spot import BrokerSpot
 
@@ -116,6 +117,9 @@ class StrategyExecutor:
         position_setup.config.symbol_info = self.symbols_info[
             position_setup.config.symbol_info.symbol
         ]
+        if position_setup.config.system_id is None:
+            position_setup.config.system_id = str(uuid.uuid4())
+
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
 
@@ -259,26 +263,31 @@ class StrategyExecutor:
                 config_data = list(reader)
                 for cd in config_data:
                     # Prepare the PositionSetup and put it in the queue
+                    config = StrategyConfig(
+                        symbol_info=SymbolInfo(symbol=cd[0]),
+                        system_id=str(uuid.uuid4()),
+                        side=PositionSide.LONG
+                        if cd[1] == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=float(cd[2]),
+                        price_high=float(cd[3]),
+                        budget=float(cd[4]),
+                        order_trigger=float(cd[5]),
+                        mode=Mode.DCA if cd[6] == Mode.DCA.value else Mode.SINGLE,
+                    )
+
+                    state_info = StateInfo(
+                        last_state=None,
+                        stagnation_counter=0,
+                        next_monitor_time="",
+                    )
+
                     self.config_queue.put(
-                        PositionSetup(
-                            config=StrategyConfig(
-                                symbol_info=SymbolInfo(symbol=cd[0]),
-                                side=PositionSide.LONG
-                                if cd[1] == PositionSide.LONG.value
-                                else PositionSide.SHORT,
-                                price_low=float(cd[2]),
-                                price_high=float(cd[3]),
-                                budget=float(cd[4]),
-                                order_trigger=float(cd[5]),
-                                mode=Mode.DCA
-                                if cd[6] == Mode.DCA.value
-                                else Mode.SINGLE,
-                            ),
-                            state_info=StateInfo(
-                                last_state=State.NEW,
-                                stagnation_counter=0,
-                                next_monitor_time="",
-                            ),
+                        PositionSetup(config=config, state_info=state_info)
+                    )
+                    self.ui_queue.put_nowait(
+                        PositionData(
+                            config=config, state_info=state_info, completeness=0.0
                         )
                     )
             self.logger.info(f"Loaded configuration from {file_path}")

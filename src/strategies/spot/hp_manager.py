@@ -20,6 +20,7 @@ from src.common.identifiers.spot import (
     Signal,
     SignalUpdate,
     State,
+    StateInfo,
     StrategyConfig,
     TickerUpdate,
     Order,
@@ -143,7 +144,7 @@ class HpManager:
             },
             {
                 "trigger": "process_signal",
-                "source": State.OPEN,
+                "source": "*",
                 "dest": State.CLOSED,
                 "conditions": "conditions_for_all_orders_filled",
                 "before": "close_filled_position",
@@ -591,7 +592,10 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -600,7 +604,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
@@ -662,7 +665,10 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -671,7 +677,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
@@ -706,7 +711,10 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -715,7 +723,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
         self.db.run_db_task(
@@ -754,7 +761,10 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -763,7 +773,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
@@ -839,10 +848,9 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=0,
+                state_info=StateInfo(last_state=State.NEW),
                 completeness=0,
                 recovering=True,
-                state=State.NEW,
             )
         )
 
@@ -933,7 +941,7 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(last_state=State.OPEN),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -943,7 +951,6 @@ class HpManager:
                     2,
                 ),
                 recovering=True,
-                state=State.OPEN,
             )
         )
 
@@ -980,7 +987,10 @@ class HpManager:
         self.position_handler.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=State.STAGNATED,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -989,7 +999,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=State.STAGNATED,
             )
         )
 

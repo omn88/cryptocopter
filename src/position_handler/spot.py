@@ -6,7 +6,13 @@ from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, PositionSide
-from src.common.identifiers.spot import ExecutionReport, State, StrategyConfig, Order
+from src.common.identifiers.spot import (
+    ExecutionReport,
+    State,
+    StateInfo,
+    StrategyConfig,
+    Order,
+)
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
@@ -53,12 +59,13 @@ class PositionHandler:
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
 
-        state = State.OPEN
+        last_state = State.OPEN
 
         position_data = PositionData(
             config=self.config,
-            state=state,
-            stagnation_counter=self.stagnation_counter,
+            state_info=StateInfo(
+                stagnation_counter=self.stagnation_counter, last_state=last_state
+            ),
             completeness=round(
                 sum(order.realized_quantity for order in self.orders)
                 / sum(order.quantity for order in self.orders),
@@ -77,7 +84,7 @@ class PositionHandler:
         self.db.run_db_task(
             self.db.update_price_level(
                 self.config,
-                state=state,
+                state=last_state,
                 stagnation_counter=self.stagnation_counter,
                 next_monitor_time=self.next_monitor_position_time,
             )
@@ -127,13 +134,14 @@ class PositionHandler:
         self.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.stagnation_counter,
+                state_info=StateInfo(
+                    stagnation_counter=self.stagnation_counter, last_state=state
+                ),
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
                     2,
                 ),
-                state=state,
             )
         )
 
@@ -167,13 +175,14 @@ class PositionHandler:
         self.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.stagnation_counter,
+                state_info=StateInfo(
+                    stagnation_counter=self.stagnation_counter, last_state=State.OPEN
+                ),
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
                     2,
                 ),
-                state=State.OPEN,
             )
         )
         self.db.run_db_task(
@@ -219,13 +228,14 @@ class PositionHandler:
         self.ui_queue.put(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.stagnation_counter,
+                state_info=StateInfo(
+                    stagnation_counter=self.stagnation_counter, last_state=State.OPEN
+                ),
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
                     2,
                 ),
-                state=State.OPEN,
             )
         )
 
