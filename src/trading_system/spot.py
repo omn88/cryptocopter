@@ -136,6 +136,6 @@ class TradingSystem:
         self.strategy_logger.info(
             "Closing trading system: %s", self.strategy.config.system_id
         )
-        self.strategy.queue.put(
+        self.strategy.queue.put_nowait(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )

@@ -89,9 +89,7 @@ class StrategyExecutor:
                         )
                     )
                 if isinstance(strategy_data, RemoveRecord):
-                    asyncio.create_task(
-                        self.remove_record(system_id=strategy_data.system_id)
-                    )
+                    await self.remove_record(system_id=strategy_data.system_id)
                 if isinstance(strategy_data, SaveConfig):
                     await self.save_config(strategy_data.file_name)
                 if isinstance(strategy_data, LoadConfig):

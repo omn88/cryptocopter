@@ -204,33 +204,6 @@ class HpManager(BoxLayout):
         self.config_queue.put(LoadConfig(file_name=file_name))
         logger.info("Loading configuration request for %s sent to backend.", file_name)
 
-    def apply_configuration(self, config_data: List[CsvConfig]) -> None:
-        for data in config_data:
-            # Instead of handling the logic in the GUI, put it into the config_queue
-            self.config_queue.put(
-                PositionSetup(
-                    config=StrategyConfig(
-                        open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        system_id=str(uuid.uuid4()),
-                        symbol_info=self.symbols_info[data.symbol],
-                        side=PositionSide.LONG
-                        if data.side == PositionSide.LONG.value
-                        else PositionSide.SHORT,
-                        price_low=data.price_low,
-                        price_high=data.price_high,
-                        budget=data.budget,
-                        order_trigger=data.order_trigger,
-                        mode=Mode.DCA if data.mode == Mode.DCA.value else Mode.SINGLE,
-                    ),
-                    state_info=StateInfo(
-                        last_state=State.NEW,
-                        stagnation_counter=0,
-                        next_monitor_time="",
-                    ),
-                )
-            )
-        logger.info("Applied configuration and sent to backend.")
-
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
         while True:
