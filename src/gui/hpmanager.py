@@ -274,7 +274,7 @@ class HpManager(BoxLayout):
                     )
                     self.update_idle_position(data=data)
                 else:
-                    if data.state_info.last_state == State.NEW:
+                    if data.state_info.last_state in [State.NEW, None]:
                         logger.info(
                             "New position added to Idle, system id: %s",
                             data.config.system_id,
@@ -420,7 +420,7 @@ class HpManager(BoxLayout):
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.state_info.stagnation_counter}/{data.stagnation_limit}",
                 completeness=str(data.completeness),
-                state=str(data.state_info.stagnation_counter),
+                state=str(data.state_info.last_state),
             ).to_dict()
         )
         self.filter_records("active", "All")
@@ -553,7 +553,7 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                        stagnation=f"{data.state_info.last_state}/{data.stagnation_limit}",
+                        stagnation=f"{data.state_info.stagnation_counter}/{data.stagnation_limit}",
                         completeness=str(data.completeness),
                         state=str(data.state_info.last_state),
                     )
