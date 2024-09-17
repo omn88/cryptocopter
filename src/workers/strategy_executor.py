@@ -1,94 +1,330 @@
 import asyncio
+import csv
+from datetime import datetime
+import logging
+import os
+import queue
+import threading
 from typing import Dict, List, Optional
+import uuid
+from decouple import Config, RepositoryEnv
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.common import BinanceClient, Mode, PositionSide
+from src.common.identifiers.spot import (
+    CsvConfig,
+    LoadConfig,
+    PositionSetup,
+    RemoveRecord,
+    SaveConfig,
+    State,
+    StateInfo,
+    StrategyConfig,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
+)
+from src.common.symbol_info import SymbolInfo
+from src.gui.identifiers.spot import PositionData
 from src.trading_system.spot import TradingSystem
+from src.workers.broker_spot import BrokerSpot
+
+
+# Specify the path to the .env file
+DOTENV_FILE = "config/.env"
+config_env = Config(RepositoryEnv(DOTENV_FILE))
+
+
+logger = logging.getLogger("strategy_executor")
 
 
 class StrategyExecutor:
     def __init__(
         self,
-        client: BinanceClient,
-        logger: StrategyLogger,
-        gui_handler: asyncio.Queue,
+        strategy_logger: StrategyLogger,
         db: Database,
-        usdt_balance: float,
+        broker: BrokerSpot,
+        symbols_info: Dict[str, SymbolInfo],
+        ui_queue: queue.Queue,
     ):
-        self.client = client
-        self.logger = logger
-        self.gui_handler = gui_handler
+        self.client: Optional[BinanceClient] = None
+        self.logger = strategy_logger
         self.db = db
-        self.usdt_balance = usdt_balance
-        self.config_queue: asyncio.Queue = asyncio.Queue()
-        self.id_to_system: Dict = {}  # Maps unique IDs to trading systems
+        self.broker = broker
+        self.ui_queue = ui_queue
+        self.config_queue: queue.Queue = queue.Queue()
+        self.id_to_system: Dict = {}
+        self.symbols_info = symbols_info
+        self.usdt_balance = 0.0
+
+        self.loop = None
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self.start_loop)
+        self.thread.start()
+
+    def start_loop(self):
+        """Starts the asyncio loop in a new thread."""
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_until_complete(self.run())
 
     async def run(self) -> None:
         self.logger.info("Strategy executor ready to retrieve the first config")
-        while True:
-            config = await self.config_queue.get()
-            self.logger.debug("New config for strategy executor: %s", config)
-            if config == "STOP":
-                break
+        self.client = BinanceClient(
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+        )
+        self.usdt_balance = await self.get_usdt_balance()
 
-            if isinstance(config, str) and config.startswith("remove:"):
-                await self.remove_record(config.split(":")[1])
+        self.initialize_positions_from_db()
 
-            if isinstance(config, List):
-                assert isinstance(config[1], StrategyConfig)
-                asyncio.create_task(
-                    self.initialize_trading_system(
-                        config=config[1],
-                        db=self.db,
-                        last_state=config[0],
-                        stagnation_counter=config[2],
-                        next_monitor_time=config[3],
-                        usdt_balance=self.usdt_balance,
+        while not self.stop_event.is_set():
+            try:
+                strategy_data = self.config_queue.get_nowait()
+                self.logger.info("New config for strategy executor: %s", strategy_data)
+                if isinstance(strategy_data, PositionSetup):
+                    asyncio.create_task(
+                        self.initialize_trading_system(
+                            position_setup=strategy_data, db=self.db
+                        )
                     )
-                )
+                if isinstance(strategy_data, RemoveRecord):
+                    await self.remove_record(system_id=strategy_data.system_id)
+                if isinstance(strategy_data, SaveConfig):
+                    await self.save_config(strategy_data.file_name)
+                if isinstance(strategy_data, LoadConfig):
+                    await self.load_config(strategy_data.file_name)
+            except queue.Empty:
+                await asyncio.sleep(0.1)
+
+    async def stop(self):
+        logger.info("In the strategy executor stop method")
+        self.stop_event.set()
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.client.close_connection())
+        logger.info("Strategy executor stop event SET")
+        self.thread.join()  # Wait for thread to finish
+        logger.info("Strategy executor thread finished")
 
     async def initialize_trading_system(
         self,
-        config: StrategyConfig,
+        position_setup: PositionSetup,
         db: Database,
-        last_state: Optional[State],
-        stagnation_counter: int,
-        next_monitor_time: str,
-        usdt_balance: float,
     ) -> None:
-        self.logger.info("Initializing trading system: %s", config)
+        self.logger.info("Initializing trading system: %s", position_setup.config)
+        position_setup.config.symbol_info = self.symbols_info[
+            position_setup.config.symbol_info.symbol
+        ]
+        if position_setup.config.system_id is None:
+            position_setup.config.system_id = str(uuid.uuid4())
+
+        assert self.client is not None
+        core_queue: queue.Queue = queue.Queue()
+
+        position_setup.config.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         trading_system = TradingSystem(
-            client=self.client,
-            gui_handler=self.gui_handler,
             strategy_logger=self.logger,
-            config=config,
-            system_id=config.system_id,
+            client=self.client,
+            ui_queue=self.ui_queue,
+            core_queue=core_queue,
+            config=position_setup.config,
             db=db,
         )
         await trading_system.initialize_strategy(
-            last_state=last_state, usdt_balance=usdt_balance
+            state_info=position_setup.state_info, usdt_balance=self.usdt_balance
         )
         assert trading_system.strategy is not None
-        if stagnation_counter > 0:
-            self.logger.info(
-                "[%s] Assigning stagnation counter: %s, next monitor time: %s",
-                config.system_id,
-                stagnation_counter,
-                next_monitor_time,
-            )
-            trading_system.strategy.position_handler.stagnation_counter = stagnation_counter
-            trading_system.strategy.position_handler.next_monitor_position_time = (
-                next_monitor_time
-            )
 
-        self.id_to_system[config.system_id] = trading_system
-        self.logger.info("Starting trading system for %s", config)
-        await trading_system.start_trading()
+        self.id_to_system[position_setup.config.system_id] = trading_system
+
+        self.broker.subscribe(
+            system_id=trading_system.strategy.config.system_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=position_setup.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id=trading_system.strategy.config.system_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=position_setup.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
+        )
+
+        db.run_db_task(
+            db.insert_price_level(
+                config=position_setup.config,
+                state=State.NEW
+                if position_setup.state_info.last_state is None
+                else position_setup.state_info.last_state,
+            )
+        )
+
+        asyncio.create_task(trading_system.worker())
 
     async def remove_record(self, system_id: str) -> None:
         if system_id in self.id_to_system:
             trading_system: TradingSystem = self.id_to_system.pop(system_id)
 
+            self.broker.unsubscribe(system_id=system_id)
+
             await trading_system.stop()
             self.logger.debug(f"Removed trading system with {system_id}.")
+
+    def initialize_positions_from_db(self):
+        active_price_levels = self.db.run_db_task(
+            self.db.fetch_all_active_price_levels()
+        )
+        if not active_price_levels:
+            logger.info("No active price levels found")
+            return
+        logger.info("Current active price levels: %s", active_price_levels)
+
+        for price_level in active_price_levels:
+            self.config_queue.put_nowait(
+                PositionSetup(
+                    config=StrategyConfig(
+                        open_time=price_level.get("open_time"),
+                        system_id=price_level.get("price_level_id"),
+                        symbol_info=self.symbols_info[price_level["symbol"]],
+                        side=PositionSide.LONG
+                        if price_level["side"] == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=float(price_level["price_low"]),
+                        price_high=float(price_level["price_high"]),
+                        budget=float(price_level["budget"]),
+                        order_trigger=float(price_level["order_trigger"]),
+                        mode=Mode.DCA
+                        if price_level.get("mode") == Mode.DCA.value
+                        else Mode.SINGLE,
+                    ),
+                    state_info=StateInfo(
+                        last_state=State[price_level["state"]],
+                        stagnation_counter=int(price_level["stagnation_counter"]),
+                        next_monitor_time=price_level["next_monitor_time"],
+                    ),
+                )
+            )
+
+    async def save_config(self, file_name: str) -> None:
+        """Handle saving the current configuration to a CSV file."""
+        config_dir = "src/strategies/spot"
+        file_path = os.path.join(config_dir, f"{file_name}.csv")
+        os.makedirs(config_dir, exist_ok=True)
+
+        # Collect the current configuration
+        config_data = self.get_current_configuration()
+
+        self.logger.info(f"Saving configuration to {file_path}")
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(
+                [
+                    "Symbol",
+                    "Side",
+                    "Price Low",
+                    "Price High",
+                    "Budget",
+                    "Order Trigger",
+                    "Mode",
+                ]
+            )
+            for config in config_data:
+                writer.writerow(
+                    [
+                        config.symbol,
+                        config.side,
+                        config.price_low,
+                        config.price_high,
+                        config.budget,
+                        config.order_trigger,
+                        config.mode,
+                    ]
+                )
+        self.logger.info("Configuration saved successfully.")
+
+    async def load_config(self, file_name: str) -> None:
+        """Handle loading a configuration from a CSV file."""
+        config_dir = "src/strategies/spot/"
+        file_path = f"{config_dir}{file_name}.csv"
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as csvfile:
+                reader = csv.reader(csvfile)
+                headers = next(reader)  # Skip the headers
+                config_data = list(reader)
+                for cd in config_data:
+                    # Prepare the PositionSetup and put it in the queue
+                    config = StrategyConfig(
+                        symbol_info=SymbolInfo(symbol=cd[0]),
+                        system_id=str(uuid.uuid4()),
+                        side=PositionSide.LONG
+                        if cd[1] == PositionSide.LONG.value
+                        else PositionSide.SHORT,
+                        price_low=float(cd[2]),
+                        price_high=float(cd[3]),
+                        budget=float(cd[4]),
+                        order_trigger=float(cd[5]),
+                        mode=Mode.DCA if cd[6] == Mode.DCA.value else Mode.SINGLE,
+                    )
+
+                    state_info = StateInfo(
+                        last_state=None,
+                        stagnation_counter=0,
+                        next_monitor_time="",
+                    )
+
+                    self.config_queue.put_nowait(
+                        PositionSetup(config=config, state_info=state_info)
+                    )
+                    self.ui_queue.put_nowait(
+                        PositionData(
+                            config=config, state_info=state_info, completeness=0.0
+                        )
+                    )
+            self.logger.info(f"Loaded configuration from {file_path}")
+        except FileNotFoundError:
+            self.logger.error(f"File {file_name}.csv not found.")
+
+    def get_current_configuration(self) -> List[CsvConfig]:
+        """Collect the current configurations."""
+        hp_config = []
+        for system_id, system in self.id_to_system.items():
+            logger.info("System id: %s, system: %s", system_id, system)
+            assert isinstance(system, TradingSystem)
+            hp_config.append(
+                CsvConfig(
+                    symbol=system.config.symbol_info.symbol,
+                    side=system.config.side.value,
+                    price_low=system.config.price_low,
+                    price_high=system.config.price_high,
+                    budget=system.config.budget,
+                    order_trigger=system.config.order_trigger,
+                    mode=system.config.mode.value,
+                )
+            )
+        return hp_config
+
+    async def get_usdt_balance(self) -> float:
+        """
+        Retrieve the USDT balance from the spot market.
+
+        :return: The balance of USDT in the account.
+        :raises: BinanceAPIException, BinanceRequestException
+        """
+        try:
+            assert self.client is not None
+            account_info = await self.client.get_account()
+            for asset in account_info["balances"]:
+                if asset["asset"] == "USDT":
+                    return float(asset["free"])
+            return 0.0
+        except (BinanceAPIException, BinanceRequestException) as e:
+            logger.error("Failed to retrieve USDT balance: %s", e)
+            raise e

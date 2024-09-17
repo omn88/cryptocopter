@@ -15,13 +15,13 @@ logger = logging.getLogger("test_hp_manager")
 
 
 async def test_default_scenario_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
 
     # Set initial condition
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
     last_price = 1500
@@ -73,7 +73,7 @@ async def test_default_scenario_buy(spot_buy):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -81,13 +81,13 @@ async def test_default_scenario_buy(spot_buy):
 
 
 async def test_default_scenario_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
 
     # Set initial conditions
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     last_price = 900
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -130,7 +130,7 @@ async def test_default_scenario_sell(spot_sell):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -138,11 +138,11 @@ async def test_default_scenario_sell(spot_sell):
 
 
 async def test_partial_order_fill_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     last_price = 1000
     strategy.ticker_update = TickerUpdate(last_price=last_price)
@@ -193,18 +193,18 @@ async def test_partial_order_fill_buy(spot_buy):
         for order in strategy.position_handler.orders
     )
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
 
 
 async def test_partial_order_fill_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     assert isinstance(strategy, HpManager)
     last_price = 1000
     strategy.ticker_update = TickerUpdate(last_price=last_price)
@@ -255,19 +255,19 @@ async def test_partial_order_fill_sell(spot_sell):
         for order in strategy.position_handler.orders
     )
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
 
 
 async def test_order_cancellation_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
-    spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_sell.strategy
+    spot_sell.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_sell.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 980
     last_price = 1000
@@ -327,12 +327,12 @@ async def test_order_cancellation_sell(spot_sell):
 
 
 async def test_order_cancellation_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
-    spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_buy.strategy
+    spot_buy.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 1428
     last_price = 1400
@@ -388,12 +388,12 @@ async def test_order_cancellation_buy(spot_buy):
 
 
 async def test_order_reopen_with_filled_orders_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
-    spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_sell.strategy
+    spot_sell.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_sell.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 980
     last_price = 1000
@@ -478,12 +478,12 @@ async def test_order_reopen_with_filled_orders_sell(spot_sell):
 
 
 async def test_order_reopen_with_filled_orders_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
-    spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_buy.strategy
+    spot_buy.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 1428
     last_price = 1400
@@ -565,13 +565,13 @@ async def test_order_reopen_with_filled_orders_buy(spot_buy):
 
 
 async def test_default_scenario_buy_with_low_budget(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
 
     # Set initial condition
-    strategy = spot_buy.strategy
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
     last_price = 1500
@@ -637,7 +637,7 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -645,13 +645,13 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
 
 
 async def test_default_scenario_sell_with_low_budget(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
 
     # Set initial conditions
-    strategy = spot_sell.strategy
+    strategy = spot_sell.model
     last_price = 900
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
@@ -708,7 +708,7 @@ async def test_default_scenario_sell_with_low_budget(spot_sell):
 
     assert strategy.queue.qsize() == 1
 
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -716,12 +716,12 @@ async def test_default_scenario_sell_with_low_budget(spot_sell):
 
 
 async def test_order_reopen_with_filled_orders_low_budget_sell(spot_sell):
-    spot_sell.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_sell.strategy.config.price_low,
-        price_high=spot_sell.strategy.config.price_high,
+    spot_sell.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_sell.model.config.price_low,
+        price_high=spot_sell.model.config.price_high,
     )
-    spot_sell.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_sell.strategy
+    spot_sell.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_sell.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 980
     last_price = 1000
@@ -819,12 +819,12 @@ async def test_order_reopen_with_filled_orders_low_budget_sell(spot_sell):
 
 
 async def test_order_reopen_with_filled_orders_low_budget_buy(spot_buy):
-    spot_buy.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.strategy.config.price_low,
-        price_high=spot_buy.strategy.config.price_high,
+    spot_buy.model.client.create_order.side_effect = get_new_orders(
+        price_low=spot_buy.model.config.price_low,
+        price_high=spot_buy.model.config.price_high,
     )
-    spot_buy.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = spot_buy.strategy
+    spot_buy.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = spot_buy.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_cancel_orders_price() == 1428
     last_price = 1400

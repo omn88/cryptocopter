@@ -7,17 +7,15 @@ for each strategy.
 
 import asyncio
 import logging
+import queue
 from typing import Dict, List
-from binance.exceptions import BinanceAPIException, BinanceRequestException
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
-from kivy.logger import Logger
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
 from src.common.identifiers.futures import (
@@ -26,15 +24,21 @@ from src.common.identifiers.futures import (
     Position,
     StrategyConfig,
 )
-from src.common.identifiers.spot import State
+from src.common.identifiers.spot import (
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
+)
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
-from src.common.identifiers.common import BinanceClient, Mode, PositionSide
+from src.common.identifiers.common import BinanceClient
 from src.common.database import Database
+from src.workers.broker_spot import BrokerSpot
+from src.workers.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
 
@@ -85,81 +89,10 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
+        self.broker_spot: BrokerSpot = BrokerSpot()
         self.strategies: Dict = {}
-        self.spot_usdt = 0
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
-
-    async def initialize(self):
-        self.spot_usdt = await self.get_usdt_balance()
-        await self.load_all_active_strategies()
-        await self.update_ui()
-        logger.info("Initialization finished!")
-
-    async def close_pool(self):
-        await self.db.close_pool()
-
-    async def load_all_active_strategies(self):
-        active_strategies = await self.db.fetch_all_active_strategies()
-        if not active_strategies:
-            logger.info("No active strategy found")
-            return
-        logger.info("Current active strategies: %s", active_strategies)
-        for strategy in active_strategies:
-            await self.restore_strategy(strategy)
-
-    async def restore_strategy(self, strategy) -> None:
-        if strategy.get("name") == "HPManager":
-            logger.info("Found instance of HPManager, restoring last known state.")
-
-            self.setup_hp_manager_gui(
-                strategy_id=strategy.get("id"), symbols_info=self.symbols_info
-            )
-            assert isinstance(self.strategies["HPManager"].content, HpManager)
-            active_price_levels = await self.db.fetch_all_active_price_levels()
-            if not active_price_levels:
-                logger.info("No active price levels found")
-                return
-            logger.info("Current active price levels: %s", active_price_levels)
-            hp_manager = self.strategies["HPManager"].content
-
-            for price_level in active_price_levels:
-                await hp_manager.add_record(
-                    open_time=price_level.get("open_time"),
-                    system_id=price_level.get("price_level_id"),
-                    symbol=price_level["symbol"],
-                    side=PositionSide.LONG
-                    if price_level["side"] == PositionSide.LONG.value
-                    else PositionSide.SHORT,
-                    price_low=float(price_level["price_low"]),
-                    price_high=float(price_level["price_high"]),
-                    budget=float(price_level["budget"]),
-                    order_trigger=float(price_level["order_trigger"]),
-                    last_state=State[price_level["state"]],
-                    mode=Mode.DCA
-                    if price_level.get("mode") == Mode.DCA.value
-                    else Mode.SINGLE,
-                    stagnation_counter=int(price_level["stagnation_counter"]),
-                    next_monitor_time=price_level["next_monitor_time"],
-                )
-                await asyncio.sleep(1)
-
-    async def get_usdt_balance(self) -> float:
-        """
-        Retrieve the USDT balance from the spot market.
-
-        :return: The balance of USDT in the account.
-        :raises: BinanceAPIException, BinanceRequestException
-        """
-        try:
-            account_info = await self.client.get_account()
-            for asset in account_info["balances"]:
-                if asset["asset"] == "USDT":
-                    return float(asset["free"])
-            return 0.0
-        except (BinanceAPIException, BinanceRequestException) as e:
-            self.logger.error("Failed to retrieve USDT balance: %s", e)
-            raise e
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -176,15 +109,71 @@ class AsyncApp(App):
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
-    def log_spinner_change(self, spinner, new_value):
-        """Logs a message when a spinner value changes.
+    async def initialize(self):
+        await self.load_all_active_strategies()
+        await self.update_ui()
 
-        Args:
-            spinner (str): The name of the spinner.
-            new_value (str): The new value of the spinner.
-        """
-        if new_value not in ["Choose Strategy", "Choose Symbol"]:
-            logger.info("%s spinner value changed to %s", spinner, new_value)
+    async def load_all_active_strategies(self):
+        active_strategies = self.db.run_db_task(self.db.fetch_all_active_strategies())
+        if not active_strategies:
+            logger.info("No active strategy found")
+            return
+        logger.info("Current active strategies: %s", active_strategies)
+        for strategy in active_strategies:
+            if strategy.get("name") == "HPManager":
+                logger.info("Found instance of HPManager, restoring last known state.")
+                self.setup_hp_manager(
+                    strategy_id=strategy.get("id"), symbols_info=self.symbols_info
+                )
+
+    def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
+        Builder.load_file("src/gui/hpmanager.kv")
+        strategy_logger = StrategyLogger(name="HPManager")
+        ui_queue: queue.Queue = queue.Queue()
+
+        self.broker_spot.subscribe(
+            system_id=strategy_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",
+                target=SubscriptionTarget.FRONTEND,
+                queue=ui_queue,
+            ),
+        )
+
+        back_end = StrategyExecutor(
+            strategy_logger=strategy_logger,
+            symbols_info=self.symbols_info,
+            db=self.db,
+            broker=self.broker_spot,
+            ui_queue=ui_queue,
+        )
+
+        self.trading_systems.append(back_end)
+
+        logger.info("Await before HP manager starts")
+        front_end = HpManager(
+            strategy_logger=strategy_logger,
+            client=self.client,
+            strategy_id=strategy_id,
+            symbols_info=symbols_info,
+            config_queue=back_end.config_queue,
+            ui_queue=ui_queue,
+        )
+
+        tab = TabbedPanelItem(
+            text="HPManager",
+            content=front_end,
+        )
+        # Set up a logging handler for the strategy
+        setup_logging_handler(
+            strategy_logger=strategy_logger,
+            log_display_widget=tab.content.log_display,
+        )
+        # Store a reference to the tab
+        self.strategies["HPManager"] = tab
+        # Add a new tab for the strategy
+        self.root.add_widget(tab)
 
     def start_strategy(self):
         """Starts a new strategy."""
@@ -277,8 +266,8 @@ class AsyncApp(App):
                     len(self.trading_systems),
                 )
 
-                strategy_id = await self.db.insert_strategy(
-                    name=config.name, description=str(config)
+                strategy_id = self.db.run_db_task(
+                    self.db.insert_strategy(name=config.name, description=str(config))
                 )
 
                 await trading_system.start_trading()
@@ -293,44 +282,18 @@ class AsyncApp(App):
                         config.name,
                     )
                     return
-
+            strat = {}
+            strat["name"] = strategy_name
+            self.active_strategies.append(strat)
             logger.info("Starting HP manager strategy")
 
-            strategy_id = await self.db.insert_strategy(
-                name="HPManager", description="HPManager"
+            strategy_id = self.db.run_db_task(
+                self.db.insert_strategy(name="HPManager", description="HPManager")
             )
-            self.setup_hp_manager_gui(
+            self.setup_hp_manager(
                 strategy_id=strategy_id, symbols_info=self.symbols_info
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
-
-    def setup_hp_manager_gui(
-        self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]
-    ):
-        Builder.load_file("src/gui/hpmanager.kv")
-        strategy_logger = StrategyLogger(name="HPManager")
-        hp_manager = HpManager(
-            strategy_logger=strategy_logger,
-            client=self.client,
-            db=self.db,
-            strategy_id=strategy_id,
-            symbols_info=symbols_info,
-            usdt_balance=self.spot_usdt,
-        )
-
-        tab = TabbedPanelItem(
-            text="HPManager",
-            content=hp_manager,
-        )
-        # Set up a logging handler for the strategy
-        setup_logging_handler(
-            strategy_logger=strategy_logger,
-            log_display_widget=tab.content.log_display,
-        )
-        # Store a reference to the tab
-        self.strategies["HPManager"] = tab
-        # Add a new tab for the strategy
-        self.root.add_widget(tab)
 
     async def on_close_strategy(self, strategy_name, symbol):
         # Get the tab for the strategy
@@ -343,11 +306,33 @@ class AsyncApp(App):
             self.root.switch_to(self.root.tab_list[0])
 
     def cancel_all_strategies(self):
-        asyncio.create_task(self.on_cancel())
+        asyncio.create_task(self.shutdown())
 
-    async def on_cancel(self):
-        for trading_system in self.trading_systems:
-            await trading_system.stop()
+    def on_stop(self):
+        """Override the on_stop method to handle application shutdown."""
+        logger.info("Application is shutting down. Cleaning up resources.")
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.shutdown())
+
+    async def shutdown(self):
+        """Handle the shutdown process for gracefully stopping all systems and resources."""
+        # First, cancel all running strategies
+        if self.trading_systems:
+            logger.info("Stopping all active strategies...")
+            for system in self.trading_systems:
+                logger.info("System: %s", system)
+                assert isinstance(system, StrategyExecutor)
+                await system.stop()
+
+        # Stop the broker
+        logger.info("Stopping the broker...")
+        await self.broker_spot.stop()
+
+        # Stop the database worker
+        logger.info("Stopping the database worker...")
+        self.db.stop_worker()
+
+        logger.info("All systems stopped successfully. Application exiting.")
 
     def on_strategy_change(self, strategy_name):
         self.log_spinner_change("Strategy", strategy_name)
@@ -438,27 +423,31 @@ class AsyncApp(App):
     async def update_ui(self):
         logger.info("Entered update UI method of the main UI queue.")
         while True:
-            data = await self.main_ui_queue.get()
-            if isinstance(data, Event):
-                if data.name == EventName.SENTINEL:
-                    logger.info(
-                        "Strategy %s send a SENTINEL.", data.content["strategy_name"]
-                    )
-                    await self.on_close_strategy(
-                        strategy_name=data.content["strategy_name"],
-                        symbol=data.content["symbol"],
-                    )
+            try:
+                data = await self.main_ui_queue.get()
+                if isinstance(data, Event):
+                    if data.name == EventName.SENTINEL:
+                        logger.info(
+                            "Strategy %s send a SENTINEL.",
+                            data.content["strategy_name"],
+                        )
+                        await self.on_close_strategy(
+                            strategy_name=data.content["strategy_name"],
+                            symbol=data.content["symbol"],
+                        )
 
-            if isinstance(data, StrategyData):
-                self.update_strategies(data=data)
+                if isinstance(data, StrategyData):
+                    self.update_strategies(data=data)
 
-            if isinstance(data, PriceData):
-                for strategy in self.active_strategies:
-                    if (
-                        strategy["symbol"] == data.symbol
-                        and strategy["status"] != PositionStatus.CLOSED.value
-                    ):
-                        self.active_strategies = self.update_price_data(data=data)
+                if isinstance(data, PriceData):
+                    for strategy in self.active_strategies:
+                        if (
+                            strategy["symbol"] == data.symbol
+                            and strategy["status"] != PositionStatus.CLOSED.value
+                        ):
+                            self.active_strategies = self.update_price_data(data=data)
+            except asyncio.QueueEmpty:
+                await asyncio.sleep(0.1)
 
     def calculate_pnl(
         self, quantity: float, index_price: float, entry_price: float, leverage: int
@@ -578,3 +567,13 @@ class AsyncApp(App):
         logger.info(
             "Active strategies after adding position: %s", self.active_strategies
         )
+
+    def log_spinner_change(self, spinner, new_value):
+        """Logs a message when a spinner value changes.
+
+        Args:
+            spinner (str): The name of the spinner.
+            new_value (str): The new value of the spinner.
+        """
+        if new_value not in ["Choose Strategy", "Choose Symbol"]:
+            logger.info("%s spinner value changed to %s", spinner, new_value)

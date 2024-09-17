@@ -1,7 +1,8 @@
 import asyncio
 import logging
-import os
+import queue
 from typing import Dict
+from transitions.extensions.asyncio import AsyncMachine
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_mock import MockerFixture
@@ -26,7 +27,6 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
-from src.workers.trading_state_machine import TradingStateMachine
 
 from tests.data.sample_dataframes import raw_data_generate
 
@@ -76,40 +76,44 @@ async def test_db():
         password=config("DB_PASSWORD"),
         name=config("DB_TEST_NAME"),
     )
+    await db.initialize()
     try:
-        await db.create_database_if_not_exists()
-        await db.create_pool()
-
-        # Drop tables if they exist
-        async with db.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DROP TABLE IF EXISTS strategies")
-                await cur.execute("DROP TABLE IF EXISTS price_levels")
-                await cur.execute("DROP TABLE IF EXISTS orders")
-                await conn.commit()
-
-        await db.setup_tables()
+        db.run_db_task(db.create_database_if_not_exists())
+        # db.run_db_task(db.create_pool())
+        db.run_db_task(db.drop_tables())
+        db.run_db_task(db.setup_tables())
 
         yield db
     except Exception as err:
         logger.error("Error setting up the database: %s", err)
         raise err
-    await db.close_pool()
+    finally:
+        db.run_db_task(db.close_pool())
+        db.stop_worker()
 
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(config: ConfigSpot, balance: float = 10000):
-        gui_handler: asyncio.Queue = asyncio.Queue()
+        ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
             balance=balance,
             config=config,
-            gui_handler=gui_handler,
+            ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
+            core_queue=queue.Queue(),
         )
-        state_machine = TradingStateMachine(strategy=strategy)
+        # Trading State Machine initialization
+        state_machine = AsyncMachine(
+            model=strategy,
+            states=strategy.states,
+            transitions=strategy.transitions,
+            initial=strategy.state,
+            send_event=True,
+            queued=True,
+        )
         return state_machine
 
     return create_trading_system
@@ -117,7 +121,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
 
 @pytest.fixture
 async def spot_buy(mock_AsyncClient):
-    gui_handler = AsyncMock()
+    ui_queue = MagicMock()
     db = AsyncMock()
 
     config = ConfigSpot(
@@ -136,12 +140,21 @@ async def spot_buy(mock_AsyncClient):
         client=mock_AsyncClient,
         balance=10000,
         config=config,
-        gui_handler=gui_handler,
+        ui_queue=ui_queue,
         logger=logger,
         db=db,
+        core_queue=queue.Queue(),
     )
 
-    state_machine = TradingStateMachine(strategy=strategy)
+    # Trading State Machine initialization
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
 
     yield state_machine
 
@@ -160,20 +173,28 @@ async def spot_sell(mock_AsyncClient):
         mode=Mode.DCA,
     )
 
-    gui_handler = AsyncMock()
+    ui_queue = MagicMock()
     db = AsyncMock()
 
     strategy = StrategyHP(
         client=mock_AsyncClient,
         balance=10000,
         config=config,
-        gui_handler=gui_handler,
+        ui_queue=ui_queue,
         logger=logger,
         db=db,
+        core_queue=queue.Queue(),
     )
 
-    state_machine = TradingStateMachine(strategy=strategy)
-
+    # Trading State Machine initialization
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
     yield state_machine
 
 
@@ -191,29 +212,37 @@ async def base(mock_AsyncClient):
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
 
-    state_machine = TradingStateMachine(
-        strategy=BaseFuturesStrategy(
-            client=mock_AsyncClient,
-            balance=1000,
-            df_handler=df_handler,
-            config=config,
-            gui_handler=GuiHandlerFutures(
-                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
-            ),
-            logger=logger,
-        )
+    strategy = BaseFuturesStrategy(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        config=config,
+        gui_handler=GuiHandlerFutures(
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+        ),
+        logger=logger,
     )
 
-    state_machine.strategy.df_handler.df["Signal"] = 0
-    state_machine.strategy.df_handler.df["Position"] = state_machine.strategy.state
+    # Trading State Machine initialization
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
 
-    await state_machine.strategy.queue.put(
+    state_machine.model.df_handler.df["Signal"] = 0
+    state_machine.model.df_handler.df["Position"] = state_machine.model.state
+
+    await state_machine.model.queue.put(
         Event(name=EventName.SIGNAL, content=SignalUpdate(signal=Signal.NULL, price=0))
     )
 
     yield state_machine
 
-    await state_machine.strategy.client.close_connection()
+    await state_machine.model.client.close_connection()
 
 
 @pytest.fixture
@@ -230,26 +259,34 @@ async def basic_rsi(mock_AsyncClient):
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
-    state_machine = TradingStateMachine(
-        strategy=RsiBasic(
-            client=mock_AsyncClient,
-            balance=1000,
-            df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
-                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
-            ),
-            config=config,
-            logger=logger,
-        )
+    strategy = RsiBasic(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        gui_handler=GuiHandlerFutures(
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+        ),
+        config=config,
+        logger=logger,
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
-        queue=state_machine.strategy.queue
+    # Trading State Machine initialization
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
+
+    await state_machine.model.df_handler.determine_start_position(
+        queue=state_machine.model.queue
     )
 
     yield state_machine
 
-    await state_machine.strategy.client.close_connection()
+    await state_machine.model.client.close_connection()
 
 
 @pytest.fixture
@@ -268,25 +305,33 @@ async def extended_rsi(mock_AsyncClient):
 
     logger = StrategyLogger(name="RE_BTCUSDT")
 
-    state_machine = TradingStateMachine(
-        strategy=RsiExtended(
-            client=mock_AsyncClient,
-            balance=1000,
-            df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
-                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
-            ),
-            config=config,
-            logger=logger,
-        )
+    strategy = RsiExtended(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        gui_handler=GuiHandlerFutures(
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+        ),
+        config=config,
+        logger=logger,
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
-        queue=state_machine.strategy.queue
+    # Trading State Machine initialization
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
+
+    await state_machine.model.df_handler.determine_start_position(
+        queue=state_machine.model.queue
     )
     yield state_machine
 
-    await state_machine.strategy.client.close_connection()
+    await state_machine.model.client.close_connection()
 
 
 @pytest.fixture
@@ -303,23 +348,30 @@ async def special_rsi(mock_AsyncClient):
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
 
-    state_machine = TradingStateMachine(
-        strategy=RsiSpecial(
-            client=mock_AsyncClient,
-            balance=1000,
-            df_handler=df_handler,
-            gui_handler=GuiHandlerFutures(
-                main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
-            ),
-            logger=logger,
-            config=config,
-        )
+    strategy = RsiSpecial(
+        client=mock_AsyncClient,
+        balance=1000,
+        df_handler=df_handler,
+        gui_handler=GuiHandlerFutures(
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+        ),
+        logger=logger,
+        config=config,
     )
 
-    await state_machine.strategy.df_handler.determine_start_position(
-        queue=state_machine.strategy.queue
+    state_machine = AsyncMachine(
+        model=strategy,
+        states=strategy.states,
+        transitions=strategy.transitions,
+        initial=strategy.state,
+        send_event=True,
+        queued=True,
+    )
+
+    await state_machine.model.df_handler.determine_start_position(
+        queue=state_machine.model.queue
     )
 
     yield state_machine
 
-    await state_machine.strategy.client.close_connection()
+    await state_machine.model.client.close_connection()

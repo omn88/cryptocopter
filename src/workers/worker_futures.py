@@ -1,3 +1,4 @@
+from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.identifiers.futures import (
     KlineUpdate,
@@ -8,10 +9,9 @@ from src.common.identifiers.futures import (
     OrderUpdate,
 )
 from src.strategies.futures.base import BaseFuturesStrategy
-from src.workers.trading_state_machine import TradingStateMachine
 
 
-async def worker(state_machine: TradingStateMachine, logger: StrategyLogger):
+async def worker(state_machine: AsyncMachine, logger: StrategyLogger):
     while True:
         logger.info(
             "-------------------------------------POSITION-----------------------------------------"

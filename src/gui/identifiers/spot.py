@@ -1,21 +1,19 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.spot import StateInfo, StrategyConfig
 
 
 class PositionData:
     def __init__(
         self,
         config: StrategyConfig,
-        state: State,
-        stagnation_counter: int,
+        state_info: StateInfo,
         completeness: float,
         stagnation_limit: int = 8,
         recovering: bool = False,
     ):
         self.config = config
-        self.state = state
-        self.stagnation_counter = stagnation_counter
+        self.state_info = state_info
         self.stagnation_limit = stagnation_limit
         self.order_cancel = 2 * config.order_trigger
         self.completeness = completeness
@@ -24,8 +22,7 @@ class PositionData:
     def __repr__(self) -> str:
         return (
             f"PositionData(config={self.config}, "
-            f"state={self.state}, "
-            f"stagnation_counter={self.stagnation_counter}, "
+            f"state_info={self.state_info}, "
             f"stagnation_limit={self.stagnation_limit}, "
             f"order_cancel={self.order_cancel}, "
             f"completeness={self.completeness:.2f}, "

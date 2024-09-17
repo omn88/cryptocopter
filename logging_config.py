@@ -4,8 +4,12 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import os
 
+os.environ["KIVY_LOG_MODE"] = "MIXED"
+from kivy.clock import Clock
+
 # Get the environment variable
 env = os.getenv("ENVIRONMENT")
+
 
 # Set the log directory based on the environment
 if env == "GITLAB":
@@ -41,13 +45,13 @@ file_handler.setFormatter(
 logging.getLogger().addHandler(file_handler)
 
 
-# create a console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-)
-logging.getLogger().addHandler(console_handler)
+# # create a console handler
+# console_handler = logging.StreamHandler()
+# console_handler.setLevel(logging.INFO)
+# console_handler.setFormatter(
+#     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# )
+# logging.getLogger().addHandler(console_handler)
 
 # Set a higher logging level for transitions.extensions.asyncio to suppress INFO logs
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
@@ -65,8 +69,12 @@ class KivyGuiHandler(logging.Handler):
         log_entry = self.format(record)
         # Ensure that the update happens on the main thread
         if self.widget:
-            self.widget.text += f"\n{log_entry}"
-            # Auto-scroll to the bottom
+            Clock.schedule_once(lambda dt: self.update_widget(log_entry), 0)
+
+    def update_widget(self, log_entry):
+        self.widget.text += f"\n{log_entry}"
+        # Auto-scroll to the bottom
+        if self.widget.parent:
             self.widget.parent.scroll_y = 0
 
 

@@ -202,7 +202,7 @@ class OrderHandler:
     async def cancel_remaining_limit_orders(
         self, orders: List[Order], symbol: str
     ) -> List[Order]:
-        logger.info("Cancelling remaining limit orders")
+        logger.info("Cancelling remaining limit orders: %s", orders)
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:

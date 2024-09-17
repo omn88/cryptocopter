@@ -30,13 +30,13 @@ async def test_default_buy_scenario(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.LONG)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
 
     # Set initial condition
-    strategy = trading_system.strategy
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
 
@@ -108,7 +108,7 @@ async def test_default_buy_scenario(trading_system_factory):
 
     # Retrieve all orders filled signal from the queue and close the position.
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -130,13 +130,13 @@ async def test_default_sell_scenario(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.SHORT)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
 
     # Set initial condition
-    strategy = trading_system.strategy
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 990
     await process_ticker(strategy=strategy, last_price=989)
@@ -210,7 +210,7 @@ async def test_default_sell_scenario(trading_system_factory):
 
     # Retrieve all orders filled signal from the queue and close the position.
     assert strategy.queue.qsize() == 1
-    event = await strategy.queue.get()
+    event = strategy.queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
@@ -231,12 +231,12 @@ async def test_stagnation_buy_position(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.LONG)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
 
@@ -290,8 +290,10 @@ async def test_stagnation_buy_position(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -310,8 +312,10 @@ async def test_stagnation_buy_position(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -320,8 +324,10 @@ async def test_stagnation_buy_position(trading_system_factory):
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -344,12 +350,12 @@ async def test_stagnation_sell_position(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.SHORT)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 990
 
@@ -403,8 +409,10 @@ async def test_stagnation_sell_position(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -423,8 +431,10 @@ async def test_stagnation_sell_position(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -433,8 +443,10 @@ async def test_stagnation_sell_position(trading_system_factory):
         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -458,12 +470,12 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.LONG)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
 
@@ -533,8 +545,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -553,8 +567,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -564,8 +580,10 @@ async def test_order_reopen_with_filled_orders_buy(trading_system_factory):
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -593,12 +611,12 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.SHORT)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 990
 
@@ -666,9 +684,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
 
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
-
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -687,8 +706,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -698,8 +719,10 @@ async def test_order_reopen_with_filled_orders_sell(trading_system_factory):
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -727,12 +750,12 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.LONG)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 1414
 
@@ -821,8 +844,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -841,8 +866,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
     )
 
     await process_ticker(strategy=strategy, last_price=1500)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1400)
@@ -852,8 +879,10 @@ async def test_order_reopen_with_partially_filled_orders_buy(trading_system_fact
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -881,12 +910,12 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     trading_system = await trading_system_factory(
         get_strategy_config(side=PositionSide.SHORT)
     )
-    trading_system.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.strategy.config.price_low,
-        price_high=trading_system.strategy.config.price_high,
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.config.price_low,
+        price_high=trading_system.model.config.price_high,
     )
-    trading_system.strategy.client.cancel_order.side_effect = get_cancel_order()
-    strategy = trading_system.strategy
+    trading_system.model.client.cancel_order.side_effect = get_cancel_order()
+    strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price() == 990
 
@@ -975,8 +1004,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     assert strategy.state == State.STAGNATED
     assert strategy.position_handler.stagnation_counter == 0
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -995,8 +1026,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
     )
 
     await process_ticker(strategy=strategy, last_price=900)
-    await assert_db_price_level_content(
-        db=strategy.position_handler.db, config=strategy.config, state=strategy.state
+    strategy.db.run_db_task(
+        assert_db_price_level_content(
+            db=strategy.db, config=strategy.config, state=strategy.state
+        )
     )
 
     await process_ticker(strategy=strategy, last_price=1000)
@@ -1006,8 +1039,10 @@ async def test_order_reopen_with_partially_filled_orders_sell(trading_system_fac
         for order in strategy.position_handler.orders
     )
 
-    orders = await strategy.db.fetch_orders_for_price_level(
-        price_level_id=strategy.config.system_id
+    orders = strategy.db.run_db_task(
+        strategy.db.fetch_orders_for_price_level(
+            price_level_id=strategy.config.system_id
+        )
     )
 
     assert len(orders) == 3
@@ -1036,11 +1071,11 @@ async def test_multiple_trading_systems(trading_system_factory):
     trading_system1 = await trading_system_factory(
         get_strategy_config(side=PositionSide.LONG)
     )
-    trading_system1.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system1.strategy.config.price_low,
-        price_high=trading_system1.strategy.config.price_high,
+    trading_system1.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system1.model.config.price_low,
+        price_high=trading_system1.model.config.price_high,
     )
-    strategy1 = trading_system1.strategy
+    strategy1 = trading_system1.model
     assert isinstance(strategy1, HpManager)
     assert strategy1.calculate_trigger_send_orders_price() == 1414
 
@@ -1054,11 +1089,11 @@ async def test_multiple_trading_systems(trading_system_factory):
             price_high=420,
         )
     )
-    trading_system2.strategy.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system2.strategy.config.price_low,
-        price_high=trading_system2.strategy.config.price_high,
+    trading_system2.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system2.model.config.price_low,
+        price_high=trading_system2.model.config.price_high,
     )
-    strategy2 = trading_system2.strategy
+    strategy2 = trading_system2.model
     assert isinstance(strategy2, HpManager)
     assert strategy2.calculate_trigger_send_orders_price() == 424.2
 

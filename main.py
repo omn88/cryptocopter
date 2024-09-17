@@ -64,9 +64,10 @@ async def main():
         password=config_db("DB_PASSWORD"),
         name=config_db("DB_NAME"),
     )
-    await db.create_database_if_not_exists()
-    await db.create_pool()
-    await db.setup_tables()
+    await db.initialize()
+    db.run_db_task(db.create_database_if_not_exists())
+    db.run_db_task(db.create_pool())
+    db.run_db_task(db.setup_tables())
 
     client = BinanceClient(
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
@@ -80,7 +81,12 @@ async def main():
     try:
         await app.async_run()
     finally:
+        # for task in asyncio.all_tasks():
+        #     logger.info("Closing task after exception: %s", task)
+        #     await task.cancel()
+        await client.close_connection()
         await db.close_pool()
+        logger.info("FINITO")
 
 
 if __name__ == "__main__":

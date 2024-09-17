@@ -1,5 +1,5 @@
-import asyncio
 from datetime import datetime, timedelta
+import queue
 from typing import Dict, List
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -20,6 +20,7 @@ from src.common.identifiers.spot import (
     Signal,
     SignalUpdate,
     State,
+    StateInfo,
     StrategyConfig,
     TickerUpdate,
     Order,
@@ -41,20 +42,21 @@ class HpManager:
         config: StrategyConfig,
         logger: StrategyLogger,
         balance: float,
-        gui_handler: asyncio.Queue,
+        ui_queue: queue.Queue,
+        core_queue: queue.Queue,
         db: Database,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
         self.db = db
-        self.queue: asyncio.Queue = asyncio.Queue()
+        self.queue: queue.Queue = core_queue
         self.config = config
         self.position_handler = PositionHandler(
             client=client,
             strategy_logger=logger,
             config=config,
-            gui_handler=gui_handler,
+            ui_queue=ui_queue,
             db=db,
         )
         self.state = State.NEW
@@ -142,7 +144,7 @@ class HpManager:
             },
             {
                 "trigger": "process_signal",
-                "source": State.OPEN,
+                "source": "*",
                 "dest": State.CLOSED,
                 "conditions": "conditions_for_all_orders_filled",
                 "before": "close_filled_position",
@@ -372,21 +374,23 @@ class HpManager:
         return condition
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price()
         condition = (
             self.state == State.NEW
             and self.config.side == PositionSide.LONG
-            and self.ticker_update.last_price
-            <= self.calculate_trigger_send_orders_price()
+            and self.ticker_update.last_price <= trigger_send_orders_price
             and self.balance > self.config.budget
         )
         if condition:
             self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s",
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
                 self.config.symbol_info.symbol,
                 self.config.side,
                 self.state,
                 self.config.budget,
                 self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
             )
 
         return condition
@@ -563,28 +567,35 @@ class HpManager:
         self.logger.info("Will update orders: %s", self.position_handler.orders)
 
         for order in self.position_handler.orders:
-            await self.db.update_order(
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
-                time_in_force=order.time_in_force,
-                status=order.status,
-                order_type=order.order_type,
-                order_id=order.order_id,
-                price_level_id=self.config.system_id,
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    price_level_id=self.config.system_id,
+                )
             )
-        await self.db.update_price_level(
-            self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -593,7 +604,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
@@ -630,28 +640,35 @@ class HpManager:
         self.state = State.OPEN
 
         for order in self.position_handler.orders:
-            await self.db.update_order(
-                price=order.price,
-                quantity=order.quantity,
-                quantity_stable=order.quantity_stable,
-                realized_quantity=order.realized_quantity,
-                time_in_force=order.time_in_force,
-                status=order.status,
-                order_type=order.order_type,
-                order_id=order.order_id,
-                price_level_id=self.config.system_id,
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    price_level_id=self.config.system_id,
+                )
             )
-        await self.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -660,7 +677,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
@@ -692,10 +708,13 @@ class HpManager:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -704,15 +723,15 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
-
-        await self.position_handler.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
     async def increase_stagnation_counter(self, *args, **kwargs) -> None:
@@ -739,10 +758,13 @@ class HpManager:
         self.position_handler.next_monitor_position_time = time_date.strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=self.state,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -751,15 +773,16 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=self.state,
             )
         )
 
-        await self.position_handler.db.update_price_level(
-            config=self.config,
-            state=self.state,
-            stagnation_counter=self.position_handler.stagnation_counter,
-            next_monitor_time=self.position_handler.next_monitor_position_time,
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.config,
+                state=self.state,
+                stagnation_counter=self.position_handler.stagnation_counter,
+                next_monitor_time=self.position_handler.next_monitor_position_time,
+            )
         )
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
@@ -788,11 +811,6 @@ class HpManager:
                 self.logger.debug(
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
-                # await self.gui_handler.update_order(
-                #     order=order,
-                #     symbol=self.position_handler.position.symbol,
-                #     side=self.position_handler.position.side,
-                # )
 
     async def handle_account(self, *args, **kwargs):
         for balance in self.account_position.balances:
@@ -813,7 +831,7 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
-            await self.queue.put(
+            self.queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
@@ -827,21 +845,20 @@ class HpManager:
     async def handle_recovery_to_new(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=0,
+                state_info=StateInfo(last_state=State.NEW),
                 completeness=0,
                 recovering=True,
-                state=State.NEW,
             )
         )
 
     async def handle_recovery_to_open(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to open")
 
-        orders_from_db: List[Dict] = await self.db.fetch_orders_for_price_level(
-            price_level_id=self.config.system_id
+        orders_from_db: List[Dict] = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(price_level_id=self.config.system_id)
         )
         self.logger.debug(
             "Fetched orders from DB for price level: %s: \n%s",
@@ -894,16 +911,18 @@ class HpManager:
                         order.realized_quantity = updated_order.realized_quantity
                         order.status = updated_order.status
 
-                        await self.db.update_order(
-                            price=order.price,
-                            quantity=order.quantity,
-                            quantity_stable=order.quantity_stable,
-                            realized_quantity=order.realized_quantity,
-                            time_in_force=order.time_in_force,
-                            status=order.status,
-                            order_type=order.order_type,
-                            order_id=order.order_id,
-                            price_level_id=self.config.system_id,
+                        self.db.run_db_task(
+                            self.db.update_order(
+                                price=order.price,
+                                quantity=order.quantity,
+                                quantity_stable=order.quantity_stable,
+                                realized_quantity=order.realized_quantity,
+                                time_in_force=order.time_in_force,
+                                status=order.status,
+                                order_type=order.order_type,
+                                order_id=order.order_id,
+                                price_level_id=self.config.system_id,
+                            )
                         )
 
                         if all(
@@ -912,17 +931,17 @@ class HpManager:
                         ):
                             signal = Signal.HP_ALL_ORDERS_FILLED
                             self.logger.info("All orders filled, sending: %s", signal)
-                            await self.queue.put(
+                            self.queue.put(
                                 Event(
                                     name=EventName.SIGNAL,
                                     content=SignalUpdate(signal=signal),
                                 )
                             )
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(last_state=State.OPEN),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -932,15 +951,14 @@ class HpManager:
                     2,
                 ),
                 recovering=True,
-                state=State.OPEN,
             )
         )
 
     async def handle_recovery_to_stagnated(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to stagnated")
 
-        orders_from_db = await self.db.fetch_orders_for_price_level(
-            price_level_id=self.config.system_id
+        orders_from_db = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(price_level_id=self.config.system_id)
         )
         self.logger.debug(
             "Fetched orders for price level: %s: \n%s",
@@ -966,10 +984,13 @@ class HpManager:
                     order.realized_quantity = fetched_order.realized_quantity
                     order.status = fetched_order.status
 
-        await self.position_handler.gui_handler.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                stagnation_counter=self.position_handler.stagnation_counter,
+                state_info=StateInfo(
+                    last_state=State.STAGNATED,
+                    stagnation_counter=self.position_handler.stagnation_counter,
+                ),
                 completeness=round(
                     sum(
                         order.realized_quantity
@@ -978,7 +999,6 @@ class HpManager:
                     / sum(order.quantity for order in self.position_handler.orders),
                     2,
                 ),
-                state=State.STAGNATED,
             )
         )
 

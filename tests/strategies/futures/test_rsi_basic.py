@@ -1,14 +1,15 @@
 import logging
 
 import pandas
+from transitions.extensions.asyncio import AsyncMachine
 from src.common.identifiers.futures import State, KlineUpdate, Signal
-from src.workers.trading_state_machine import TradingStateMachine
+from src.strategies.futures.rsi_basic import RsiBasic
 from tests.futures import get_cancel_order, get_orders_long
 
 logger = logging.getLogger("test_rsi_basic")
 
 
-def test_basic_rsi_signal_generate(basic_rsi: TradingStateMachine):
+def test_basic_rsi_signal_generate(basic_rsi: AsyncMachine):
     test_df = pandas.read_csv("tests/data/sample_data_for_rsi_calculactions.csv")
     test_df = test_df.set_index("Date")
 
@@ -44,21 +45,21 @@ def test_basic_rsi_signal_generate(basic_rsi: TradingStateMachine):
         "Signal",
     ]
     expected_df = expected_df.set_index("Date")
-
-    test_df = basic_rsi.strategy.df_handler.rsi_indicator_apply(df=test_df)
+    assert isinstance(basic_rsi.model, RsiBasic)
+    test_df = basic_rsi.model.df_handler.rsi_indicator_apply(df=test_df)
     assert "RSI" in test_df.columns
     test_df.RSI = test_df.RSI.round(2)
-    test_df = basic_rsi.strategy.add_columns_for_rsi_basic(df=test_df)
-    basic_rsi.strategy.df_handler.conditions = (
-        basic_rsi.strategy.get_conditions_for_rsi_basic(df=test_df)
+    test_df = basic_rsi.model.add_columns_for_rsi_basic(df=test_df)
+    basic_rsi.model.df_handler.conditions = (
+        basic_rsi.model.get_conditions_for_rsi_basic(df=test_df)
     )
 
     logger.info("Test DF with RSI: %s", test_df)
 
-    test_df = basic_rsi.strategy.df_handler.signals_from_features_generate(
+    test_df = basic_rsi.model.df_handler.signals_from_features_generate(
         test_df,
-        conditions=basic_rsi.strategy.df_handler.conditions,
-        signals=basic_rsi.strategy.df_handler.signals,
+        conditions=basic_rsi.model.df_handler.conditions,
+        signals=basic_rsi.model.df_handler.signals,
     )
 
     logger.info("Test DF with signals: %s", test_df)
@@ -76,11 +77,11 @@ def test_basic_rsi_signal_generate(basic_rsi: TradingStateMachine):
 
 
 async def test_rsi_basic_handle_kline_null(basic_rsi):
-    basic_rsi.strategy.client.futures_create_order.side_effect = get_orders_long()
-    basic_rsi.strategy.client.futures_cancel_order.return_value = get_cancel_order()
+    basic_rsi.model.client.futures_create_order.side_effect = get_orders_long()
+    basic_rsi.model.client.futures_cancel_order.return_value = get_cancel_order()
 
     # NO SIGNAL THEN NULL
-    basic_rsi.strategy.kline_update = KlineUpdate(
+    basic_rsi.model.kline_update = KlineUpdate(
         start_time="1672306200000",
         open_price="19573.19",
         high_price="19605.9",
@@ -90,8 +91,8 @@ async def test_rsi_basic_handle_kline_null(basic_rsi):
         open_interest="0",
     )
 
-    await basic_rsi.strategy.process_kline()
+    await basic_rsi.model.process_kline()
 
-    assert len(basic_rsi.strategy.position_handler.position.orders) == 0
-    assert 1000 == basic_rsi.strategy.balance
-    assert basic_rsi.strategy.position_handler.position.state == State.FLAT
+    assert len(basic_rsi.model.position_handler.position.orders) == 0
+    assert 1000 == basic_rsi.model.balance
+    assert basic_rsi.model.position_handler.position.state == State.FLAT

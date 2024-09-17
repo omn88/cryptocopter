@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import List, NamedTuple, Optional, Union
+from enum import Enum, auto
+import queue
+from typing import Dict, List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from src.common.identifiers.common import (
     Mode,
@@ -36,6 +37,7 @@ class EventName(Enum):
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
+    ALL_TICKERS = "All"
 
 
 class CsvConfig(NamedTuple):
@@ -148,6 +150,10 @@ class AccountPosition:
         )
 
 
+class AllTickers(NamedTuple):
+    msg: List[Dict]
+
+
 class TickerUpdate(NamedTuple):
     symbol: str = ""
     last_price: float = 0
@@ -168,7 +174,12 @@ class TickerUpdate(NamedTuple):
 class Event(NamedTuple):
     name: EventName
     content: Union[
-        SignalUpdate, TickerUpdate, SentinelUpdate, ExecutionReport, AccountPosition
+        SignalUpdate,
+        TickerUpdate,
+        SentinelUpdate,
+        ExecutionReport,
+        AccountPosition,
+        AllTickers,
     ]
 
     def __repr__(self) -> str:
@@ -195,3 +206,59 @@ class StrategyConfig:
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
             f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time}, close_time={self.close_time})"
         )
+
+
+class SubscriptionType(Enum):
+    PRICE = auto()
+    USER = auto()
+
+
+class SubscriptionTarget(Enum):
+    FRONTEND = auto()
+    BACKEND = auto()
+
+
+class SubscriptionInfo(NamedTuple):
+    data_type: SubscriptionType
+    symbol: str
+    target: SubscriptionTarget
+    queue: queue.Queue
+
+
+class StateInfo(NamedTuple):
+    last_state: Optional[State] = None
+    stagnation_counter: int = 0
+    next_monitor_time: str = ""
+
+    def __str__(self):
+        return f"StateInfo(last_state={self.last_state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
+
+
+class PositionSetup(NamedTuple):
+    config: StrategyConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"PositionSetup(config={self.config}, state_info={self.state_info})"
+
+
+class RemoveRecord(NamedTuple):
+    system_id: str
+    symbol: str
+
+    def __str__(self):
+        return f"RemoveRecord(system_id='{self.system_id}', symbol='{self.symbol}')"
+
+
+class SaveConfig(NamedTuple):
+    file_name: str
+
+    def __str__(self):
+        return f"SaveConfig(file_name='{self.file_name}')"
+
+
+class LoadConfig(NamedTuple):
+    file_name: str
+
+    def __str__(self):
+        return f"LoadConfig(file_name='{self.file_name}')"
