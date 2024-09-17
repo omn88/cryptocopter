@@ -160,13 +160,13 @@ class HpManager(BoxLayout):
 
         state_info = StateInfo()
 
-        self.config_queue.put(
+        self.config_queue.put_nowait(
             PositionSetup(
                 config=config,
                 state_info=state_info,
             )
         )
-        self.ui_queue.put(
+        self.ui_queue.put_nowait(
             PositionData(config=config, state_info=state_info, completeness=0)
         )
 
@@ -179,7 +179,7 @@ class HpManager(BoxLayout):
         *args,
     ) -> None:
         record = RemoveRecord(system_id=system_id, symbol=symbol)
-        self.config_queue.put(record)
+        self.config_queue.put_nowait(record)
         logger.info("Remove record: %s sent to backend.", record)
 
     def save_config(self) -> None:
@@ -210,7 +210,7 @@ class HpManager(BoxLayout):
             if self.ui_queue.qsize() == 0:
                 await asyncio.sleep(0.1)
                 continue
-            data = self.ui_queue.get()
+            data = self.ui_queue.get_nowait()
             if isinstance(data, Event) and data.name == EventName.SENTINEL:
                 logger.info("Received sentinel event, exiting")
                 return

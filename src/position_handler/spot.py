@@ -131,7 +131,7 @@ class PositionHandler:
             )
         )
 
-        self.ui_queue.put(
+        self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -172,7 +172,7 @@ class PositionHandler:
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
 
-        self.ui_queue.put(
+        self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -225,7 +225,7 @@ class PositionHandler:
                 )
 
         logger.info("Stagnation counter reset for system: %s", self.config.system_id)
-        self.ui_queue.put(
+        self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(

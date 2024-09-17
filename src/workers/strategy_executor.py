@@ -187,7 +187,7 @@ class StrategyExecutor:
         logger.info("Current active price levels: %s", active_price_levels)
 
         for price_level in active_price_levels:
-            self.config_queue.put(
+            self.config_queue.put_nowait(
                 PositionSetup(
                     config=StrategyConfig(
                         open_time=price_level.get("open_time"),
@@ -280,7 +280,7 @@ class StrategyExecutor:
                         next_monitor_time="",
                     )
 
-                    self.config_queue.put(
+                    self.config_queue.put_nowait(
                         PositionSetup(config=config, state_info=state_info)
                     )
                     self.ui_queue.put_nowait(

@@ -589,7 +589,7 @@ class HpManager:
             )
         )
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -662,7 +662,7 @@ class HpManager:
             )
         )
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -708,7 +708,7 @@ class HpManager:
         self.logger.info("All order filled, archiving position")
         self.state = State.CLOSED
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -758,7 +758,7 @@ class HpManager:
         self.position_handler.next_monitor_position_time = time_date.strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
@@ -845,7 +845,7 @@ class HpManager:
     async def handle_recovery_to_new(self, *args, **kwargs) -> None:
         self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(last_state=State.NEW),
@@ -938,7 +938,7 @@ class HpManager:
                                 )
                             )
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(last_state=State.OPEN),
@@ -984,7 +984,7 @@ class HpManager:
                     order.realized_quantity = fetched_order.realized_quantity
                     order.status = fetched_order.status
 
-        self.position_handler.ui_queue.put(
+        self.position_handler.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
                 state_info=StateInfo(
