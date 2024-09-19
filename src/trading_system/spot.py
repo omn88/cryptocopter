@@ -88,47 +88,50 @@ class TradingSystem:
             assert isinstance(self.state_machine.model, HpManager)
             logger.info("Worker start now, state: %s.", self.state_machine.model.state)
             while True:
-                event = self.state_machine.model.queue.get()
-                assert isinstance(event, Event)
+                try:
+                    event = self.state_machine.model.queue.get_nowait()
+                    assert isinstance(event, Event)
 
-                logger.debug("New event: %s", event)
+                    logger.debug("New event: %s", event)
 
-                if EventName.TICKER == event.name:
-                    assert isinstance(event.content, TickerUpdate)
-                    self.state_machine.model.ticker_update = event.content
-                    if self.state_machine.model.state == State.RECOVERING:
-                        await self.state_machine.model.process_recovery()
-                    else:
-                        await self.state_machine.model.process_ticker()
+                    if EventName.TICKER == event.name:
+                        assert isinstance(event.content, TickerUpdate)
+                        self.state_machine.model.ticker_update = event.content
+                        if self.state_machine.model.state == State.RECOVERING:
+                            await self.state_machine.model.process_recovery()
+                        else:
+                            await self.state_machine.model.process_ticker()
 
-                elif EventName.EXECUTION_REPORT == event.name:
-                    assert isinstance(event.content, ExecutionReport)
-                    self.state_machine.model.execution_report = event.content
-                    await self.state_machine.model.process_order()  # type: ignore
+                    elif EventName.EXECUTION_REPORT == event.name:
+                        assert isinstance(event.content, ExecutionReport)
+                        self.state_machine.model.execution_report = event.content
+                        await self.state_machine.model.process_order()  # type: ignore
 
-                elif EventName.ACCOUNT_POSITION == event.name:
-                    assert isinstance(event.content, AccountPosition)
-                    self.state_machine.model.account_position = event.content
-                    await self.state_machine.model.process_account()  # type: ignore
+                    elif EventName.ACCOUNT_POSITION == event.name:
+                        assert isinstance(event.content, AccountPosition)
+                        self.state_machine.model.account_position = event.content
+                        await self.state_machine.model.process_account()  # type: ignore
 
-                elif EventName.SIGNAL == event.name:
-                    assert isinstance(event.content, SignalUpdate)
-                    self.state_machine.model.signal_update = event.content
-                    await self.state_machine.model.process_signal()  # type: ignore
+                    elif EventName.SIGNAL == event.name:
+                        assert isinstance(event.content, SignalUpdate)
+                        self.state_machine.model.signal_update = event.content
+                        await self.state_machine.model.process_signal()  # type: ignore
 
-                elif EventName.SENTINEL == event.name:
-                    assert isinstance(event.content, SentinelUpdate)
-                    self.state_machine.model.state = State.CLOSED
-                    await self.state_machine.model.position_handler.cancel_position(
-                        state=self.state_machine.model.state
-                    )
-                    logger.info(
-                        "Trading system: %s closed successfully.",
-                        self.state_machine.model.config.system_id,
-                    )
-                    return
+                    elif EventName.SENTINEL == event.name:
+                        assert isinstance(event.content, SentinelUpdate)
+                        self.state_machine.model.state = State.CLOSED
+                        await self.state_machine.model.position_handler.cancel_position(
+                            state=self.state_machine.model.state
+                        )
+                        logger.info(
+                            "Trading system: %s closed successfully.",
+                            self.state_machine.model.config.system_id,
+                        )
+                        return
 
-                self.state_machine.model.queue.task_done()
+                    self.state_machine.model.queue.task_done()
+                except queue.Empty:
+                    await asyncio.sleep(0.1)
 
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
