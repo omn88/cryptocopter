@@ -71,9 +71,9 @@ async def test_default_scenario_buy(spot_buy):
     # Simulate order confirmation
     await strategy.process_order()
 
-    assert strategy.queue.qsize() == 1
+    assert strategy.core_queue.qsize() == 1
 
-    event = strategy.queue.get()
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -128,9 +128,9 @@ async def test_default_scenario_sell(spot_sell):
     # Simulate order confirmation
     await strategy.process_order()
 
-    assert strategy.queue.qsize() == 1
+    assert strategy.core_queue.qsize() == 1
 
-    event = strategy.queue.get()
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -192,8 +192,8 @@ async def test_partial_order_fill_buy(spot_buy):
         order.status == ORDER_STATUS_FILLED
         for order in strategy.position_handler.orders
     )
-    assert strategy.queue.qsize() == 1
-    event = strategy.queue.get()
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
@@ -254,8 +254,8 @@ async def test_partial_order_fill_sell(spot_sell):
         order.status == ORDER_STATUS_FILLED
         for order in strategy.position_handler.orders
     )
-    assert strategy.queue.qsize() == 1
-    event = strategy.queue.get()
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED
@@ -635,9 +635,9 @@ async def test_default_scenario_buy_with_low_budget(spot_buy):
     # Simulate order confirmation
     await strategy.process_order()
 
-    assert strategy.queue.qsize() == 1
+    assert strategy.core_queue.qsize() == 1
 
-    event = strategy.queue.get()
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -706,9 +706,9 @@ async def test_default_scenario_sell_with_low_budget(spot_sell):
     # Simulate order confirmation
     await strategy.process_order()
 
-    assert strategy.queue.qsize() == 1
+    assert strategy.core_queue.qsize() == 1
 
-    event = strategy.queue.get()
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 

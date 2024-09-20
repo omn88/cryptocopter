@@ -89,7 +89,7 @@ class TradingSystem:
             logger.info("Worker start now, state: %s.", self.state_machine.model.state)
             while True:
                 try:
-                    event = self.state_machine.model.queue.get_nowait()
+                    event = self.state_machine.model.core_queue.get_nowait()
                     assert isinstance(event, Event)
 
                     logger.debug("New event: %s", event)
@@ -139,6 +139,6 @@ class TradingSystem:
         self.strategy_logger.info(
             "Closing trading system: %s", self.strategy.config.system_id
         )
-        self.strategy.queue.put_nowait(
+        self.strategy.core_queue.put_nowait(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )

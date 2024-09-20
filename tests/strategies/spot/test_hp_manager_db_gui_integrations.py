@@ -107,8 +107,8 @@ async def test_default_buy_scenario(trading_system_factory):
     )
 
     # Retrieve all orders filled signal from the queue and close the position.
-    assert strategy.queue.qsize() == 1
-    event = strategy.queue.get()
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
 
@@ -209,8 +209,8 @@ async def test_default_sell_scenario(trading_system_factory):
     )
 
     # Retrieve all orders filled signal from the queue and close the position.
-    assert strategy.queue.qsize() == 1
-    event = strategy.queue.get()
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get()
     strategy.signal_update = event.content
     await strategy.process_signal()
     assert strategy.state == State.CLOSED

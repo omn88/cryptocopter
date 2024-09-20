@@ -50,7 +50,7 @@ class HpManager:
         self.logger = logger
         self.balance = balance
         self.db = db
-        self.queue: queue.Queue = core_queue
+        self.core_queue: queue.Queue = core_queue
         self.config = config
         self.position_handler = PositionHandler(
             client=client,
@@ -818,7 +818,7 @@ class HpManager:
                 self.balance = round(balance.free, 2)
         self.logger.debug("Account update: %s", self.account_position)
 
-    async def handle_order_filled(self, *args, **kwargs):
+    async def handle_order_filled(self, *args, **kwargs) -> None:
         self.logger.debug("Entering handle order filled")
 
         await self.position_handler.handle_order_filled(
@@ -831,7 +831,7 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
-            self.queue.put(
+            self.core_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
@@ -931,7 +931,7 @@ class HpManager:
                         ):
                             signal = Signal.HP_ALL_ORDERS_FILLED
                             self.logger.info("All orders filled, sending: %s", signal)
-                            self.queue.put(
+                            self.core_queue.put(
                                 Event(
                                     name=EventName.SIGNAL,
                                     content=SignalUpdate(signal=signal),
