@@ -207,89 +207,92 @@ class HpManager(BoxLayout):
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
         while True:
-            if self.ui_queue.qsize() == 0:
+            try:
+                data = self.ui_queue.get_nowait()
+
+                if isinstance(data, Event) and data.name == EventName.SENTINEL:
+                    logger.info("Received sentinel event, exiting")
+                    return
+
+                if isinstance(data, AccountPosition):
+                    pass  # handle account update
+
+                if isinstance(data, PositionData):
+                    logger.info("Received position data: %s", data)
+                    if data.recovering:
+                        if data.state_info.last_state == State.OPEN:
+                            logger.info(
+                                "Recovering position to active tab in GUI: %s", data
+                            )
+                            self.recovery_to_active(data=data)
+                        if data.state_info.last_state == State.NEW:
+                            logger.info(
+                                "Recovering position to idle tab in GUI: %s", data
+                            )
+                            self.recovery_to_idle(data=data)
+
+                    elif any(
+                        record["system_id"] == data.config.system_id
+                        for record in self.active_records
+                    ):
+                        logger.info(
+                            "Record %s found in active records", data.config.system_id
+                        )
+                        self.update_active_position(data=data)
+                    elif any(
+                        record["system_id"] == data.config.system_id
+                        for record in self.idle_records
+                    ):
+                        logger.info(
+                            "Record %s found in idle records", data.config.system_id
+                        )
+                        self.update_idle_position(data=data)
+                    else:
+                        if data.state_info.last_state in [State.NEW, None]:
+                            logger.info(
+                                "New position added to Idle, system id: %s",
+                                data.config.system_id,
+                            )
+                            self.add_new_position_to_idle(data=data)
+                        if data.state_info.last_state == State.OPEN:
+                            logger.info(
+                                "New position added to Active, system id: %s",
+                                data.config.system_id,
+                            )
+                            self.add_new_position_to_active(data=data)
+                    logger.info(
+                        "Records active:\n%s\nIdle\n%s\nArchive\n%s",
+                        self.active_records,
+                        self.idle_records,
+                        self.archive_records,
+                    )
+
+                if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
+                    for strategy in self.active_records:
+                        assert isinstance(data.content, AllTickers)
+                        for ticker in data.content.msg:
+                            symbol = ticker.get("s")
+                            if symbol == strategy["symbol"]:
+                                price = str(
+                                    self.symbols_info[symbol].adjust_price(
+                                        price=float(ticker["c"])
+                                    )
+                                )
+                                strategy["current_price"] = price
+
+                    for strategy in self.idle_records:
+                        assert isinstance(data.content, AllTickers)
+                        for ticker in data.content.msg:
+                            symbol = ticker.get("s")
+                            if symbol == strategy["symbol"]:
+                                price = str(
+                                    self.symbols_info[symbol].adjust_price(
+                                        price=float(ticker["c"])
+                                    )
+                                )
+                                strategy["current_price"] = price
+            except queue.Empty:
                 await asyncio.sleep(0.1)
-                continue
-            data = self.ui_queue.get_nowait()
-            if isinstance(data, Event) and data.name == EventName.SENTINEL:
-                logger.info("Received sentinel event, exiting")
-                return
-
-            if isinstance(data, AccountPosition):
-                pass  # handle account update
-
-            if isinstance(data, PositionData):
-                logger.info("Received position data: %s", data)
-                if data.recovering:
-                    if data.state_info.last_state == State.OPEN:
-                        logger.info(
-                            "Recovering position to active tab in GUI: %s", data
-                        )
-                        self.recovery_to_active(data=data)
-                    if data.state_info.last_state == State.NEW:
-                        logger.info("Recovering position to idle tab in GUI: %s", data)
-                        self.recovery_to_idle(data=data)
-
-                elif any(
-                    record["system_id"] == data.config.system_id
-                    for record in self.active_records
-                ):
-                    logger.info(
-                        "Record %s found in active records", data.config.system_id
-                    )
-                    self.update_active_position(data=data)
-                elif any(
-                    record["system_id"] == data.config.system_id
-                    for record in self.idle_records
-                ):
-                    logger.info(
-                        "Record %s found in idle records", data.config.system_id
-                    )
-                    self.update_idle_position(data=data)
-                else:
-                    if data.state_info.last_state in [State.NEW, None]:
-                        logger.info(
-                            "New position added to Idle, system id: %s",
-                            data.config.system_id,
-                        )
-                        self.add_new_position_to_idle(data=data)
-                    if data.state_info.last_state == State.OPEN:
-                        logger.info(
-                            "New position added to Active, system id: %s",
-                            data.config.system_id,
-                        )
-                        self.add_new_position_to_active(data=data)
-                logger.info(
-                    "Records active:\n%s\nIdle\n%s\nArchive\n%s",
-                    self.active_records,
-                    self.idle_records,
-                    self.archive_records,
-                )
-
-            if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                for strategy in self.active_records:
-                    assert isinstance(data.content, AllTickers)
-                    for ticker in data.content.msg:
-                        symbol = ticker.get("s")
-                        if symbol == strategy["symbol"]:
-                            price = str(
-                                self.symbols_info[symbol].adjust_price(
-                                    price=float(ticker["c"])
-                                )
-                            )
-                            strategy["current_price"] = price
-
-                for strategy in self.idle_records:
-                    assert isinstance(data.content, AllTickers)
-                    for ticker in data.content.msg:
-                        symbol = ticker.get("s")
-                        if symbol == strategy["symbol"]:
-                            price = str(
-                                self.symbols_info[symbol].adjust_price(
-                                    price=float(ticker["c"])
-                                )
-                            )
-                            strategy["current_price"] = price
 
     async def refresh_ui(self):
         while True:

@@ -262,6 +262,7 @@ class StrategyExecutor:
                 for cd in config_data:
                     # Prepare the PositionSetup and put it in the queue
                     config = StrategyConfig(
+                        open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         symbol_info=SymbolInfo(symbol=cd[0]),
                         system_id=str(uuid.uuid4()),
                         side=PositionSide.LONG
