@@ -159,6 +159,8 @@ class BrokerSpot:
                             )
                         )
 
+            # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
+
     def handle_ticker_message(self, msg) -> None:
         """Handle all market ticker WebSocket messages."""
 
@@ -229,7 +231,7 @@ class BrokerSpot:
         if system_id in self.subscriptions:
             del self.subscriptions[system_id]
 
-    async def stop(self):
+    def stop(self):
         """Shut down BrokerSpot gracefully."""
         logger.info("Stopping BrokerSpot gracefully.")
 

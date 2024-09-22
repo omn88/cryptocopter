@@ -313,10 +313,9 @@ class AsyncApp(App):
     def on_stop(self):
         """Override the on_stop method to handle application shutdown."""
         logger.info("Application is shutting down. Cleaning up resources.")
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.shutdown())
+        self.shutdown()
 
-    async def shutdown(self):
+    def shutdown(self):
         """Handle the shutdown process for gracefully stopping all systems and resources."""
         # First, cancel all running strategies
         if self.trading_systems:
@@ -324,11 +323,14 @@ class AsyncApp(App):
             for system in self.trading_systems:
                 logger.info("System: %s", system)
                 assert isinstance(system, StrategyExecutor)
-                await system.stop()
+                system.stop()
+
+        logger.info("Stop portfolio")
+        self.portfolio.stop()
 
         # Stop the broker
         logger.info("Stopping the broker...")
-        await self.broker.stop()
+        self.broker.stop()
 
         # Stop the database worker
         logger.info("Stopping the database worker...")

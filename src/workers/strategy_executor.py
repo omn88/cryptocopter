@@ -97,7 +97,7 @@ class StrategyExecutor:
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
-    async def stop(self):
+    def stop(self):
         logger.info("In the strategy executor stop method")
         self.stop_event.set()
         loop = asyncio.get_running_loop()
