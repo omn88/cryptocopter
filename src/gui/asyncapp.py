@@ -29,6 +29,7 @@ from src.common.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
 )
+from src.common.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -89,7 +90,8 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
-        self.broker_spot: BrokerSpot = BrokerSpot()
+        self.broker: BrokerSpot = BrokerSpot()
+        self.portfolio: PortfolioManager = PortfolioManager(broker=self.broker)
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
@@ -131,7 +133,7 @@ class AsyncApp(App):
         strategy_logger = StrategyLogger(name="HPManager")
         ui_queue: queue.Queue = queue.Queue()
 
-        self.broker_spot.subscribe(
+        self.broker.subscribe(
             system_id=strategy_id,
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
@@ -145,7 +147,7 @@ class AsyncApp(App):
             strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
-            broker=self.broker_spot,
+            broker=self.broker,
             ui_queue=ui_queue,
         )
 
@@ -326,7 +328,7 @@ class AsyncApp(App):
 
         # Stop the broker
         logger.info("Stopping the broker...")
-        await self.broker_spot.stop()
+        await self.broker.stop()
 
         # Stop the database worker
         logger.info("Stopping the database worker...")

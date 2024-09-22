@@ -316,3 +316,32 @@
     Label:
         text: root.completeness
         size_hint_x: 0.1
+
+<CoinListItem@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    symbol: ''
+    quantity: ''
+    price_usdt: ''
+    total_usdt: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Line under each item
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]
+
+    Label:
+        text: root.symbol
+        size_hint_x: 0.2
+    Label:
+        text: root.quantity
+        size_hint_x: 0.2
+    Label:
+        text: root.price_usdt
+        size_hint_x: 0.3
+    Label:
+        text: root.total_usdt
+        size_hint_x: 0.3

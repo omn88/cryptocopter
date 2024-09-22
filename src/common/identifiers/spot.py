@@ -216,6 +216,7 @@ class SubscriptionType(Enum):
 class SubscriptionTarget(Enum):
     FRONTEND = auto()
     BACKEND = auto()
+    PORTFOLIO = auto()
 
 
 class SubscriptionInfo(NamedTuple):
