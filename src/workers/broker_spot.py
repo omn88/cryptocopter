@@ -146,8 +146,6 @@ class BrokerSpot:
                         )
 
         if event_type == EventName.ACCOUNT_POSITION.value:
-            msg = self.create_account_position(msg)
-
             for strategy, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
                     assert isinstance(subscription_info, SubscriptionInfo)
@@ -155,7 +153,7 @@ class BrokerSpot:
                         subscription_info.queue.put_nowait(
                             Event(
                                 name=EventName.ACCOUNT_POSITION,
-                                content=msg,
+                                content=self.create_account_position(msg),
                             )
                         )
 

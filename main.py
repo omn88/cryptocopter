@@ -81,9 +81,6 @@ async def main():
     try:
         await app.async_run()
     finally:
-        # for task in asyncio.all_tasks():
-        #     logger.info("Closing task after exception: %s", task)
-        #     await task.cancel()
         await client.close_connection()
         await db.close_pool()
         logger.info("FINITO")

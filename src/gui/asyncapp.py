@@ -8,7 +8,7 @@ for each strategy.
 import asyncio
 import logging
 import queue
-from typing import Dict, List
+from typing import Dict, List, Optional
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -34,6 +34,7 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
+from src.gui.portfolio import PortfolioUI
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient
@@ -91,7 +92,7 @@ class AsyncApp(App):
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
-        self.portfolio: PortfolioManager = PortfolioManager(broker=self.broker)
+        self.portfolio: Optional[PortfolioManager] = None
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
@@ -112,8 +113,33 @@ class AsyncApp(App):
         return self.root
 
     async def initialize(self):
+        self.setup_portfolio_manager()
         await self.load_all_active_strategies()
         await self.update_ui()
+
+    def setup_portfolio_manager(self) -> None:
+        # Load the portfolio UI from portfolio.kv
+        Builder.load_file("src/gui/portfolio.kv")
+
+        # Create a queue for frontend communication
+        ui_queue: queue.Queue = queue.Queue()
+
+        # Set up backend for PortfolioManager
+        self.portfolio = PortfolioManager(
+            broker=self.broker,
+            ui_queue=ui_queue,
+        )
+
+        # Set up frontend UI for PortfolioManager
+        frontend = PortfolioUI(ui_queue=ui_queue)
+
+        # Add the PortfolioManager tab to the tabbed panel
+        tab = TabbedPanelItem(
+            text="Portfolio",
+            content=frontend,
+        )
+        # Add the tab to the root tab panel
+        self.root.add_widget(tab)
 
     async def load_all_active_strategies(self):
         active_strategies = self.db.run_db_task(self.db.fetch_all_active_strategies())

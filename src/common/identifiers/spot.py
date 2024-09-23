@@ -38,6 +38,7 @@ class EventName(Enum):
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
     ALL_TICKERS = "All"
+    BALANCES = "Balances"
 
 
 class CsvConfig(NamedTuple):
@@ -154,6 +155,10 @@ class AllTickers(NamedTuple):
     msg: List[Dict]
 
 
+class Balances(NamedTuple):
+    msg: Dict[str, float]
+
+
 class TickerUpdate(NamedTuple):
     symbol: str = ""
     last_price: float = 0
@@ -180,6 +185,7 @@ class Event(NamedTuple):
         ExecutionReport,
         AccountPosition,
         AllTickers,
+        Balances,
     ]
 
     def __repr__(self) -> str:

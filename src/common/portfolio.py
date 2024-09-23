@@ -8,6 +8,8 @@ from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     AccountPosition,
     AllTickers,
+    Balances,
+    Event,
     EventName,
     SubscriptionInfo,
     SubscriptionTarget,
@@ -23,10 +25,11 @@ logger = logging.getLogger("portofolio")
 
 
 class PortfolioManager:
-    def __init__(self, broker: BrokerSpot):
+    def __init__(self, broker: BrokerSpot, ui_queue: queue.Queue):
         self.client: Optional[BinanceClient] = None
         self.broker = broker
-        self.queue: queue.Queue = queue.Queue()
+        self.ui_queue = ui_queue
+        self.core_queue: queue.Queue = queue.Queue()
         self.balances: Dict[str, float] = {}
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
@@ -54,6 +57,10 @@ class PortfolioManager:
         # Fetch initial balances from the exchange
         await self.fetch_initial_balances()
 
+        self.ui_queue.put_nowait(
+            Event(name=EventName.BALANCES, content=Balances(msg=self.balances))
+        )
+
         # Subscribe to user and price updates for portfolio management
         self.broker.subscribe(
             system_id="PORTFOLIO",
@@ -61,7 +68,7 @@ class PortfolioManager:
                 data_type=SubscriptionType.USER,
                 symbol="ALL",  # Subscribing to all symbols for user account positions
                 target=SubscriptionTarget.PORTFOLIO,
-                queue=self.queue,
+                queue=self.core_queue,
             ),
         )
 
@@ -71,13 +78,14 @@ class PortfolioManager:
                 data_type=SubscriptionType.PRICE,
                 symbol="ALL",  # Subscribing to all symbols for price updates
                 target=SubscriptionTarget.PORTFOLIO,
-                queue=self.queue,
+                queue=self.core_queue,
             ),
         )
 
         while not self.stop_event.is_set():
             try:
-                event = self.queue.get_nowait()
+                event = self.core_queue.get_nowait()
+                logger.info("Portfolio go new event: %s", event)
                 if event.name == EventName.ACCOUNT_POSITION:
                     await self.handle_account_position(event.content)
                 elif event.name == EventName.ALL_TICKERS:
@@ -130,7 +138,7 @@ class PortfolioManager:
             asset = balance.asset
             total_balance = balance.free + balance.locked
             self.balances[asset] = total_balance
-        await self.calculate_total_saldo()
+        self.calculate_total_saldo()
 
     async def handle_tickers(self, tickers_update: AllTickers) -> None:
         """Handle ticker updates to get latest prices."""
@@ -142,7 +150,7 @@ class PortfolioManager:
             base_asset, quote_asset = symbol[:-4], symbol[-4:]
             if base_asset in self.balances and quote_asset == "USDT":
                 self.price_updates[base_asset] = price
-        await self.calculate_total_saldo()
+        self.calculate_total_saldo()
 
     def calculate_total_saldo(self):
         """Calculates the total saldo in USDT and BTC."""
