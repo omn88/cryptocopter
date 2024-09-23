@@ -1,11 +1,12 @@
 import logging
 import queue
-from typing import Dict
+from typing import Dict, List
 from kivy.properties import ObjectProperty
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 
 from src.common.identifiers.spot import AccountPosition, Balances, Event, EventName
+from src.common.symbol_info import SymbolInfo
 
 logger = logging.getLogger("portfolio_gui_handler")
 
@@ -22,10 +23,13 @@ class PortfolioUI(BoxLayout):
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
     coin_list = ObjectProperty(None)  # List or grid to show portfolio items
 
-    def __init__(self, ui_queue, **kwargs) -> None:
+    def __init__(
+        self, ui_queue: queue.Queue, symbols_info: Dict[str, SymbolInfo], **kwargs
+    ) -> None:
         # Initialize the base class (BoxLayout)
         super().__init__(**kwargs)  # This ensures proper widget initialization
-        self.ui_queue: queue.Queue = ui_queue
+        self.ui_queue = ui_queue
+        self.symbols_info = symbols_info
         # Start UI update loop
         asyncio.create_task(self.update_ui())
 
@@ -44,8 +48,6 @@ class PortfolioUI(BoxLayout):
                 if data.name == EventName.ACCOUNT_POSITION:
                     assert isinstance(data.content, AccountPosition)
                     self.update_coin_list(data.content)
-                # if "balances" in data:
-                #     self.update_saldo(data["balances"])
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -60,19 +62,39 @@ class PortfolioUI(BoxLayout):
         coin_list_data = []
 
         for symbol, quantity in balances.msg.items():
-            coin_data = {
-                "symbol": symbol,  # Symbol of the coin (e.g., BTC, ETH)
-                "quantity": f"{quantity:.6f}",  # Format the quantity to 6 decimal places
-                "price_in_usdt": "0.00",  # Placeholder value for now
-                "total_in_usdt": "0.00",  # Placeholder value for now
-            }
-            coin_list_data.append(coin_data)
+            try:
+                if symbol == "USDT":
+                    coin_data = {
+                        "symbol": symbol,
+                        "quantity": str(round(quantity, 2)),
+                        "price_in_usdt": str(round(quantity, 2)),
+                        "total_in_usdt": str(round(quantity, 2)),
+                    }
+                    coin_list_data.append(coin_data)
+                else:
+                    # Attempt to form the trading pair
+                    symbol = f"{symbol}USDT"
+
+                    # Try to fetch symbol info for the asset and add to the list
+                    coin_data = {
+                        "symbol": symbol,
+                        "quantity": str(
+                            self.symbols_info[symbol].adjust_quantity(quantity=quantity)
+                        ),
+                        "price_in_usdt": "0.00",  # Placeholder value for now
+                        "total_in_usdt": "0.00",  # Placeholder value for now
+                    }
+                    coin_list_data.append(coin_data)
+            except KeyError as e:
+                # Log the error and skip the symbol
+                logger.warning(
+                    f"Symbol {symbol} not found in symbol info. Skipping. Error: {e}"
+                )
+                continue
 
         # Set the data for the RecycleView (this will update the list in the UI)
         logger.info(f"Coin list data: {coin_list_data}")
-        self.ids.coin_list.data = (
-            coin_list_data  # Correctly update the RecycleView's data property
-        )
+        self.ids.coin_list.data = coin_list_data
 
     def update_coin_list(self, account_position: AccountPosition) -> None:
         pass
