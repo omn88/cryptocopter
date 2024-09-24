@@ -104,7 +104,6 @@ class PortfolioUI(BoxLayout):
 
     def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers."""
-        logger.info("Updating coin prices based on ticker data.")
 
         filtered_coin_list = []
 
@@ -131,8 +130,6 @@ class PortfolioUI(BoxLayout):
 
         # Re-assign the ListProperty with the sorted list to trigger the UI update
         self.coin_list_data = sorted_coin_list
-        logger.info("Updated, filtered, and sorted coin prices in the UI.")
-
         self.ids.coin_list.refresh_from_data()
 
     def update_coin_list(self, account_position: AccountPosition) -> None:

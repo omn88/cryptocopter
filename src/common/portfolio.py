@@ -143,7 +143,6 @@ class PortfolioManager:
 
     async def handle_tickers(self, tickers_update: AllTickers) -> None:
         """Handle ticker updates to get latest prices."""
-        logger.info("Handling ticker updates.")
         for ticker in tickers_update.msg:
             symbol = ticker.get("s")
             assert symbol
@@ -183,6 +182,6 @@ class PortfolioManager:
         self.usdt_saldo = total_usdt_saldo
         self.btc_saldo = total_btc_saldo
 
-        logger.info(
-            "Total USDT Saldo: %s, Total BTC Saldo: %s", self.usdt_saldo, self.btc_saldo
-        )
+        # logger.info(
+        #     "Total USDT Saldo: %s, Total BTC Saldo: %s", self.usdt_saldo, self.btc_saldo
+        # )
