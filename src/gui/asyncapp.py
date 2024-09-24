@@ -124,6 +124,16 @@ class AsyncApp(App):
         # Create a queue for frontend communication
         ui_queue: queue.Queue = queue.Queue()
 
+        self.broker.subscribe(
+            system_id="PORTFOLIO",
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",
+                target=SubscriptionTarget.PORTFOLIO,
+                queue=ui_queue,
+            ),
+        )
+
         # Set up backend for PortfolioManager
         self.portfolio = PortfolioManager(
             broker=self.broker,

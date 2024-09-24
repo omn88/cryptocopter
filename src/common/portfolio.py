@@ -11,6 +11,7 @@ from src.common.identifiers.spot import (
     Balances,
     Event,
     EventName,
+    PriceUpdates,
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
@@ -21,7 +22,7 @@ from src.workers.broker_spot import BrokerSpot
 DOTENV_FILE = "config/.env"
 config_env = Config(RepositoryEnv(DOTENV_FILE))
 
-logger = logging.getLogger("portofolio")
+logger = logging.getLogger("portfolio")
 
 
 class PortfolioManager:
@@ -85,7 +86,7 @@ class PortfolioManager:
         while not self.stop_event.is_set():
             try:
                 event = self.core_queue.get_nowait()
-                logger.info("Portfolio go new event: %s", event)
+                # logger.info("Portfolio go new event: %s", event)
                 if event.name == EventName.ACCOUNT_POSITION:
                     await self.handle_account_position(event.content)
                 elif event.name == EventName.ALL_TICKERS:
@@ -151,6 +152,12 @@ class PortfolioManager:
             if base_asset in self.balances and quote_asset == "USDT":
                 self.price_updates[base_asset] = price
         self.calculate_total_saldo()
+        self.ui_queue.put(
+            Event(
+                name=EventName.PRICE_UPDATES,
+                content=PriceUpdates(msg=self.price_updates),
+            )
+        )
 
     def calculate_total_saldo(self):
         """Calculates the total saldo in USDT and BTC."""

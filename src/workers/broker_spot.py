@@ -166,7 +166,7 @@ class BrokerSpot:
         for strategy, subscriptions in self.subscriptions.items():
             for subscription_info in subscriptions:
                 assert isinstance(subscription_info, SubscriptionInfo)
-                if subscription_info.data_type in [
+                if subscription_info.target in [
                     SubscriptionTarget.FRONTEND,
                     SubscriptionTarget.PORTFOLIO,
                 ]:

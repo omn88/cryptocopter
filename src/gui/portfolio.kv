@@ -1,6 +1,6 @@
 <PortfolioUI>:
     orientation: 'vertical'
-    
+
     # Sizing for the labels at the top (USDT and BTC saldo)
     BoxLayout:
         orientation: 'horizontal'
@@ -57,6 +57,7 @@
         RecycleView:
             id: coin_list
             viewclass: 'CoinListItem'
+            data: root.coin_list_data  # Bind the RecycleView's data to the ListProperty
             RecycleBoxLayout:
                 default_size: None, dp(56)
                 default_size_hint: 1, None
