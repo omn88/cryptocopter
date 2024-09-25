@@ -106,6 +106,7 @@ class PortfolioUI(BoxLayout):
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
+        last_btc_price = 0.0
         # Iterate through the coin_list_data and update only coins that are in price_updates
         for coin in self.coin_list_data:
             symbol = coin["symbol"]
@@ -118,6 +119,8 @@ class PortfolioUI(BoxLayout):
                 coin["price_usdt"] = str(
                     self.symbols_info[f"{symbol}USDT"].adjust_price(price)
                 )
+                if coin["symbol"] == "BTC":
+                    last_btc_price = float(coin["price_usdt"])
                 total_in_usdt = round(float(coin["quantity"]) * price, 2)
                 coin["total_usdt"] = str(total_in_usdt)
 
@@ -130,9 +133,15 @@ class PortfolioUI(BoxLayout):
 
         # Re-assign the ListProperty with the sorted list to trigger the UI update
         self.coin_list_data = sorted_coin_list
+        self.saldo_usdt_label = round(
+            sum([float(coin["total_usdt"]) for coin in self.coin_list_data]), 2
+        )
+        self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 2)
 
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
+        self.ids.saldo_usdt_label.text = str(self.saldo_usdt_label)
+        self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
 
         logger.info("Updated coin list data: %s", self.coin_list_data)
 
