@@ -148,8 +148,10 @@ class PortfolioManager:
             assert symbol
             price = float(ticker.get("c", 0))
             base_asset, quote_asset = symbol[:-4], symbol[-4:]
+
             if base_asset in self.balances and quote_asset == "USDT":
                 self.price_updates[base_asset] = price
+                # logger.info("Base asset: %s, quote asset: %s, price: %s", base_asset, quote_asset, price)
         self.calculate_total_saldo()
         self.ui_queue.put(
             Event(

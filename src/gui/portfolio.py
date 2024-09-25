@@ -1,5 +1,6 @@
 import logging
 import queue
+import time
 from typing import Dict, List
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.label import Label
@@ -60,7 +61,7 @@ class PortfolioUI(BoxLayout):
                 if data.name == EventName.PRICE_UPDATES:
                     assert isinstance(data.content, PriceUpdates)
                     # Update saldo in USDT and BTC
-                    self.update_coin_prices(data.content)
+                    await self.update_coin_prices(data.content)
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
@@ -102,35 +103,38 @@ class PortfolioUI(BoxLayout):
         # Set the data for the RecycleView (this will update the list in the UI)
         logger.info(f"Coin list data: {self.coin_list_data}")
 
-    def update_coin_prices(self, price_updates: PriceUpdates) -> None:
-        """Update the prices of coins based on ticker data from AllTickers."""
+    async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
+        """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
-        filtered_coin_list = []
+        # Iterate through the coin_list_data and update only coins that are in price_updates
+        for coin in self.coin_list_data:
+            symbol = coin["symbol"]
 
-        # Iterate through each symbol in the price updates
-        for symbol, price in price_updates.msg.items():
-            for coin in self.coin_list_data:
-                # Find the coin that matches the symbol (as 'symbolUSDT')
-                if coin["symbol"] == symbol:
-                    # Update the price and total in USDT for this coin
-                    coin["price_usdt"] = str(
-                        self.symbols_info[f"{symbol}USDT"].adjust_price(price)
-                    )
-                    total_in_usdt = round(float(coin["quantity"]) * price, 2)
-                    coin["total_usdt"] = str(total_in_usdt)
+            # If the symbol is in the price updates, update its price
+            if symbol in price_updates.msg:
+                price = price_updates.msg[symbol]
 
-                    # Only add coins with a total value greater than or equal to 1 USDT
-                    if total_in_usdt >= 1:
-                        filtered_coin_list.append(coin)
+                # Update the price and total in USDT for this coin
+                coin["price_usdt"] = str(
+                    self.symbols_info[f"{symbol}USDT"].adjust_price(price)
+                )
+                total_in_usdt = round(float(coin["quantity"]) * price, 2)
+                coin["total_usdt"] = str(total_in_usdt)
 
-        # Sort the filtered list by 'total_in_usdt' in descending order (highest to lowest)
+        # Sort the filtered list by 'total_usdt' in descending order (highest to lowest)
         sorted_coin_list = sorted(
-            filtered_coin_list, key=lambda x: float(x["total_usdt"]), reverse=True
+            [coin for coin in self.coin_list_data],
+            key=lambda x: float(x["total_usdt"]),
+            reverse=True,
         )
 
         # Re-assign the ListProperty with the sorted list to trigger the UI update
         self.coin_list_data = sorted_coin_list
+
+        # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
+
+        logger.info("Updated coin list data: %s", self.coin_list_data)
 
     def update_coin_list(self, account_position: AccountPosition) -> None:
         pass

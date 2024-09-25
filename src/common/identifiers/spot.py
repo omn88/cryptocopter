@@ -191,7 +191,7 @@ class Event(NamedTuple):
         AccountPosition,
         AllTickers,
         Balances,
-        PriceUpdates
+        PriceUpdates,
     ]
 
     def __repr__(self) -> str:
