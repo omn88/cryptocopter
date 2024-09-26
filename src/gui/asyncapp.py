@@ -8,7 +8,7 @@ for each strategy.
 import asyncio
 import logging
 import queue
-from typing import Dict, List
+from typing import Dict, List, Optional
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -29,10 +29,12 @@ from src.common.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
 )
+from src.common.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
+from src.gui.portfolio import PortfolioUI
 from src.gui.strategytab import StrategyTab
 from src.trading_system.futures import TradingSystem
 from src.common.identifiers.common import BinanceClient
@@ -89,7 +91,8 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
-        self.broker_spot: BrokerSpot = BrokerSpot()
+        self.broker: BrokerSpot = BrokerSpot()
+        self.portfolio: Optional[PortfolioManager] = None
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
         asyncio.create_task(self.initialize())
@@ -110,8 +113,43 @@ class AsyncApp(App):
         return self.root
 
     async def initialize(self):
+        self.setup_portfolio_manager()
         await self.load_all_active_strategies()
         await self.update_ui()
+
+    def setup_portfolio_manager(self) -> None:
+        # Load the portfolio UI from portfolio.kv
+        Builder.load_file("src/gui/portfolio.kv")
+
+        # Create a queue for frontend communication
+        ui_queue: queue.Queue = queue.Queue()
+
+        self.broker.subscribe(
+            system_id="PORTFOLIO",
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",
+                target=SubscriptionTarget.PORTFOLIO,
+                queue=ui_queue,
+            ),
+        )
+
+        # Set up backend for PortfolioManager
+        self.portfolio = PortfolioManager(
+            broker=self.broker,
+            ui_queue=ui_queue,
+        )
+
+        # Set up frontend UI for PortfolioManager
+        frontend = PortfolioUI(ui_queue=ui_queue, symbols_info=self.symbols_info)
+
+        # Add the PortfolioManager tab to the tabbed panel
+        tab = TabbedPanelItem(
+            text="Portfolio",
+            content=frontend,
+        )
+        # Add the tab to the root tab panel
+        self.root.add_widget(tab)
 
     async def load_all_active_strategies(self):
         active_strategies = self.db.run_db_task(self.db.fetch_all_active_strategies())
@@ -131,7 +169,7 @@ class AsyncApp(App):
         strategy_logger = StrategyLogger(name="HPManager")
         ui_queue: queue.Queue = queue.Queue()
 
-        self.broker_spot.subscribe(
+        self.broker.subscribe(
             system_id=strategy_id,
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
@@ -145,7 +183,7 @@ class AsyncApp(App):
             strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
-            broker=self.broker_spot,
+            broker=self.broker,
             ui_queue=ui_queue,
         )
 
@@ -311,10 +349,9 @@ class AsyncApp(App):
     def on_stop(self):
         """Override the on_stop method to handle application shutdown."""
         logger.info("Application is shutting down. Cleaning up resources.")
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.shutdown())
+        self.shutdown()
 
-    async def shutdown(self):
+    def shutdown(self):
         """Handle the shutdown process for gracefully stopping all systems and resources."""
         # First, cancel all running strategies
         if self.trading_systems:
@@ -322,11 +359,14 @@ class AsyncApp(App):
             for system in self.trading_systems:
                 logger.info("System: %s", system)
                 assert isinstance(system, StrategyExecutor)
-                await system.stop()
+                system.stop()
+
+        logger.info("Stop portfolio")
+        self.portfolio.stop()
 
         # Stop the broker
         logger.info("Stopping the broker...")
-        await self.broker_spot.stop()
+        self.broker.stop()
 
         # Stop the database worker
         logger.info("Stopping the database worker...")

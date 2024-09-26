@@ -16,6 +16,7 @@ from src.common.identifiers.spot import (
     EventName,
     ExecutionReport,
     SubscriptionInfo,
+    SubscriptionTarget,
     SubscriptionType,
     TickerUpdate,
 )
@@ -132,11 +133,12 @@ class BrokerSpot:
         if event_type == EventName.EXECUTION_REPORT.value:
             for strategy, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
+                    assert isinstance(subscription_info, SubscriptionInfo)
                     if (
                         subscription_info.data_type == SubscriptionType.USER
                         and subscription_info.symbol == symbol
                     ):
-                        subscription_info.queue.put(
+                        subscription_info.queue.put_nowait(
                             Event(
                                 name=EventName.EXECUTION_REPORT,
                                 content=self.create_execution_report(msg),
@@ -144,20 +146,18 @@ class BrokerSpot:
                         )
 
         if event_type == EventName.ACCOUNT_POSITION.value:
-            msg = self.create_account_position(msg)
-
             for strategy, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
-                    if (
-                        subscription_info.data_type == SubscriptionType.USER
-                        and subscription_info.symbol == symbol
-                    ):
-                        subscription_info.queue.put(
+                    assert isinstance(subscription_info, SubscriptionInfo)
+                    if subscription_info.target == SubscriptionTarget.PORTFOLIO:
+                        subscription_info.queue.put_nowait(
                             Event(
                                 name=EventName.ACCOUNT_POSITION,
                                 content=self.create_account_position(msg),
                             )
                         )
+
+            # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
 
     def handle_ticker_message(self, msg) -> None:
         """Handle all market ticker WebSocket messages."""
@@ -165,10 +165,17 @@ class BrokerSpot:
         # Send the full msg to FrontEnd if subscribed to "ALL" symbols
         for strategy, subscriptions in self.subscriptions.items():
             for subscription_info in subscriptions:
-                if subscription_info.symbol == "ALL":
-                    subscription_info.queue.put(
-                        Event(name=EventName.ALL_TICKERS, content=AllTickers(msg=msg))
-                    )
+                assert isinstance(subscription_info, SubscriptionInfo)
+                if subscription_info.target in [
+                    SubscriptionTarget.FRONTEND,
+                    SubscriptionTarget.PORTFOLIO,
+                ]:
+                    if subscription_info.symbol == "ALL":
+                        subscription_info.queue.put_nowait(
+                            Event(
+                                name=EventName.ALL_TICKERS, content=AllTickers(msg=msg)
+                            )
+                        )
 
         for ticker in msg:
             symbol = ticker.get("s")
@@ -195,11 +202,12 @@ class BrokerSpot:
                 # Send symbol-specific updates for other subscriptions
                 for strategy, subscriptions in self.subscriptions.items():
                     for subscription_info in subscriptions:
+                        assert isinstance(subscription_info, SubscriptionInfo)
                         if (
                             subscription_info.data_type == SubscriptionType.PRICE
                             and subscription_info.symbol == symbol
                         ):
-                            subscription_info.queue.put(
+                            subscription_info.queue.put_nowait(
                                 Event(name=EventName.TICKER, content=ticker_update)
                             )
 
@@ -221,7 +229,7 @@ class BrokerSpot:
         if system_id in self.subscriptions:
             del self.subscriptions[system_id]
 
-    async def stop(self):
+    def stop(self):
         """Shut down BrokerSpot gracefully."""
         logger.info("Stopping BrokerSpot gracefully.")
 
@@ -259,13 +267,13 @@ class BrokerSpot:
 
                 self.loop.call_soon_threadsafe(self.loop.stop)
 
-        except RuntimeError as e:
+        except RuntimeError as error:
             # Handle the event loop stop error gracefully
-            logger.error(f"RuntimeError during shutdown: {e}")
+            logger.error("RuntimeError during shutdown: %s", error)
 
-        except Exception as e:
+        except Exception as error:
             # Catch any other exceptions
-            logger.error(f"Unexpected error during shutdown: {e}")
+            logger.error("Unexpected error during shutdown: %s", error)
 
         finally:
             # Ensure the thread is stopped even if errors occur

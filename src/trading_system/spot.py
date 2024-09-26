@@ -129,7 +129,7 @@ class TradingSystem:
                         )
                         return
 
-                    self.state_machine.model.queue.task_done()
+                    self.state_machine.model.core_queue.task_done()
                 except queue.Empty:
                     await asyncio.sleep(0.1)
 
