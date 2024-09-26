@@ -135,11 +135,18 @@ class PortfolioManager:
     async def handle_account_position(self, account_position: AccountPosition) -> None:
         """Handle account position updates (update balances)."""
         logger.info("Handling account position update.")
+
         for balance in account_position.balances:
             asset = balance.asset
             total_balance = balance.free + balance.locked
-            self.balances[asset] = total_balance
-        self.calculate_total_saldo()
+
+            # Update the balance only if there's a change
+            if total_balance != self.balances.get(asset, 0.0):
+                self.balances[asset] = total_balance
+
+        self.ui_queue.put_nowait(
+            Event(name=EventName.ACCOUNT_POSITION, content=account_position)
+        )
 
     async def handle_tickers(self, tickers_update: AllTickers) -> None:
         """Handle ticker updates to get latest prices."""
@@ -151,39 +158,9 @@ class PortfolioManager:
 
             if base_asset in self.balances and quote_asset == "USDT":
                 self.price_updates[base_asset] = price
-                # logger.info("Base asset: %s, quote asset: %s, price: %s", base_asset, quote_asset, price)
-        self.calculate_total_saldo()
         self.ui_queue.put(
             Event(
                 name=EventName.PRICE_UPDATES,
                 content=PriceUpdates(msg=self.price_updates),
             )
         )
-
-    def calculate_total_saldo(self):
-        """Calculates the total saldo in USDT and BTC."""
-        total_usdt_saldo = 0.0
-        total_btc_saldo = 0.0
-
-        # Loop over all assets and calculate their USDT and BTC equivalent
-        for asset, quantity in self.balances.items():
-            if asset == "USDT":
-                total_usdt_saldo += quantity
-            elif asset == "BTC":
-                total_btc_saldo += quantity
-            else:
-                # Convert other assets to USDT and BTC based on the latest price
-                if asset in self.price_updates:
-                    usdt_price = self.price_updates[asset]
-                    total_usdt_saldo += quantity * usdt_price
-                    # To convert to BTC, divide the USDT price by BTC/USDT price
-                    if "BTCUSDT" in self.price_updates:
-                        btc_price = self.price_updates["BTCUSDT"]
-                        total_btc_saldo += (quantity * usdt_price) / btc_price
-
-        self.usdt_saldo = total_usdt_saldo
-        self.btc_saldo = total_btc_saldo
-
-        # logger.info(
-        #     "Total USDT Saldo: %s, Total BTC Saldo: %s", self.usdt_saldo, self.btc_saldo
-        # )

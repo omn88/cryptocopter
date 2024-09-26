@@ -136,14 +136,61 @@ class PortfolioUI(BoxLayout):
         self.saldo_usdt_label = round(
             sum([float(coin["total_usdt"]) for coin in self.coin_list_data]), 2
         )
-        self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 2)
+        self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 8)
 
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
         self.ids.saldo_usdt_label.text = str(self.saldo_usdt_label)
         self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
 
-        logger.info("Updated coin list data: %s", self.coin_list_data)
-
     def update_coin_list(self, account_position: AccountPosition) -> None:
-        pass
+        """Update the coin list based on AccountPosition updates."""
+        logger.info("Updating coin list based on AccountPosition updates.")
+
+        for balance in account_position.balances:
+            symbol = balance.asset
+            total_balance = balance.free + balance.locked
+
+            # Check if the asset exists in the current coin list
+            found = False
+            for coin in self.coin_list_data:
+                if coin["symbol"] == symbol:
+                    # Update the quantity (balances) if found
+                    coin["quantity"] = str(total_balance)
+                    found = True
+                    logger.info(f"Updated {symbol} quantity to {total_balance}")
+                    break
+
+            # If the asset is not in the current coin list, add it
+            if not found:
+                logger.info(f"Adding new symbol {symbol} to the coin list.")
+                # Handle USDT separately as it doesn't need price updates
+                if symbol == "USDT":
+                    coin_data = {
+                        "symbol": symbol,
+                        "quantity": str(round(total_balance, 2)),
+                        "price_usdt": "1.00",
+                        "total_usdt": str(round(total_balance, 2)),
+                    }
+                else:
+                    coin_data = {
+                        "symbol": symbol,
+                        "quantity": str(total_balance),
+                        "price_usdt": "0.00",  # Placeholder, to be updated by price feed
+                        "total_usdt": "0.00",  # Placeholder, to be updated
+                    }
+                self.coin_list_data.append(coin_data)
+
+        # Sort the updated coin list again by total value
+        self.coin_list_data = sorted(
+            self.coin_list_data,
+            key=lambda x: float(x["total_usdt"]),
+            reverse=True,
+        )
+
+        # Notify the UI to refresh the view (in case you're using RecycleView)
+        self.ids.coin_list.refresh_from_data()
+
+        logger.info(
+            "Coin list after updating with account positions: %s", self.coin_list_data
+        )
