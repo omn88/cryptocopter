@@ -1,112 +1,120 @@
 <HpManager>:
     file_name_input: file_name_input
     orientation: 'vertical'
-    BoxLayout:
-        orientation: 'vertical'
-        size_hint_y: 0.35
-        height: '150dp'  # Height for configuration controls
 
-        BoxLayout:  # Main horizontal layout for configuration and buttons
-            orientation: 'horizontal'
+    TabbedPanel:
+        do_default_tab: False
+        size_hint_y: 0.35  # Top section with tabbed panels
 
-            BoxLayout:  # Configuration section (left side)
-                orientation: 'vertical'
-                size_hint_x: 1  # Using 60% of the horizontal space
-                padding: [16, 0, 0, 0]
-
-                BoxLayout:  # First line: Basic trading options
-                    orientation: 'horizontal'
-                    size_hint_y: 0.7
-                    height: '50dp'
-                    spacing: 5
-                    BoxLayout:
-                        id: symbol_container  # Placeholder for the SearchableDropDown
-                        size_hint_x: 0.6
-                        size_hint_y: 0.7  # Ensure this aligns with other elements
-                    Spinner:
-                        id: side_input
-                        values: ['BUY', 'SELL']
-                        text: 'SIDE'
-                        size_hint_x: 0.15
-                        size_hint_y: 0.9  # Full height within the line
-                    Label:
-                        text: 'budget: '
-                        size_hint_x: 0.05
-                        size_hint_y: 0.7  # Full height within the line
-                    TextInput:
-                        id: budget_input
-                        text: '100'
-                        multiline: False
-                        input_filter: 'float'
-                        size_hint_x: 0.15
-                        size_hint_y: 0.6  # Full height within the line
-                    BoxLayout:
-                        size_hint_x: 0.05
-                BoxLayout:  # Third line: Advanced trading options
-                    orientation: 'horizontal'
-                    size_hint_y: 0.3
-                    height: '50dp'
-                    Label:
-                        text: 'Order Trigger(%):'
-                        size_hint_x: 0.2
-                        size_hint_y: 0.7  # Full height within the line
-                    Spinner:
-                        id: order_trigger_input
-                        values: [str(round(x * 0.5, 1)) for x in range(0, 11)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
-                        text: '4.0'
-                        size_hint_x: 0.1
-                        size_hint_y: 0.6
-                    Label:
-                        text: 'Mode: '
-                        size_hint_x: 0.1
-                        size_hint_y: 0.7  # Full height within the line
-                    Spinner:
-                        id: mode_input
-                        values: ['DCA', 'SINGLE']
-                        text: 'SINGLE'
-                        size_hint_x: 0.2
-                        size_hint_y: 0.6  # Full height within the line
-                    BoxLayout:
-                        size_hint_x: 0.4
-
-                #Empty space
-                BoxLayout:
-                    size_hint_y: 0.1
-            # Empty space to fill 25% of the width
-            BoxLayout:
-                size_hint_x: 0.2
-
-            # Right section for action buttons - maintains 25% width
+        TabbedPanelItem:
+            text: 'Buy'
             BoxLayout:
                 orientation: 'vertical'
-                size_hint_x: 0.2
-                Button:
-                    text: 'Add Record'
-                    size_hint_y: None
-                    height: '50dp'
-                    on_release: root.trigger_add_record()
+                height: '150dp'  # Height for configuration controls
 
-                Label:
-                    id: validation_label
-                    text: ''
-                    color: 1, 0, 0, 1  # Red color for validation messages
-                    size_hint_y: None
-                    height: '30dp'
+                BoxLayout:  # Main horizontal layout for configuration and buttons
+                    orientation: 'horizontal'
 
-                # New TextInput for file name
-                TextInput:
-                    id: file_name_input
-                    hint_text: 'Enter config file name'
+                    BoxLayout:  # Configuration section (left side)
+                        orientation: 'vertical'
+                        size_hint_x: 1  # Using 60% of the horizontal space
+                        padding: [16, 0, 0, 0]
 
-                # New Save Button
-                Button:
-                    text: 'Save Config'
-                    on_press: root.save_config()
+                        BoxLayout:  # First line: Basic trading options
+                            orientation: 'horizontal'
+                            size_hint_y: 0.7
+                            height: '50dp'
+                            spacing: 5
+                            BoxLayout:
+                                id: symbol_container  # Placeholder for the SearchableDropDown
+                                size_hint_x: 0.6
+                                size_hint_y: 0.7  # Ensure this aligns with other elements
+                            Spinner:
+                                id: side_input
+                                values: ['BUY', 'SELL']
+                                text: 'SIDE'
+                                size_hint_x: 0.15
+                                size_hint_y: 0.9  # Full height within the line
+                            Label:
+                                text: 'budget: '
+                                size_hint_x: 0.05
+                                size_hint_y: 0.7  # Full height within the line
+                            TextInput:
+                                id: budget_input
+                                text: '100'
+                                multiline: False
+                                input_filter: 'float'
+                                size_hint_x: 0.15
+                                size_hint_y: 0.6  # Full height within the line
+                            BoxLayout:
+                                size_hint_x: 0.05
 
-                # New Load Button
-                Button:
-                    text: 'Load Config'
-                    on_press: root.load_config()
+                        BoxLayout:  # Third line: Advanced trading options
+                            orientation: 'horizontal'
+                            size_hint_y: 0.3
+                            height: '50dp'
+                            Label:
+                                text: 'Order Trigger(%):'
+                                size_hint_x: 0.2
+                                size_hint_y: 0.7  # Full height within the line
+                            Spinner:
+                                id: order_trigger_input
+                                values: [str(round(x * 0.5, 1)) for x in range(0, 11)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
+                                text: '4.0'
+                                size_hint_x: 0.1
+                                size_hint_y: 0.6
+                            Label:
+                                text: 'Mode: '
+                                size_hint_x: 0.1
+                                size_hint_y: 0.7  # Full height within the line
+                            Spinner:
+                                id: mode_input
+                                values: ['DCA', 'SINGLE']
+                                text: 'SINGLE'
+                                size_hint_x: 0.2
+                                size_hint_y: 0.6  # Full height within the line
+                            BoxLayout:
+                                size_hint_x: 0.4
+
+                        # Empty space
+                        BoxLayout:
+                            size_hint_y: 0.1
+
+                    # Empty space to fill 25% of the width
+                    BoxLayout:
+                        size_hint_x: 0.2
+
+                    # Right section for action buttons - maintains 25% width
+                    BoxLayout:
+                        orientation: 'vertical'
+                        size_hint_x: 0.2
+                        Button:
+                            text: 'Add Record'
+                            size_hint_y: None
+                            height: '50dp'
+                            on_release: root.trigger_add_record()
+
+                        Label:
+                            id: validation_label
+                            text: ''
+                            color: 1, 0, 0, 1  # Red color for validation messages
+                            size_hint_y: None
+                            height: '30dp'
+
+                        # New TextInput for file name
+                        TextInput:
+                            id: file_name_input
+                            hint_text: 'Enter config file name'
+
+                        # New Save Button
+                        Button:
+                            text: 'Save Config'
+                            on_press: root.save_config()
+
+                        # New Load Button
+                        Button:
+                            text: 'Load Config'
+                            on_press: root.load_config()
 
     # Bottom section with tabbed panels for records
     TabbedPanel:
