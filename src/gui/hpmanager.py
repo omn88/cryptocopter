@@ -43,6 +43,7 @@ logger = logging.getLogger("HP_GUI")
 
 
 class HpManager(BoxLayout):
+    hp_list_data: List[Dict] = ListProperty([])
     active_records: List[Dict] = ListProperty([])
     idle_records: List[Dict] = ListProperty([])
     archive_records: List[Dict] = ListProperty([])

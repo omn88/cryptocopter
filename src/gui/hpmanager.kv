@@ -4,7 +4,7 @@
 
     TabbedPanel:
         do_default_tab: False
-        size_hint_y: 0.35  # Top section with tabbed panels
+        size_hint_y: 0.5  # Top section with tabbed panels
 
         # Buy Tab
         TabbedPanelItem:
@@ -204,12 +204,114 @@
                     height: '40dp'  # Reduced button height for compactness
                     on_release: root.set_sell_price(hp_id_input.text, sell_price_input.text)
 
+        TabbedPanelItem:
+            text: 'HP List'
 
+            BoxLayout:
+                orientation: 'vertical'
+                padding: [20, 20]
+                spacing: 10
+
+                # Header BoxLayout for the HP List
+                BoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: '40dp'
+                    height: '50dp'
+                    padding: [10, 10]
+                    spacing: 10
+                    spacing: 15
+
+                    Label:
+                        text: "ID"
+                        size_hint_x: 0.05  # Adjust width
+                        font_size: '16sp'  # Set font size
+                        size_hint_x: 0.05
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Asset"
+                        size_hint_x: 0.05
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Buy Price"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Quantity"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Quantity in USDT"
+                        size_hint_x: 0.15
+                        size_hint_x: 0.12
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Current Price"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Net"
+                        size_hint_x: 0.08
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Net Percent"
+                        size_hint_x: 0.08
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Sell Price"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Expected Return"
+                        size_hint_x: 0.1
+                        size_hint_x: 0.12
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "State"
+                        size_hint_x: 0.09
+                        size_hint_x: 0.08
+                        font_size: '16sp'
+                        bold: True
+
+                # RecycleView for displaying HP List items
+                RecycleView:
+                    id: hp_list
+                    viewclass: 'HPListItem'
+                    data: root.hp_list_data
+                    RecycleBoxLayout:
+                        default_size: None, dp(56)
+                        default_size: None, dp(50)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        height: self.minimum_height
+                        orientation: 'vertical'
+                        spacing: 10  # Space between list items
 
     # Bottom section with tabbed panels for records
     TabbedPanel:
         do_default_tab: False
-        size_hint_y: 0.65  # Allow this to take the remaining space
+        size_hint_y: 0.5  # Allow this to take the remaining space
 
         TabbedPanelItem:
             text: 'Active'
