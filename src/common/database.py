@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.common.identifiers.spot import Order
+from src.common.identifiers.spot import HPUpdate, Order
 from src.common.identifiers.spot import State, StrategyConfig
 
 logger = logging.getLogger("database")
@@ -62,6 +62,22 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(20) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# SQL for creating HP List table with the updated structure
+CREATE_HPLIST_TABLE = """
+CREATE TABLE IF NOT EXISTS hp_list (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
+    asset VARCHAR(20) NOT NULL,
+    buy_price FLOAT NOT NULL,
+    quantity FLOAT NOT NULL,
+    quantity_usdt FLOAT NOT NULL,
+    sell_price FLOAT NOT NULL,
+    expected_return FLOAT NOT NULL,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -166,6 +182,12 @@ class Database:
 
                 await conn.commit()
 
+    async def create_hp_list_table(self):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(CREATE_HPLIST_TABLE)
+                await conn.commit()
+
     async def drop_tables(self):
         assert self.pool is not None
         async with self.pool.acquire() as conn:
@@ -231,6 +253,28 @@ class Database:
                 )
                 await conn.commit()
 
+    async def insert_hp_list_record(self, record_data: HPUpdate):
+        insert_query = """
+        INSERT INTO hp_list (hp_id, asset, buy_price, quantity, quantity_usdt, sell_price, expected_return)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    insert_query,
+                    (
+                        str(record_data.hp_id),
+                        str(record_data.asset),
+                        str(record_data.buy_price),
+                        str(record_data.quantity),
+                        str(record_data.quantity_usdt),
+                        str(record_data.sell_price),
+                        str(record_data.expected_return),
+                    ),
+                )
+                await conn.commit()
+
     async def fetch_all_active_strategies(self) -> List[Dict]:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
@@ -252,6 +296,15 @@ class Database:
                 await cur.execute(query)
                 result = await cur.fetchall()
                 return result
+
+    async def fetch_hp_list(self) -> List[Dict]:
+        fetch_query = "SELECT * FROM hp_list"
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(fetch_query)
+                records = await cur.fetchall()
+                return list(records)
 
     async def fetch_orders_for_price_level(self, price_level_id: str) -> List[Dict]:
         assert self.pool is not None

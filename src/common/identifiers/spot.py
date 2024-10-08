@@ -225,6 +225,21 @@ class SubscriptionType(Enum):
     USER = auto()
 
 
+@dataclass
+class HPUpdate:
+    hp_id: int
+    asset: str
+    buy_price: float
+    quantity: float
+    quantity_usdt: float
+    sell_price: float = 0.0
+    expected_return: float = 0.0
+    current_price: float = 0.0  # Default value for fields that might not be present yet
+    net: float = 0.0
+    net_percent: float = 0.0
+    state: str = "NEW"
+
+
 class SubscriptionTarget(Enum):
     FRONTEND = auto()
     BACKEND = auto()

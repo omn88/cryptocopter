@@ -21,6 +21,7 @@ from src.common.identifiers.spot import (
     CsvConfig,
     Event,
     EventName,
+    HPUpdate,
     LoadConfig,
     PositionSetup,
     RemoveRecord,
@@ -215,8 +216,32 @@ class HpManager(BoxLayout):
                     logger.info("Received sentinel event, exiting")
                     return
 
-                if isinstance(data, AccountPosition):
-                    pass  # handle account update
+                if isinstance(data, HPUpdate):
+                    logger.info("Received HP Update: %s", data)
+
+                    hp_record = {
+                        "hp_manager": self,
+                        "hp_id": str(data.hp_id),
+                        "asset": str(data.asset),
+                        "buy_price": str(data.buy_price),
+                        "quantity": str(data.quantity),
+                        "quantity_usdt": str(data.quantity_usdt),
+                        "sell_price": str(data.sell_price),
+                        "expected_return": str(data.expected_return),
+                        "current_price": str(
+                            data.current_price
+                        ),  # Include current price
+                        "net": str(data.net),  # Include net value
+                        "net_percent": str(data.net_percent),  # Include net percentage
+                        "state": str(data.state),  # Include the state of the position
+                    }
+
+                    # Append the record to the hp_list_data
+                    self.hp_list_data.append(hp_record)
+                    # logger.info("Updated HP list data: %s", self.hp_list_data)
+
+                    # Refresh the RecycleView or ListView in the UI to reflect new data
+                    self.ids.hp_list.refresh_from_data()
 
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
@@ -292,6 +317,33 @@ class HpManager(BoxLayout):
                                     )
                                 )
                                 strategy["current_price"] = price
+
+                    for strategy in self.hp_list_data:
+                        assert isinstance(data.content, AllTickers)
+                        for ticker in data.content.msg:
+                            symbol = ticker.get("s")
+                            if symbol == f"{strategy['asset']}USDT":
+                                current_price = self.symbols_info[symbol].adjust_price(
+                                    price=float(ticker["c"])
+                                )
+
+                                net_percent = round(
+                                    100
+                                    * (
+                                        current_price / float(strategy["buy_price"]) - 1
+                                    ),
+                                    2,
+                                )
+                                net = round(
+                                    1
+                                    + (net_percent / 100)
+                                    * float(strategy["quantity_usdt"]),
+                                    2,
+                                )
+                                strategy["current_price"] = str(current_price)
+                                strategy["net"] = str(net)
+                                strategy["net_percent"] = str(net_percent)
+                                self.ids.hp_list.refresh_from_data()
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -301,6 +353,7 @@ class HpManager(BoxLayout):
             self.ids.active_records_list.refresh_from_data()
             self.ids.idle_records_list.refresh_from_data()
             self.ids.archive_records_list.refresh_from_data()
+            self.ids.hp_list.refresh_from_data()
             await asyncio.sleep(1)
 
     def add_new_position_to_idle(self, data: PositionData) -> None:

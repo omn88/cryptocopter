@@ -14,6 +14,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     CsvConfig,
+    HPUpdate,
     LoadConfig,
     PositionSetup,
     RemoveRecord,
@@ -75,6 +76,8 @@ class StrategyExecutor:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
         self.usdt_balance = await self.get_usdt_balance()
+
+        self.initialize_hp_list()
 
         self.initialize_positions_from_db()
 
@@ -329,3 +332,174 @@ class StrategyExecutor:
         except (BinanceAPIException, BinanceRequestException) as e:
             logger.error("Failed to retrieve USDT balance: %s", e)
             raise e
+
+    def generate_hp_id(self, hp_list_data: List[HPUpdate]) -> int:
+        """
+        Generate the next HP ID starting from 1000.
+        It checks the list of HP entries to find the highest existing ID.
+        """
+        if not hp_list_data:
+            return 1000  # Start from 1000 if no entries are present
+
+        # Extract all the existing HP IDs
+        hp_ids = [entry.hp_id for entry in hp_list_data]
+
+        # Get the highest HP ID and increment it
+        return max(hp_ids) + 1
+
+    def initialize_hp_list(self) -> None:
+        """
+        Initialize the HP list by fetching data from the database and populating the UI.
+        """
+
+        self.db.run_db_task(self.db.create_hp_list_table())
+
+        # Fetch existing records from the database
+        hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
+        if not hp_list_from_db:
+            logger.info("Creating new list.")
+            hp_list_data: List[HPUpdate] = []
+            hp_list_raw: List[Dict] = get_hp_list()
+
+            for item in hp_list_raw:
+                hp_update = HPUpdate(
+                    hp_id=self.generate_hp_id(hp_list_data=hp_list_data),
+                    asset=item["Asset"],
+                    buy_price=float(item["Price"]),
+                    quantity=float(item["Quantity"]),
+                    quantity_usdt=round(
+                        float(item["Price"]) * float(item["Quantity"]), 2
+                    ),
+                    sell_price=0,
+                    expected_return=0,
+                    state="NEW",
+                )
+                hp_list_data.append(hp_update)
+                self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
+        else:
+            logger.info("Reading list from the DB.")
+            hp_list_data = []
+            for item in hp_list_from_db:
+                hp_list_data.append(
+                    HPUpdate(
+                        hp_id=item["hp_id"],
+                        asset=item["asset"],
+                        buy_price=float(item["buy_price"]),
+                        quantity=float(item["quantity"]),
+                        quantity_usdt=float(item["quantity_usdt"]),
+                        sell_price=0,
+                        expected_return=0,
+                        state="",
+                    )
+                )
+
+        if hp_list_data:
+            self.logger.debug("HP list records found: %s", hp_list_data)
+            for record in hp_list_data:
+                self.ui_queue.put_nowait(record)
+            self.logger.info("All HPs send to UI.")
+        else:
+            self.logger.info("No records found in the HP list table.")
+
+
+def get_hp_list():
+    return [
+        {"Asset": "BTC", "Price": 64444.0, "Quantity": 0.427},
+        {"Asset": "BTC", "Price": 67940.0, "Quantity": 0.072},
+        {"Asset": "BTC", "Price": 55386.0, "Quantity": 0.03},
+        {"Asset": "ETH", "Price": 3935.0, "Quantity": 2.7},
+        {"Asset": "BNB", "Price": 325.0, "Quantity": 1.09},
+        {"Asset": "USDT", "Price": 1.0, "Quantity": 2500.0},
+        {"Asset": "PLN", "Price": 0.25, "Quantity": 0.0},
+        {"Asset": "W", "Price": 0.694, "Quantity": 3256.0},
+        {"Asset": "W", "Price": 0.572, "Quantity": 1748.0},
+        {"Asset": "W", "Price": 0.498, "Quantity": 903.0},
+        {"Asset": "W", "Price": 0.3051, "Quantity": 1210.0},
+        {"Asset": "W", "Price": 0.2325, "Quantity": 2150.0},
+        {"Asset": "PORTAL", "Price": 0.8187, "Quantity": 4885.7},
+        {"Asset": "PORTAL", "Price": 0.9014, "Quantity": 1109.3},
+        {"Asset": "PORTAL", "Price": 0.4058, "Quantity": 1400.0},
+        {"Asset": "PORTAL", "Price": 0.2949, "Quantity": 1694.0},
+        {"Asset": "XAI", "Price": 0.6355, "Quantity": 786.7},
+        {"Asset": "XAI", "Price": 0.7231, "Quantity": 3137.0},
+        {"Asset": "XAI", "Price": 0.3913, "Quantity": 2554.0},
+        {"Asset": "XAI", "Price": 0.3388, "Quantity": 1121.0},
+        {"Asset": "XAI", "Price": 0.192, "Quantity": 2470.0},
+        {"Asset": "XAI", "Price": 0.1813, "Quantity": 540.0},
+        {"Asset": "XAI", "Price": 0.202, "Quantity": 2466.0},
+        {"Asset": "1000SATS", "Price": 0.0002552, "Quantity": 7829153.0},
+        {"Asset": "1000SATS", "Price": 0.0002214, "Quantity": 4516711.0},
+        {"Asset": "1000SATS", "Price": 0.0001534, "Quantity": 3434152.0},
+        {"Asset": "LOKA", "Price": 0.261, "Quantity": 8892.3975},
+        {"Asset": "LOKA", "Price": 0.178, "Quantity": 1303.0},
+        {"Asset": "AEVO", "Price": 1.201, "Quantity": 1665.27},
+        {"Asset": "AEVO", "Price": 1.244, "Quantity": 1607.71},
+        {"Asset": "AEVO", "Price": 0.712, "Quantity": 2809.0},
+        {"Asset": "AEVO", "Price": 0.434, "Quantity": 2604.0},
+        {"Asset": "MAGIC", "Price": 0.6939, "Quantity": 3064.1},
+        {"Asset": "MAGIC", "Price": 0.5195, "Quantity": 718.0},
+        {"Asset": "JUP", "Price": 1.0401, "Quantity": 960.7},
+        {"Asset": "JUP", "Price": 1.2163, "Quantity": 1231.0},
+        {"Asset": "JUP", "Price": 0.7337, "Quantity": 846.0},
+        {"Asset": "JUP", "Price": 0.803, "Quantity": 621.0},
+        {"Asset": "HFT", "Price": 0.3019, "Quantity": 4086.0},
+        {"Asset": "HFT", "Price": 0.3128, "Quantity": 4786.0},
+        {"Asset": "HFT", "Price": 0.3131, "Quantity": 4786.0},
+        {"Asset": "HFT", "Price": 0.3134, "Quantity": 7156.0},
+        {"Asset": "HFT", "Price": 0.1965, "Quantity": 3300.0},
+        {"Asset": "HFT", "Price": 0.155, "Quantity": 6440.0},
+        {"Asset": "LQTY", "Price": 1.015, "Quantity": 492.6},
+        {"Asset": "LQTY", "Price": 0.844, "Quantity": 960.0},
+        {"Asset": "OMNI", "Price": 13.88, "Quantity": 72.0},
+        {"Asset": "OMNI", "Price": 12.96, "Quantity": 38.55},
+        {"Asset": "OMNI", "Price": 6.66, "Quantity": 30.0},
+        {"Asset": "NTRN", "Price": 0.647, "Quantity": 1157.0},
+        {"Asset": "NTRN", "Price": 0.4013, "Quantity": 1157.0},
+        {"Asset": "KDA", "Price": 0.851, "Quantity": 2857.0},
+        {"Asset": "KDA", "Price": 0.51, "Quantity": 1960.0},
+        {"Asset": "DYM", "Price": 1.977, "Quantity": 505.3},
+        {"Asset": "DYM", "Price": 1.4, "Quantity": 714.0},
+        {"Asset": "DYM", "Price": 1.38, "Quantity": 84.0},
+        {"Asset": "MANTA", "Price": 1.008, "Quantity": 992.0},
+        {"Asset": "MANTA", "Price": 0.881, "Quantity": 844.0},
+        {"Asset": "PYTH", "Price": 0.335, "Quantity": 3669.0},
+        {"Asset": "PYTH", "Price": 0.2627, "Quantity": 950.0},
+        {"Asset": "APE", "Price": 0.981, "Quantity": 1251.0},
+        {"Asset": "APE", "Price": 0.767, "Quantity": 944.0},
+        {"Asset": "AXL", "Price": 0.5842, "Quantity": 3157.0},
+        {"Asset": "AXL", "Price": 0.4625, "Quantity": 569.0},
+        {"Asset": "BLUR", "Price": 0.2104, "Quantity": 8771.0},
+        {"Asset": "BLUR", "Price": 0.1343, "Quantity": 1861.0},
+        {"Asset": "ENA", "Price": 0.564, "Quantity": 2180.0},
+        {"Asset": "ENA", "Price": 0.41, "Quantity": 1100.0},
+        {"Asset": "ENA", "Price": 0.248, "Quantity": 2016.0},
+        {"Asset": "ENA", "Price": 0.214, "Quantity": 210.0},
+        {"Asset": "STRK", "Price": 0.639, "Quantity": 1564.0},
+        {"Asset": "STRK", "Price": 0.375, "Quantity": 668.0},
+        {"Asset": "STRK", "Price": 0.341, "Quantity": 588.0},
+        {"Asset": "ACE", "Price": 2.292, "Quantity": 271.0},
+        {"Asset": "ACE", "Price": 2.17, "Quantity": 114.0},
+        {"Asset": "SAGA", "Price": 0.9205, "Quantity": 606.0},
+        {"Asset": "SAGA", "Price": 0.995, "Quantity": 250.0},
+        {"Asset": "SAGA", "Price": 1.2, "Quantity": 233.0},
+        {"Asset": "FIDA", "Price": 0.2373, "Quantity": 4214.0},
+        {"Asset": "FIDA", "Price": 0.206, "Quantity": 1628.0},
+        {"Asset": "BB", "Price": 0.3819, "Quantity": 3272.0},
+        {"Asset": "BB", "Price": 0.29, "Quantity": 859.0},
+        {"Asset": "BB", "Price": 0.26, "Quantity": 1680.0},
+        {"Asset": "WIF", "Price": 1.374, "Quantity": 397.0},
+        {"Asset": "AI", "Price": 0.433, "Quantity": 2308.0},
+        {"Asset": "AI", "Price": 0.375, "Quantity": 2666.0},
+        {"Asset": "BSW", "Price": 0.0499, "Quantity": 20040.0},
+        {"Asset": "DODO", "Price": 0.1096, "Quantity": 4562.0},
+        {"Asset": "ETHFI", "Price": 1.419, "Quantity": 704.0},
+        {"Asset": "ETHFI", "Price": 1.32, "Quantity": 90.0},
+        {"Asset": "ID", "Price": 0.3686, "Quantity": 1356.0},
+        {"Asset": "HBAR", "Price": 0.0522, "Quantity": 9578.0},
+        {"Asset": "AERGO", "Price": 0.0981, "Quantity": 5096.0},
+        {"Asset": "EDU", "Price": 0.633, "Quantity": 789.0},
+        {"Asset": "MINA", "Price": 0.4687, "Quantity": 2127.0},
+        {"Asset": "RARE", "Price": 0.1327, "Quantity": 7524.0},
+        {"Asset": "SYN", "Price": 0.4725, "Quantity": 2132.0},
+        {"Asset": "CRV", "Price": 0.3106, "Quantity": 6428.0},
+    ]
