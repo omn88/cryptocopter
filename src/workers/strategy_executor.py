@@ -170,6 +170,7 @@ class StrategyExecutor:
         )
 
         asyncio.create_task(trading_system.worker())
+        self.logger.info("System: %s initialized.", position_setup.config)
 
     async def remove_record(self, system_id: str) -> None:
         if system_id in self.id_to_system:

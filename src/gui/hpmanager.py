@@ -13,12 +13,9 @@ from kivy.properties import (
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
-    AccountPosition,
     AllTickers,
-    CsvConfig,
     Event,
     EventName,
     HPUpdate,
