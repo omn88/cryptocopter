@@ -327,81 +327,91 @@
                                 size_hint_y: None
                                 height: max(self.minimum_height, self.parent.height)
 
-        # Sell Tab
+        # The Sell tab layout
         TabbedPanelItem:
             text: 'Sell'
             id: hp_sell_tab
             BoxLayout:
                 orientation: 'vertical'
-                height: '150dp'  # Similar height configuration to the Buy tab
+                height: '150dp'
 
-                BoxLayout:  # Main horizontal layout for configuration and buttons
+                BoxLayout:
                     orientation: 'horizontal'
-                    size_hint_y: 0.35  # Top section, same size as Buy
+                    size_hint_y: 0.35
 
-                    BoxLayout:  # HP ID input and info display
+                    BoxLayout:  # HP ID, quantity, asset, buy price display
                         orientation: 'vertical'
                         size_hint_x: 1
                         padding: [16, 0, 0, 0]
 
-                        BoxLayout:  # First line: HP ID and quantity display
+                        BoxLayout:
                             orientation: 'horizontal'
                             size_hint_y: 0.25
                             height: '50dp'
                             spacing: 5
                             Label:
-                                text: 'HP ID: '
+                                text: 'HP ID:'
                                 size_hint_x: 0.2
                             TextInput:
                                 id: hp_id_input
-                                hint_text: 'Enter HP ID'
                                 multiline: False
                                 size_hint_x: 0.4
-                                on_text_validate: root.fetch_hp_info(self.text)  # Fetch HP info based on HP ID
                             Label:
-                                text: 'Quantity: '
+                                text: 'Quantity:'
                                 size_hint_x: 0.15
                             Label:
                                 id: quantity_label
                                 text: '---'
                                 size_hint_x: 0.25
 
-                        BoxLayout:  # Second line: Asset display and Sell Price input
+                        BoxLayout:
                             orientation: 'horizontal'
                             size_hint_y: 0.25
                             height: '50dp'
                             spacing: 5
                             Label:
-                                text: 'Asset: '
+                                text: 'Asset:'
                                 size_hint_x: 0.2
                             Label:
                                 id: asset_label
                                 text: '---'
                                 size_hint_x: 0.4
                             Label:
-                                text: 'Sell Price: '
+                                text: 'Buy Price:'
                                 size_hint_x: 0.15
-                            TextInput:
-                                id: sell_price_input
-                                hint_text: 'Enter sell price'
-                                multiline: False
+                            Label:
+                                id: buy_price_label
+                                text: '---'
                                 size_hint_x: 0.25
-                                on_text_validate: root.calculate_expected_gain(self.text)  # Calculate expected gain
 
-                        BoxLayout:  # Third line: Expected Gain and Gain %
+                        BoxLayout:
                             orientation: 'horizontal'
                             size_hint_y: 0.25
                             height: '50dp'
                             spacing: 5
                             Label:
-                                text: 'Expected Gain: '
+                                text: 'Sell Price:'
+                                size_hint_x: 0.2
+                            TextInput:
+                                id: sell_price_input
+                                multiline: False
+                                size_hint_x: 0.4
+                                on_text_validate: root.calculate_expected_gain(self.text)
+
+                        BoxLayout:
+                            orientation: 'horizontal'
+                            size_hint_y: 0.25
+                            height: '50dp'
+                            spacing: 5
+                            Label:
+                                text: 'Expected Gain:'
                                 size_hint_x: 0.2
                             Label:
                                 id: expected_gain_label
                                 text: '---'
                                 size_hint_x: 0.4
                             Label:
-                                text: 'Expected Gain %: '
+                                text: 'Expected Gain %:'
                                 size_hint_x: 0.2
                             Label:
                                 id: expected_gain_percent_label
@@ -413,6 +423,7 @@
                             size_hint_y: 0.25
                             height: '40dp'
                             on_release: root.set_sell_price(hp_id_input.text, sell_price_input.text)
+
 
                 # Bottom section with tabbed panels for records
                 TabbedPanel:

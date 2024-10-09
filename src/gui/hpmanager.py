@@ -203,7 +203,7 @@ class HpManager(BoxLayout):
         self.config_queue.put(LoadConfig(file_name=file_name))
         logger.info("Loading configuration request for %s sent to backend.", file_name)
 
-    def sell_hp(self, hp_id, asset, quantity):
+    def sell_hp(self, hp_id, asset, quantity, buy_price):
         """
         Moves to the Sell tab and fills the HP data (HP ID, asset, quantity).
 
@@ -221,6 +221,7 @@ class HpManager(BoxLayout):
         self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
         self.ids.asset_label.text = str(asset)  # Set the asset label
         self.ids.quantity_label.text = str(quantity)  # Set the quantity label
+        self.ids.buy_price_label.text = str(buy_price)  # Set the buy price label
 
         # Clear or reset the sell price field
         self.ids.sell_price_input.text = ""  # Optional: Clear any previous sell price
@@ -229,8 +230,42 @@ class HpManager(BoxLayout):
         self.ids.sell_price_input.focus = True
 
         logger.info(
-            f"Moved to 'Sell' tab for HP ID: {hp_id}, Asset: {asset}, Quantity: {quantity}"
+            "Moved to 'Sell' tab for HP ID: %s, Asset: %s, Quantity: %s",
+            hp_id,
+            asset,
+            quantity,
         )
+
+    def calculate_expected_gain(self, sell_price):
+        """
+        Calculate the expected gain and gain percentage based on the sell price.
+
+        Args:
+        - sell_price: The entered sell price.
+        """
+        try:
+            # Get the necessary inputs from the UI
+            buy_price = float(
+                self.ids.buy_price_label.text
+            )  # The buy price from the Sell tab
+            quantity = float(self.ids.quantity_label.text)  # The quantity to sell
+            sell_price = float(sell_price)  # The entered sell price
+
+            # Calculate expected gain in USDT
+            expected_gain = (sell_price - buy_price) * quantity
+
+            # Calculate expected gain percentage
+            gain_percent = ((sell_price - buy_price) / buy_price) * 100
+
+            # Update the labels in the UI
+            self.ids.expected_gain_label.text = f"{expected_gain:.2f} USDT"
+            self.ids.expected_gain_percent_label.text = f"{gain_percent:.2f} %"
+
+        except ValueError:
+            # Handle potential conversion errors (e.g., if the inputs are not valid floats)
+            logger.error("Error in calculating expected gain. Invalid input detected.")
+            self.ids.expected_gain_label.text = "---"
+            self.ids.expected_gain_percent_label.text = "---"
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
