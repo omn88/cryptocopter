@@ -221,6 +221,7 @@ class HpManager(BoxLayout):
         self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
         self.ids.asset_label.text = str(asset)  # Set the asset label
         self.ids.quantity_label.text = str(quantity)  # Set the quantity label
+        self.ids.quantity_usdt_label.text = str(round(float(quantity) * float(buy_price), 2))  # Set the quantity label
         self.ids.buy_price_label.text = str(buy_price)  # Set the buy price label
 
         # Clear or reset the sell price field
@@ -243,25 +244,23 @@ class HpManager(BoxLayout):
         Args:
         - sell_price: The entered sell price.
         """
-
-        logger.info("Entered calculate expected gain")
         try:
-            # Get the necessary inputs from the UI
-            buy_price = float(
-                self.ids.buy_price_label.text
-            )  # The buy price from the Sell tab
-            quantity = float(self.ids.quantity_label.text)  # The quantity to sell
-            sell_price = float(sell_price)  # The entered sell price
+            sell_price_float = float(sell_price)
+            quantity_float = float(self.ids.quantity_label.text)
+            quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
+            buy_price_float = float(self.ids.buy_price_label.text)
 
-            # Calculate expected gain in USDT
-            expected_gain = (sell_price - buy_price) * quantity
+            # Total USDT value calculation
+            total_usdt_value = sell_price_float * quantity_float
 
-            # Calculate expected gain percentage
-            gain_percent = ((sell_price - buy_price) / buy_price) * 100
+            # Expected gain calculations
+            expected_gain_usdt = total_usdt_value - quantity_usdt_float
+            expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
 
-            # Update the labels in the UI
-            self.ids.expected_gain_label.text = f"{expected_gain:.2f} USDT"
-            self.ids.expected_gain_percent_label.text = f"{gain_percent:.2f} %"
+            # Update labels
+            self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
+            self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
+            self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
 
         except ValueError:
             # Handle potential conversion errors (e.g., if the inputs are not valid floats)

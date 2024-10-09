@@ -344,26 +344,34 @@
                         size_hint_x: 1
                         padding: [16, 0, 0, 0]
 
-                        BoxLayout:
+                        BoxLayout:  # First line: HP ID and quantity display
                             orientation: 'horizontal'
                             size_hint_y: 0.25
                             height: '50dp'
                             spacing: 5
                             Label:
-                                text: 'HP ID:'
+                                text: 'HP ID: '
                                 size_hint_x: 0.2
                             TextInput:
                                 id: hp_id_input
+                                hint_text: 'Enter HP ID'
                                 multiline: False
                                 size_hint_x: 0.4
+                                on_text_validate: root.fetch_hp_info(self.text)
                             Label:
-                                text: 'Quantity:'
+                                text: 'Quantity: '
                                 size_hint_x: 0.15
                             Label:
                                 id: quantity_label
                                 text: '---'
-                                size_hint_x: 0.25
-
+                                size_hint_x: 0.15  # Adjusted for space
+                            Label:
+                                text: 'Quantity in USDT: '
+                                size_hint_x: 0.15
+                            Label:
+                                id: quantity_usdt_label
+                                text: '---'
+                                size_hint_x: 0.15
                         BoxLayout:
                             orientation: 'horizontal'
                             size_hint_y: 0.25
@@ -398,25 +406,33 @@
                                 size_hint_x: 0.4
                                 on_text: root.calculate_expected_gain(self.text)
 
-                        BoxLayout:
+                        # Add total USDT value to Expected Gain section
+                        BoxLayout:  # Third line: Expected Gain and Gain %
                             orientation: 'horizontal'
                             size_hint_y: 0.25
                             height: '50dp'
                             spacing: 5
                             Label:
-                                text: 'Expected Gain:'
+                                text: 'Expected Gain: '
                                 size_hint_x: 0.2
                             Label:
                                 id: expected_gain_label
                                 text: '---'
-                                size_hint_x: 0.4
+                                size_hint_x: 0.2
                             Label:
-                                text: 'Expected Gain %:'
+                                text: 'Expected Gain %: '
                                 size_hint_x: 0.2
                             Label:
                                 id: expected_gain_percent_label
                                 text: '---'
-                                size_hint_x: 0.25
+                                size_hint_x: 0.2
+                            Label:
+                                text: 'Total USDT Value: '
+                                size_hint_x: 0.2
+                            Label:
+                                id: total_usdt_value_label
+                                text: '---'
+                                size_hint_x: 0.2
 
                         Button:
                             text: 'Set Sell Price'
