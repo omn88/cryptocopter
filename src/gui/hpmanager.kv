@@ -396,7 +396,7 @@
                                 id: sell_price_input
                                 multiline: False
                                 size_hint_x: 0.4
-                                on_text_validate: root.calculate_expected_gain(self.text)
+                                on_text: root.calculate_expected_gain(self.text)
 
                         BoxLayout:
                             orientation: 'horizontal'

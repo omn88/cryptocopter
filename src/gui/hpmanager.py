@@ -243,6 +243,8 @@ class HpManager(BoxLayout):
         Args:
         - sell_price: The entered sell price.
         """
+
+        logger.info("Entered calculate expected gain")
         try:
             # Get the necessary inputs from the UI
             buy_price = float(
