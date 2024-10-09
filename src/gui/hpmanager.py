@@ -203,6 +203,35 @@ class HpManager(BoxLayout):
         self.config_queue.put(LoadConfig(file_name=file_name))
         logger.info("Loading configuration request for %s sent to backend.", file_name)
 
+    def sell_hp(self, hp_id, asset, quantity):
+        """
+        Moves to the Sell tab and fills the HP data (HP ID, asset, quantity).
+
+        Args:
+        - hp_id: The ID of the HP to sell.
+        - asset: The asset involved in the HP.
+        - quantity: The amount of the asset to sell.
+        """
+        # Move to the "Sell" tab
+        self.ids.hp_tabbed_panel.switch_to(
+            self.ids.hp_sell_tab
+        )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
+
+        # Populate the fields in the Sell tab
+        self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
+        self.ids.asset_label.text = str(asset)  # Set the asset label
+        self.ids.quantity_label.text = str(quantity)  # Set the quantity label
+
+        # Clear or reset the sell price field
+        self.ids.sell_price_input.text = ""  # Optional: Clear any previous sell price
+
+        # Optional: If you want to set focus on the sell price input field
+        self.ids.sell_price_input.focus = True
+
+        logger.info(
+            f"Moved to 'Sell' tab for HP ID: {hp_id}, Asset: {asset}, Quantity: {quantity}"
+        )
+
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
         while True:
@@ -347,9 +376,12 @@ class HpManager(BoxLayout):
     async def refresh_ui(self):
         while True:
             # Reassign the data to trigger the UI update
-            self.ids.active_records_list.refresh_from_data()
-            self.ids.idle_records_list.refresh_from_data()
-            self.ids.archive_records_list.refresh_from_data()
+            self.ids.buy_active_records_list.refresh_from_data()
+            self.ids.sell_active_records_list.refresh_from_data()
+            self.ids.buy_idle_records_list.refresh_from_data()
+            self.ids.sell_idle_records_list.refresh_from_data()
+            self.ids.buy_archive_records_list.refresh_from_data()
+            self.ids.sell_archive_records_list.refresh_from_data()
             self.ids.hp_list.refresh_from_data()
             await asyncio.sleep(1)
 
@@ -634,6 +666,9 @@ class HpManager(BoxLayout):
                 if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
 
-        self.ids.active_records_list.refresh_from_data()
-        self.ids.idle_records_list.refresh_from_data()
-        self.ids.archive_records_list.refresh_from_data()
+        self.ids.buy_active_records_list.refresh_from_data()
+        self.ids.sell_active_records_list.refresh_from_data()
+        self.ids.buy_idle_records_list.refresh_from_data()
+        self.ids.sell_idle_records_list.refresh_from_data()
+        self.ids.buy_archive_records_list.refresh_from_data()
+        self.ids.sell_archive_records_list.refresh_from_data()

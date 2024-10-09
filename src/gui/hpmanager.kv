@@ -4,11 +4,13 @@
 
     TabbedPanel:
         do_default_tab: False
+        id: hp_tabbed_panel
         size_hint_y: 0.5  # Top section with tabbed panels
 
         # Buy Tab
         TabbedPanelItem:
             text: 'Buy'
+            id: hp_buy_tab
             BoxLayout:
                 orientation: 'vertical'
                 height: '150dp'  # Height for configuration controls
@@ -178,7 +180,7 @@
                                     text: ''
                                     size_hint_x: 0.1
                             RecycleView:
-                                id: active_records_list
+                                id: buy_active_records_list
                                 data: root.filtered_active_records
                                 viewclass: 'RecordListItemActive'
                                 RecycleBoxLayout:
@@ -239,7 +241,7 @@
                                     text: ''
                                     size_hint_x: 0.1  # Space for the button
                             RecycleView:
-                                id: idle_records_list
+                                id: buy_idle_records_list
                                 data: root.filtered_idle_records
                                 viewclass: 'RecordListItemIdle'
                                 RecycleBoxLayout:
@@ -297,7 +299,7 @@
                                     text: 'Completeness'
                                     size_hint_x: 0.1
                             RecycleView:
-                                id: archive_records_list
+                                id: buy_archive_records_list
                                 data: root.filtered_archive_records
                                 viewclass: 'RecordListItemArchive'
                                 RecycleBoxLayout:
@@ -317,17 +319,18 @@
                                 id: log_display
                                 on_parent: root.log_display = self
                                 font_size: '14sp'
-                                background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
-                                foreground_color: (1, 1, 1, 1)  # White text
-                                padding: 10  # Padding inside TextInput
+                                background_color: (0.2, 0.2, 0.2, 1)
+                                foreground_color: (1, 1, 1, 1)
+                                padding: 10
                                 readonly: True
                                 multiline: True
-                                size_hint_y: None  # Allow the height to adjust dynamically
-                                height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
+                                size_hint_y: None
+                                height: max(self.minimum_height, self.parent.height)
 
         # Sell Tab
         TabbedPanelItem:
             text: 'Sell'
+            id: hp_sell_tab
             BoxLayout:
                 orientation: 'vertical'
                 height: '150dp'  # Similar height configuration to the Buy tab
@@ -470,7 +473,7 @@
                                     text: ''
                                     size_hint_x: 0.1
                             RecycleView:
-                                id: active_records_list
+                                id: sell_active_records_list
                                 data: root.filtered_active_records
                                 viewclass: 'RecordListItemActive'
                                 RecycleBoxLayout:
@@ -531,7 +534,7 @@
                                     text: ''
                                     size_hint_x: 0.1  # Space for the button
                             RecycleView:
-                                id: idle_records_list
+                                id: sell_idle_records_list
                                 data: root.filtered_idle_records
                                 viewclass: 'RecordListItemIdle'
                                 RecycleBoxLayout:
@@ -589,7 +592,7 @@
                                     text: 'Completeness'
                                     size_hint_x: 0.1
                             RecycleView:
-                                id: archive_records_list
+                                id: sell_archive_records_list
                                 data: root.filtered_archive_records
                                 viewclass: 'RecordListItemArchive'
                                 RecycleBoxLayout:
@@ -599,23 +602,6 @@
                                     height: self.minimum_height  # This makes the layout as tall as its contents
                                     orientation: 'vertical'
 
-                    TabbedPanelItem:
-                        text: 'Logs'
-                        ScrollView:
-                            scroll_type: ['bars', 'content']
-                            bar_width: 10
-                            effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
-                            TextInput:
-                                id: log_display
-                                on_parent: root.log_display = self
-                                font_size: '14sp'
-                                background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
-                                foreground_color: (1, 1, 1, 1)  # White text
-                                padding: 10  # Padding inside TextInput
-                                readonly: True
-                                multiline: True
-                                size_hint_y: None  # Allow the height to adjust dynamically
-                                height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
 
         TabbedPanelItem:
             text: 'HP List'
