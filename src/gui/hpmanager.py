@@ -109,7 +109,7 @@ class HpManager(BoxLayout):
             symbols.add(record.get("symbol", ""))
         self.ids.archive_filter_input.values = sorted(list(symbols))
 
-    def validate_inputs(self) -> bool:
+    def validate_buy_inputs(self) -> bool:
         symbol = self.symbol_input.selected_value
         price_low = self.symbol_input.price_low_input.text
         price_high = self.symbol_input.price_high_input.text
@@ -131,12 +131,12 @@ class HpManager(BoxLayout):
         if price_low > price_high:
             validation_message += "Price low is bigger than price high. "
 
-        self.ids.validation_label.text = validation_message
+        self.ids.buy_validation_label.text = validation_message
 
         return not validation_message
 
     def trigger_add_record(self, *args) -> None:
-        if not self.validate_inputs():
+        if not self.validate_buy_inputs():
             return
 
         config = HPStrategyConfig(
@@ -167,6 +167,27 @@ class HpManager(BoxLayout):
         )
 
         self.filter_records(tab="idle", symbol_filter="All")
+
+    def validate_sell_inputs(self) -> bool:
+        hp_id = self.ids.hp_id_input.text
+        sell_price = self.ids.sell_price_input.text
+        total_usdt = self.ids.total_usdt_value_label.text
+
+        validation_message = ""
+        if not hp_id:
+            validation_message += "HP ID is required. "
+        if not sell_price:
+            validation_message += "Sell price is required. "
+        if not total_usdt:
+            validation_message += "Total USDT price is required. "
+
+        self.ids.sell_validation_label.text = validation_message
+
+        return not validation_message
+
+    def set_sell_price(self, *args) -> None:
+        if not self.validate_sell_inputs():
+            return
 
     def trigger_remove_record(
         self,
@@ -313,7 +334,7 @@ class HpManager(BoxLayout):
             self.ids.sell_price_input.text = ""  # Optional: Clear any sell price input
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
-            self.ids.total_usdt_value_label.text = "---"
+            self.ids.total_usdt_value_label.text = ""
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
