@@ -113,7 +113,6 @@ class HpManager(BoxLayout):
         symbol = self.symbol_input.selected_value
         price_low = self.symbol_input.price_low_input.text
         price_high = self.symbol_input.price_high_input.text
-        side = self.ids.side_input.text
         budget = self.ids.budget_input.text
         order_trigger = self.ids.order_trigger_input.text
         mode = self.ids.mode_input.text
@@ -123,8 +122,6 @@ class HpManager(BoxLayout):
             validation_message += "Symbol is required. "
         if not price_low or not price_high:
             validation_message += "Price range is required. "
-        if not side or side == "SIDE":
-            validation_message += "Side is required. "
         if not budget:
             validation_message += "Budget is required. "
         if not order_trigger:
@@ -147,9 +144,7 @@ class HpManager(BoxLayout):
             open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             system_id=str(uuid.uuid4()),
             symbol_info=self.symbols_info[self.symbol_input.selected_value],
-            side=PositionSide.LONG
-            if self.ids.side_input.text == PositionSide.LONG.value
-            else PositionSide.SHORT,
+            side=PositionSide.LONG,
             price_low=float(self.symbol_input.price_low_input.text),
             price_high=float(self.symbol_input.price_high_input.text),
             budget=float(self.ids.budget_input.text),

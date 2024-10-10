@@ -34,12 +34,6 @@
                                 id: symbol_container  # Placeholder for the SearchableDropDown
                                 size_hint_x: 0.6
                                 size_hint_y: 0.7  # Ensure this aligns with other elements
-                            Spinner:
-                                id: side_input
-                                values: ['BUY', 'SELL']
-                                text: 'SIDE'
-                                size_hint_x: 0.15
-                                size_hint_y: 0.9  # Full height within the line
                             Label:
                                 text: 'budget: '
                                 size_hint_x: 0.05
@@ -52,7 +46,7 @@
                                 size_hint_x: 0.15
                                 size_hint_y: 0.6  # Full height within the line
                             BoxLayout:
-                                size_hint_x: 0.05
+                                size_hint_x: 0.2
 
                         BoxLayout:  # Third line: Advanced trading options
                             orientation: 'horizontal'
