@@ -143,7 +143,7 @@ class HpManager(BoxLayout):
             return
 
         config = HPStrategyConfig(
-            hp_id=None,
+            hp_id=self.ids.hp_id_input.text,
             open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             system_id=str(uuid.uuid4()),
             symbol_info=self.symbols_info[self.symbol_input.selected_value],
@@ -271,6 +271,30 @@ class HpManager(BoxLayout):
             logger.error("Error in calculating expected gain. Invalid input detected.")
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
+
+    def fetch_hp_info(self, hp_id):
+        for item in self.hp_list_data:
+            if int(item["hp_id"]) == int(hp_id):
+                # Populate the fields in the Sell tab
+                self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
+                self.ids.asset_label.text = item["asset"]  # Set the asset label
+                self.ids.quantity_label.text = item[
+                    "quantity"
+                ]  # Set the quantity label
+                self.ids.quantity_usdt_label.text = str(
+                    round(float(item["quantity"]) * float(item["buy_price"]), 2)
+                )  # Set the quantity label
+                self.ids.buy_price_label.text = item[
+                    "buy_price"
+                ]  # Set the buy price label
+
+                # Clear or reset the sell price field
+                self.ids.sell_price_input.text = (
+                    ""  # Optional: Clear any previous sell price
+                )
+
+                # Optional: If you want to set focus on the sell price input field
+                self.ids.sell_price_input.focus = True
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")

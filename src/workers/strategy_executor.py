@@ -121,8 +121,8 @@ class StrategyExecutor:
         ]
         if position_setup.config.system_id is None:
             position_setup.config.system_id = str(uuid.uuid4())
-        if position_setup.config.hp_id is None:
-            self.generate_hp_id()
+        if not position_setup.config.hp_id:
+            position_setup.config.hp_id = self.generate_hp_id()
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()

@@ -454,7 +454,6 @@ class HpManager:
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price()
-            and self.balance > remaining_quant
         )
         if condition:
             self.logger.info(
@@ -683,7 +682,6 @@ class HpManager:
         self.logger.info(
             "Opening %s %s", self.config.symbol_info.symbol, self.config.side.value
         )
-        self.balance -= self.config.budget
 
         await self.position_handler.open_position(
             side=self.config.side,

@@ -354,10 +354,11 @@
                                 size_hint_x: 0.2
                             TextInput:
                                 id: hp_id_input
+                                default: 0
                                 hint_text: 'Enter HP ID'
                                 multiline: False
                                 size_hint_x: 0.4
-                                on_text_validate: root.fetch_hp_info(self.text)
+                                on_text: root.fetch_hp_info(self.text)
                             Label:
                                 text: 'Quantity: '
                                 size_hint_x: 0.15
@@ -628,7 +629,6 @@
                                     size_hint_y: None
                                     height: self.minimum_height  # This makes the layout as tall as its contents
                                     orientation: 'vertical'
-
 
         TabbedPanelItem:
             text: 'HP List'
