@@ -273,28 +273,52 @@ class HpManager(BoxLayout):
             self.ids.expected_gain_percent_label.text = "---"
 
     def fetch_hp_info(self, hp_id):
-        for item in self.hp_list_data:
-            if int(item["hp_id"]) == int(hp_id):
-                # Populate the fields in the Sell tab
-                self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
-                self.ids.asset_label.text = item["asset"]  # Set the asset label
-                self.ids.quantity_label.text = item[
-                    "quantity"
-                ]  # Set the quantity label
-                self.ids.quantity_usdt_label.text = str(
-                    round(float(item["quantity"]) * float(item["buy_price"]), 2)
-                )  # Set the quantity label
-                self.ids.buy_price_label.text = item[
-                    "buy_price"
-                ]  # Set the buy price label
+        """
+        Fetches and populates the HP information into the Sell tab based on the provided hp_id.
+        If hp_id is not found, resets all fields to '---'.
 
-                # Clear or reset the sell price field
-                self.ids.sell_price_input.text = (
-                    ""  # Optional: Clear any previous sell price
-                )
+        Args:
+        - hp_id: The HP ID entered by the user.
+        """
+        try:
+            # Try to find the matching HP record in hp_list_data
+            for item in self.hp_list_data:
+                if int(item["hp_id"]) == int(hp_id):
+                    # Populate the fields in the Sell tab
+                    self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
+                    self.ids.asset_label.text = item["asset"]  # Set the asset label
+                    self.ids.quantity_label.text = item[
+                        "quantity"
+                    ]  # Set the quantity label
+                    self.ids.quantity_usdt_label.text = str(
+                        round(float(item["quantity"]) * float(item["buy_price"]), 2)
+                    )  # Set the quantity in USDT based on quantity and buy price
+                    self.ids.buy_price_label.text = item[
+                        "buy_price"
+                    ]  # Set the buy price label
 
-                # Optional: If you want to set focus on the sell price input field
-                self.ids.sell_price_input.focus = True
+                    # Clear or reset the sell price field
+                    self.ids.sell_price_input.text = ""  # Clear any previous sell price
+
+                    # Optional: Set focus on the sell price input field
+                    self.ids.sell_price_input.focus = True
+
+                    return  # Exit the method after successfully populating the data
+
+            # If hp_id is not found in hp_list_data, raise ValueError to reset fields
+            raise ValueError("HP ID not found")
+
+        except ValueError:
+            # Reset all fields to '---' if HP ID is not found or any error occurs
+            logger.error(f"HP ID {hp_id} not found in hp_list_data, resetting fields.")
+            self.ids.asset_label.text = "---"
+            self.ids.quantity_label.text = "---"
+            self.ids.quantity_usdt_label.text = "---"
+            self.ids.buy_price_label.text = "---"
+            self.ids.sell_price_input.text = ""  # Optional: Clear any sell price input
+            self.ids.expected_gain_label.text = "---"
+            self.ids.expected_gain_percent_label.text = "---"
+            self.ids.total_usdt_value_label.text = "---"
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
