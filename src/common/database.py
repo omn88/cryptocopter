@@ -8,7 +8,7 @@ import uuid
 import aiomysql
 
 from src.common.identifiers.spot import HPUpdate, Order
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.spot import State, HPStrategyConfig
 
 logger = logging.getLogger("database")
 
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     price_level_id CHAR(36) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
@@ -232,13 +233,14 @@ class Database:
                 )
                 await conn.commit()
 
-    async def insert_price_level(self, config: StrategyConfig, state: State) -> None:
+    async def insert_price_level(self, config: HPStrategyConfig, state: State) -> None:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (open_time, price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (open_time, hp_id, price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
+                        config.hp_id,
                         config.open_time,
                         config.system_id,
                         config.symbol_info.symbol,
@@ -319,7 +321,7 @@ class Database:
 
     async def update_price_level(
         self,
-        config: StrategyConfig,
+        config: HPStrategyConfig,
         state: State,
         stagnation_counter: int,
         next_monitor_time: str,
@@ -336,13 +338,14 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    open_time, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    open_time, hp_id, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                 """
                 await cur.execute(
                     insert_query,
                     (
                         config.open_time,
+                        config.hp_id,
                         config.system_id,
                         config.symbol_info.symbol,
                         config.side.value,

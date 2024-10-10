@@ -199,7 +199,8 @@ class Event(NamedTuple):
 
 
 @dataclass
-class StrategyConfig:
+class HPStrategyConfig:
+    hp_id: Optional[int]
     symbol_info: SymbolInfo = SymbolInfo()
     system_id: str = ""
     side: PositionSide = PositionSide.FLAT
@@ -214,7 +215,7 @@ class StrategyConfig:
 
     def __str__(self):
         return (
-            f"StrategyConfig(system_id={self.system_id}, symbol_info={self.symbol_info}, side={self.side}, "
+            f"HPStrategyConfig(hp_id={self.hp_id}, system_id={self.system_id}, symbol_info={self.symbol_info}, side={self.side}, "
             f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
             f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time}, close_time={self.close_time})"
         )
@@ -263,7 +264,7 @@ class StateInfo(NamedTuple):
 
 
 class PositionSetup(NamedTuple):
-    config: StrategyConfig
+    config: HPStrategyConfig
     state_info: StateInfo
 
     def __str__(self):

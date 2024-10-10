@@ -21,7 +21,7 @@ from src.common.identifiers.spot import (
     SignalUpdate,
     State,
     StateInfo,
-    StrategyConfig,
+    HPStrategyConfig,
     TickerUpdate,
     Order,
 )
@@ -39,7 +39,7 @@ class HpManager:
     def __init__(
         self,
         client: BinanceClient,
-        config: StrategyConfig,
+        config: HPStrategyConfig,
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
@@ -434,16 +434,15 @@ class HpManager:
             and self.config.side == PositionSide.SHORT
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price()
-            and self.balance > self.config.budget
         )
         if condition:
             self.logger.info(
-                "[Send sell orders] %s, side: %s, state: %s, budget: %s, balance: %s",
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.config.hp_id,
                 self.config.symbol_info.symbol,
                 self.config.side,
                 self.state,
                 self.config.budget,
-                self.balance,
             )
 
         return condition

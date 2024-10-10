@@ -19,7 +19,7 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     TickerUpdate,
-    StrategyConfig,
+    HPStrategyConfig,
 )
 
 logger = logging.getLogger("trading_system")
@@ -31,7 +31,7 @@ class TradingSystem:
         client: BinanceClient,
         ui_queue: queue.Queue,
         core_queue: queue.Queue,
-        config: StrategyConfig,
+        config: HPStrategyConfig,
         strategy_logger: StrategyLogger,
         db: Database,
     ):

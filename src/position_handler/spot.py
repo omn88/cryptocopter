@@ -10,7 +10,7 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     State,
     StateInfo,
-    StrategyConfig,
+    HPStrategyConfig,
     Order,
 )
 from src.common.symbol_info import SymbolInfo
@@ -26,7 +26,7 @@ class PositionHandler:
         self,
         client: BinanceClient,
         strategy_logger: StrategyLogger,
-        config: StrategyConfig,
+        config: HPStrategyConfig,
         ui_queue: queue.Queue,
         db: Database,
         last_state: Optional[State] = None,

@@ -14,6 +14,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     CsvConfig,
+    HPStrategyConfig,
     HPUpdate,
     LoadConfig,
     PositionSetup,
@@ -21,7 +22,6 @@ from src.common.identifiers.spot import (
     SaveConfig,
     State,
     StateInfo,
-    StrategyConfig,
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
@@ -58,6 +58,7 @@ class StrategyExecutor:
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
         self.usdt_balance = 0.0
+        self.hp_list_data: List[HPUpdate] = []
 
         self.loop = None
         self.stop_event = threading.Event()
@@ -120,6 +121,8 @@ class StrategyExecutor:
         ]
         if position_setup.config.system_id is None:
             position_setup.config.system_id = str(uuid.uuid4())
+        if position_setup.config.hp_id is None:
+            self.generate_hp_id()
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
@@ -193,7 +196,8 @@ class StrategyExecutor:
         for price_level in active_price_levels:
             self.config_queue.put_nowait(
                 PositionSetup(
-                    config=StrategyConfig(
+                    config=HPStrategyConfig(
+                        hp_id=price_level.get("hp_id"),
                         open_time=price_level.get("open_time"),
                         system_id=price_level.get("price_level_id"),
                         symbol_info=self.symbols_info[price_level["symbol"]],
@@ -265,7 +269,8 @@ class StrategyExecutor:
                 config_data = list(reader)
                 for cd in config_data:
                     # Prepare the PositionSetup and put it in the queue
-                    config = StrategyConfig(
+                    config = HPStrategyConfig(
+                        hp_id=self.generate_hp_id(),
                         open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         symbol_info=SymbolInfo(symbol=cd[0]),
                         system_id=str(uuid.uuid4()),
@@ -334,16 +339,16 @@ class StrategyExecutor:
             logger.error("Failed to retrieve USDT balance: %s", e)
             raise e
 
-    def generate_hp_id(self, hp_list_data: List[HPUpdate]) -> int:
+    def generate_hp_id(self) -> int:
         """
         Generate the next HP ID starting from 1000.
         It checks the list of HP entries to find the highest existing ID.
         """
-        if not hp_list_data:
+        if not self.hp_list_data:
             return 1000  # Start from 1000 if no entries are present
 
         # Extract all the existing HP IDs
-        hp_ids = [entry.hp_id for entry in hp_list_data]
+        hp_ids = [entry.hp_id for entry in self.hp_list_data]
 
         # Get the highest HP ID and increment it
         return max(hp_ids) + 1
@@ -359,12 +364,11 @@ class StrategyExecutor:
         hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
         if not hp_list_from_db:
             logger.info("Creating new list.")
-            hp_list_data: List[HPUpdate] = []
             hp_list_raw: List[Dict] = get_hp_list()
 
             for item in hp_list_raw:
                 hp_update = HPUpdate(
-                    hp_id=self.generate_hp_id(hp_list_data=hp_list_data),
+                    hp_id=self.generate_hp_id(),
                     asset=item["Asset"],
                     buy_price=float(item["Price"]),
                     quantity=float(item["Quantity"]),
@@ -375,13 +379,12 @@ class StrategyExecutor:
                     expected_return=0,
                     state="NEW",
                 )
-                hp_list_data.append(hp_update)
+                self.hp_list_data.append(hp_update)
                 self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
         else:
             logger.info("Reading list from the DB.")
-            hp_list_data = []
             for item in hp_list_from_db:
-                hp_list_data.append(
+                self.hp_list_data.append(
                     HPUpdate(
                         hp_id=item["hp_id"],
                         asset=item["asset"],
@@ -394,9 +397,9 @@ class StrategyExecutor:
                     )
                 )
 
-        if hp_list_data:
-            self.logger.debug("HP list records found: %s", hp_list_data)
-            for record in hp_list_data:
+        if self.hp_list_data:
+            self.logger.debug("HP list records found: %s", self.hp_list_data)
+            for record in self.hp_list_data:
                 self.ui_queue.put_nowait(record)
             self.logger.info("All HPs send to UI.")
         else:

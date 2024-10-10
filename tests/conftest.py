@@ -17,7 +17,7 @@ from src.common.identifiers.futures import (
     SignalUpdate,
 )
 from src.common.identifiers.common import Mode, PositionSide
-from src.common.identifiers.spot import StrategyConfig as ConfigSpot
+from src.common.identifiers.spot import HPStrategyConfig
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.common.symbol_info import SymbolInfo
 from src.df_handler.futures import DfHandler as DfHandlerFutures
@@ -94,7 +94,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
-    async def create_trading_system(config: ConfigSpot, balance: float = 10000):
+    async def create_trading_system(config: HPStrategyConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
@@ -124,7 +124,8 @@ async def spot_buy(mock_AsyncClient):
     ui_queue = MagicMock()
     db = AsyncMock()
 
-    config = ConfigSpot(
+    config = HPStrategyConfig(
+        hp_id=1000,
         open_time="",
         system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
@@ -161,7 +162,8 @@ async def spot_buy(mock_AsyncClient):
 
 @pytest.fixture
 async def spot_sell(mock_AsyncClient):
-    config = ConfigSpot(
+    config = HPStrategyConfig(
+        hp_id=1000,
         open_time="",
         system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),

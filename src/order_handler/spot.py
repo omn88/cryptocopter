@@ -18,7 +18,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import Order, StrategyConfig
+from src.common.identifiers.spot import Order, HPStrategyConfig
 from src.common.symbol_info import SymbolInfo
 
 
@@ -36,7 +36,7 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
 
-    def prepare_orders(self, config: StrategyConfig) -> List[Order]:
+    def prepare_orders(self, config: HPStrategyConfig) -> List[Order]:
         def prepare_single_order():
             order_price = (
                 config.price_high

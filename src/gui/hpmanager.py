@@ -18,6 +18,7 @@ from src.common.identifiers.spot import (
     AllTickers,
     Event,
     EventName,
+    HPStrategyConfig,
     HPUpdate,
     LoadConfig,
     PositionSetup,
@@ -25,7 +26,7 @@ from src.common.identifiers.spot import (
     SaveConfig,
     State,
     StateInfo,
-    StrategyConfig,
+    HPStrategyConfig,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
@@ -141,7 +142,8 @@ class HpManager(BoxLayout):
         if not self.validate_inputs():
             return
 
-        config = StrategyConfig(
+        config = HPStrategyConfig(
+            hp_id=None,
             open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             system_id=str(uuid.uuid4()),
             symbol_info=self.symbols_info[self.symbol_input.selected_value],
@@ -221,7 +223,9 @@ class HpManager(BoxLayout):
         self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
         self.ids.asset_label.text = str(asset)  # Set the asset label
         self.ids.quantity_label.text = str(quantity)  # Set the quantity label
-        self.ids.quantity_usdt_label.text = str(round(float(quantity) * float(buy_price), 2))  # Set the quantity label
+        self.ids.quantity_usdt_label.text = str(
+            round(float(quantity) * float(buy_price), 2)
+        )  # Set the quantity label
         self.ids.buy_price_label.text = str(buy_price)  # Set the buy price label
 
         # Clear or reset the sell price field

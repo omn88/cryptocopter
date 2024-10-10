@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import queue
 import time
@@ -17,7 +16,7 @@ from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
     ExecutionReport,
-    StrategyConfig,
+    HPStrategyConfig,
     TickerUpdate,
     State,
     Order,
@@ -27,7 +26,7 @@ logger = logging.getLogger("hp_db_gui")
 
 
 async def assert_db_price_level_content(
-    db: Database, config: StrategyConfig, state: State
+    db: Database, config: HPStrategyConfig, state: State
 ):
     assert db.pool is not None
     async with db.pool.acquire() as conn:
@@ -51,7 +50,7 @@ async def assert_db_price_level_content(
 
 def assert_gui_position_data_content(
     ui_queue: queue.Queue,
-    config: StrategyConfig,
+    config: HPStrategyConfig,
     state: State,
     completeness: float,
     stagnation_counter: int,
@@ -150,7 +149,8 @@ def get_strategy_config(
     order_trigger: float = 1.0,
     budget: float = 1000,
 ):
-    return StrategyConfig(
+    return HPStrategyConfig(
+        hp_id=1000,
         system_id=system_id,
         symbol_info=symbol_info,
         side=side,

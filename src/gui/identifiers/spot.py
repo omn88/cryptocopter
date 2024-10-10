@@ -1,12 +1,12 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import StateInfo, StrategyConfig
+from src.common.identifiers.spot import StateInfo, HPStrategyConfig
 
 
 class PositionData:
     def __init__(
         self,
-        config: StrategyConfig,
+        config: HPStrategyConfig,
         state_info: StateInfo,
         completeness: float,
         stagnation_limit: int = 8,
