@@ -178,13 +178,14 @@ class AsyncApp(App):
                 queue=ui_queue,
             ),
         )
-
+        assert self.portfolio is not None
         back_end = StrategyExecutor(
             strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker,
             ui_queue=ui_queue,
+            balances=self.portfolio.balances,
         )
 
         self.trading_systems.append(back_end)

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import pprint
-from typing import List
+from typing import List, Union
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -18,7 +18,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import Order, HPStrategyConfig
+from src.common.identifiers.spot import HPConfig, Order, StateInfo
 from src.common.symbol_info import SymbolInfo
 
 
@@ -36,11 +36,11 @@ class OrderHandler:
         self.strategy_logger = strategy_logger
         self.client = client
 
-    def prepare_orders(self, config: HPStrategyConfig) -> List[Order]:
+    def prepare_orders(self, config: HPConfig, state_info: StateInfo) -> List[Order]:
         def prepare_single_order():
             order_price = (
                 config.price_high
-                if config.side == PositionSide.LONG
+                if state_info.side == PositionSide.LONG
                 else config.price_low
             )
             orders.append(
@@ -80,16 +80,7 @@ class OrderHandler:
                 )
 
                 for i in range(num_orders):
-                    order_price = (
-                        (config.price_low + i * price_increment)
-                        if config.side == PositionSide.SHORT
-                        else (config.price_high - i * price_increment)
-                    )
-
-                    # quantity = symbol_info.adjust_quantity(
-                    #             order_quantity_stable / order_price
-                    #         )
-                    # self.strategy_logger.debug("WHY ZEROO??: %s, oqs: %s, op: %s", quantity, order_quantity_stable, order_price)
+                    order_price = config.price_high - i * price_increment
 
                     orders.append(
                         Order(

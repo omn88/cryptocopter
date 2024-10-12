@@ -17,7 +17,7 @@ from src.common.identifiers.futures import (
     SignalUpdate,
 )
 from src.common.identifiers.common import Mode, PositionSide
-from src.common.identifiers.spot import HPStrategyConfig
+from src.common.identifiers.spot import HPConfig, StateInfo
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.common.symbol_info import SymbolInfo
 from src.df_handler.futures import DfHandler as DfHandlerFutures
@@ -94,7 +94,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
-    async def create_trading_system(config: HPStrategyConfig, balance: float = 10000):
+    async def create_trading_system(config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
@@ -104,6 +104,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
+            state_info=StateInfo()
         )
         # Trading State Machine initialization
         state_machine = AsyncMachine(
@@ -124,7 +125,7 @@ async def spot_buy(mock_AsyncClient):
     ui_queue = MagicMock()
     db = AsyncMock()
 
-    config = HPStrategyConfig(
+    config = HPConfig(
         hp_id=1000,
         open_time="",
         system_id="1234",
@@ -162,7 +163,7 @@ async def spot_buy(mock_AsyncClient):
 
 @pytest.fixture
 async def spot_sell(mock_AsyncClient):
-    config = HPStrategyConfig(
+    config = HPConfig(
         hp_id=1000,
         open_time="",
         system_id="1234",

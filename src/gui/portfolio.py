@@ -1,6 +1,5 @@
 import logging
 import queue
-import time
 from typing import Dict, List
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.label import Label

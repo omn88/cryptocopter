@@ -15,11 +15,11 @@ from src.common.identifiers.spot import (
     EventName,
     Event,
     ExecutionReport,
+    HPConfig,
     SignalUpdate,
     State,
     StateInfo,
     TickerUpdate,
-    HPStrategyConfig,
 )
 
 logger = logging.getLogger("trading_system")
@@ -31,7 +31,7 @@ class TradingSystem:
         client: BinanceClient,
         ui_queue: queue.Queue,
         core_queue: queue.Queue,
-        config: HPStrategyConfig,
+        config: HPConfig,
         strategy_logger: StrategyLogger,
         db: Database,
     ):
@@ -51,20 +51,21 @@ class TradingSystem:
             ui_queue=self.ui_queue,
             logger=self.strategy_logger,
             config=self.config,
+            state_info=state_info,
             balance=usdt_balance,
             db=self.db,
             core_queue=self.core_queue,
         )
 
-        self.strategy_logger.info("Config status: %s", state_info.last_state)
+        self.strategy_logger.info("Config status: %s", state_info.state)
 
-        if state_info.last_state is not None:
-            self.strategy_logger.debug(
-                "Old status is not None: %s, moving strategy state to recovering",
-                state_info.last_state,
-            )
-            self.strategy.state = State.RECOVERING
-            self.strategy.position_handler.last_state = state_info.last_state
+        # if state_info.last_state is not None:
+        #     self.strategy_logger.debug(
+        #         "Old status is not None: %s, moving strategy state to recovering",
+        #         state_info.last_state,
+        #     )
+        #     self.strategy.state = State.RECOVERING
+        #     self.strategy.position_handler.last_state = state_info.last_state
 
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
@@ -74,13 +75,6 @@ class TradingSystem:
             initial=self.strategy.state,
             send_event=True,
             queued=True,
-        )
-
-        self.strategy.position_handler.stagnation_counter = (
-            state_info.stagnation_counter
-        )
-        self.strategy.position_handler.next_monitor_position_time = (
-            state_info.next_monitor_time
         )
 
     async def worker(self):

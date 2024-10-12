@@ -6,18 +6,17 @@ import os
 import queue
 import threading
 from typing import Dict, List, Optional
-import uuid
 from decouple import Config, RepositoryEnv
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
+    NewRecord,
     CsvConfig,
-    HPStrategyConfig,
+    HPConfig,
     HPUpdate,
     LoadConfig,
-    PositionSetup,
     RemoveRecord,
     SaveConfig,
     State,
@@ -48,6 +47,7 @@ class StrategyExecutor:
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
+        balances: Dict[str, float],
     ):
         self.client: Optional[BinanceClient] = None
         self.logger = strategy_logger
@@ -57,8 +57,8 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict = {}
         self.symbols_info = symbols_info
-        self.usdt_balance = 0.0
         self.hp_list_data: List[HPUpdate] = []
+        self.balances = balances
 
         self.loop = None
         self.stop_event = threading.Event()
@@ -76,28 +76,27 @@ class StrategyExecutor:
         self.client = BinanceClient(
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
-        self.usdt_balance = await self.get_usdt_balance()
 
-        self.initialize_hp_list()
+        # self.initialize_hp_list()
 
-        self.initialize_positions_from_db()
+        # self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, PositionSetup):
+                if isinstance(strategy_data, NewRecord):
                     asyncio.create_task(
                         self.initialize_trading_system(
-                            position_setup=strategy_data, db=self.db
+                            new_record=strategy_data, db=self.db
                         )
                     )
                 if isinstance(strategy_data, RemoveRecord):
-                    await self.remove_record(system_id=strategy_data.system_id)
-                if isinstance(strategy_data, SaveConfig):
-                    await self.save_config(strategy_data.file_name)
-                if isinstance(strategy_data, LoadConfig):
-                    await self.load_config(strategy_data.file_name)
+                    await self.remove_record(system_id=strategy_data.hp_id)
+                # if isinstance(strategy_data, SaveConfig):
+                #     await self.save_config(strategy_data.file_name)
+                # if isinstance(strategy_data, LoadConfig):
+                #     await self.load_config(strategy_data.file_name)
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -112,68 +111,72 @@ class StrategyExecutor:
 
     async def initialize_trading_system(
         self,
-        position_setup: PositionSetup,
+        new_record: NewRecord,
         db: Database,
     ) -> None:
-        self.logger.info("Initializing trading system: %s", position_setup.config)
-        position_setup.config.symbol_info = self.symbols_info[
-            position_setup.config.symbol_info.symbol
-        ]
-        if position_setup.config.system_id is None:
-            position_setup.config.system_id = str(uuid.uuid4())
-        if not position_setup.config.hp_id:
-            position_setup.config.hp_id = self.generate_hp_id()
+        self.logger.info("Initializing trading system: %s", new_record.config)
+
+        if not new_record.state_info.open_time:
+            new_record.state_info.open_time = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            new_record.state_info.state = State.NEW
+            new_record.state_info.side = PositionSide.LONG
+            new_record.config.hp_id = self.generate_hp_id()
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
-
-        position_setup.config.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         trading_system = TradingSystem(
             strategy_logger=self.logger,
             client=self.client,
             ui_queue=self.ui_queue,
             core_queue=core_queue,
-            config=position_setup.config,
+            config=new_record.config,
             db=db,
         )
         await trading_system.initialize_strategy(
-            state_info=position_setup.state_info, usdt_balance=self.usdt_balance
+            state_info=new_record.state_info, usdt_balance=self.balances["USDT"]
         )
         assert trading_system.strategy is not None
 
-        self.id_to_system[position_setup.config.system_id] = trading_system
+        self.id_to_system[new_record.config.hp_id] = trading_system
 
         self.broker.subscribe(
-            system_id=trading_system.strategy.config.system_id,
+            system_id=str(new_record.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=position_setup.config.symbol_info.symbol,
+                symbol=new_record.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
         )
         self.broker.subscribe(
-            system_id=trading_system.strategy.config.system_id,
+            system_id=str(new_record.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=position_setup.config.symbol_info.symbol,
+                symbol=new_record.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
         )
 
         db.run_db_task(
-            db.insert_price_level(
-                config=position_setup.config,
-                state=State.NEW
-                if position_setup.state_info.last_state is None
-                else position_setup.state_info.last_state,
+            db.insert_buy_price_level(
+                config=new_record.config, state_info=new_record.state_info
             )
         )
 
         asyncio.create_task(trading_system.worker())
-        self.logger.info("System: %s initialized.", position_setup.config)
+
+        self.ui_queue.put_nowait(
+            PositionData(
+                config=new_record.config,
+                state_info=new_record.state_info,
+                completeness=0,
+            )
+        )
+        self.logger.info("System: %s initialized.", new_record.config)
 
     async def remove_record(self, system_id: str) -> None:
         if system_id in self.id_to_system:
@@ -195,15 +198,10 @@ class StrategyExecutor:
 
         for price_level in active_price_levels:
             self.config_queue.put_nowait(
-                PositionSetup(
-                    config=HPStrategyConfig(
+                NewRecord(
+                    config=HPConfig(
                         hp_id=price_level.get("hp_id"),
-                        open_time=price_level.get("open_time"),
-                        system_id=price_level.get("price_level_id"),
                         symbol_info=self.symbols_info[price_level["symbol"]],
-                        side=PositionSide.LONG
-                        if price_level["side"] == PositionSide.LONG.value
-                        else PositionSide.SHORT,
                         price_low=float(price_level["price_low"]),
                         price_high=float(price_level["price_high"]),
                         budget=float(price_level["budget"]),
@@ -213,131 +211,119 @@ class StrategyExecutor:
                         else Mode.SINGLE,
                     ),
                     state_info=StateInfo(
-                        last_state=State[price_level["state"]],
+                        state=State[price_level["state"]],
                         stagnation_counter=int(price_level["stagnation_counter"]),
                         next_monitor_time=price_level["next_monitor_time"],
                     ),
                 )
             )
 
-    async def save_config(self, file_name: str) -> None:
-        """Handle saving the current configuration to a CSV file."""
-        config_dir = "src/strategies/spot"
-        file_path = os.path.join(config_dir, f"{file_name}.csv")
-        os.makedirs(config_dir, exist_ok=True)
+    # async def save_config(self, file_name: str) -> None:
+    #     """Handle saving the current configuration to a CSV file."""
+    #     config_dir = "src/strategies/spot"
+    #     file_path = os.path.join(config_dir, f"{file_name}.csv")
+    #     os.makedirs(config_dir, exist_ok=True)
 
-        # Collect the current configuration
-        config_data = self.get_current_configuration()
+    #     # Collect the current configuration
+    #     config_data = self.get_current_configuration()
 
-        self.logger.info(f"Saving configuration to {file_path}")
-        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(
-                [
-                    "Symbol",
-                    "Side",
-                    "Price Low",
-                    "Price High",
-                    "Budget",
-                    "Order Trigger",
-                    "Mode",
-                ]
-            )
-            for config in config_data:
-                writer.writerow(
-                    [
-                        config.symbol,
-                        config.side,
-                        config.price_low,
-                        config.price_high,
-                        config.budget,
-                        config.order_trigger,
-                        config.mode,
-                    ]
-                )
-        self.logger.info("Configuration saved successfully.")
+    #     self.logger.info(f"Saving configuration to {file_path}")
+    #     with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+    #         writer = csv.writer(csvfile)
+    #         writer.writerow(
+    #             [
+    #                 "Symbol",
+    #                 "Side",
+    #                 "Price Low",
+    #                 "Price High",
+    #                 "Budget",
+    #                 "Order Trigger",
+    #                 "Mode",
+    #             ]
+    #         )
+    #         for config in config_data:
+    #             writer.writerow(
+    #                 [
+    #                     config.symbol,
+    #                     config.side,
+    #                     config.price_low,
+    #                     config.price_high,
+    #                     config.budget,
+    #                     config.order_trigger,
+    #                     config.mode,
+    #                 ]
+    #             )
+    #     self.logger.info("Configuration saved successfully.")
 
-    async def load_config(self, file_name: str) -> None:
-        """Handle loading a configuration from a CSV file."""
-        config_dir = "src/strategies/spot/"
-        file_path = f"{config_dir}{file_name}.csv"
+    # async def load_config(self, file_name: str) -> None:
+    #     """Handle loading a configuration from a CSV file."""
+    #     config_dir = "src/strategies/spot/"
+    #     file_path = f"{config_dir}{file_name}.csv"
 
-        try:
-            with open(file_path, "r", encoding="utf-8") as csvfile:
-                reader = csv.reader(csvfile)
-                headers = next(reader)  # Skip the headers
-                config_data = list(reader)
-                for cd in config_data:
-                    # Prepare the PositionSetup and put it in the queue
-                    config = HPStrategyConfig(
-                        hp_id=self.generate_hp_id(),
-                        open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        symbol_info=SymbolInfo(symbol=cd[0]),
-                        system_id=str(uuid.uuid4()),
-                        side=PositionSide.LONG
-                        if cd[1] == PositionSide.LONG.value
-                        else PositionSide.SHORT,
-                        price_low=float(cd[2]),
-                        price_high=float(cd[3]),
-                        budget=float(cd[4]),
-                        order_trigger=float(cd[5]),
-                        mode=Mode.DCA if cd[6] == Mode.DCA.value else Mode.SINGLE,
-                    )
+    #     try:
+    #         with open(file_path, "r", encoding="utf-8") as csvfile:
+    #             reader = csv.reader(csvfile)
+    #             headers = next(reader)  # Skip the headers
+    #             config_data = list(reader)
+    #             for cd in config_data:
+    #                 # Prepare the PositionSetup and put it in the queue
+    #                 config = HPConfig(
+    #                     symbol_info=self.symbols_info[cd[0]],
+    #                     price_low=float(cd[2]),
+    #                     price_high=float(cd[3]),
+    #                     budget=float(cd[4]),
+    #                     order_trigger=float(cd[5]),
+    #                     mode=Mode.DCA if cd[6] == Mode.DCA.value else Mode.SINGLE,
+    #                 )
 
-                    state_info = StateInfo(
-                        last_state=None,
-                        stagnation_counter=0,
-                        next_monitor_time="",
-                    )
+    #                 self.config_queue.put_nowait(
+    #                     NewRecord(config=config, state_info=StateInfo())
+    #                 )
+    #                 # self.ui_queue.put_nowait(
+    #                 #     PositionData(
+    #                 #         config=config, state_info=state_info, completeness=0.0
+    #                 #     )
+    #                 # )
+    #         self.logger.info(f"Loaded configuration from {file_path}")
+    #     except FileNotFoundError:
+    #         self.logger.error(f"File {file_name}.csv not found.")
 
-                    self.config_queue.put_nowait(
-                        PositionSetup(config=config, state_info=state_info)
-                    )
-                    self.ui_queue.put_nowait(
-                        PositionData(
-                            config=config, state_info=state_info, completeness=0.0
-                        )
-                    )
-            self.logger.info(f"Loaded configuration from {file_path}")
-        except FileNotFoundError:
-            self.logger.error(f"File {file_name}.csv not found.")
+    # def get_current_configuration(self) -> List[CsvConfig]:
+    #     """Collect the current configurations."""
+    #     hp_config = []
+    #     for system_id, system in self.id_to_system.items():
+    #         logger.info("System id: %s, system: %s", system_id, system)
+    #         assert isinstance(system, TradingSystem)
+    #         hp_config.append(
+    #             CsvConfig(
+    #                 symbol=system.config.symbol_info.symbol,
+    #                 side=system.state_info.side.value,
+    #                 price_low=system.config.price_low,
+    #                 price_high=system.config.price_high,
+    #                 budget=system.config.budget,
+    #                 order_trigger=system.config.order_trigger,
+    #                 mode=system.config.mode.value,
+    #             )
+    #         )
+    #     return hp_config
 
-    def get_current_configuration(self) -> List[CsvConfig]:
-        """Collect the current configurations."""
-        hp_config = []
-        for system_id, system in self.id_to_system.items():
-            logger.info("System id: %s, system: %s", system_id, system)
-            assert isinstance(system, TradingSystem)
-            hp_config.append(
-                CsvConfig(
-                    symbol=system.config.symbol_info.symbol,
-                    side=system.config.side.value,
-                    price_low=system.config.price_low,
-                    price_high=system.config.price_high,
-                    budget=system.config.budget,
-                    order_trigger=system.config.order_trigger,
-                    mode=system.config.mode.value,
-                )
-            )
-        return hp_config
+    # async def get_usdt_balance(self) -> float:
+    #     """
+    #     Retrieve the USDT balance from the spot market.
 
-    async def get_usdt_balance(self) -> float:
-        """
-        Retrieve the USDT balance from the spot market.
-
-        :return: The balance of USDT in the account.
-        :raises: BinanceAPIException, BinanceRequestException
-        """
-        try:
-            assert self.client is not None
-            account_info = await self.client.get_account()
-            for asset in account_info["balances"]:
-                if asset["asset"] == "USDT":
-                    return float(asset["free"])
-            return 0.0
-        except (BinanceAPIException, BinanceRequestException) as e:
-            logger.error("Failed to retrieve USDT balance: %s", e)
-            raise e
+    #     :return: The balance of USDT in the account.
+    #     :raises: BinanceAPIException, BinanceRequestException
+    #     """
+    #     try:
+    #         assert self.client is not None
+    #         account_info = await self.client.get_account()
+    #         for asset in account_info["balances"]:
+    #             if asset["asset"] == "USDT":
+    #                 return float(asset["free"])
+    #         return 0.0
+    #     except (BinanceAPIException, BinanceRequestException) as e:
+    #         logger.error("Failed to retrieve USDT balance: %s", e)
+    #         raise e
 
     def generate_hp_id(self) -> int:
         """

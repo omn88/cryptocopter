@@ -1,6 +1,6 @@
 import datetime
 import queue
-from typing import List, Optional
+from typing import List
 import logging
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
@@ -8,9 +8,9 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, PositionSide
 from src.common.identifiers.spot import (
     ExecutionReport,
+    HPConfig,
     State,
     StateInfo,
-    HPStrategyConfig,
     Order,
 )
 from src.common.symbol_info import SymbolInfo
@@ -26,12 +26,13 @@ class PositionHandler:
         self,
         client: BinanceClient,
         strategy_logger: StrategyLogger,
-        config: HPStrategyConfig,
+        config: HPConfig,
+        state_info: StateInfo,
         ui_queue: queue.Queue,
         db: Database,
-        last_state: Optional[State] = None,
     ):
         self.config = config
+        self.state_info = state_info
         self.strategy_logger = strategy_logger
         self.db = db
         self.ui_queue: queue.Queue = ui_queue
@@ -39,12 +40,8 @@ class PositionHandler:
             client=client,
             strategy_logger=strategy_logger,
         )
-        self.orders: List[Order] = self.order_handler.prepare_orders(config=config)
-        self.last_state: Optional[State] = last_state
-        self.stagnation_counter: int = 0
-        self.prev_orders: List[Order] = []
-        self.next_monitor_position_time: str = datetime.datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
+        self.orders: List[Order] = self.order_handler.prepare_orders(
+            config=config, state_info=state_info
         )
 
     async def open_position(
@@ -55,17 +52,14 @@ class PositionHandler:
         self.orders = await self.order_handler.create_orders(
             side=side, orders=self.orders, symbol_info=symbol_info
         )
-        self.next_monitor_position_time = (
+        self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
-
-        last_state = State.OPEN
+        self.state_info.state = State.OPEN
 
         position_data = PositionData(
             config=self.config,
-            state_info=StateInfo(
-                stagnation_counter=self.stagnation_counter, last_state=last_state
-            ),
+            state_info=self.state_info,
             completeness=round(
                 sum(order.realized_quantity for order in self.orders)
                 / sum(order.quantity for order in self.orders),
@@ -79,14 +73,12 @@ class PositionHandler:
 
         for order in self.orders:
             self.db.run_db_task(
-                self.db.insert_order(price_level_id=self.config.system_id, order=order)
+                self.db.insert_order(hp_id=self.config.hp_id, order=order)
             )
         self.db.run_db_task(
             self.db.update_price_level(
                 self.config,
-                state=last_state,
-                stagnation_counter=self.stagnation_counter,
-                next_monitor_time=self.next_monitor_position_time,
+                state_info=self.state_info,
             )
         )
 
@@ -96,11 +88,11 @@ class PositionHandler:
         logger.info(
             "Start canceling position: %s %s, system id: %s",
             self.config.symbol_info.symbol,
-            self.config.side,
-            self.config.system_id,
+            self.state_info.side,
+            self.config.hp_id,
         )
 
-        self.stagnation_counter = 0
+        self.state_info.stagnation_counter = 0
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
@@ -118,25 +110,18 @@ class PositionHandler:
                         status=order.status,
                         order_type=order.order_type,
                         order_id=order.order_id,
-                        price_level_id=self.config.system_id,
+                        hp_id=str(self.config.hp_id),
                     )
                 )
 
         self.db.run_db_task(
-            self.db.update_price_level(
-                config=self.config,
-                state=state,
-                stagnation_counter=self.stagnation_counter,
-                next_monitor_time=self.next_monitor_position_time,
-            )
+            self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
 
         self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                state_info=StateInfo(
-                    stagnation_counter=self.stagnation_counter, last_state=state
-                ),
+                state_info=self.state_info,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -157,27 +142,21 @@ class PositionHandler:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
-        self.stagnation_counter = 0
-        self.next_monitor_position_time = (
+        self.state_info.state = State.OPEN
+        self.state_info.stagnation_counter = 0
+        self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
         self.db.run_db_task(
-            self.db.update_price_level(
-                config=self.config,
-                state=State.OPEN,
-                stagnation_counter=self.stagnation_counter,
-                next_monitor_time=self.next_monitor_position_time,
-            )
+            self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
 
-        logger.info("Stagnation counter reset for system: %s", self.config.system_id)
+        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
 
         self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                state_info=StateInfo(
-                    stagnation_counter=self.stagnation_counter, last_state=State.OPEN
-                ),
+                state_info=self.state_info,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -188,7 +167,7 @@ class PositionHandler:
         self.db.run_db_task(
             self.db.update_order(
                 order_id=execution_report.order_id,
-                price_level_id=self.config.system_id,
+                hp_id=str(self.config.hp_id),
                 quantity=execution_report.quantity,
                 realized_quantity=execution_report.cumulative_filled_quantity,
                 status=execution_report.current_order_status,
@@ -200,17 +179,13 @@ class PositionHandler:
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        self.stagnation_counter = 0
-        self.next_monitor_position_time = (
+        self.state_info.state = State.OPEN
+        self.state_info.stagnation_counter = 0
+        self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
         self.db.run_db_task(
-            self.db.update_price_level(
-                config=self.config,
-                state=State.OPEN,
-                stagnation_counter=self.stagnation_counter,
-                next_monitor_time=self.next_monitor_position_time,
-            )
+            self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
         for order in self.orders:
             if execution_report.order_id == order.order_id:
@@ -224,13 +199,11 @@ class PositionHandler:
                     order.price,
                 )
 
-        logger.info("Stagnation counter reset for system: %s", self.config.system_id)
+        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
         self.ui_queue.put_nowait(
             PositionData(
                 config=self.config,
-                state_info=StateInfo(
-                    stagnation_counter=self.stagnation_counter, last_state=State.OPEN
-                ),
+                state_info=self.state_info,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -242,7 +215,7 @@ class PositionHandler:
         self.db.run_db_task(
             self.db.update_order(
                 order_id=execution_report.order_id,
-                price_level_id=self.config.system_id,
+                hp_id=str(self.config.hp_id),
                 quantity=execution_report.quantity,
                 realized_quantity=execution_report.cumulative_filled_quantity,
                 status=execution_report.current_order_status,
