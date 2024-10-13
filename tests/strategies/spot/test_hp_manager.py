@@ -16,8 +16,8 @@ logger = logging.getLogger("test_hp_manager")
 
 async def test_default_scenario_buy(spot_buy):
     spot_buy.model.client.create_order.side_effect = get_new_orders(
-        price_low=spot_buy.model.config.price_low,
-        price_high=spot_buy.model.config.price_high,
+        price_low=spot_buy.model.buy_position.config.price_low,
+        price_high=spot_buy.model.buy_position.config.price_high,
     )
 
     # Set initial condition

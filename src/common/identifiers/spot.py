@@ -253,6 +253,7 @@ class SubscriptionInfo(NamedTuple):
 class StateInfo:
     state: Optional[State] = None
     stagnation_counter: int = 0
+    stagnation_limit: int = 8
     next_monitor_time: str = ""
     open_time: str = ""
     close_time: str = ""

@@ -9,12 +9,10 @@ class PositionData:
         config: HPConfig,
         state_info: StateInfo,
         completeness: float,
-        stagnation_limit: int = 8,
         recovering: bool = False,
     ):
         self.config = config
         self.state_info = state_info
-        self.stagnation_limit = stagnation_limit
         self.order_cancel = 2 * config.order_trigger
         self.completeness = completeness
         self.recovering = recovering
@@ -23,7 +21,6 @@ class PositionData:
         return (
             f"PositionData(config={self.config}, "
             f"state_info={self.state_info}, "
-            f"stagnation_limit={self.stagnation_limit}, "
             f"order_cancel={self.order_cancel}, "
             f"completeness={self.completeness:.2f}, "
             f"recovering={self.recovering})"

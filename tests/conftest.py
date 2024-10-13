@@ -2,8 +2,8 @@ import asyncio
 import logging
 import queue
 from typing import Dict
-from transitions.extensions.asyncio import AsyncMachine
 from unittest.mock import AsyncMock, MagicMock
+from transitions.extensions.asyncio import AsyncMachine
 import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
@@ -94,7 +94,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient, test_db):
-    async def create_trading_system(config: HPConfig, balance: float = 10000):
+    async def create_trading_system(hp_config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
@@ -104,7 +104,7 @@ def trading_system_factory(mock_AsyncClient, test_db):
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
-            state_info=StateInfo()
+            state_info=StateInfo(),
         )
         # Trading State Machine initialization
         state_machine = AsyncMachine(
@@ -127,10 +127,7 @@ async def spot_buy(mock_AsyncClient):
 
     config = HPConfig(
         hp_id=1000,
-        open_time="",
-        system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
-        side=PositionSide.LONG,
         price_low=1000,
         price_high=1400,
         order_trigger=1,
@@ -146,6 +143,7 @@ async def spot_buy(mock_AsyncClient):
         logger=logger,
         db=db,
         core_queue=queue.Queue(),
+        state_info=StateInfo(side=PositionSide.LONG),
     )
 
     # Trading State Machine initialization
@@ -165,10 +163,7 @@ async def spot_buy(mock_AsyncClient):
 async def spot_sell(mock_AsyncClient):
     config = HPConfig(
         hp_id=1000,
-        open_time="",
-        system_id="1234",
         symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
-        side=PositionSide.SHORT,
         price_low=1000,
         price_high=1400,
         order_trigger=1,
@@ -187,6 +182,7 @@ async def spot_sell(mock_AsyncClient):
         logger=logger,
         db=db,
         core_queue=queue.Queue(),
+        state_info=StateInfo(side=PositionSide.SHORT),
     )
 
     # Trading State Machine initialization

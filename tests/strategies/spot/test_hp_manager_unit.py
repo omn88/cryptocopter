@@ -31,7 +31,7 @@ async def test_conditions_for_new_order_confirmation(spot_sell) -> None:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
-        symbol=strategy.config.symbol_info.symbol,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
@@ -41,7 +41,7 @@ async def test_conditions_for_order_cancellation(spot_sell) -> None:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
-        symbol=strategy.config.symbol_info.symbol,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_order_cancellation()
 
@@ -135,28 +135,28 @@ async def test_handle_ticker(spot_buy):
 async def test_process_ticker_updates_state(spot_buy):
     # Set initial conditions
     strategy = spot_buy.model
-    strategy.state = State.OPEN
-    strategy.position_handler.next_monitor_position_time = datetime.now().strftime(
+    strategy.buy_position.state_info.state = State.OPEN
+    strategy.buy_position.state_info.next_monitor_time = datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
     )
     strategy.ticker_update = MagicMock(last_price=1200)  # Mocked TickerUpdate
-    initial_stagnation_counter = strategy.position_handler.stagnation_counter
+    initial_stagnation_counter = strategy.buy_position.state_info.stagnation_counter
 
     # Execute the process_ticker method
     await strategy.process_ticker()
 
     # Assertions
     assert (
-        strategy.position_handler.stagnation_counter == initial_stagnation_counter + 1
+        strategy.buy_position.state_info.stagnation_counter
+        == initial_stagnation_counter + 1
     )
-    assert (
-        strategy.position_handler.next_monitor_position_time
-        > datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    assert strategy.buy_position.state_info.next_monitor_time > datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
     )
 
     strategy.logger.info(
         "Stagnation counter increase due to crossing stagnation timer: %s, time now: %s, stagnation counter: %s",
-        strategy.position_handler.next_monitor_position_time,
+        strategy.buy_position.state_info.next_monitor_time,
         datetime.now(),
         initial_stagnation_counter + 1,
     )

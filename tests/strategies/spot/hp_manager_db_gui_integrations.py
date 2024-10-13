@@ -17,6 +17,7 @@ from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
+    StateInfo,
     TickerUpdate,
     State,
     Order,
@@ -49,10 +50,8 @@ async def assert_db_price_level_content(db: Database, config: HPConfig, state: S
 def assert_gui_position_data_content(
     ui_queue: queue.Queue,
     config: HPConfig,
-    state: State,
+    state_info: StateInfo,
     completeness: float,
-    stagnation_counter: int,
-    stagnation_limit: int,
 ):
     try:
         logger.info("GUI queue size: %s", ui_queue.qsize())
@@ -62,15 +61,15 @@ def assert_gui_position_data_content(
         assert isinstance(gui_msg, PositionData)
 
         assert gui_msg.config.symbol_info.symbol == config.symbol_info.symbol
-        assert gui_msg.state_info.side == config.side
-        assert gui_msg.state_info.state == state
+        assert gui_msg.state_info.side == state_info.side
+        assert gui_msg.state_info.state == state_info.state
         assert gui_msg.config.price_low == config.price_low
         assert gui_msg.config.price_high == config.price_high
         assert gui_msg.config.order_trigger == config.order_trigger
         assert gui_msg.config.budget == config.budget
         assert gui_msg.completeness == completeness
-        assert gui_msg.state_info.stagnation_counter == stagnation_counter
-        assert gui_msg.stagnation_limit == stagnation_limit
+        assert gui_msg.state_info.stagnation_counter == state_info.stagnation_counter
+        assert gui_msg.state_info.stagnation_limit == state_info.stagnation_limit
         assert gui_msg.order_cancel == 2 * config.order_trigger
 
     except queue.Empty:
@@ -115,24 +114,20 @@ async def simulate_order_partially_filled(
 async def db_and_gui_assertions(
     strategy: HpManager,
     completeness: float,
-    stagnation_counter: int,
-    stagnation_limit: int,
 ):
-    db = strategy.position_handler.db
+    db = strategy.buy_position.db
     db.run_db_task(
         assert_db_price_level_content(
-            db=strategy.position_handler.db,
-            config=strategy.config,
+            db=strategy.buy_position.db,
+            config=strategy.buy_position.config,
             state=strategy.state,
         )
     )
     assert_gui_position_data_content(
-        ui_queue=strategy.position_handler.ui_queue,
-        config=strategy.config,
-        state=strategy.state,
+        ui_queue=strategy.buy_position.ui_queue,
+        config=strategy.buy_position.config,
+        state_info=strategy.buy_position.state_info,
         completeness=completeness,
-        stagnation_counter=stagnation_counter,
-        stagnation_limit=stagnation_limit,
     )
 
 

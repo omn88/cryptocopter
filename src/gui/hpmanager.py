@@ -522,7 +522,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                stagnation=f"{data.state_info.stagnation_counter}/{data.stagnation_limit}",
+                stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state_info.state),
             ).to_dict()
@@ -568,7 +568,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                stagnation=f"{data.state_info.stagnation_counter}/{data.stagnation_limit}",
+                stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                 completeness=str(data.completeness),
                 state=str(data.state_info.state),
             ).to_dict()
@@ -608,7 +608,7 @@ class HpManager(BoxLayout):
         for position in self.active_records:
             if position["hp_id"] == data.config.hp_id:
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
-                position["stagnation_limit"] = str(data.stagnation_limit)
+                position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
                 position["state"] = str(data.state_info.state)
 
@@ -678,7 +678,7 @@ class HpManager(BoxLayout):
         for position in self.idle_records:
             if position["hp_id"] == data.config.hp_id:
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
-                position["stagnation_limit"] = str(data.stagnation_limit)
+                position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
                 position["state"] = str(data.state_info.state)
                 logger.info("Data state: %s", data.state_info.state)
@@ -703,7 +703,7 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                        stagnation=f"{data.state_info.stagnation_counter}/{data.stagnation_limit}",
+                        stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                         completeness=str(data.completeness),
                         state=str(data.state_info.state),
                     )
