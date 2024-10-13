@@ -26,7 +26,7 @@ from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.strategies.spot.hp_manager import HpManager
 
 from tests.data.sample_dataframes import raw_data_generate
 
@@ -96,15 +96,15 @@ async def test_db():
 def trading_system_factory(mock_AsyncClient, test_db):
     async def create_trading_system(hp_config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
-        strategy = StrategyHP(
+        strategy = HpManager(
             client=mock_AsyncClient,
             balance=balance,
-            config=config,
+            config=hp_config,
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
-            state_info=StateInfo(),
+            state_info=StateInfo(side=PositionSide.LONG),
         )
         # Trading State Machine initialization
         state_machine = AsyncMachine(
@@ -135,7 +135,7 @@ async def spot_buy(mock_AsyncClient):
         mode=Mode.DCA,
     )
 
-    strategy = StrategyHP(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=10000,
         config=config,
@@ -174,7 +174,7 @@ async def spot_sell(mock_AsyncClient):
     ui_queue = MagicMock()
     db = AsyncMock()
 
-    strategy = StrategyHP(
+    strategy = HpManager(
         client=mock_AsyncClient,
         balance=10000,
         config=config,

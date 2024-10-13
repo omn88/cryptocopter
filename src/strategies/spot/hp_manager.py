@@ -357,7 +357,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_order_filled_buy(self, *args, **kwargs):
+    def conditions_for_order_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
@@ -373,7 +373,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_order_filled_sell(self, *args, **kwargs):
+    def conditions_for_order_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_FILLED
@@ -389,7 +389,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_order_partially_filled_buy(self, *args, **kwargs):
+    def conditions_for_order_partially_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
@@ -406,7 +406,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_order_partially_filled_sell(self, *args, **kwargs):
+    def conditions_for_order_partially_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status
@@ -423,7 +423,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_all_orders_filled_buy(self, *args, **kwargs):
+    def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
             and all(
@@ -440,7 +440,7 @@ class HpManager:
             )
         return condition
 
-    def conditions_for_all_orders_filled_sell(self, *args, **kwargs):
+    def conditions_for_all_orders_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.OPEN
             and all(
