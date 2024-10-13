@@ -249,7 +249,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        state_info.last_state.value,
+                        state_info.state.value,
                         config.mode.value,
                     ),
                 )
@@ -351,7 +351,7 @@ class Database:
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        state_info.last_state.value,
+                        state_info.state.value,
                         version_timestamp,
                         state_info.stagnation_counter,
                         state_info.next_monitor_time,
