@@ -199,30 +199,41 @@ class Event(NamedTuple):
 
 
 @dataclass
-class StrategyConfig:
-    symbol_info: SymbolInfo = SymbolInfo()
-    system_id: str = ""
-    side: PositionSide = PositionSide.FLAT
+class HPConfig:
+    symbol_info: SymbolInfo
+    hp_id: int = 0
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
-    name: str = "HP Manager"
     budget: float = 0
     mode: Mode = Mode.DCA
-    open_time: Optional[str] = None
-    close_time: Optional[str] = None
 
     def __str__(self):
         return (
-            f"StrategyConfig(system_id={self.system_id}, symbol_info={self.symbol_info}, side={self.side}, "
-            f"price_low={self.price_low}, price_high={self.price_high}, order_trigger={self.order_trigger}, "
-            f"name={self.name}, budget={self.budget}, mode={self.mode}, open_time={self.open_time}, close_time={self.close_time})"
+            f"HPConfig(hp_id={self.hp_id}, symbol_info={self.symbol_info}"
+            f"price_low={self.price_low}, price_high={self.price_high}, "
+            f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
         )
 
 
 class SubscriptionType(Enum):
     PRICE = auto()
     USER = auto()
+
+
+@dataclass
+class HPUpdate:
+    hp_id: int
+    asset: str
+    buy_price: float
+    quantity: float
+    quantity_usdt: float
+    sell_price: float = 0.0
+    expected_return: float = 0.0
+    current_price: float = 0.0  # Default value for fields that might not be present yet
+    net: float = 0.0
+    net_percent: float = 0.0
+    state: str = "NEW"
 
 
 class SubscriptionTarget(Enum):
@@ -238,29 +249,34 @@ class SubscriptionInfo(NamedTuple):
     queue: queue.Queue
 
 
-class StateInfo(NamedTuple):
-    last_state: Optional[State] = None
+@dataclass
+class StateInfo:
+    state: Optional[State] = None
     stagnation_counter: int = 0
+    stagnation_limit: int = 8
     next_monitor_time: str = ""
+    open_time: str = ""
+    close_time: str = ""
+    side: PositionSide = PositionSide.FLAT
 
     def __str__(self):
-        return f"StateInfo(last_state={self.last_state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
+        return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
 
 
-class PositionSetup(NamedTuple):
-    config: StrategyConfig
+class NewRecord(NamedTuple):
+    config: HPConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"PositionSetup(config={self.config}, state_info={self.state_info})"
+        return f"NewRecord(config={self.config}, state_info={self.state_info})"
 
 
 class RemoveRecord(NamedTuple):
-    system_id: str
+    hp_id: str
     symbol: str
 
     def __str__(self):
-        return f"RemoveRecord(system_id='{self.system_id}', symbol='{self.symbol}')"
+        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}')"
 
 
 class SaveConfig(NamedTuple):

@@ -7,8 +7,8 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.common.identifiers.spot import Order
-from src.common.identifiers.spot import State, StrategyConfig
+from src.common.identifiers.spot import HPUpdate, Order, StateInfo
+from src.common.identifiers.spot import HPConfig
 
 logger = logging.getLogger("database")
 
@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS strategies (
 CREATE_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
-    price_level_id CHAR(36) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10) NOT NULL,
     price_low FLOAT NOT NULL,
@@ -53,7 +53,7 @@ CREATE_ORDERS_TABLE = """
 CREATE TABLE IF NOT EXISTS orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL,
-    price_level_id CHAR(36) NOT NULL,
+    hp_id INT NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
     quantity_stable FLOAT NOT NULL,
@@ -62,6 +62,22 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(20) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# SQL for creating HP List table with the updated structure
+CREATE_HPLIST_TABLE = """
+CREATE TABLE IF NOT EXISTS hp_list (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
+    asset VARCHAR(20) NOT NULL,
+    buy_price FLOAT NOT NULL,
+    quantity FLOAT NOT NULL,
+    quantity_usdt FLOAT NOT NULL,
+    sell_price FLOAT NOT NULL,
+    expected_return FLOAT NOT NULL,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -166,6 +182,12 @@ class Database:
 
                 await conn.commit()
 
+    async def create_hp_list_table(self):
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(CREATE_HPLIST_TABLE)
+                await conn.commit()
+
     async def drop_tables(self):
         assert self.pool is not None
         async with self.pool.acquire() as conn:
@@ -190,15 +212,15 @@ class Database:
                 logger.info("Inserted strategy with ID: %s", strategy_id)
                 return strategy_id
 
-    async def insert_order(self, price_level_id: str, order: Order) -> None:
+    async def insert_order(self, hp_id: int, order: Order) -> None:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO orders (order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         order.order_id,
-                        price_level_id,
+                        str(hp_id),
                         order.quantity,
                         order.price,
                         order.quantity_stable,
@@ -210,23 +232,47 @@ class Database:
                 )
                 await conn.commit()
 
-    async def insert_price_level(self, config: StrategyConfig, state: State) -> None:
+    async def insert_buy_price_level(
+        self, config: HPConfig, state_info: StateInfo
+    ) -> None:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO price_levels (open_time, price_level_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO price_levels (open_time, hp_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
-                        config.open_time,
-                        config.system_id,
+                        state_info.open_time,
+                        config.hp_id,
                         config.symbol_info.symbol,
-                        config.side.value,
+                        state_info.side.value,
                         config.price_low,
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        state.value,
+                        state_info.state.value,
                         config.mode.value,
+                    ),
+                )
+                await conn.commit()
+
+    async def insert_hp_list_record(self, record_data: HPUpdate):
+        insert_query = """
+        INSERT INTO hp_list (hp_id, asset, buy_price, quantity, quantity_usdt, sell_price, expected_return)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    insert_query,
+                    (
+                        str(record_data.hp_id),
+                        str(record_data.asset),
+                        str(record_data.buy_price),
+                        str(record_data.quantity),
+                        str(record_data.quantity_usdt),
+                        str(record_data.sell_price),
+                        str(record_data.expected_return),
                     ),
                 )
                 await conn.commit()
@@ -253,55 +299,62 @@ class Database:
                 result = await cur.fetchall()
                 return result
 
-    async def fetch_orders_for_price_level(self, price_level_id: str) -> List[Dict]:
+    async def fetch_hp_list(self) -> List[Dict]:
+        fetch_query = "SELECT * FROM hp_list"
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(fetch_query)
+                records = await cur.fetchall()
+                return list(records)
+
+    async def fetch_orders_for_price_level(self, hp_id: str) -> List[Dict]:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(
-                    "SELECT * FROM orders WHERE price_level_id=%s AND is_current=TRUE",
-                    price_level_id,
+                    "SELECT * FROM orders WHERE hp_id=%s AND is_current=TRUE",
+                    hp_id,
                 )
                 result = await cur.fetchall()
                 return result
 
     async def update_price_level(
         self,
-        config: StrategyConfig,
-        state: State,
-        stagnation_counter: int,
-        next_monitor_time: str,
+        config: HPConfig,
+        state_info: StateInfo,
     ) -> None:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 # Mark the current record as not current
                 await cur.execute(
-                    "UPDATE price_levels SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE",
+                    "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
                     (config.system_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO price_levels (
-                    open_time, price_level_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
+                    open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                 """
                 await cur.execute(
                     insert_query,
                     (
-                        config.open_time,
-                        config.system_id,
+                        state_info.open_time,
+                        config.hp_id,
                         config.symbol_info.symbol,
-                        config.side.value,
+                        state_info.side.value,
                         config.mode.value,
                         config.price_low,
                         config.price_high,
                         config.order_trigger,
                         config.budget,
-                        state.value,
+                        state_info.state.value,
                         version_timestamp,
-                        stagnation_counter,
-                        next_monitor_time,
+                        state_info.stagnation_counter,
+                        state_info.next_monitor_time,
                     ),
                 )
                 await conn.commit()
@@ -309,7 +362,7 @@ class Database:
     async def update_order(
         self,
         order_id: int,
-        price_level_id: str,
+        hp_id: str,
         quantity: float,
         price: float,
         quantity_stable: float,
@@ -323,21 +376,21 @@ class Database:
             async with conn.cursor() as cur:
                 # Mark the current order as not current
                 await cur.execute(
-                    "UPDATE orders SET is_current=FALSE WHERE price_level_id=%s AND is_current=TRUE AND price=%s",
-                    (price_level_id, price),
+                    "UPDATE orders SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE AND price=%s",
+                    (hp_id, price),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO orders (
-                    order_id, price_level_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
+                    order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(
                     insert_query,
                     (
                         order_id,
-                        price_level_id,
+                        hp_id,
                         quantity,
                         price,
                         quantity_stable,

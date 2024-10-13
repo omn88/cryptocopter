@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import queue
 import time
@@ -17,7 +16,8 @@ from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
     ExecutionReport,
-    StrategyConfig,
+    HPConfig,
+    StateInfo,
     TickerUpdate,
     State,
     Order,
@@ -26,9 +26,7 @@ from src.common.identifiers.spot import (
 logger = logging.getLogger("hp_db_gui")
 
 
-async def assert_db_price_level_content(
-    db: Database, config: StrategyConfig, state: State
-):
+async def assert_db_price_level_content(db: Database, config: HPConfig, state: State):
     assert db.pool is not None
     async with db.pool.acquire() as conn:
         async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
@@ -51,11 +49,9 @@ async def assert_db_price_level_content(
 
 def assert_gui_position_data_content(
     ui_queue: queue.Queue,
-    config: StrategyConfig,
-    state: State,
+    config: HPConfig,
+    state_info: StateInfo,
     completeness: float,
-    stagnation_counter: int,
-    stagnation_limit: int,
 ):
     try:
         logger.info("GUI queue size: %s", ui_queue.qsize())
@@ -65,15 +61,15 @@ def assert_gui_position_data_content(
         assert isinstance(gui_msg, PositionData)
 
         assert gui_msg.config.symbol_info.symbol == config.symbol_info.symbol
-        assert gui_msg.config.side == config.side
-        assert gui_msg.state_info.last_state == state
+        assert gui_msg.state_info.side == state_info.side
+        assert gui_msg.state_info.state == state_info.state
         assert gui_msg.config.price_low == config.price_low
         assert gui_msg.config.price_high == config.price_high
         assert gui_msg.config.order_trigger == config.order_trigger
         assert gui_msg.config.budget == config.budget
         assert gui_msg.completeness == completeness
-        assert gui_msg.state_info.stagnation_counter == stagnation_counter
-        assert gui_msg.stagnation_limit == stagnation_limit
+        assert gui_msg.state_info.stagnation_counter == state_info.stagnation_counter
+        assert gui_msg.state_info.stagnation_limit == state_info.stagnation_limit
         assert gui_msg.order_cancel == 2 * config.order_trigger
 
     except queue.Empty:
@@ -118,30 +114,24 @@ async def simulate_order_partially_filled(
 async def db_and_gui_assertions(
     strategy: HpManager,
     completeness: float,
-    stagnation_counter: int,
-    stagnation_limit: int,
 ):
-    db = strategy.position_handler.db
+    db = strategy.buy_position.db
     db.run_db_task(
         assert_db_price_level_content(
-            db=strategy.position_handler.db,
-            config=strategy.config,
+            db=strategy.buy_position.db,
+            config=strategy.buy_position.config,
             state=strategy.state,
         )
     )
     assert_gui_position_data_content(
-        ui_queue=strategy.position_handler.ui_queue,
-        config=strategy.config,
-        state=strategy.state,
+        ui_queue=strategy.buy_position.ui_queue,
+        config=strategy.buy_position.config,
+        state_info=strategy.buy_position.state_info,
         completeness=completeness,
-        stagnation_counter=stagnation_counter,
-        stagnation_limit=stagnation_limit,
     )
 
 
 def get_strategy_config(
-    side: PositionSide,
-    system_id: str = "1234",
     symbol_info: SymbolInfo = SymbolInfo(
         symbol="BTCUSDT", precision=2, price_precision=2
     ),
@@ -150,13 +140,11 @@ def get_strategy_config(
     order_trigger: float = 1.0,
     budget: float = 1000,
 ):
-    return StrategyConfig(
-        system_id=system_id,
+    return HPConfig(
+        hp_id=1000,
         symbol_info=symbol_info,
-        side=side,
         price_low=price_low,
         price_high=price_high,
         order_trigger=order_trigger,
         budget=budget,
-        open_time="",
     )

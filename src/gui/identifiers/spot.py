@@ -1,20 +1,18 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import StateInfo, StrategyConfig
+from src.common.identifiers.spot import HPConfig, StateInfo
 
 
 class PositionData:
     def __init__(
         self,
-        config: StrategyConfig,
+        config: HPConfig,
         state_info: StateInfo,
         completeness: float,
-        stagnation_limit: int = 8,
         recovering: bool = False,
     ):
         self.config = config
         self.state_info = state_info
-        self.stagnation_limit = stagnation_limit
         self.order_cancel = 2 * config.order_trigger
         self.completeness = completeness
         self.recovering = recovering
@@ -23,7 +21,6 @@ class PositionData:
         return (
             f"PositionData(config={self.config}, "
             f"state_info={self.state_info}, "
-            f"stagnation_limit={self.stagnation_limit}, "
             f"order_cancel={self.order_cancel}, "
             f"completeness={self.completeness:.2f}, "
             f"recovering={self.recovering})"
@@ -33,7 +30,7 @@ class PositionData:
 @dataclass
 class IdlePosition:
     open_time: Optional[str] = field(default=None)
-    system_id: str = field(default="")
+    hp_id: str = field(default="")
     symbol: str = field(default="")
     side: str = field(default="")
     mode: str = field(default="")
@@ -52,7 +49,7 @@ class IdlePosition:
 @dataclass
 class ActivePosition:
     open_time: Optional[str] = field(default=None)
-    system_id: str = field(default="")
+    hp_id: str = field(default="")
     symbol: str = field(default="")
     side: str = field(default="")
     mode: str = field(default="")
@@ -73,7 +70,7 @@ class ActivePosition:
 class ArchivedPosition:
     open_time: Optional[str] = field(default=None)
     close_time: Optional[str] = field(default=None)
-    system_id: str = field(default="")
+    hp_id: str = field(default="")
     symbol: str = field(default="")
     side: str = field(default="")
     mode: str = field(default="")

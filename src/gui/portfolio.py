@@ -1,6 +1,5 @@
 import logging
 import queue
-import time
 from typing import Dict, List
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.label import Label
@@ -157,6 +156,9 @@ class PortfolioUI(BoxLayout):
                 if coin["symbol"] == symbol:
                     # Update the quantity (balances) if found
                     coin["quantity"] = str(total_balance)
+                    if coin["symbol"] == "USDT":
+                        coin["quantity"] = str(round(total_balance, 2))
+                        coin["total_usdt"] = str(round(total_balance, 2))
                     found = True
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
                     break

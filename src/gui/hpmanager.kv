@@ -1,315 +1,737 @@
 <HpManager>:
     file_name_input: file_name_input
     orientation: 'vertical'
-    BoxLayout:
-        orientation: 'vertical'
-        size_hint_y: 0.35
-        height: '150dp'  # Height for configuration controls
 
-        BoxLayout:  # Main horizontal layout for configuration and buttons
-            orientation: 'horizontal'
-
-            BoxLayout:  # Configuration section (left side)
-                orientation: 'vertical'
-                size_hint_x: 1  # Using 60% of the horizontal space
-                padding: [16, 0, 0, 0]
-
-                BoxLayout:  # First line: Basic trading options
-                    orientation: 'horizontal'
-                    size_hint_y: 0.7
-                    height: '50dp'
-                    spacing: 5
-                    BoxLayout:
-                        id: symbol_container  # Placeholder for the SearchableDropDown
-                        size_hint_x: 0.6
-                        size_hint_y: 0.7  # Ensure this aligns with other elements
-                    Spinner:
-                        id: side_input
-                        values: ['BUY', 'SELL']
-                        text: 'SIDE'
-                        size_hint_x: 0.15
-                        size_hint_y: 0.9  # Full height within the line
-                    Label:
-                        text: 'budget: '
-                        size_hint_x: 0.05
-                        size_hint_y: 0.7  # Full height within the line
-                    TextInput:
-                        id: budget_input
-                        text: '100'
-                        multiline: False
-                        input_filter: 'float'
-                        size_hint_x: 0.15
-                        size_hint_y: 0.6  # Full height within the line
-                    BoxLayout:
-                        size_hint_x: 0.05
-                BoxLayout:  # Third line: Advanced trading options
-                    orientation: 'horizontal'
-                    size_hint_y: 0.3
-                    height: '50dp'
-                    Label:
-                        text: 'Order Trigger(%):'
-                        size_hint_x: 0.2
-                        size_hint_y: 0.7  # Full height within the line
-                    Spinner:
-                        id: order_trigger_input
-                        values: [str(round(x * 0.5, 1)) for x in range(0, 11)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
-                        text: '4.0'
-                        size_hint_x: 0.1
-                        size_hint_y: 0.6
-                    Label:
-                        text: 'Mode: '
-                        size_hint_x: 0.1
-                        size_hint_y: 0.7  # Full height within the line
-                    Spinner:
-                        id: mode_input
-                        values: ['DCA', 'SINGLE']
-                        text: 'SINGLE'
-                        size_hint_x: 0.2
-                        size_hint_y: 0.6  # Full height within the line
-                    BoxLayout:
-                        size_hint_x: 0.4
-
-                #Empty space
-                BoxLayout:
-                    size_hint_y: 0.1
-            # Empty space to fill 25% of the width
-            BoxLayout:
-                size_hint_x: 0.2
-
-            # Right section for action buttons - maintains 25% width
-            BoxLayout:
-                orientation: 'vertical'
-                size_hint_x: 0.2
-                Button:
-                    text: 'Add Record'
-                    size_hint_y: None
-                    height: '50dp'
-                    on_release: root.trigger_add_record()
-
-                Label:
-                    id: validation_label
-                    text: ''
-                    color: 1, 0, 0, 1  # Red color for validation messages
-                    size_hint_y: None
-                    height: '30dp'
-
-                # New TextInput for file name
-                TextInput:
-                    id: file_name_input
-                    hint_text: 'Enter config file name'
-
-                # New Save Button
-                Button:
-                    text: 'Save Config'
-                    on_press: root.save_config()
-
-                # New Load Button
-                Button:
-                    text: 'Load Config'
-                    on_press: root.load_config()
-
-    # Bottom section with tabbed panels for records
     TabbedPanel:
         do_default_tab: False
-        size_hint_y: 0.65  # Allow this to take the remaining space
+        id: hp_tabbed_panel
+        size_hint_y: 0.5  # Top section with tabbed panels
 
+        # Buy Tab
         TabbedPanelItem:
-            text: 'Active'
+            text: 'Buy'
+            id: hp_buy_tab
             BoxLayout:
                 orientation: 'vertical'
+                height: '150dp'  # Height for configuration controls
+
+                BoxLayout:  # Main horizontal layout for configuration and buttons
+                    orientation: 'horizontal'
+                    size_hint_y: 0.35  # Top section with tabbed panels
+
+
+                    BoxLayout:  # Configuration section (left side)
+                        orientation: 'vertical'
+                        size_hint_x: 1  # Using 60% of the horizontal space
+                        padding: [16, 0, 0, 0]
+
+                        BoxLayout:  # First line: Basic trading options
+                            orientation: 'horizontal'
+                            size_hint_y: 0.7
+                            height: '50dp'
+                            spacing: 5
+                            BoxLayout:
+                                id: symbol_container  # Placeholder for the SearchableDropDown
+                                size_hint_x: 0.6
+                                size_hint_y: 0.7  # Ensure this aligns with other elements
+                            Label:
+                                text: 'budget: '
+                                size_hint_x: 0.05
+                                size_hint_y: 0.7  # Full height within the line
+                            TextInput:
+                                id: budget_input
+                                text: '100'
+                                multiline: False
+                                input_filter: 'float'
+                                size_hint_x: 0.15
+                                size_hint_y: 0.6  # Full height within the line
+                            BoxLayout:
+                                size_hint_x: 0.2
+
+                        BoxLayout:  # Third line: Advanced trading options
+                            orientation: 'horizontal'
+                            size_hint_y: 0.3
+                            height: '50dp'
+                            Label:
+                                text: 'Order Trigger(%):'
+                                size_hint_x: 0.2
+                                size_hint_y: 0.7  # Full height within the line
+                            Spinner:
+                                id: order_trigger_input
+                                values: [str(round(x * 0.5, 1)) for x in range(0, 11)]  # Generates float values from 0.0 to 5.0 in 0.1 steps
+                                text: '4.0'
+                                size_hint_x: 0.1
+                                size_hint_y: 0.6
+                            Label:
+                                text: 'Mode: '
+                                size_hint_x: 0.1
+                                size_hint_y: 0.7  # Full height within the line
+                            Spinner:
+                                id: mode_input
+                                values: ['DCA', 'SINGLE']
+                                text: 'SINGLE'
+                                size_hint_x: 0.2
+                                size_hint_y: 0.6  # Full height within the line
+                            BoxLayout:
+                                size_hint_x: 0.4
+
+                        # Empty space
+                        BoxLayout:
+                            size_hint_y: 0.1
+
+                    # Empty space to fill 25% of the width
+                    BoxLayout:
+                        size_hint_x: 0.2
+
+                    # Right section for action buttons - maintains 25% width
+                    BoxLayout:
+                        orientation: 'vertical'
+                        size_hint_x: 0.2
+                        Button:
+                            text: 'Add Record'
+                            size_hint_y: None
+                            height: '50dp'
+                            on_release: root.trigger_add_record()
+
+                        Label:
+                            id: buy_validation_label
+                            text: ''
+                            color: 1, 0, 0, 1  # Red color for validation messages
+                            size_hint_y: None
+                            height: '30dp'
+
+                        # New TextInput for file name
+                        TextInput:
+                            id: file_name_input
+                            hint_text: 'Enter config file name'
+
+                        # New Save Button
+                        Button:
+                            text: 'Save Config'
+                            on_press: root.save_config()
+
+                        # New Load Button
+                        Button:
+                            text: 'Load Config'
+                            on_press: root.load_config()
+
+                # Bottom section with tabbed panels for records
+                TabbedPanel:
+                    do_default_tab: False
+                    size_hint_y: 0.65  # Allow this to take the remaining space
+
+                    TabbedPanelItem:
+                        text: 'Active'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: active_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('active', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.05
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Order Cancel'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Stagnation'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Current Price'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.06
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: ''
+                                    size_hint_x: 0.1
+                            RecycleView:
+                                id: buy_active_records_list
+                                data: root.filtered_active_records
+                                viewclass: 'RecordListItemActive'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+                    TabbedPanelItem:
+                        text: 'Idle'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: idle_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('idle', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.05
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Order Trigger'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Current Price'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: ''
+                                    size_hint_x: 0.1  # Space for the button
+                            RecycleView:
+                                id: buy_idle_records_list
+                                data: root.filtered_idle_records
+                                viewclass: 'RecordListItemIdle'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+                    TabbedPanelItem:
+                        text: 'Archive'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: archive_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('archive', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Close Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.09
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.06
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.09
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Order Trigger'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.1
+                            RecycleView:
+                                id: buy_archive_records_list
+                                data: root.filtered_archive_records
+                                viewclass: 'RecordListItemArchive'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+                    TabbedPanelItem:
+                        text: 'Logs'
+                        ScrollView:
+                            scroll_type: ['bars', 'content']
+                            bar_width: 10
+                            effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
+                            TextInput:
+                                id: log_display
+                                on_parent: root.log_display = self
+                                font_size: '14sp'
+                                background_color: (0.2, 0.2, 0.2, 1)
+                                foreground_color: (1, 1, 1, 1)
+                                padding: 10
+                                readonly: True
+                                multiline: True
+                                size_hint_y: None
+                                height: max(self.minimum_height, self.parent.height)
+
+        # The Sell tab layout
+        TabbedPanelItem:
+            text: 'Sell'
+            id: hp_sell_tab
+            BoxLayout:
+                orientation: 'vertical'
+                height: '150dp'
+
                 BoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: 0.35
+
+                    BoxLayout:  # HP ID, quantity, asset, buy price display
+                        orientation: 'vertical'
+                        size_hint_x: 1
+                        padding: [16, 0, 0, 0]
+
+                        BoxLayout:  # First line: HP ID and quantity display
+                            orientation: 'horizontal'
+                            size_hint_y: 0.25
+                            height: '50dp'
+                            spacing: 5
+                            Label:
+                                text: 'HP ID: '
+                                size_hint_x: 0.2
+                            TextInput:
+                                id: hp_id_input
+                                default: 0
+                                hint_text: 'Enter HP ID'
+                                multiline: False
+                                size_hint_x: 0.4
+                                on_text: root.fetch_hp_info(self.text)
+                            Label:
+                                text: 'Quantity: '
+                                size_hint_x: 0.15
+                            Label:
+                                id: quantity_label
+                                text: '---'
+                                size_hint_x: 0.15  # Adjusted for space
+                            Label:
+                                text: 'Quantity in USDT: '
+                                size_hint_x: 0.15
+                            Label:
+                                id: quantity_usdt_label
+                                text: '---'
+                                size_hint_x: 0.15
+                        BoxLayout:
+                            orientation: 'horizontal'
+                            size_hint_y: 0.25
+                            height: '50dp'
+                            spacing: 5
+                            Label:
+                                text: 'Asset:'
+                                size_hint_x: 0.2
+                            Label:
+                                id: asset_label
+                                text: '---'
+                                size_hint_x: 0.4
+                            Label:
+                                text: 'Buy Price:'
+                                size_hint_x: 0.15
+                            Label:
+                                id: buy_price_label
+                                text: '---'
+                                size_hint_x: 0.25
+
+                        BoxLayout:
+                            orientation: 'horizontal'
+                            size_hint_y: 0.25
+                            height: '50dp'
+                            spacing: 5
+                            Label:
+                                text: 'Sell Price:'
+                                size_hint_x: 0.2
+                            TextInput:
+                                id: sell_price_input
+                                multiline: False
+                                size_hint_x: 0.4
+                                on_text: root.calculate_expected_gain(self.text)
+
+                        # Add total USDT value to Expected Gain section
+                        BoxLayout:  # Third line: Expected Gain and Gain %
+                            orientation: 'horizontal'
+                            size_hint_y: 0.25
+                            height: '50dp'
+                            spacing: 5
+                            Label:
+                                text: 'Expected Gain: '
+                                size_hint_x: 0.2
+                            Label:
+                                id: expected_gain_label
+                                text: '---'
+                                size_hint_x: 0.2
+                            Label:
+                                text: 'Expected Gain %: '
+                                size_hint_x: 0.2
+                            Label:
+                                id: expected_gain_percent_label
+                                text: '---'
+                                size_hint_x: 0.2
+                            Label:
+                                text: 'Total USDT Value: '
+                                size_hint_x: 0.2
+                            Label:
+                                id: total_usdt_value_label
+                                size_hint_x: 0.2
+
+                        Button:
+                            text: 'Set Sell Price'
+                            size_hint_y: 0.25
+                            height: '40dp'
+                            on_release: root.set_sell_price(hp_id_input.text, sell_price_input.text)
+
+                        Label:
+                            id: sell_validation_label
+                            text: ''
+                            color: 1, 0, 0, 1  # Red color for validation messages
+                            size_hint_y: None
+                            height: '30dp'
+
+
+
+                # Bottom section with tabbed panels for records
+                TabbedPanel:
+                    do_default_tab: False
+                    size_hint_y: 0.65  # Allow this to take the remaining space
+
+                    TabbedPanelItem:
+                        text: 'Active'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: active_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('active', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.05
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Order Cancel'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Stagnation'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Current Price'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.06
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: ''
+                                    size_hint_x: 0.1
+                            RecycleView:
+                                id: sell_active_records_list
+                                data: root.filtered_active_records
+                                viewclass: 'RecordListItemActive'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+                    TabbedPanelItem:
+                        text: 'Idle'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: idle_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('idle', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.05
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.08
+                                Label:
+                                    text: 'Order Trigger'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Current Price'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: ''
+                                    size_hint_x: 0.1  # Space for the button
+                            RecycleView:
+                                id: sell_idle_records_list
+                                data: root.filtered_idle_records
+                                viewclass: 'RecordListItemIdle'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+                    TabbedPanelItem:
+                        text: 'Archive'
+                        BoxLayout:
+                            orientation: 'vertical'
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '40dp'
+                                Spinner:
+                                    id: archive_filter_input
+                                    text: 'All'
+                                    size_hint_x: 0.2
+                                    on_text: root.filter_records('archive', self.text)
+                                BoxLayout:
+                                    size_hint_x: 0.8  # Empty space for alignment
+                            BoxLayout:
+                                size_hint_y: None
+                                height: '30dp'
+                                Label:
+                                    text: 'Open Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Close Time'
+                                    size_hint_x: 0.13
+                                Label:
+                                    text: 'Symbol'
+                                    size_hint_x: 0.09
+                                Label:
+                                    text: 'Side'
+                                    size_hint_x: 0.06
+                                Label:
+                                    text: 'Mode'
+                                    size_hint_x: 0.09
+                                Label:
+                                    text: 'Price Low'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Price High'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Order Trigger'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Budget'
+                                    size_hint_x: 0.1
+                                Label:
+                                    text: 'Completeness'
+                                    size_hint_x: 0.1
+                            RecycleView:
+                                id: sell_archive_records_list
+                                data: root.filtered_archive_records
+                                viewclass: 'RecordListItemArchive'
+                                RecycleBoxLayout:
+                                    default_size: None, dp(56)  # Adjust the height as necessary
+                                    default_size_hint: 1, None
+                                    size_hint_y: None
+                                    height: self.minimum_height  # This makes the layout as tall as its contents
+                                    orientation: 'vertical'
+
+        TabbedPanelItem:
+            text: 'HP List'
+
+            BoxLayout:
+                orientation: 'vertical'
+                padding: [20, 20]
+                spacing: 10
+
+                # Header BoxLayout for the HP List
+                BoxLayout:
+                    orientation: 'horizontal'
                     size_hint_y: None
                     height: '40dp'
-                    Spinner:
-                        id: active_filter_input
-                        text: 'All'
-                        size_hint_x: 0.2
-                        on_text: root.filter_records('active', self.text)
-                    BoxLayout:
-                        size_hint_x: 0.8  # Empty space for alignment
-                BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
+                    height: '50dp'
+                    padding: [10, 10]
+                    spacing: 10
+                    spacing: 15
+
                     Label:
-                        text: 'Open time'
-                        size_hint_x: 0.13
-                    Label:
-                        text: 'Symbol'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Side'
+                        text: "ID"
+                        font_size: '16sp'  # Set font size
                         size_hint_x: 0.05
-                    Label:
-                        text: 'Mode'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price Low'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price High'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Order Cancel'
-                        size_hint_x: 0.1
-                    Label:
-                        text: 'Stagnation'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Current Price'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Budget'
-                        size_hint_x: 0.06
-                    Label:
-                        text: 'Completeness'
-                        size_hint_x: 0.08
-                    Label:
-                        text: ''
-                        size_hint_x: 0.1
-                RecycleView:
-                    id: active_records_list
-                    data: root.filtered_active_records
-                    viewclass: 'RecordListItemActive'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)  # Adjust the height as necessary
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height  # This makes the layout as tall as its contents
-                        orientation: 'vertical'
+                        font_size: '16sp'
+                        bold: True
 
-        TabbedPanelItem:
-            text: 'Idle'
-            BoxLayout:
-                orientation: 'vertical'
-                BoxLayout:
-                    size_hint_y: None
-                    height: '40dp'
-                    Spinner:
-                        id: idle_filter_input
-                        text: 'All'
-                        size_hint_x: 0.2
-                        on_text: root.filter_records('idle', self.text)
-                    BoxLayout:
-                        size_hint_x: 0.8  # Empty space for alignment
-                BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
                     Label:
-                        text: 'Open Time'
-                        size_hint_x: 0.13
-                    Label:
-                        text: 'Symbol'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Side'
+                        text: "Asset"
                         size_hint_x: 0.05
+                        font_size: '16sp'
+                        bold: True
+
                     Label:
-                        text: 'Mode'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price Low'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Price High'
-                        size_hint_x: 0.08
-                    Label:
-                        text: 'Order Trigger'
+                        text: "Buy Price"
                         size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
                     Label:
-                        text: 'Current Price'
+                        text: "Quantity"
+                        size_hint_x: 0.05
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Quantity in USDT"
                         size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
                     Label:
-                        text: 'Budget'
+                        text: "Current Price"
                         size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
                     Label:
-                        text: 'Completeness'
+                        text: "Net"
                         size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
                     Label:
-                        text: ''
-                        size_hint_x: 0.1  # Space for the button
+                        text: "Net Percent"
+                        size_hint_x: 0.05
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Sell Price"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Expected Return"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "State"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                    Label:
+                        text: "Action"
+                        size_hint_x: 0.1
+                        font_size: '16sp'
+                        bold: True
+
+                # RecycleView for displaying HP List items
                 RecycleView:
-                    id: idle_records_list
-                    data: root.filtered_idle_records
-                    viewclass: 'RecordListItemIdle'
+                    id: hp_list
+                    viewclass: 'HPListItem'
+                    data: root.hp_list_data
                     RecycleBoxLayout:
-                        default_size: None, dp(56)  # Adjust the height as necessary
+                        default_size: None, dp(56)
+                        default_size: None, dp(50)
                         default_size_hint: 1, None
                         size_hint_y: None
-                        height: self.minimum_height  # This makes the layout as tall as its contents
+                        height: self.minimum_height
                         orientation: 'vertical'
-
-        TabbedPanelItem:
-            text: 'Archive'
-            BoxLayout:
-                orientation: 'vertical'
-                BoxLayout:
-                    size_hint_y: None
-                    height: '40dp'
-                    Spinner:
-                        id: archive_filter_input
-                        text: 'All'
-                        size_hint_x: 0.2
-                        on_text: root.filter_records('archive', self.text)
-                    BoxLayout:
-                        size_hint_x: 0.8  # Empty space for alignment
-                BoxLayout:
-                    size_hint_y: None
-                    height: '30dp'
-                    Label:
-                        text: 'Open Time'
-                        size_hint_x: 0.13
-                    Label:
-                        text: 'Close Time'
-                        size_hint_x: 0.13
-                    Label:
-                        text: 'Symbol'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Side'
-                        size_hint_x: 0.06
-                    Label:
-                        text: 'Mode'
-                        size_hint_x: 0.09
-                    Label:
-                        text: 'Price Low'
-                        size_hint_x: 0.1
-                    Label:
-                        text: 'Price High'
-                        size_hint_x: 0.1
-                    Label:
-                        text: 'Order Trigger'
-                        size_hint_x: 0.1
-                    Label:
-                        text: 'Budget'
-                        size_hint_x: 0.1
-                    Label:
-                        text: 'Completeness'
-                        size_hint_x: 0.1
-                RecycleView:
-                    id: archive_records_list
-                    data: root.filtered_archive_records
-                    viewclass: 'RecordListItemArchive'
-                    RecycleBoxLayout:
-                        default_size: None, dp(56)  # Adjust the height as necessary
-                        default_size_hint: 1, None
-                        size_hint_y: None
-                        height: self.minimum_height  # This makes the layout as tall as its contents
-                        orientation: 'vertical'
-
-        TabbedPanelItem:
-            text: 'Logs'
-            ScrollView:
-                scroll_type: ['bars', 'content']
-                bar_width: 10
-                effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
-                TextInput:
-                    id: log_display
-                    on_parent: root.log_display = self
-                    font_size: '14sp'
-                    background_color: (0.2, 0.2, 0.2, 1)  # Shade of gray similar to the current prompt background
-                    foreground_color: (1, 1, 1, 1)  # White text
-                    padding: 10  # Padding inside TextInput
-                    readonly: True
-                    multiline: True
-                    size_hint_y: None  # Allow the height to adjust dynamically
-                    height: max(self.minimum_height, self.parent.height)  # Adjust height to the content or ScrollView's height
+                        spacing: 10  # Space between list items
