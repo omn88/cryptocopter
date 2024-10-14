@@ -10,7 +10,7 @@ from binance.enums import (
 )
 import pytest
 from src.common.identifiers.spot import ExecutionReport, State
-from src.common.identifiers.common import PositionSide
+from src.common.identifiers.common import Mode, PositionSide
 from src.strategies.spot.hp_manager import HpManager
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager import get_default_strategy_config
@@ -23,79 +23,114 @@ async def test_initialize_strategy(trading_system_factory) -> None:
         price_high=trading_system.model.buy_position.config.price_high,
     )
 
-    # Set initial condition
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
     assert strategy.state == State.NEW
 
 
-# async def test_configuration_settings(spot_buy) -> None:
-#     strategy = spot_buy.model
-#     assert strategy.config.price_low == 1000
-#     assert strategy.config.price_high == 1400
-#     assert strategy.config.order_trigger == 1
-#     assert strategy.config.budget == 1000
+async def test_configuration_settings(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    buy_position = trading_system.model.buy_position
+    assert buy_position.config.price_low == 1000
+    assert buy_position.config.price_high == 1400
+    assert buy_position.config.order_trigger == 1
+    assert buy_position.config.budget == 1000
+    assert buy_position.config.mode == Mode.DCA
+    assert buy_position.config.symbol_info.symbol == "BTCUSDT"
+    assert buy_position.config.hp_id == 1000
 
 
-# async def test_conditions_for_new_order_confirmation(spot_sell) -> None:
-#     strategy: HpManager = spot_sell.model
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_NEW,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_new_order_confirmation()
+async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.buy_position.config.price_low,
+        price_high=trading_system.model.buy_position.config.price_high,
+    )
+    strategy: HpManager = trading_system.model
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_new_order_confirmation()
 
 
-# async def test_conditions_for_order_cancellation(spot_sell) -> None:
-#     strategy: HpManager = spot_sell.model
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_CANCELED,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_order_cancellation()
+async def test_conditions_for_order_cancellation(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.buy_position.config.price_low,
+        price_high=trading_system.model.buy_position.config.price_high,
+    )
+    strategy: HpManager = trading_system.model
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_order_cancellation()
 
 
-# async def test_conditions_for_order_expiration(spot_sell) -> None:
-#     strategy = spot_sell.model
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
-#     )
-#     assert strategy.conditions_for_order_expiration()
+async def test_conditions_for_order_expiration(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.buy_position.config.price_low,
+        price_high=trading_system.model.buy_position.config.price_high,
+    )
+    strategy: HpManager = trading_system.model
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
+    )
+    assert strategy.conditions_for_order_expiration()
 
 
-# async def test_conditions_for_order_filled(spot_sell) -> None:
-#     strategy = spot_sell.model
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
-#     )
-#     assert strategy.conditions_for_order_filled()
+async def test_conditions_for_order_filled_buy(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    strategy: HpManager = trading_system.model
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy_position.config.price_low,
+        price_high=strategy.buy_position.config.price_high,
+    )
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_FILLED
+    )
+    assert strategy.conditions_for_order_filled_buy()
 
 
-# async def test_conditions_for_order_partially_filled(spot_sell) -> None:
-#     strategy = spot_sell.model
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_PARTIALLY_FILLED
-#     )
-#     assert strategy.conditions_for_order_partially_filled()
+async def test_conditions_for_order_partially_filled_buy(
+    trading_system_factory,
+) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    strategy: HpManager = trading_system.model
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy_position.config.price_low,
+        price_high=strategy.buy_position.config.price_high,
+    )
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_PARTIALLY_FILLED
+    )
+    assert strategy.conditions_for_order_partially_filled_buy()
 
 
-# async def test_conditions_for_sending_buy_orders(spot_buy) -> None:
-#     strategy = spot_buy.model
-#     strategy.state = State.NEW
-#     strategy.config.side = PositionSide.LONG
-#     strategy.ticker_update = MagicMock(last_price=1300)
-#     assert strategy.conditions_for_sending_buy_orders()
+async def test_conditions_for_sending_buy_orders(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    strategy: HpManager = trading_system.model
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy_position.config.price_low,
+        price_high=strategy.buy_position.config.price_high,
+    )
+    strategy.buy_position.state_info.state = State.NEW
+    strategy.buy_position.state_info.side = PositionSide.LONG
+    strategy.ticker_update = MagicMock(last_price=1300)
+    assert strategy.conditions_for_sending_buy_orders()
 
 
-# async def test_conditions_for_sending_sell_orders(spot_sell) -> None:
-#     strategy = spot_sell.model
-#     strategy.state = State.NEW
-#     strategy.config.side = PositionSide.SHORT
-#     strategy.ticker_update = MagicMock(last_price=1500)
-#     assert strategy.conditions_for_sending_sell_orders()
+async def test_conditions_for_sending_sell_orders(spot_sell) -> None:
+    strategy = spot_sell.model
+    strategy.state = State.NEW
+    strategy.config.side = PositionSide.SHORT
+    strategy.ticker_update = MagicMock(last_price=1500)
+    assert strategy.conditions_for_sending_sell_orders()
 
 
 # async def test_conditions_for_cancelling_buy_orders(spot_buy) -> None:
