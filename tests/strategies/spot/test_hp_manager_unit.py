@@ -1,21 +1,33 @@
-# from datetime import datetime
-# from unittest.mock import MagicMock
-# from binance.enums import (
-#     ORDER_STATUS_NEW,
-#     ORDER_TYPE_LIMIT,
-#     ORDER_STATUS_CANCELED,
-#     ORDER_STATUS_EXPIRED,
-#     ORDER_STATUS_FILLED,
-#     ORDER_STATUS_PARTIALLY_FILLED,
-# )
-# from src.common.identifiers.spot import ExecutionReport, State
-# from src.common.identifiers.common import PositionSide
-# from src.strategies.spot.hp_manager import HpManager
+from datetime import datetime
+from unittest.mock import MagicMock
+from binance.enums import (
+    ORDER_STATUS_NEW,
+    ORDER_TYPE_LIMIT,
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_EXPIRED,
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_PARTIALLY_FILLED,
+)
+import pytest
+from src.common.identifiers.spot import ExecutionReport, State
+from src.common.identifiers.common import PositionSide
+from src.strategies.spot.hp_manager import HpManager
+from tests.spot import get_new_orders
+from tests.strategies.spot.hp_manager import get_default_strategy_config
 
 
-# async def test_initialize_strategy(spot_sell) -> None:
-#     strategy = spot_sell.model
-#     assert strategy.state == State.NEW
+async def test_initialize_strategy(trading_system_factory) -> None:
+    trading_system = await trading_system_factory(get_default_strategy_config())
+    trading_system.model.client.create_order.side_effect = get_new_orders(
+        price_low=trading_system.model.buy_position.config.price_low,
+        price_high=trading_system.model.buy_position.config.price_high,
+    )
+
+    # Set initial condition
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    assert strategy.state == State.NEW
 
 
 # async def test_configuration_settings(spot_buy) -> None:

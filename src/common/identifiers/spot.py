@@ -13,10 +13,14 @@ from src.common.symbol_info import SymbolInfo
 
 class State(Enum):
     NEW = "NEW"
-    OPEN = "OPEN"
-    STAGNATED = "STAGNATED"
+    BUYING = "BUYING"
+    PARTIALLY_BOUGHT = "PARTIALLY_BOUGHT"
+    BOUGHT = "BOUGHT"
+    READY_TO_SELL = "READY_TO_SELL"
+    SELLING = "SELLING"
+    PARTIALLY_SOLD = "PARTIALLY_SOLD"
+    SOLD = "SOLD"
     RECOVERING = "RECOVERING"
-    CLOSED = "CLOSED"
 
 
 class Signal(Enum):

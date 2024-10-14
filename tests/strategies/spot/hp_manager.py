@@ -131,7 +131,7 @@ async def db_and_gui_assertions(
     )
 
 
-def get_strategy_config(
+def get_default_strategy_config(
     symbol_info: SymbolInfo = SymbolInfo(
         symbol="BTCUSDT", precision=2, price_precision=2
     ),
