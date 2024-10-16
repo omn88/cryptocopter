@@ -1,6 +1,6 @@
 import datetime
 import queue
-from typing import List
+from typing import List, Optional
 import logging
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
@@ -13,7 +13,6 @@ from src.common.identifiers.spot import (
     StateInfo,
     Order,
 )
-from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
 
@@ -40,22 +39,19 @@ class PositionHandler:
             client=client,
             strategy_logger=strategy_logger,
         )
-        self.orders: List[Order] = self.order_handler.prepare_orders(
-            config=config, state_info=state_info
-        )
+        self.orders: List[Order] = []
 
-    async def open_position(
-        self,
-        side: PositionSide,
-        symbol_info: SymbolInfo,
-    ) -> None:
+    async def open_position(self, config: HPConfig, state_info: StateInfo) -> None:
+        self.order_handler.prepare_orders(config=config, state_info=state_info)
         self.orders = await self.order_handler.create_orders(
-            side=side, orders=self.orders, symbol_info=symbol_info
+            side=state_info.side, orders=self.orders, symbol_info=config.symbol_info
         )
         self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
-        self.state_info.state = State.OPEN
+        self.state_info.state = (
+            State.BUYING if self.state_info.side == PositionSide.LONG else State.SELLING
+        )
 
         position_data = PositionData(
             config=self.config,
@@ -84,7 +80,7 @@ class PositionHandler:
 
         logger.info("Position opened successfully.")
 
-    async def cancel_position(self, state: State) -> None:
+    async def cancel_position(self) -> None:
         logger.info(
             "Start canceling position: %s %s, system id: %s",
             self.config.symbol_info.symbol,
@@ -142,7 +138,6 @@ class PositionHandler:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
-        self.state_info.state = State.OPEN
         self.state_info.stagnation_counter = 0
         self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
@@ -179,7 +174,6 @@ class PositionHandler:
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        self.state_info.state = State.OPEN
         self.state_info.stagnation_counter = 0
         self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)

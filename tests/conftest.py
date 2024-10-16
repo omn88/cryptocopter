@@ -29,6 +29,7 @@ from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
 
 from tests.data.sample_dataframes import raw_data_generate
+from tests.strategies.spot.hp_manager import get_default_strategy_config
 
 logger = logging.getLogger("conftest")
 
@@ -94,8 +95,11 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
-    async def create_trading_system(hp_config: HPConfig, balance: float = 10000):
+    async def create_trading_system(
+        hp_config: HPConfig, state_info: StateInfo, balance: float = 10000
+    ):
         ui_queue: queue.Queue = queue.Queue()
+        test_db = MagicMock()
         strategy = StrategyHP(
             client=mock_AsyncClient,
             balance=balance,
@@ -104,8 +108,21 @@ def trading_system_factory(mock_AsyncClient):
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
-            state_info=StateInfo(),
+            state_info=state_info,
         )
+        if state_info.side == PositionSide.LONG:
+            strategy.buy_position.orders = (
+                strategy.buy_position.order_handler.prepare_orders(
+                    config=hp_config, state_info=state_info
+                )
+            )
+        if state_info.side == PositionSide.SHORT:
+            strategy.sell_position.orders = (
+                strategy.sell_position.order_handler.prepare_orders(
+                    config=hp_config, state_info=state_info
+                )
+            )
+
         # Trading State Machine initialization
         state_machine = AsyncMachine(
             model=strategy,

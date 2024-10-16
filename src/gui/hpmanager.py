@@ -145,19 +145,19 @@ class HpManager(BoxLayout):
 
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
-                    if data.recovering:
-                        if data.state_info.state == State.OPEN:
-                            logger.info(
-                                "Recovering position to active tab in GUI: %s", data
-                            )
-                            self.recovery_to_active(data=data)
-                        if data.state_info.state == State.NEW:
-                            logger.info(
-                                "Recovering position to idle tab in GUI: %s", data
-                            )
-                            self.recovery_to_idle(data=data)
+                    # if data.recovering:
+                    #     if data.state_info.state == State.OPEN:
+                    #         logger.info(
+                    #             "Recovering position to active tab in GUI: %s", data
+                    #         )
+                    #         self.recovery_to_active(data=data)
+                    #     if data.state_info.state == State.NEW:
+                    #         logger.info(
+                    #             "Recovering position to idle tab in GUI: %s", data
+                    #         )
+                    #         self.recovery_to_idle(data=data)
 
-                    elif any(
+                    if any(
                         record["hp_id"] == data.config.hp_id
                         for record in self.active_records
                     ):

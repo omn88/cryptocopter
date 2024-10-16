@@ -261,7 +261,7 @@ class StateInfo:
     next_monitor_time: str = ""
     open_time: str = ""
     close_time: str = ""
-    side: PositionSide = PositionSide.FLAT
+    side: PositionSide = PositionSide.LONG
 
     def __str__(self):
         return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
