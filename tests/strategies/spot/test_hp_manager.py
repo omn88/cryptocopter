@@ -29,10 +29,6 @@ async def test_default_scenario_buy(trading_system_factory):
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
     )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
-    )
 
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
@@ -100,10 +96,6 @@ async def test_default_scenario_sell(trading_system_factory):
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
     )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
-    )
 
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
@@ -154,10 +146,6 @@ async def test_default_scenario_sell(trading_system_factory):
         ui_queue=strategy.buy_position.ui_queue,
         db=strategy.db,
         state_info=sell_state_info,
-    )
-    strategy.client.create_order.side_effect = get_new_orders(
-        price_low=strategy.sell_position.config.price_low,
-        price_high=strategy.sell_position.config.price_high,
     )
     strategy.sell_position.orders = strategy.sell_position.order_handler.prepare_orders(
         state_info=sell_state_info, config=sell_config

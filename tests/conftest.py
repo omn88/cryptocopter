@@ -29,6 +29,7 @@ from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
 
 from tests.data.sample_dataframes import raw_data_generate
+from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager import get_default_strategy_config
 
 logger = logging.getLogger("conftest")
@@ -116,6 +117,10 @@ def trading_system_factory(mock_AsyncClient):
                     config=hp_config, state_info=state_info
                 )
             )
+            strategy.client.create_order.side_effect = get_new_orders(
+                price_low=strategy.buy_position.config.price_low,
+                price_high=strategy.buy_position.config.price_high,
+            )
         if state_info.side == PositionSide.SHORT:
             strategy.sell_position.orders = (
                 strategy.sell_position.order_handler.prepare_orders(
@@ -123,7 +128,6 @@ def trading_system_factory(mock_AsyncClient):
                 )
             )
 
-        # Trading State Machine initialization
         state_machine = AsyncMachine(
             model=strategy,
             states=strategy.states,

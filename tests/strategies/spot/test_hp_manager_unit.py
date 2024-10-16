@@ -21,10 +21,6 @@ async def test_initialize_strategy(trading_system_factory) -> None:
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
     )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
-    )
 
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
@@ -50,10 +46,6 @@ async def test_conditions_for_new_order_confirmation(trading_system_factory) -> 
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
     )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
-    )
     strategy: HpManager = trading_system.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -67,10 +59,6 @@ async def test_conditions_for_order_cancellation(trading_system_factory) -> None
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
     )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
-    )
     strategy: HpManager = trading_system.model
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -83,10 +71,6 @@ async def test_conditions_for_order_cancellation(trading_system_factory) -> None
 async def test_conditions_for_order_expiration(trading_system_factory) -> None:
     trading_system = await trading_system_factory(
         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
-    )
-    trading_system.model.client.create_order.side_effect = get_new_orders(
-        price_low=trading_system.model.buy_position.config.price_low,
-        price_high=trading_system.model.buy_position.config.price_high,
     )
     strategy: HpManager = trading_system.model
     strategy.execution_report = ExecutionReport(
@@ -143,9 +127,10 @@ async def test_conditions_for_sending_buy_orders(trading_system_factory) -> None
 
 
 async def test_conditions_for_sending_sell_orders(trading_system_factory) -> None:
+    buy_state_info = StateInfo(side=PositionSide.LONG)
     sell_state_info = StateInfo(side=PositionSide.SHORT)
     trading_system = await trading_system_factory(
-        get_default_strategy_config(), sell_state_info
+        get_default_strategy_config(), buy_state_info
     )
     strategy: HpManager = trading_system.model
     sell_config = HPConfig(
@@ -163,7 +148,7 @@ async def test_conditions_for_sending_sell_orders(trading_system_factory) -> Non
         config=sell_config,
         ui_queue=strategy.buy_position.ui_queue,
         db=strategy.db,
-        state_info=StateInfo(side=PositionSide.SHORT),
+        state_info=sell_state_info,
     )
     strategy.sell_position.orders = strategy.sell_position.order_handler.prepare_orders(
         config=sell_config, state_info=sell_state_info
