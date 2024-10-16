@@ -337,7 +337,12 @@ class HpManager:
         return condition
 
     async def send_sell_orders(self, *args, **kwargs) -> None:
-        assert self.sell_position
+        if not self.sell_position.orders:
+            self.sell_position.orders = self.sell_position.order_handler.prepare_orders(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+            )
+
         self.logger.info(
             "Sending %s %s",
             self.sell_position.config.symbol_info.symbol,

@@ -97,7 +97,9 @@ async def test_default_scenario_buy(trading_system_factory):
 
 
 async def test_default_scenario_sell(trading_system_factory):
-    trading_system = await trading_system_factory(get_default_strategy_config())
+    trading_system = await trading_system_factory(
+        get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
+    )
     trading_system.model.client.create_order.side_effect = get_new_orders(
         price_low=trading_system.model.buy_position.config.price_low,
         price_high=trading_system.model.buy_position.config.price_high,
@@ -137,24 +139,28 @@ async def test_default_scenario_sell(trading_system_factory):
 
     sell_config = HPConfig(
         hp_id=1000,
-        symbol_info=SymbolInfo(symbol="BTCUSDT"),
+        symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
         price_high=4200,
         price_low=4200,
         mode=Mode.SINGLE,
         order_trigger=1.0,
         budget=1000,
     )
+    sell_state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell_position = PositionHandler(
         client=strategy.client,
         strategy_logger=strategy.logger,
         config=sell_config,
         ui_queue=strategy.buy_position.ui_queue,
         db=strategy.db,
-        state_info=StateInfo(side=PositionSide.SHORT),
+        state_info=sell_state_info,
     )
     strategy.client.create_order.side_effect = get_new_orders(
         price_low=strategy.sell_position.config.price_low,
         price_high=strategy.sell_position.config.price_high,
+    )
+    strategy.sell_position.orders = strategy.sell_position.order_handler.prepare_orders(
+        state_info=sell_state_info, config=sell_config
     )
     strategy.sell_position.state_info.state = State.SELLING
     strategy.sell_position.state_info.side = PositionSide.SHORT
