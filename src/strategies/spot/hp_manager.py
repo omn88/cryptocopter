@@ -372,6 +372,13 @@ class HpManager:
             config=self.buy_position.config, state_info=self.buy_position.state_info
         )
 
+    async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
+        self.logger.info("Orders: %s", self.buy_position.orders)
+        self.balance += self.get_remaining_quantity_buy()
+        await self.buy_position.cancel_position()
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+
     def calculate_trigger_send_orders_price_sell(self):
         return self.sell_position.config.symbol_info.adjust_price(
             self.sell_position.config.price_low

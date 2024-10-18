@@ -25,6 +25,7 @@ from tests.spot import get_cancel_order, get_new_orders
 from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
+    simulate_partial_fill,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -112,10 +113,10 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
 
     await strategy.process_ticker()
 
-    assert strategy.buy_position.state_info.state == State.NEW
-    assert strategy.state == State.NEW
     assert len(strategy.buy_position.orders) == 3
     assert all(order.status == "PREPARED" for order in strategy.buy_position.orders)
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert strategy.state == State.NEW
 
 
 async def test_cancel_default_position_untouched_then_resend_orders(
@@ -178,6 +179,45 @@ async def test_default_position_first_order_filled_partially(
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+
+async def test_default_position_first_order_filled_partially_then_cancel(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_partial_fill(strategy=strategy)
+
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
+    assert strategy.conditions_for_cancelling_partially_bought_orders()
+
+    await strategy.process_ticker()
+
+    assert len(strategy.buy_position.orders) == 3
+    assert all(
+        order.status == ORDER_STATUS_CANCELED for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.12
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
 
 
 async def test_default_position_first_order_filled(trading_system_factory) -> None:

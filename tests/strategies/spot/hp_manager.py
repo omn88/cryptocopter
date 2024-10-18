@@ -202,3 +202,23 @@ async def move_to_buy_position_active(strategy: HpManager) -> HpManager:
     )
 
     return strategy
+
+
+async def simulate_partial_fill(strategy: HpManager) -> HpManager:
+    # Simulate partial fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445860,
+        last_executed_quantity=0.12,
+        last_executed_price=1400,
+        cumulative_filled_quantity=0.12,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
