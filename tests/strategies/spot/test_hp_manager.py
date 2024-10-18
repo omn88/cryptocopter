@@ -8,6 +8,7 @@ from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_CANCELED,
+    ORDER_STATUS_EXPIRED
 )
 from src.common.identifiers.common import Mode, PositionSide
 from src.common.identifiers.spot import (
@@ -192,6 +193,36 @@ async def test_default_position_first_order_filled(trading_system_factory) -> No
     # await strategy.process_signal()
     # assert strategy.state == State.BOUGHT
 
+async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_new_order_confirmation()
+
+
+async def test_conditions_for_order_cancellation(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_order_cancellation()
+
+
+async def test_conditions_for_order_expiration(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
+    )
+    assert strategy.conditions_for_order_expiration()
 
 # async def test_default_scenario_buy(trading_system_factory):
 #     trading_system = await trading_system_factory(
