@@ -88,8 +88,6 @@ class PositionHandler:
             self.config.hp_id,
         )
 
-        self.state_info.stagnation_counter = 0
-
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
             orders=self.orders,

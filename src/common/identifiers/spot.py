@@ -255,7 +255,7 @@ class SubscriptionInfo(NamedTuple):
 
 @dataclass
 class StateInfo:
-    state: Optional[State] = None
+    state: State = State.NEW
     stagnation_counter: int = 0
     stagnation_limit: int = 8
     next_monitor_time: str = ""

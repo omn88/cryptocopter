@@ -4,13 +4,14 @@ import time
 
 import aiomysql
 from binance.enums import (
+    ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
     ORDER_TYPE_LIMIT,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
 
 from src.common.database import Database
-from src.common.identifiers.common import PositionSide
+from src.common.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
@@ -22,6 +23,7 @@ from src.common.identifiers.spot import (
     State,
     Order,
 )
+from tests.spot import get_new_orders
 
 logger = logging.getLogger("hp_db_gui")
 
@@ -131,20 +133,72 @@ async def db_and_gui_assertions(
     )
 
 
-def get_default_strategy_config(
-    symbol_info: SymbolInfo = SymbolInfo(
-        symbol="BTCUSDT", precision=2, price_precision=2
-    ),
-    price_low: float = 1000,
-    price_high: float = 1400,
-    order_trigger: float = 1.0,
-    budget: float = 1000,
-):
-    return HPConfig(
-        hp_id=1000,
-        symbol_info=symbol_info,
-        price_low=price_low,
-        price_high=price_high,
-        order_trigger=order_trigger,
-        budget=budget,
+def get_default_buy_position(trading_system_factory) -> HpManager:
+    trading_system = trading_system_factory(
+        hp_config=HPConfig(
+            hp_id=1000,
+            symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
+            price_low=1000,
+            price_high=1400,
+            order_trigger=1.0,
+            budget=1000,
+        ),
+        state_info=StateInfo(),
     )
+
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
+    assert strategy.buy_position.config.hp_id == 1000
+    assert strategy.buy_position.config.price_low == 1000
+    assert strategy.buy_position.config.price_high == 1400
+    assert strategy.buy_position.config.order_trigger == 1
+    assert strategy.buy_position.config.budget == 1000
+    assert strategy.buy_position.config.mode == Mode.DCA
+    assert strategy.buy_position.config.symbol_info.symbol == "BTCUSDT"
+
+    assert strategy.buy_position.state_info.side == PositionSide.LONG
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert strategy.buy_position.state_info.stagnation_counter == 0
+    assert strategy.buy_position.state_info.stagnation_limit == 8
+
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    assert strategy.state == State.NEW
+    assert len(strategy.buy_position.orders) == 3
+
+    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.price_low == 0
+    assert strategy.sell_position.config.price_high == 0
+    assert strategy.sell_position.config.order_trigger == 0
+    assert strategy.sell_position.config.budget == 0
+    assert strategy.sell_position.config.mode == Mode.DCA
+    assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
+
+    assert strategy.sell_position.state_info.side == PositionSide.SHORT
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    assert len(strategy.sell_position.orders) == 0
+
+    return strategy
+
+
+async def move_to_buy_position_active(strategy: HpManager) -> HpManager:
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy_position.config.price_low,
+        price_high=strategy.buy_position.config.price_high,
+    )
+
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    strategy.ticker_update = TickerUpdate(last_price=1414)
+    await strategy.process_ticker()
+
+    assert strategy.buy_position.state_info.state == State.BUYING
+    assert strategy.state == State.BUYING
+    assert len(strategy.buy_position.orders) == 3
+
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+
+    return strategy

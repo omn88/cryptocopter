@@ -30,7 +30,6 @@ from src.strategies.spot.hp_manager import HpManager as StrategyHP
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
-from tests.strategies.spot.hp_manager import get_default_strategy_config
 
 logger = logging.getLogger("conftest")
 
@@ -96,7 +95,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
-    async def create_trading_system(
+    def create_trading_system(
         hp_config: HPConfig, state_info: StateInfo, balance: float = 10000
     ):
         ui_queue: queue.Queue = queue.Queue()
@@ -143,7 +142,7 @@ def trading_system_factory(mock_AsyncClient):
 
 @pytest.fixture
 def trading_system_factory_db(mock_AsyncClient, test_db):
-    async def create_trading_system(hp_config: HPConfig, balance: float = 10000):
+    def create_trading_system(hp_config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         strategy = StrategyHP(
             client=mock_AsyncClient,
@@ -167,83 +166,6 @@ def trading_system_factory_db(mock_AsyncClient, test_db):
         return state_machine
 
     return create_trading_system
-
-
-@pytest.fixture
-async def spot_buy(mock_AsyncClient):
-    ui_queue = MagicMock()
-    db = AsyncMock()
-
-    config = HPConfig(
-        hp_id=1000,
-        symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
-        price_low=1000,
-        price_high=1400,
-        order_trigger=1,
-        budget=1000,
-        mode=Mode.DCA,
-    )
-
-    strategy = StrategyHP(
-        client=mock_AsyncClient,
-        balance=10000,
-        config=config,
-        ui_queue=ui_queue,
-        logger=logger,
-        db=db,
-        core_queue=queue.Queue(),
-        state_info=StateInfo(side=PositionSide.LONG),
-    )
-
-    # Trading State Machine initialization
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-
-    yield state_machine
-
-
-@pytest.fixture
-async def spot_sell(mock_AsyncClient):
-    config = HPConfig(
-        hp_id=1000,
-        symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
-        price_low=1000,
-        price_high=1400,
-        order_trigger=1,
-        budget=1000,
-        mode=Mode.DCA,
-    )
-
-    ui_queue = MagicMock()
-    db = AsyncMock()
-
-    strategy = StrategyHP(
-        client=mock_AsyncClient,
-        balance=10000,
-        config=config,
-        ui_queue=ui_queue,
-        logger=logger,
-        db=db,
-        core_queue=queue.Queue(),
-        state_info=StateInfo(side=PositionSide.SHORT),
-    )
-
-    # Trading State Machine initialization
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-    yield state_machine
 
 
 @pytest.fixture
