@@ -8,7 +8,7 @@ from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_CANCELED,
-    ORDER_STATUS_EXPIRED
+    ORDER_STATUS_EXPIRED,
 )
 from src.common.identifiers.common import Mode, PositionSide
 from src.common.identifiers.spot import (
@@ -67,6 +67,10 @@ async def test_default_position(trading_system_factory) -> None:
     assert strategy.state == State.NEW
     assert len(strategy.buy_position.orders) == 3
 
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
     assert strategy.sell_position.config.hp_id == 1000
     assert strategy.sell_position.config.price_low == 0
     assert strategy.sell_position.config.price_high == 0
@@ -98,14 +102,12 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
     )
 
     time = datetime.datetime.now() + datetime.timedelta(hours=1)
-
     strategy.buy_position.state_info.next_monitor_time = time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
-
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 
     await strategy.process_ticker()
@@ -113,8 +115,47 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
     assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
     assert len(strategy.buy_position.orders) == 3
-
     assert all(order.status == "PREPARED" for order in strategy.buy_position.orders)
+
+
+async def test_cancel_default_position_untouched_then_resend_orders(
+    trading_system_factory,
+) -> None:
+    """
+    This test purpose is to instantiate basic buy position then trigger
+    the conditions with which the position will be cancelled untouched and the states
+    will get back to State.NEW
+    """
+
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert strategy.conditions_for_cancelling_unfilled_buy_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert strategy.state == State.NEW
+    assert len(strategy.buy_position.orders) == 3
+    assert all(order.status == "PREPARED" for order in strategy.buy_position.orders)
+
+    strategy = await move_to_buy_position_active(strategy=strategy)
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert all(order.realized_quantity == 0.0 for order in strategy.buy_position.orders)
 
 
 async def test_default_position_first_order_filled_partially(
@@ -193,6 +234,7 @@ async def test_default_position_first_order_filled(trading_system_factory) -> No
     # await strategy.process_signal()
     # assert strategy.state == State.BOUGHT
 
+
 async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
@@ -223,6 +265,7 @@ async def test_conditions_for_order_expiration(trading_system_factory) -> None:
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
+
 
 # async def test_default_scenario_buy(trading_system_factory):
 #     trading_system = await trading_system_factory(
