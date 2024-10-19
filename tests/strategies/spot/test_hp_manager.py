@@ -12,8 +12,11 @@ from binance.enums import (
 )
 from src.common.identifiers.common import Mode, PositionSide
 from src.common.identifiers.spot import (
+    Event,
+    EventName,
     ExecutionReport,
     HPConfig,
+    SignalUpdate,
     State,
     StateInfo,
     TickerUpdate,
@@ -26,8 +29,10 @@ from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
     simulate_cancel_buy_position,
-    simulate_order_fill,
+    simulate_first_order_fill,
     simulate_partial_fill,
+    simulate_second_order_fill,
+    simulate_third_order_fill,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -248,7 +253,7 @@ async def test_default_position_first_order_filled_then_cancel(
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
-    strategy = await simulate_order_fill(strategy=strategy)
+    strategy = await simulate_first_order_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
 
     assert len(strategy.buy_position.orders) == 3
@@ -266,6 +271,27 @@ async def test_default_position_first_order_filled_then_cancel(
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
+
+async def test_default_position_all_orders_filled(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_first_order_fill(strategy=strategy)
+    strategy = await simulate_second_order_fill(strategy=strategy)
+    strategy = await simulate_third_order_fill(strategy=strategy)
+
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    await strategy.process_signal()
+
+    assert strategy.buy_position.state_info.state == State.BOUGHT
+    assert strategy.state == State.BOUGHT
 
 
 async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:

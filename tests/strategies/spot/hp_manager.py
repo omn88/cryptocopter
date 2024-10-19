@@ -225,7 +225,7 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_order_fill(strategy: HpManager) -> HpManager:
+async def simulate_first_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -241,6 +241,44 @@ async def simulate_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
+
+async def simulate_second_order_fill(strategy: HpManager) -> HpManager:
+    # Simulate full order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445861,
+        last_executed_quantity=0.1,
+        last_executed_price=1400,
+        cumulative_filled_quantity=0.28,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
+
+async def simulate_third_order_fill(strategy: HpManager) -> HpManager:
+    # Simulate full order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445862,
+        last_executed_quantity=0.1,
+        last_executed_price=1400,
+        cumulative_filled_quantity=0.33,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
     return strategy
 
