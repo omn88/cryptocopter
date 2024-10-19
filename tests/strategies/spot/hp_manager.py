@@ -1,3 +1,4 @@
+import datetime
 import logging
 import queue
 import time
@@ -220,5 +221,45 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
+
+
+async def simulate_order_fill(strategy: HpManager) -> HpManager:
+    # Simulate full order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445860,
+        last_executed_quantity=0.1,
+        last_executed_price=1400,
+        cumulative_filled_quantity=0.24,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
+
+
+async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
+    assert strategy.conditions_for_cancelling_partially_bought_orders()
+
+    await strategy.process_ticker()
 
     return strategy

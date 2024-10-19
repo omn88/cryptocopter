@@ -116,27 +116,6 @@ class HpManager:
             },
             {
                 "trigger": "process_order",
-                "source": "*",
-                "dest": "=",
-                "conditions": "conditions_for_new_order_confirmation",
-                "after": "confirm_new_order",
-            },
-            {
-                "trigger": "process_order",
-                "source": "*",
-                "dest": "=",
-                "conditions": "conditions_for_order_cancellation",
-                "after": "confirm_cancelled_order",
-            },
-            {
-                "trigger": "process_order",
-                "source": "*",
-                "dest": "=",
-                "conditions": "conditions_for_order_expiration",
-                "after": "confirm_expired_order",
-            },
-            {
-                "trigger": "process_order",
                 "source": [State.BUYING, State.BOUGHT, State.PARTIALLY_BOUGHT],
                 "dest": "=",
                 "conditions": "conditions_for_order_filled_buy",
@@ -226,6 +205,27 @@ class HpManager:
                 "conditions": "conditions_for_all_orders_filled_buy_on_part_sold_position",
                 "before": "close_filled_position_buy",
             },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_new_order_confirmation",
+                "after": "confirm_new_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_cancellation",
+                "after": "confirm_cancelled_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_expiration",
+                "after": "confirm_expired_order",
+            },
         ]
 
     def calculate_trigger_send_orders_price_buy(self):
@@ -252,6 +252,7 @@ class HpManager:
         condition = (
             self.buy_position.state_info.side == PositionSide.LONG
             and self.state != State.SOLD
+            and self.buy_position.state_info.state != State.BUYING
             and self.ticker_update.last_price <= trigger_send_orders_price
             and self.balance > self.buy_position.config.budget
         )
@@ -391,6 +392,7 @@ class HpManager:
             self.sell_position is not None
             and self.sell_position.orders
             and self.state != State.SOLD
+            and self.sell_position.state_info.state != State.SELLING
             and self.sell_position.state_info.side == PositionSide.SHORT
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
@@ -557,6 +559,7 @@ class HpManager:
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
         )
+
         if condition:
             self.logger.info(
                 "[Expired order] %s %s @ %s",
@@ -764,7 +767,11 @@ class HpManager:
             )
         return condition
 
-    async def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
+    def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
+        self.logger.info(
+            "Entering increase stagnation coutner buy, counter before adding 1: %s",
+            self.buy_position.state_info.stagnation_counter,
+        )
         self.buy_position.state_info.stagnation_counter += 1
 
         if (

@@ -25,6 +25,8 @@ from tests.spot import get_cancel_order, get_new_orders
 from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
+    simulate_cancel_buy_position,
+    simulate_order_fill,
     simulate_partial_fill,
 )
 
@@ -208,8 +210,6 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert all(
         order.status == ORDER_STATUS_CANCELED for order in strategy.buy_position.orders
     )
-    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy_position.orders[0].quantity == 0.24
     assert strategy.buy_position.orders[1].quantity == 0.28
@@ -218,6 +218,9 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert strategy.buy_position.orders[0].realized_quantity == 0.12
     assert strategy.buy_position.orders[1].realized_quantity == 0.0
     assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
 
 
 async def test_default_position_first_order_filled(trading_system_factory) -> None:
@@ -239,40 +242,30 @@ async def test_default_position_first_order_filled(trading_system_factory) -> No
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
 
-    # # Simulate full fill order 1
-    # strategy.execution_report = ExecutionReport(
-    #     order_type=ORDER_TYPE_LIMIT,
-    #     current_order_status=ORDER_STATUS_FILLED,
-    #     order_id=445862,
-    # )
-    # await strategy.process_order()
-    # assert strategy.state == State.BUYING
 
-    # # Simulate full fill order 2
-    # strategy.execution_report = ExecutionReport(
-    #     order_type=ORDER_TYPE_LIMIT,
-    #     current_order_status=ORDER_STATUS_FILLED,
-    #     order_id=445861,
-    # )
-    # await strategy.process_order()
-    # assert strategy.state == State.BUYING
+async def test_default_position_first_order_filled_then_cancel(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_order_fill(strategy=strategy)
+    strategy = await simulate_cancel_buy_position(strategy=strategy)
 
-    # # Simulate full fill order 3
-    # strategy.execution_report = ExecutionReport(
-    #     order_type=ORDER_TYPE_LIMIT,
-    #     current_order_status=ORDER_STATUS_FILLED,
-    #     order_id=445860,
-    # )
-    # await strategy.process_order()
-    # assert all(
-    #     order.status == ORDER_STATUS_FILLED
-    #     for order in buy_position.orders
-    # )
-    # assert strategy.core_queue.qsize() == 1
-    # event = strategy.core_queue.get()
-    # strategy.signal_update = event.content
-    # await strategy.process_signal()
-    # assert strategy.state == State.BOUGHT
+    assert len(strategy.buy_position.orders) == 3
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_CANCELED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_CANCELED
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.24
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
 
 
 async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
@@ -305,6 +298,39 @@ async def test_conditions_for_order_expiration(trading_system_factory) -> None:
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
+
+
+async def test_stagnation_counter_increase_buy(trading_system_factory) -> None:
+    """
+    This test purpose is to instantiate basic buy position then trigger
+    the conditions with which the position will be cancelled untouched and the states
+    will get back to State.NEW
+    """
+
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+
+    assert strategy.buy_position.state_info.stagnation_counter == 0
+    assert strategy.buy_position.state_info.stagnation_limit == 8
+
+    time = datetime.datetime.now()
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.buy_position.state_info.next_monitor_time == time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.conditions_for_position_stagnation_buy()
+    await strategy.process_ticker()
+
+    assert strategy.buy_position.state_info.stagnation_counter == 1
+    assert strategy.buy_position.state_info.stagnation_limit == 8
+
+    assert strategy.buy_position.state_info.next_monitor_time != time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 
 # async def test_default_scenario_buy(trading_system_factory):
