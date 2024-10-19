@@ -229,9 +229,14 @@ class HpManager:
         ]
 
     def calculate_trigger_send_orders_price_buy(self):
+        price = 0
+
+        for order in self.buy_position.orders:
+            if order.status != ORDER_STATUS_FILLED:
+                price = max(price, order.price)
+
         return self.buy_position.config.symbol_info.adjust_price(
-            self.buy_position.config.price_high
-            * (1 + (self.buy_position.config.order_trigger / 100))
+            price * (1 + (self.buy_position.config.order_trigger / 100))
         )
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:

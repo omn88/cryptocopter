@@ -256,7 +256,6 @@ async def test_default_position_first_order_filled_then_cancel(
     strategy = await simulate_first_order_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
 
-    assert len(strategy.buy_position.orders) == 3
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_CANCELED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_CANCELED
@@ -271,6 +270,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
+
 
 async def test_default_position_all_orders_filled(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
@@ -357,6 +357,74 @@ async def test_stagnation_counter_increase_buy(trading_system_factory) -> None:
     assert strategy.buy_position.state_info.next_monitor_time != time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
+
+
+async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_partial_fill(strategy=strategy)
+    strategy = await simulate_cancel_buy_position(strategy=strategy)
+
+    assert all(
+        order.status == ORDER_STATUS_CANCELED for order in strategy.buy_position.orders
+    )
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.12
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    strategy = await move_to_buy_position_active(strategy=strategy)
+
+    assert strategy.buy_position.orders[0].quantity == 0.12
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+
+async def test_default_position_first_order_filled_then_cancel_then_resend(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_first_order_fill(strategy=strategy)
+    strategy = await simulate_cancel_buy_position(strategy=strategy)
+
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_CANCELED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_CANCELED
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.24
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    strategy.ticker_update = TickerUpdate(last_price=1212)
+    await strategy.process_ticker()
+
+    assert strategy.buy_position.state_info.state == State.BUYING
+    assert strategy.state == State.BUYING
+    assert len(strategy.buy_position.orders) == 2
+
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_NEW
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
+
+    assert strategy.buy_position.orders[0].quantity == 0.28
+    assert strategy.buy_position.orders[1].quantity == 0.33
 
 
 # async def test_default_scenario_buy(trading_system_factory):

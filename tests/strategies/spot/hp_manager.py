@@ -9,6 +9,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
     ORDER_TYPE_LIMIT,
     ORDER_STATUS_PARTIALLY_FILLED,
+    ORDER_STATUS_CANCELED,
 )
 
 from src.common.database import Database
@@ -244,6 +245,7 @@ async def simulate_first_order_fill(strategy: HpManager) -> HpManager:
 
     return strategy
 
+
 async def simulate_second_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -262,6 +264,7 @@ async def simulate_second_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
 
     return strategy
+
 
 async def simulate_third_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
@@ -299,5 +302,7 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
     assert strategy.conditions_for_cancelling_partially_bought_orders()
 
     await strategy.process_ticker()
+
+    assert len(strategy.buy_position.orders) == 3
 
     return strategy
