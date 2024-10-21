@@ -191,13 +191,13 @@ class HpManager:
                 "conditions": "conditions_for_cancelling_partially_sold_orders",
                 "after": "cancel_partially_sold_orders",
             },
-            # {
-            #     "trigger": "process_ticker",
-            #     "source": State.SELLING,
-            #     "dest": State.PARTIALLY_BOUGHT,
-            #     "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
-            #     "after": "cancel_unfilled_sell_orders_from_partially_bought_position",
-            # },
+            {
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.PARTIALLY_BOUGHT,
+                "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
+                "after": "cancel_unfilled_sell_orders",
+            },
             # {
             #     "trigger": "process_ticker",
             #     "source": State.BUYING,
@@ -722,9 +722,16 @@ class HpManager:
             * (1 + (2 * self.buy_position.config.order_trigger / 100))
         )
 
+    def calculate_trigger_cancel_orders_price_sell(self):
+        return self.sell_position.config.symbol_info.adjust_price(
+            self.sell_position.config.price_low
+            * (1 - (2 * self.sell_position.config.order_trigger / 100))
+        )
+
     def conditions_for_cancelling_unfilled_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.sell_position.state_info.stagnation_counter
+            self.buy_position.state_info.state == State.BOUGHT
+            and self.sell_position.state_info.stagnation_counter
             >= self.sell_position.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
@@ -754,6 +761,31 @@ class HpManager:
             )
         )
 
+    def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+            and all(
+                order.status == ORDER_STATUS_NEW for order in self.sell_position.orders
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
     # async def cancel_buy_orders(self, *args, **kwargs) -> None:
     #     self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
     #     self.logger.info("Orders: %s", self.buy_position.orders)
@@ -781,12 +813,6 @@ class HpManager:
     #         )
 
     #     return condition
-
-    def calculate_trigger_cancel_orders_price_sell(self):
-        return self.sell_position.config.symbol_info.adjust_price(
-            self.sell_position.config.price_low
-            * (1 - (2 * self.sell_position.config.order_trigger / 100))
-        )
 
     async def cancel_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
@@ -1040,7 +1066,7 @@ class HpManager:
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and not all(
-                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
+                order.status == ORDER_STATUS_NEW for order in self.sell_position.orders
             )
         )
         if condition:

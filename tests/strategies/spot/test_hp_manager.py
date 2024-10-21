@@ -33,8 +33,10 @@ from tests.strategies.spot.hp_manager import (
     simulate_bought_position,
     simulate_cancel_buy_position,
     simulate_first_buy_order_fill,
+    simulate_move_to_sell_from_partially_bought_position,
     simulate_partial_fill,
     simulate_partial_fill_sell,
+    simulate_partially_bought_position,
     simulate_second_buy_order_fill,
     simulate_third_buy_order_fill,
 )
@@ -547,6 +549,57 @@ async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
     assert strategy.state == State.BOUGHT
 
 
+async def test_resend_unfilled_sell_orders(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.conditions_for_cancelling_unfilled_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert len(strategy.sell_position.orders) == 1
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.BOUGHT
+
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    assert strategy.conditions_for_sending_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+
 async def test_sell_position_first_order_filled_partially(
     trading_system_factory,
 ) -> None:
@@ -730,6 +783,102 @@ async def test_close_mode_single_generated_position(
 
     assert strategy.sell_position.state_info.state == State.SOLD
     assert strategy.state == State.SOLD
+
+
+async def test_send_sell_orders_for_partially_bought_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    strategy.sell_position.config = HPConfig(
+        hp_id=strategy.buy_position.config.hp_id,
+        symbol_info=strategy.buy_position.config.symbol_info,
+        price_low=4200,
+        price_high=4200,
+        order_trigger=1.0,
+        budget=round(
+            sum(order.realized_quantity for order in strategy.buy_position.orders), 2
+        ),
+        mode=Mode.SINGLE,
+    )
+    strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell_position.orders = (
+        strategy.sell_position.order_handler.prepare_sell_orders(
+            config=strategy.sell_position.config,
+            buy_orders=strategy.buy_position.orders,
+        )
+    )
+
+    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.price_low == 4200
+    assert strategy.sell_position.config.price_high == 4200
+    assert strategy.sell_position.config.order_trigger == 1
+    assert strategy.sell_position.config.budget == 0.52
+    assert strategy.sell_position.config.mode == Mode.SINGLE
+    assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
+
+    assert strategy.sell_position.state_info.side == PositionSide.SHORT
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    assert len(strategy.sell_position.orders) == 1
+    assert strategy.sell_position.orders[0].quantity == 0.52
+    assert strategy.sell_position.orders[0].status == "PREPARED"
+
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    assert strategy.conditions_for_sending_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+    assert strategy.sell_position.orders[0].quantity == 0.52
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+
+async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+    strategy = await simulate_move_to_sell_from_partially_bought_position(
+        strategy=strategy
+    )
+
+    assert strategy.state == State.SELLING
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert (
+        strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
+    )
+
+    await strategy.process_ticker()
+
+    assert len(strategy.sell_position.orders) == 1
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.PARTIALLY_BOUGHT
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
