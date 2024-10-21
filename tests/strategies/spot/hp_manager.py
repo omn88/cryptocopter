@@ -332,3 +332,54 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
     strategy = await simulate_third_order_fill(strategy=strategy)
 
     return strategy
+
+
+async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
+    strategy.sell_position.config = HPConfig(
+        hp_id=strategy.buy_position.config.hp_id,
+        symbol_info=strategy.buy_position.config.symbol_info,
+        price_low=4200,
+        price_high=4200,
+        order_trigger=1.0,
+        budget=round(
+            sum(order.realized_quantity for order in strategy.buy_position.orders), 2
+        ),
+        mode=Mode.SINGLE,
+    )
+    strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell_position.orders = (
+        strategy.sell_position.order_handler.prepare_sell_orders(
+            config=strategy.sell_position.config,
+            buy_orders=strategy.buy_position.orders,
+        )
+    )
+
+    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.price_low == 4200
+    assert strategy.sell_position.config.price_high == 4200
+    assert strategy.sell_position.config.order_trigger == 1
+    assert strategy.sell_position.config.budget == 0.85
+    assert strategy.sell_position.config.mode == Mode.SINGLE
+    assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
+
+    assert strategy.sell_position.state_info.side == PositionSide.SHORT
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    assert len(strategy.sell_position.orders) == 1
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].status == "PREPARED"
+
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.state == State.BOUGHT
+
+    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    assert strategy.conditions_for_sending_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+    return strategy

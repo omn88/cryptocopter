@@ -28,6 +28,7 @@ from tests.spot import get_cancel_order, get_new_orders
 from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
+    move_to_sell_position_active,
     simulate_bought_position,
     simulate_cancel_buy_position,
     simulate_first_order_fill,
@@ -418,17 +419,15 @@ async def test_send_sell_orders_for_bought_position(trading_system_factory) -> N
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await simulate_bought_position(strategy=strategy)
 
-    budget = round(
-        sum(order.realized_quantity for order in strategy.buy_position.orders), 2
-    )
-
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
         symbol_info=strategy.buy_position.config.symbol_info,
         price_low=4200,
         price_high=4200,
         order_trigger=1.0,
-        budget=budget,
+        budget=round(
+            sum(order.realized_quantity for order in strategy.buy_position.orders), 2
+        ),
         mode=Mode.SINGLE,
     )
     strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
@@ -464,13 +463,47 @@ async def test_send_sell_orders_for_bought_position(trading_system_factory) -> N
 
     await strategy.process_ticker()
 
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
     assert strategy.sell_position.orders[0].quantity == 0.85
     assert strategy.sell_position.orders[0].realized_quantity == 0.0
 
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
 
-    assert strategy.state == State.SELLING
-    assert strategy.sell_position.state_info.state == State.SELLING
+
+async def test_sell_orders_stagnation_increase(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    time = datetime.datetime.now()
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.sell_position.state_info.next_monitor_time == time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.conditions_for_position_stagnation_sell()
+    await strategy.process_ticker()
+
+    assert strategy.sell_position.state_info.stagnation_counter == 1
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    assert strategy.sell_position.state_info.next_monitor_time != time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
