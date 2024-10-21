@@ -28,6 +28,7 @@ from tests.spot import get_cancel_order, get_new_orders
 from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
+    move_to_partially_sold,
     move_to_sell_position_active,
     simulate_bought_position,
     simulate_cancel_buy_position,
@@ -283,7 +284,7 @@ async def test_default_position_all_buy_orders_filled(trading_system_factory) ->
     strategy = await simulate_third_buy_order_fill(strategy=strategy)
 
 
-async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
+async def test_conditions_for_new_buy_order_confirmation(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
 
@@ -295,7 +296,7 @@ async def test_conditions_for_new_order_confirmation(trading_system_factory) -> 
     assert strategy.conditions_for_new_order_confirmation()
 
 
-async def test_conditions_for_order_cancellation(trading_system_factory) -> None:
+async def test_conditions_for_buy_order_cancellation(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
     strategy.execution_report = ExecutionReport(
@@ -306,7 +307,7 @@ async def test_conditions_for_order_cancellation(trading_system_factory) -> None
     assert strategy.conditions_for_order_cancellation()
 
 
-async def test_conditions_for_order_expiration(trading_system_factory) -> None:
+async def test_conditions_for_buy_order_expiration(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
     strategy.execution_report = ExecutionReport(
@@ -623,6 +624,68 @@ async def test_cancel_sell_position_first_order_filled_partially(
     assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
+
+async def test_resend_sell_position_first_order_filled_partially(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    strategy = await simulate_partial_fill_sell(strategy)
+
+    strategy = await move_to_partially_sold(strategy)
+
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.state == State.PARTIALLY_SOLD
+
+    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    assert strategy.conditions_for_sending_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+async def test_conditions_for_new_sell_order_confirmation(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_new_order_confirmation()
+
+
+async def test_conditions_for_sell_order_cancellation(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_order_cancellation()
+
+
+async def test_conditions_for_sell_order_expiration(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
+    )
+    assert strategy.conditions_for_order_expiration()
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):

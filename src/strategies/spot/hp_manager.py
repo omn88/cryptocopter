@@ -1033,7 +1033,9 @@ class HpManager:
 
         return condition
 
-    def conditions_for_cancelling_partially_sold_orders(self, *args, **kwargs) -> bool:
+    def conditions_for_cancelling_partially_sold_orders(
+        self, *args, **kwargs
+    ) -> bool:
         condition = (
             self.sell_position.state_info.stagnation_counter
             >= self.sell_position.state_info.stagnation_limit
@@ -1058,11 +1060,8 @@ class HpManager:
     async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
         await self.sell_position.cancel_position()
-        self.sell_position.state_info.state = State.PARTIALLY_SOLD
         self.state = State.PARTIALLY_SOLD
-        self.sell_position.state_info = StateInfo(
-            side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
-        )
+        self.sell_position.state_info = StateInfo(side=PositionSide.SHORT, state=State.PARTIALLY_SOLD)
         self.sell_position.orders = (
             self.sell_position.order_handler.prepare_sell_orders(
                 config=self.sell_position.config, buy_orders=self.buy_position.orders
