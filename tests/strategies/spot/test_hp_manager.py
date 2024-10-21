@@ -543,6 +543,54 @@ async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
     assert strategy.state == State.BOUGHT
 
 
+async def test_sell_position_first_order_filled_partially(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    # Simulate partial fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=5617834,
+        last_executed_quantity=0.425,
+        last_executed_price=4200,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+
+async def test_sell_position_first_order_filled(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    # Simulate first order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=5617834,
+        last_executed_quantity=0.85,
+        last_executed_price=4200,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
 #     spot_buy.model.client.create_order.side_effect = get_new_orders(
 #         price_low=spot_buy.model.config.price_low,

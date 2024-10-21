@@ -649,7 +649,7 @@ class HpManager:
     async def handle_order_filled_sell(self, *args, **kwargs) -> None:
         self.logger.debug("Entering handle order filled")
 
-        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info.state = State.SELLING
 
         await self.sell_position.handle_order_filled(
             execution_report=self.execution_report
@@ -710,7 +710,7 @@ class HpManager:
     async def handle_order_partially_filled_sell(self, *args, **kwargs):
         self.logger.debug("Entering handle order partially filled")
 
-        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info.state = State.SELLING
 
         await self.sell_position.handle_order_partially_filled(
             execution_report=self.execution_report

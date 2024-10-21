@@ -346,6 +346,10 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
         ),
         mode=Mode.SINGLE,
     )
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.sell_position.config.price_low,
+        price_high=strategy.sell_position.config.price_high,
+    )
     strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell_position.orders = (
         strategy.sell_position.order_handler.prepare_sell_orders(
