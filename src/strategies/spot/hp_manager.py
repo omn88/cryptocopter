@@ -180,31 +180,31 @@ class HpManager:
             {
                 "trigger": "process_ticker",
                 "source": State.SELLING,
-                "dest": State.PARTIALLY_SOLD,
-                "conditions": "conditions_for_cancelling_partially_sold_orders",
-                "after": "cancel_partially_sold_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.SELLING,
-                "dest": State.PARTIALLY_BOUGHT,
-                "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
-                "after": "cancel_unfilled_sell_orders_from_partially_bought_position",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.SELLING,
                 "dest": State.BOUGHT,
                 "conditions": "conditions_for_cancelling_unfilled_sell_orders",
-                "after": "cancel_unfilled_sell_orders",
+                "before": "cancel_unfilled_sell_orders",
             },
-            {
-                "trigger": "process_ticker",
-                "source": State.BUYING,
-                "dest": State.PARTIALLY_SOLD,
-                "conditions": "conditions_for_all_orders_filled_buy_on_part_sold_position",
-                "before": "close_filled_position_buy",
-            },
+            # {
+            #     "trigger": "process_ticker",
+            #     "source": State.SELLING,
+            #     "dest": State.PARTIALLY_SOLD,
+            #     "conditions": "conditions_for_cancelling_partially_sold_orders",
+            #     "after": "cancel_partially_sold_orders",
+            # },
+            # {
+            #     "trigger": "process_ticker",
+            #     "source": State.SELLING,
+            #     "dest": State.PARTIALLY_BOUGHT,
+            #     "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
+            #     "after": "cancel_unfilled_sell_orders_from_partially_bought_position",
+            # },
+            # {
+            #     "trigger": "process_ticker",
+            #     "source": State.BUYING,
+            #     "dest": State.PARTIALLY_SOLD,
+            #     "conditions": "conditions_for_all_orders_filled_buy_on_part_sold_position",
+            #     "before": "close_filled_position_buy",
+            # },
             {
                 "trigger": "process_order",
                 "source": "*",
@@ -720,6 +720,38 @@ class HpManager:
         return self.buy_position.config.symbol_info.adjust_price(
             self.buy_position.config.price_high
             * (1 + (2 * self.buy_position.config.order_trigger / 100))
+        )
+
+    def conditions_for_cancelling_unfilled_sell_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+            and all(
+                order.status == ORDER_STATUS_NEW for order in self.sell_position.orders
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
+    async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
+        await self.sell_position.cancel_position()
+        self.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
+        self.sell_position.orders = (
+            self.sell_position.order_handler.prepare_sell_orders(
+                config=self.sell_position.config, buy_orders=self.buy_position.orders
+            )
         )
 
     # async def cancel_buy_orders(self, *args, **kwargs) -> None:

@@ -506,6 +506,43 @@ async def test_sell_orders_stagnation_increase(trading_system_factory) -> None:
     )
 
 
+async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.conditions_for_cancelling_unfilled_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert len(strategy.sell_position.orders) == 1
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.BOUGHT
+
+
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
 #     spot_buy.model.client.create_order.side_effect = get_new_orders(
 #         price_low=spot_buy.model.config.price_low,
