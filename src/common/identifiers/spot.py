@@ -275,6 +275,14 @@ class NewRecord(NamedTuple):
         return f"NewRecord(config={self.config}, state_info={self.state_info})"
 
 
+class SellConfig(NamedTuple):
+    config: HPConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"SellConfig(config={self.config}, state_info={self.state_info})"
+
+
 class RemoveRecord(NamedTuple):
     hp_id: str
     symbol: str

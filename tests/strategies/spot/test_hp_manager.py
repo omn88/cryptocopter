@@ -28,6 +28,7 @@ from tests.spot import get_cancel_order, get_new_orders
 from tests.strategies.spot.hp_manager import (
     get_default_buy_position,
     move_to_buy_position_active,
+    simulate_bought_position,
     simulate_cancel_buy_position,
     simulate_first_order_fill,
     simulate_partial_fill,
@@ -272,26 +273,12 @@ async def test_default_position_first_order_filled_then_cancel(
     assert strategy.state == State.PARTIALLY_BOUGHT
 
 
-async def test_default_position_all_orders_filled(trading_system_factory) -> None:
+async def test_default_position_all_buy_orders_filled(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
     strategy = await simulate_first_order_fill(strategy=strategy)
     strategy = await simulate_second_order_fill(strategy=strategy)
     strategy = await simulate_third_order_fill(strategy=strategy)
-
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
-
-    assert isinstance(event, Event)
-    assert event.name == EventName.SIGNAL
-    assert isinstance(event.content, SignalUpdate)
-
-    strategy.signal_update = event.content
-
-    await strategy.process_signal()
-
-    assert strategy.buy_position.state_info.state == State.BOUGHT
-    assert strategy.state == State.BOUGHT
 
 
 async def test_conditions_for_new_order_confirmation(trading_system_factory) -> None:
@@ -427,619 +414,63 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     assert strategy.buy_position.orders[1].quantity == 0.33
 
 
-# async def test_default_scenario_buy(trading_system_factory):
-#     trading_system = await trading_system_factory(
-#         get_default_strategy_config(), StateInfo(side=PositionSide.LONG)
-#     )
-
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
-#     assert strategy.state == State.NEW
-#     assert strategy.buy_position.state_info.side == PositionSide.LONG
-
-#     last_price = 1500
-#     logger.info(
-#         "Processing ticker with last price outside of threshold: %s", last_price
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate no state change
-#     await strategy.process_ticker()
-#     assert strategy.state == State.NEW
-
-#     # Simulate no state change but on the price edge
-#     last_price = 1415
-#     logger.info(
-#         "Processing ticker with last price on the edge of threshold: %s", last_price
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-#     assert strategy.state == State.NEW
-
-#     # Simulate process_signal triggering
-#     last_price = 1414
-#     logger.info(
-#         "Processing ticker with last price touching the threshold: %s", last_price
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-#     assert strategy.state == State.BUYING
-
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
-#     )
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     # Simulate position closure
-#     for order in strategy.buy_position.orders:
-#         order.status = ORDER_STATUS_FILLED
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=strategy.buy_position.orders[0].order_id,
-#     )
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     assert strategy.core_queue.qsize() == 1
-
-#     event = strategy.core_queue.get()
-#     strategy.signal_update = event.content
-#     await strategy.process_signal()
-
-#     assert strategy.state == State.BOUGHT
-
-
-# async def test_default_scenario_sell(trading_system_factory):
-#     trading_system = await trading_system_factory(
-#         get_default_strategy_config(),
-#         StateInfo(side=PositionSide.LONG, state=State.NEW),
-#     )
-
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-
-#     # Simulate process_ticker triggering
-#     last_price = 1414
-#     logger.info(
-#         "Processing ticker with last price touching the threshold: %s", last_price
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     # Simulate position closure
-#     for order in strategy.buy_position.orders:
-#         order.status = ORDER_STATUS_FILLED
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=strategy.buy_position.orders[0].order_id,
-#     )
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     event = strategy.core_queue.get()
-#     strategy.signal_update = event.content
-#     await strategy.process_signal()
-
-#     assert strategy.buy_position.state_info.state == State.BOUGHT
-#     assert strategy.state == State.BOUGHT
-
-#     sell_config = HPConfig(
-#         hp_id=1000,
-#         symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
-#         price_high=4200,
-#         price_low=4200,
-#         mode=Mode.SINGLE,
-#         order_trigger=1.0,
-#         budget=1000,
-#     )
-#     sell_state_info = StateInfo(side=PositionSide.SHORT, state=State.NEW)
-#     strategy.sell_position = PositionHandler(
-#         client=strategy.client,
-#         strategy_logger=strategy.logger,
-#         config=sell_config,
-#         ui_queue=strategy.buy_position.ui_queue,
-#         db=strategy.db,
-#         state_info=sell_state_info,
-#     )
-#     strategy.sell_position.orders = strategy.sell_position.order_handler.prepare_orders(
-#         state_info=sell_state_info, config=sell_config
-#     )
-
-#     last_price = 3140
-#     logger.info(
-#         "Processing ticker with last price away from the threshold: %s", last_price
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-
-#     assert strategy.buy_position.state_info.state == State.BOUGHT
-#     assert strategy.sell_position.state_info.state == State.NEW
-
-#     strategy.ticker_update = MagicMock(last_price=4157)
-#     assert not strategy.conditions_for_sending_sell_orders()
-
-#     strategy.ticker_update = MagicMock(last_price=4158)
-#     assert strategy.conditions_for_sending_sell_orders()
-
-#     last_price = 4158
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate no state change
-#     await strategy.process_ticker()
-#     assert strategy.state == State.SELLING
-
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.sell_position.orders
-#     )
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     # Simulate position closure
-#     for order in strategy.sell_position.orders:
-#         order.status = ORDER_STATUS_FILLED
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=strategy.sell_position.orders[0].order_id,
-#     )
-
-#     # Simulate order confirmation
-#     await strategy.process_order()
-
-#     assert strategy.core_queue.qsize() == 1
-
-#     event = strategy.core_queue.get()
-#     strategy.signal_update = event.content
-#     await strategy.process_signal()
-
-#     assert strategy.state == State.SOLD
-
-
-# async def test_partial_order_fill_buy(trading_system_factory):
-#     trading_system = await trading_system_factory(get_default_strategy_config(), StateInfo(side=PositionSide.LONG))
-#     strategy = trading_system.model
-#     buy_position = strategy.buy_position
-#     sell_position = strategy.sell_position
-
-#     strategy.client.create_order.side_effect = get_new_orders(
-#         price_low=buy_position.config.price_low,
-#         price_high=buy_position.config.price_high,
-#     )
-
-#     assert isinstance(strategy, HpManager)
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.BUYING
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in buy_position.orders
-#     )
-
-#     # Simulate partial fill
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-#         order_id=445862,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 1
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445862,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 2
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445861,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 3
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445860,
-#     )
-#     await strategy.process_order()
-#     assert all(
-#         order.status == ORDER_STATUS_FILLED
-#         for order in buy_position.orders
-#     )
-#     assert strategy.core_queue.qsize() == 1
-#     event = strategy.core_queue.get()
-#     strategy.signal_update = event.content
-#     await strategy.process_signal()
-#     assert strategy.state == State.BOUGHT
-
-
-# async def test_partial_order_fill_sell(trading_system_factory):
-#     trading_system = await trading_system_factory(get_default_strategy_config(), StateInfo(side=PositionSide.SHORT))
-#     strategy = trading_system.model
-#     buy_position = strategy.buy_position
-#     sell_position = strategy.sell_position
-
-#     strategy.client.create_order.side_effect = get_new_orders(
-#         price_low=sell_position.config.price_low,
-#         price_high=sell_position.config.price_high,
-#     )
-
-#     assert isinstance(strategy, HpManager)
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.BUYING
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in sell_position.orders
-#     )
-
-#     # Simulate partial fill
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-#         order_id=445860,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 1
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445860,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 2
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445861,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.BUYING
-
-#     # Simulate full fill order 3
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445862,
-#     )
-#     await strategy.process_order()
-#     assert all(
-#         order.status == ORDER_STATUS_FILLED
-#         for order in sell_position.orders
-#     )
-#     assert strategy.core_queue.qsize() == 1
-#     event = strategy.core_queue.get()
-#     strategy.signal_update = event.content
-#     await strategy.process_signal()
-#     assert strategy.state == State.BOUGHT
-
-# async def test_order_cancellation_sell(spot_sell):
-#     spot_sell.model.client.create_order.side_effect = get_new_orders(
-#         price_low=spot_sell.model.config.price_low,
-#         price_high=spot_sell.model.config.price_high,
-#     )
-#     spot_sell.model.client.cancel_order.side_effect = get_cancel_order()
-#     strategy = spot_sell.model
-#     assert isinstance(strategy, HpManager)
-#     assert strategy.calculate_trigger_cancel_orders_price() == 980
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.OPEN
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-#     # Simulate stagnation counter increase
-#     assert strategy.position_handler.stagnation_counter == 0
-
-#     time_date = datetime.datetime.strptime(
-#         strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     time_date -= datetime.timedelta(hours=8)
-#     strategy.position_handler.next_monitor_position_time = time_date.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=1014)
-
-#     # Simulate reaching the stagnation limit
-#     for _ in range(STAGNATION_LIMIT):
-#         await strategy.process_ticker()
-
-#     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
-
-#     # Simulate price being outside the threshold
-#     strategy.ticker_update = TickerUpdate(last_price=979)
-#     await strategy.process_ticker()
-
-#     assert strategy.state == State.STAGNATED
-
-#     last_price = 900
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker outside, nothing should happen: %s", last_price)
-
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker inside, reopen orders: %s", last_price)
-
-#     assert strategy.state == State.OPEN
-
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-
-# async def test_order_cancellation_buy(spot_buy):
-#     spot_buy.model.client.create_order.side_effect = get_new_orders(
-#         price_low=spot_buy.model.config.price_low,
-#         price_high=spot_buy.model.config.price_high,
-#     )
-#     spot_buy.model.client.cancel_order.side_effect = get_cancel_order()
-#     strategy = spot_buy.model
-#     assert isinstance(strategy, HpManager)
-#     assert strategy.calculate_trigger_cancel_orders_price() == 1428
-#     last_price = 1400
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.OPEN
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-#     time_date = datetime.datetime.strptime(
-#         strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     time_date -= datetime.timedelta(hours=8)
-#     strategy.position_handler.next_monitor_position_time = time_date.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     # Simulate reaching the stagnation limit
-#     for _ in range(STAGNATION_LIMIT):
-#         await strategy.process_ticker()
-
-#     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
-
-#     # Simulate price being outside the threshold
-#     strategy.ticker_update = TickerUpdate(last_price=1429)
-#     await strategy.process_ticker()
-
-#     assert strategy.state == State.STAGNATED
-
-#     last_price = 1500
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker outside, nothing should happen: %s", last_price)
-
-#     last_price = 1400
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker inside, reopen orders: %s", last_price)
-
-#     assert strategy.state == State.OPEN
-
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-
-# async def test_order_reopen_with_filled_orders_sell(spot_sell):
-#     spot_sell.model.client.create_order.side_effect = get_new_orders(
-#         price_low=spot_sell.model.config.price_low,
-#         price_high=spot_sell.model.config.price_high,
-#     )
-#     spot_sell.model.client.cancel_order.side_effect = get_cancel_order()
-#     strategy = spot_sell.model
-#     assert isinstance(strategy, HpManager)
-#     assert strategy.calculate_trigger_cancel_orders_price() == 980
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.OPEN
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-#     # Simulate full fill order 1
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445860,
-#         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
-#         quantity=strategy.position_handler.orders[0].quantity,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.OPEN
-
-#     # Simulate partial fill
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-#         order_id=445861,
-#         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.OPEN
-
-#     # Simulate stagnation counter increase
-#     assert strategy.position_handler.stagnation_counter == 0
-
-#     time_date = datetime.datetime.strptime(
-#         strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     time_date -= datetime.timedelta(hours=8)
-#     strategy.position_handler.next_monitor_position_time = time_date.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
-#     strategy.ticker_update = TickerUpdate(last_price=1014)
-
-#     # Simulate reaching the stagnation limit
-#     for _ in range(STAGNATION_LIMIT):
-#         await strategy.process_ticker()
-
-#     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
-
-#     # Simulate price being outside the threshold
-#     strategy.ticker_update = TickerUpdate(last_price=979)
-#     await strategy.process_ticker()
-
-#     assert strategy.state == State.STAGNATED
-
-#     last_price = 900
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker outside, nothing should happen: %s", last_price)
-
-#     last_price = 1000
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker inside, reopen orders: %s", last_price)
-
-#     assert strategy.state == State.OPEN
-
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-#     assert len(strategy.position_handler.orders) == 2
-
-#     logger.info("All valid orders reopened.")
-
-
-# async def test_order_reopen_with_filled_orders_buy(spot_buy):
-#     spot_buy.model.client.create_order.side_effect = get_new_orders(
-#         price_low=spot_buy.model.config.price_low,
-#         price_high=spot_buy.model.config.price_high,
-#     )
-#     spot_buy.model.client.cancel_order.side_effect = get_cancel_order()
-#     strategy = spot_buy.model
-#     assert isinstance(strategy, HpManager)
-#     assert strategy.calculate_trigger_cancel_orders_price() == 1428
-#     last_price = 1400
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-
-#     # Simulate order creation
-#     await strategy.process_ticker()
-#     assert strategy.state == State.OPEN
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-
-#     # Simulate full fill order 1
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445860,
-#         cumulative_filled_quantity=strategy.position_handler.orders[0].quantity,
-#         quantity=strategy.position_handler.orders[0].quantity,
-#         symbol=strategy.config.symbol_info.symbol,
-#         price=strategy.position_handler.orders[0].price,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.OPEN
-
-#     # Simulate partial fill
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-#         order_id=445861,
-#         cumulative_filled_quantity=(strategy.position_handler.orders[1].quantity / 2),
-#         symbol=strategy.config.symbol_info.symbol,
-#         price=strategy.position_handler.orders[1].price,
-#     )
-#     await strategy.process_order()
-#     assert strategy.state == State.OPEN
-
-#     # Simulate stagnation counter increase
-#     assert strategy.position_handler.stagnation_counter == 0
-
-#     time_date = datetime.datetime.strptime(
-#         strategy.position_handler.next_monitor_position_time, "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     time_date -= datetime.timedelta(hours=8)
-#     strategy.position_handler.next_monitor_position_time = time_date.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
-
-#     # Simulate reaching the stagnation limit
-#     for _ in range(STAGNATION_LIMIT):
-#         await strategy.process_ticker()
-
-#     assert strategy.position_handler.stagnation_counter == STAGNATION_LIMIT
-
-#     # Simulate price being outside the threshold
-#     last_price = 1429
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-#     assert strategy.state == State.STAGNATED
-
-#     logger.info("Ticker outside, nothing should happen: %s", last_price)
-#     last_price = 1500
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     # Simulate nothing happening
-#     await strategy.process_ticker()
-
-#     logger.info("Ticker inside, reopen orders: %s", last_price)
-#     last_price = 1400
-#     strategy.ticker_update = TickerUpdate(last_price=last_price)
-#     await strategy.process_ticker()
-
-#     assert strategy.state == State.OPEN
-#     assert all(
-#         order.status == ORDER_STATUS_NEW for order in strategy.position_handler.orders
-#     )
-#     assert len(strategy.position_handler.orders) == 2
-#     logger.info("All valid orders reopened.")
+async def test_send_sell_orders_for_bought_position(trading_system_factory) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    budget = round(
+        sum(order.realized_quantity for order in strategy.buy_position.orders), 2
+    )
+
+    strategy.sell_position.config = HPConfig(
+        hp_id=strategy.buy_position.config.hp_id,
+        symbol_info=strategy.buy_position.config.symbol_info,
+        price_low=4200,
+        price_high=4200,
+        order_trigger=1.0,
+        budget=budget,
+        mode=Mode.SINGLE,
+    )
+    strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell_position.orders = (
+        strategy.sell_position.order_handler.prepare_sell_orders(
+            config=strategy.sell_position.config,
+            buy_orders=strategy.buy_position.orders,
+        )
+    )
+
+    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.price_low == 4200
+    assert strategy.sell_position.config.price_high == 4200
+    assert strategy.sell_position.config.order_trigger == 1
+    assert strategy.sell_position.config.budget == 0.85
+    assert strategy.sell_position.config.mode == Mode.SINGLE
+    assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
+
+    assert strategy.sell_position.state_info.side == PositionSide.SHORT
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.sell_position.state_info.stagnation_counter == 0
+    assert strategy.sell_position.state_info.stagnation_limit == 8
+
+    assert len(strategy.sell_position.orders) == 1
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].status == "PREPARED"
+
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.state == State.BOUGHT
+
+    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    assert strategy.conditions_for_sending_sell_orders()
+
+    await strategy.process_ticker()
+
+    assert strategy.sell_position.orders[0].quantity == 0.85
+    assert strategy.sell_position.orders[0].realized_quantity == 0.0
+
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
+
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):

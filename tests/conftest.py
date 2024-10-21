@@ -112,9 +112,7 @@ def trading_system_factory(mock_AsyncClient):
         )
         if state_info.side == PositionSide.LONG:
             strategy.buy_position.orders = (
-                strategy.buy_position.order_handler.prepare_orders(
-                    config=hp_config, state_info=state_info
-                )
+                strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
             )
             strategy.client.create_order.side_effect = get_new_orders(
                 price_low=strategy.buy_position.config.price_low,
@@ -122,8 +120,8 @@ def trading_system_factory(mock_AsyncClient):
             )
         if state_info.side == PositionSide.SHORT:
             strategy.sell_position.orders = (
-                strategy.sell_position.order_handler.prepare_orders(
-                    config=hp_config, state_info=state_info
+                strategy.sell_position.order_handler.prepare_sell_orders(
+                    config=hp_config, buy_orders=strategy.buy_position.orders
                 )
             )
 

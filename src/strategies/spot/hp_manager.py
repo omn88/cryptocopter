@@ -374,8 +374,8 @@ class HpManager:
         self.balance += self.get_remaining_quantity_buy()
         await self.buy_position.cancel_position()
         self.buy_position.state_info = StateInfo()
-        self.buy_position.orders = self.buy_position.order_handler.prepare_orders(
-            config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.buy_position.orders = self.buy_position.order_handler.prepare_buy_orders(
+            config=self.buy_position.config
         )
 
     async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
@@ -416,9 +416,11 @@ class HpManager:
 
     async def send_sell_orders(self, *args, **kwargs) -> None:
         if not self.sell_position.orders:
-            self.sell_position.orders = self.sell_position.order_handler.prepare_orders(
-                config=self.sell_position.config,
-                state_info=self.sell_position.state_info,
+            self.sell_position.orders = (
+                self.sell_position.order_handler.prepare_sell_orders(
+                    config=self.sell_position.config,
+                    buy_orders=self.buy_position.orders,
+                )
             )
 
         self.logger.info(
@@ -454,6 +456,7 @@ class HpManager:
             orders=self.sell_position.orders,
         )
         self.state = State.SELLING
+        self.sell_position.state_info.state = State.SELLING
 
         for order in self.sell_position.orders:
             self.db.run_db_task(

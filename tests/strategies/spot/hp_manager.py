@@ -18,8 +18,11 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
+    Event,
+    EventName,
     ExecutionReport,
     HPConfig,
+    SignalUpdate,
     StateInfo,
     TickerUpdate,
     State,
@@ -283,6 +286,20 @@ async def simulate_third_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    await strategy.process_signal()
+
+    assert strategy.buy_position.state_info.state == State.BOUGHT
+    assert strategy.state == State.BOUGHT
+
     return strategy
 
 
@@ -304,5 +321,14 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
     await strategy.process_ticker()
 
     assert len(strategy.buy_position.orders) == 3
+
+    return strategy
+
+
+async def simulate_bought_position(strategy: HpManager) -> HpManager:
+    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await simulate_first_order_fill(strategy=strategy)
+    strategy = await simulate_second_order_fill(strategy=strategy)
+    strategy = await simulate_third_order_fill(strategy=strategy)
 
     return strategy

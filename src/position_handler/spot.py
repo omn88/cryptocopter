@@ -41,17 +41,51 @@ class PositionHandler:
         )
         self.orders: List[Order] = []
 
-    async def open_position(self, config: HPConfig, state_info: StateInfo) -> None:
-        self.order_handler.prepare_orders(config=config, state_info=state_info)
+    async def open_buy_position(self, config: HPConfig, state_info: StateInfo) -> None:
+        self.order_handler.prepare_buy_orders(config=config)
         self.orders = await self.order_handler.create_orders(
             side=state_info.side, orders=self.orders, symbol_info=config.symbol_info
         )
         self.state_info.next_monitor_time = (
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
-        self.state_info.state = (
-            State.BUYING if self.state_info.side == PositionSide.LONG else State.SELLING
+        self.state_info.state = State.BUYING
+        position_data = PositionData(
+            config=self.config,
+            state_info=self.state_info,
+            completeness=round(
+                sum(order.realized_quantity for order in self.orders)
+                / sum(order.quantity for order in self.orders),
+                2,
+            ),
         )
+
+        logger.info("Going to send position data: %s", position_data)
+
+        self.ui_queue.put_nowait(position_data)
+
+        for order in self.orders:
+            self.db.run_db_task(
+                self.db.insert_order(hp_id=self.config.hp_id, order=order)
+            )
+        self.db.run_db_task(
+            self.db.update_price_level(
+                self.config,
+                state_info=self.state_info,
+            )
+        )
+
+        logger.info("Position opened successfully.")
+
+    async def open_sell_position(self, config: HPConfig, state_info: StateInfo) -> None:
+        self.order_handler.prepare_sell_orders(config=config)
+        self.orders = await self.order_handler.create_orders(
+            side=state_info.side, orders=self.orders, symbol_info=config.symbol_info
+        )
+        self.state_info.next_monitor_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.state_info.state = State.SELLING
 
         position_data = PositionData(
             config=self.config,

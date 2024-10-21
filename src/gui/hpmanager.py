@@ -285,37 +285,32 @@ class HpManager(BoxLayout):
 
         return not validation_message
 
-    # def set_sell_price(self, *args) -> None:
-    #     if not self.validate_sell_inputs():
-    #         return
+    def set_sell_price(self, *args) -> None:
+        if not self.validate_sell_inputs():
+            return
 
-    #     config = HPConfig(
-    #         hp_id=int(self.ids.hp_id_input.text),
-    #         open_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    #         hp_id=str(uuid.uuid4()),
-    #         symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
-    #         side=PositionSide.SHORT,
-    #         price_low=0.0,
-    #         price_high=0.0,
-    #         budget=float(self.ids.quantity_label.text),
-    #         order_trigger=1.0,
-    #         mode=Mode.SINGLE,
-    #         sell_price=float(self.ids.sell_price_input.text),
-    #     )
+        config = HPConfig(
+            hp_id=int(self.ids.hp_id_input.text),
+            symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
+            price_low=float(self.ids.sell_price_input.text),
+            price_high=float(self.ids.sell_price_input.text),
+            budget=float(self.ids.quantity_label.text),
+            order_trigger=1.0,
+            mode=Mode.SINGLE,
+        )
+        state_info = StateInfo(side=PositionSide.SHORT)
 
-    #     state_info = StateInfo()
+        self.config_queue.put_nowait(
+            NewRecord(
+                config=config,
+                state_info=state_info,
+            )
+        )
+        self.ui_queue.put_nowait(
+            PositionData(config=config, state_info=state_info, completeness=0)
+        )
 
-    #     self.config_queue.put_nowait(
-    #         PositionSetup(
-    #             config=config,
-    #             state_info=state_info,
-    #         )
-    #     )
-    #     self.ui_queue.put_nowait(
-    #         PositionData(config=config, state_info=state_info, completeness=0)
-    #     )
-
-    #     self.filter_records(tab="idle", symbol_filter="All")
+        self.filter_records(tab="idle", symbol_filter="All")
 
     def trigger_remove_record(
         self,
