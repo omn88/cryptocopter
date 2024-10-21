@@ -325,6 +325,35 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
     return strategy
 
 
+async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
+    assert strategy.state == State.SELLING
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert (
+        strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
+    )
+
+    await strategy.process_ticker()
+
+    assert len(strategy.sell_position.orders) == 1
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    return strategy
+
+
 async def simulate_bought_position(strategy: HpManager) -> HpManager:
     strategy = await move_to_buy_position_active(strategy=strategy)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)

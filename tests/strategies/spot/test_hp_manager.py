@@ -32,6 +32,7 @@ from tests.strategies.spot.hp_manager import (
     move_to_sell_position_active,
     simulate_bought_position,
     simulate_cancel_buy_position,
+    simulate_cancel_sell_position,
     simulate_first_buy_order_fill,
     simulate_move_to_sell_from_partially_bought_position,
     simulate_partial_fill,
@@ -879,6 +880,80 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
     assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
     assert strategy.sell_position.state_info.state == State.NEW
     assert strategy.state == State.PARTIALLY_BOUGHT
+
+
+async def test_fill_orders_for_previously_partially_bought_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+    strategy = await simulate_move_to_sell_from_partially_bought_position(
+        strategy=strategy
+    )
+    strategy = await simulate_cancel_sell_position(strategy=strategy)
+
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1010
+    strategy.ticker_update = TickerUpdate(last_price=1010)
+    await strategy.process_ticker()
+
+    assert strategy.buy_position.state_info.state == State.BUYING
+    assert strategy.state == State.BUYING
+    assert len(strategy.buy_position.orders) == 1
+
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445864,
+        last_executed_quantity=0.1,
+        last_executed_price=1000,
+        cumulative_filled_quantity=0.33,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    await strategy.process_signal()
+
+    assert strategy.buy_position.state_info.state == State.BOUGHT
+    assert strategy.state == State.BOUGHT
+
+
+async def test_sell_partially_partially_bought_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+    strategy = await simulate_move_to_sell_from_partially_bought_position(
+        strategy=strategy
+    )
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.26,
+        last_executed_price=4200,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
