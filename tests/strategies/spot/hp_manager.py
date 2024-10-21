@@ -229,7 +229,7 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_first_order_fill(strategy: HpManager) -> HpManager:
+async def simulate_first_buy_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -249,7 +249,7 @@ async def simulate_first_order_fill(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_second_order_fill(strategy: HpManager) -> HpManager:
+async def simulate_second_buy_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -269,7 +269,7 @@ async def simulate_second_order_fill(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_third_order_fill(strategy: HpManager) -> HpManager:
+async def simulate_third_buy_order_fill(strategy: HpManager) -> HpManager:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -327,9 +327,9 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
 
 async def simulate_bought_position(strategy: HpManager) -> HpManager:
     strategy = await move_to_buy_position_active(strategy=strategy)
-    strategy = await simulate_first_order_fill(strategy=strategy)
-    strategy = await simulate_second_order_fill(strategy=strategy)
-    strategy = await simulate_third_order_fill(strategy=strategy)
+    strategy = await simulate_first_buy_order_fill(strategy=strategy)
+    strategy = await simulate_second_buy_order_fill(strategy=strategy)
+    strategy = await simulate_third_buy_order_fill(strategy=strategy)
 
     return strategy
 
@@ -383,6 +383,42 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
 
     await strategy.process_ticker()
 
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+    return strategy
+
+
+async def simulate_first_sell_order_fill(strategy: HpManager) -> HpManager:
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=5617834,
+        last_executed_quantity=0.1,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.85,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
+
+    return strategy
+
+
+async def simulate_partial_fill_sell(strategy: HpManager) -> HpManager:
+    # Simulate partial fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=5617834,
+        last_executed_quantity=0.425,
+        last_executed_price=4200,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.SELLING
 

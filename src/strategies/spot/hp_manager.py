@@ -184,13 +184,13 @@ class HpManager:
                 "conditions": "conditions_for_cancelling_unfilled_sell_orders",
                 "before": "cancel_unfilled_sell_orders",
             },
-            # {
-            #     "trigger": "process_ticker",
-            #     "source": State.SELLING,
-            #     "dest": State.PARTIALLY_SOLD,
-            #     "conditions": "conditions_for_cancelling_partially_sold_orders",
-            #     "after": "cancel_partially_sold_orders",
-            # },
+            {
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.PARTIALLY_SOLD,
+                "conditions": "conditions_for_cancelling_partially_sold_orders",
+                "after": "cancel_partially_sold_orders",
+            },
             # {
             #     "trigger": "process_ticker",
             #     "source": State.SELLING,
@@ -1032,6 +1032,42 @@ class HpManager:
             )
 
         return condition
+
+    def conditions_for_cancelling_partially_sold_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+            and not all(
+                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
+    async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
+        await self.sell_position.cancel_position()
+        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+        self.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info = StateInfo(
+            side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
+        )
+        self.sell_position.orders = (
+            self.sell_position.order_handler.prepare_sell_orders(
+                config=self.sell_position.config, buy_orders=self.buy_position.orders
+            )
+        )
 
     # def get_transitions(self):
     #     # add balance conditions where orders are to be send and update the variable after orders are cancelled.
