@@ -284,7 +284,9 @@ async def test_default_position_all_buy_orders_filled(trading_system_factory) ->
     strategy = await simulate_third_buy_order_fill(strategy=strategy)
 
 
-async def test_conditions_for_new_buy_order_confirmation(trading_system_factory) -> None:
+async def test_conditions_for_new_buy_order_confirmation(
+    trading_system_factory,
+) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await move_to_buy_position_active(strategy=strategy)
 
@@ -625,6 +627,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
 
+
 async def test_resend_sell_position_first_order_filled_partially(
     trading_system_factory,
 ) -> None:
@@ -648,7 +651,10 @@ async def test_resend_sell_position_first_order_filled_partially(
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.SELLING
 
-async def test_conditions_for_new_sell_order_confirmation(trading_system_factory) -> None:
+
+async def test_conditions_for_new_sell_order_confirmation(
+    trading_system_factory,
+) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
     strategy = await simulate_bought_position(strategy=strategy)
 
@@ -686,6 +692,44 @@ async def test_conditions_for_sell_order_expiration(trading_system_factory) -> N
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
     assert strategy.conditions_for_order_expiration()
+
+
+async def test_close_mode_single_generated_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_bought_position(strategy=strategy)
+
+    strategy = await move_to_sell_position_active(strategy)
+
+    # Simulate first order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=5617834,
+        last_executed_quantity=0.85,
+        last_executed_price=4200,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SELLING
+
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    await strategy.process_signal()
+
+    assert strategy.sell_position.state_info.state == State.SOLD
+    assert strategy.state == State.SOLD
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):

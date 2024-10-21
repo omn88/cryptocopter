@@ -427,7 +427,7 @@ async def simulate_partial_fill_sell(strategy: HpManager) -> HpManager:
 
 async def move_to_partially_sold(strategy: HpManager) -> HpManager:
     strategy.sell_position.state_info.stagnation_counter = (
-    strategy.sell_position.state_info.stagnation_limit
+        strategy.sell_position.state_info.stagnation_limit
     )
 
     time = datetime.datetime.now() + datetime.timedelta(hours=1)
