@@ -96,10 +96,12 @@ class OrderHandler:
         return orders
 
     def prepare_sell_orders(
-        self, config: HPConfig, buy_orders: List[Order]
+        self, config: HPConfig, buy_orders: List[Order], sell_orders: List[Order]
     ) -> List[Order]:
         orders = []
-        quantity = sum(order.realized_quantity for order in buy_orders)
+        quantity = sum(order.realized_quantity for order in buy_orders) - sum(
+            order.realized_quantity for order in sell_orders
+        )
         quantity_stable = round(quantity * config.price_low, 2)
 
         if config.mode == Mode.SINGLE:

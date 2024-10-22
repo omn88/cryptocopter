@@ -118,12 +118,6 @@ def trading_system_factory(mock_AsyncClient):
                 price_low=strategy.buy_position.config.price_low,
                 price_high=strategy.buy_position.config.price_high,
             )
-        if state_info.side == PositionSide.SHORT:
-            strategy.sell_position.orders = (
-                strategy.sell_position.order_handler.prepare_sell_orders(
-                    config=hp_config, buy_orders=strategy.buy_position.orders
-                )
-            )
 
         state_machine = AsyncMachine(
             model=strategy,

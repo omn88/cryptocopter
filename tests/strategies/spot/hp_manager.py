@@ -198,7 +198,7 @@ async def move_to_buy_position_active(strategy: HpManager) -> HpManager:
     strategy.ticker_update = TickerUpdate(last_price=1414)
     await strategy.process_ticker()
 
-    assert strategy.buy_position.state_info.state == State.BUYING
+    assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.BUYING
     assert len(strategy.buy_position.orders) == 3
 
@@ -265,6 +265,24 @@ async def simulate_second_buy_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    return strategy
+
+
+async def simulate_third_buy_order_partial_fill(strategy: HpManager) -> HpManager:
+    # Simulate partial order fill of order which is rebuy after first time two first orders were fillled and this is the last one.
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445864,
+        last_executed_quantity=0.1,
+        last_executed_price=1400,
+        cumulative_filled_quantity=0.18,
+    )
+    await strategy.process_order()
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_PARTIALLY_FILLED
 
     return strategy
 
@@ -347,7 +365,9 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
     assert len(strategy.sell_position.orders) == 1
 
     logger.info("Orders: %s", strategy.sell_position.orders)
-    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.sell_position.orders
+    )
     assert strategy.sell_position.state_info.state == State.NEW
     assert strategy.state == State.PARTIALLY_BOUGHT
 
@@ -392,6 +412,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
         strategy.sell_position.order_handler.prepare_sell_orders(
             config=strategy.sell_position.config,
             buy_orders=strategy.buy_position.orders,
+            sell_orders=strategy.sell_position.orders,
         )
     )
 
@@ -410,7 +431,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
     assert len(strategy.sell_position.orders) == 1
     assert strategy.sell_position.orders[0].quantity == 0.52
-    assert strategy.sell_position.orders[0].status == "PREPARED"
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
 
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.PARTIALLY_BOUGHT
@@ -421,7 +442,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
     await strategy.process_ticker()
 
     assert strategy.state == State.SELLING
-    assert strategy.sell_position.state_info.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.NEW
 
     assert strategy.sell_position.orders[0].quantity == 0.52
     assert strategy.sell_position.orders[0].realized_quantity == 0.0
@@ -452,6 +473,7 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
         strategy.sell_position.order_handler.prepare_sell_orders(
             config=strategy.sell_position.config,
             buy_orders=strategy.buy_position.orders,
+            sell_orders=strategy.sell_position.orders,
         )
     )
 
@@ -470,8 +492,7 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
 
     assert len(strategy.sell_position.orders) == 1
     assert strategy.sell_position.orders[0].quantity == 0.85
-    assert strategy.sell_position.orders[0].status == "PREPARED"
-
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.BOUGHT
 
@@ -481,7 +502,7 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
     await strategy.process_ticker()
 
     assert strategy.state == State.SELLING
-    assert strategy.sell_position.state_info.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.NEW
 
     return strategy
 
@@ -517,7 +538,7 @@ async def simulate_partial_fill_sell(strategy: HpManager) -> HpManager:
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.state == State.SELLING
-    assert strategy.sell_position.state_info.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
 
     return strategy
 
@@ -541,7 +562,9 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
     assert len(strategy.sell_position.orders) == 1
 
     logger.info("Orders: %s", strategy.sell_position.orders)
-    assert all(order.status == "PREPARED" for order in strategy.sell_position.orders)
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.sell_position.orders
+    )
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
 

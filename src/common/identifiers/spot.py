@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import queue
 from typing import Dict, List, NamedTuple, Optional, Union
-from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from src.common.identifiers.common import (
     Mode,
     PositionSide,
@@ -20,6 +20,8 @@ class State(Enum):
     SELLING = "SELLING"
     PARTIALLY_SOLD = "PARTIALLY_SOLD"
     SOLD = "SOLD"
+    PART_SOLD_PART_BOUGHT = "PART_SOLD_PART_BOUGHT"
+    SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
     RECOVERING = "RECOVERING"
 
 
@@ -67,7 +69,7 @@ class Order:
     realized_quantity: float = 0
     open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
-    status: str = "PREPARED"
+    status: str = ORDER_STATUS_NEW
     order_type: str = ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
