@@ -50,6 +50,8 @@ async def test_default_position(trading_system_factory) -> None:
     """
     This test purpose is to instantiate basic buy position and assert on
     the default values
+
+    Path 1
     """
 
     trading_system = trading_system_factory(
@@ -80,7 +82,7 @@ async def test_default_position(trading_system_factory) -> None:
     assert strategy.buy_position.state_info.stagnation_limit == 8
 
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
-    assert strategy.state == State.NEW
+
     assert len(strategy.buy_position.orders) == 3
 
     assert strategy.buy_position.orders[0].quantity == 0.24
@@ -96,11 +98,26 @@ async def test_default_position(trading_system_factory) -> None:
     assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
 
     assert strategy.sell_position.state_info.side == PositionSide.SHORT
-    assert strategy.sell_position.state_info.state == State.NEW
+
     assert strategy.sell_position.state_info.stagnation_counter == 0
     assert strategy.sell_position.state_info.stagnation_limit == 8
-
     assert len(strategy.sell_position.orders) == 0
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.NEW
+
+
+async def test_default_position_send_orders(trading_system_factory) -> None:
+    """
+    Path 1 -> 2
+    """
+
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
 
 
 async def test_cancel_default_position_untouched(trading_system_factory) -> None:
@@ -108,10 +125,16 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
     This test purpose is to instantiate basic buy position then trigger
     the conditions with which the position will be cancelled untouched and the states
     will get back to State.NEW
+    Path 1 -> 2 -> 1
     """
 
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
 
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
@@ -130,7 +153,7 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
 
     assert len(strategy.buy_position.orders) == 3
     assert all(
-        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+        order.status == ORDER_STATUS_CANCELED for order in strategy.buy_position.orders
     )
     assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.NEW

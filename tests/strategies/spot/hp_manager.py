@@ -153,6 +153,10 @@ def get_default_buy_position(trading_system_factory) -> HpManager:
 
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy_position.config.price_low,
+        price_high=strategy.buy_position.config.price_high,
+    )
     assert strategy.buy_position.config.hp_id == 1000
     assert strategy.buy_position.config.price_low == 1000
     assert strategy.buy_position.config.price_high == 1400
@@ -188,23 +192,15 @@ def get_default_buy_position(trading_system_factory) -> HpManager:
     return strategy
 
 
-async def move_to_buy_position_active(strategy: HpManager) -> HpManager:
-    strategy.client.create_order.side_effect = get_new_orders(
-        price_low=strategy.buy_position.config.price_low,
-        price_high=strategy.buy_position.config.price_high,
-    )
-
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
-    strategy.ticker_update = TickerUpdate(last_price=1414)
+async def move_to_buy_position_active(
+    strategy: HpManager, trigger_price: float
+) -> HpManager:
+    assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
+    strategy.ticker_update = TickerUpdate(last_price=trigger_price)
     await strategy.process_ticker()
 
-    assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.BUYING
     assert len(strategy.buy_position.orders) == 3
-
-    assert all(
-        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
-    )
 
     return strategy
 

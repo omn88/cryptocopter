@@ -367,51 +367,6 @@ class HpManager:
 
         return condition
 
-    def conditions_for_resending_partially_bought_position(
-        self, *args, **kwargs
-    ) -> bool:
-        trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
-        condition = (
-            self.state == State.PARTIALLY_BOUGHT
-            and self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
-            and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy_position.config.budget
-        )
-        if condition:
-            self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.side,
-                self.state,
-                self.buy_position.config.budget,
-                self.balance,
-                trigger_send_orders_price,
-                self.ticker_update.last_price,
-            )
-
-        return condition
-
-    def conditions_for_resending_partially_sold_position(self, *args, **kwargs) -> bool:
-        trigger_send_orders_price = self.calculate_trigger_send_orders_price_sell()
-        condition = (
-            self.sell_position.state_info.state == State.PARTIALLY_SOLD
-            and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.sell_position.config.budget
-        )
-        if condition:
-            self.logger.info(
-                "[Resend sell orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.sell_position.config.symbol_info.symbol,
-                self.sell_position.state_info.side,
-                self.state,
-                self.sell_position.config.budget,
-                self.balance,
-                trigger_send_orders_price,
-                self.ticker_update.last_price,
-            )
-
-        return condition
-
     async def send_buy_orders(self, *args, **kwargs) -> None:
         self.logger.info("Sending %s BUY", self.buy_position.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
@@ -461,6 +416,80 @@ class HpManager:
                 ),
             )
         )
+
+    def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.buy_position.state_info.stagnation_counter
+            >= self.buy_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_cancel_orders_price_buy()
+            and all(
+                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.stagnation_counter,
+                self.buy_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+            )
+
+        return condition
+
+    async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
+        self.logger.info("Orders: %s", self.buy_position.orders)
+        self.balance += self.get_remaining_quantity_buy()
+        await self.buy_position.cancel_position()
+        self.buy_position.state_info = StateInfo()
+
+    def conditions_for_resending_partially_bought_position(
+        self, *args, **kwargs
+    ) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
+        condition = (
+            self.state == State.PARTIALLY_BOUGHT
+            and self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.balance > self.buy_position.config.budget
+        )
+        if condition:
+            self.logger.info(
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.side,
+                self.state,
+                self.buy_position.config.budget,
+                self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
+            )
+
+        return condition
+
+    def conditions_for_resending_partially_sold_position(self, *args, **kwargs) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price_sell()
+        condition = (
+            self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.balance > self.sell_position.config.budget
+        )
+        if condition:
+            self.logger.info(
+                "[Resend sell orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.state,
+                self.sell_position.config.budget,
+                self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
+            )
+
+        return condition
 
     async def resend_buy_orders(self, *args, **kwargs) -> None:
         self.logger.info(
@@ -604,35 +633,6 @@ class HpManager:
                 ),
             )
         )
-
-    def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
-        condition = (
-            self.buy_position.state_info.stagnation_counter
-            >= self.buy_position.state_info.stagnation_limit
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_cancel_orders_price_buy()
-            and all(
-                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
-            )
-        )
-        if condition:
-            self.logger.info(
-                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.stagnation_counter,
-                self.buy_position.state_info.stagnation_limit,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
-            )
-
-        return condition
-
-    async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
-        self.logger.info("Orders: %s", self.buy_position.orders)
-        self.balance += self.get_remaining_quantity_buy()
-        await self.buy_position.cancel_position()
-        self.buy_position.state_info = StateInfo()
 
     async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
