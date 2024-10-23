@@ -241,6 +241,7 @@ async def simulate_first_buy_order_fill(strategy: HpManager) -> HpManager:
     )
     await strategy.process_order()
     assert strategy.state == State.BUYING
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
@@ -334,6 +335,9 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
 
+    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
+    assert strategy.conditions_for_cancelling_partially_bought_orders()
+
     await strategy.process_ticker()
 
     assert len(strategy.buy_position.orders) == 3
@@ -385,7 +389,7 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert all(
-        order.status == ORDER_STATUS_NEW for order in strategy.sell_position.orders
+        order.status == ORDER_STATUS_CANCELED for order in strategy.sell_position.orders
     )
     assert strategy.sell_position.state_info.state == State.NEW
     assert strategy.state == State.PARTIALLY_BOUGHT
@@ -582,7 +586,7 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert all(
-        order.status == ORDER_STATUS_NEW for order in strategy.sell_position.orders
+        order.status == ORDER_STATUS_CANCELED for order in strategy.sell_position.orders
     )
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
