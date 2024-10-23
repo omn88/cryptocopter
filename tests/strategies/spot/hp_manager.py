@@ -197,8 +197,12 @@ async def move_to_buy_position_active(
 ) -> HpManager:
     assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
     strategy.ticker_update = TickerUpdate(last_price=trigger_price)
+
+    assert strategy.conditions_for_sending_buy_orders()
+
     await strategy.process_ticker()
 
+    logger.info("State: %s", strategy.state)
     assert strategy.state == State.BUYING
     assert len(strategy.buy_position.orders) == 3
 
@@ -329,8 +333,27 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
-    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
-    assert strategy.conditions_for_cancelling_partially_bought_orders()
+
+    await strategy.process_ticker()
+
+    assert len(strategy.buy_position.orders) == 3
+
+    return strategy
+
+
+async def simulate_cancel_unfilled_buy_position(strategy: HpManager) -> HpManager:
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 
     await strategy.process_ticker()
 

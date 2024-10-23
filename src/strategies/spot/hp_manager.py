@@ -346,24 +346,31 @@ class HpManager:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
         condition = (
             self.state == State.NEW
-            and all(
-                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
-            )
             and self.buy_position.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
             and self.balance > self.buy_position.config.budget
         )
-        if condition:
-            self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.side,
-                self.state,
-                self.buy_position.config.budget,
-                self.balance,
-                trigger_send_orders_price,
-                self.ticker_update.last_price,
-            )
+        # if condition:
+        #     self.logger.info(
+        #         "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+        #         self.buy_position.config.symbol_info.symbol,
+        #         self.buy_position.state_info.side,
+        #         self.state,
+        #         self.buy_position.config.budget,
+        #         self.balance,
+        #         trigger_send_orders_price,
+        #         self.ticker_update.last_price,
+        #     )
+
+        self.logger.info(
+            "[Send buy orders] %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.state,
+            self.buy_position.config.budget,
+            self.balance,
+            trigger_send_orders_price,
+            self.ticker_update.last_price,
+        )
 
         return condition
 
@@ -419,7 +426,10 @@ class HpManager:
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.buy_position.state_info.stagnation_counter
+            self.buy_position.state_info.state == State.NEW
+            and self.sell_position.state_info.state == State.NEW
+            and self.state == State.BUYING
+            and self.buy_position.state_info.stagnation_counter
             >= self.buy_position.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
@@ -427,15 +437,28 @@ class HpManager:
                 order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
             )
         )
-        if condition:
-            self.logger.info(
-                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.stagnation_counter,
-                self.buy_position.state_info.stagnation_limit,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
-            )
+        # if condition:
+        #     self.logger.info(
+        #         "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+        #         self.buy_position.config.symbol_info.symbol,
+        #         self.buy_position.state_info.stagnation_counter,
+        #         self.buy_position.state_info.stagnation_limit,
+        #         self.ticker_update.last_price,
+        #         self.calculate_trigger_cancel_orders_price_buy(),
+        #         self.state,
+        #         self.buy_position.state_info.state
+        #     )
+
+        self.logger.info(
+            "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.stagnation_counter,
+            self.buy_position.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_buy(),
+            self.state,
+            self.buy_position.state_info.state,
+        )
 
         return condition
 
