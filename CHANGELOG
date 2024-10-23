@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- test cases covering strategy scenarios related to handling buy and sell position separately.
 - multithreaded environment where strategy executor, portfolio, database, websockets are dedicated threads which put data to the GUI queues.
 - websockets work with broker pattern so they dispatch the particular messages to the clients which subscribed for particular feeds.
 - portfolio takes the initial balances, then updates usdt values based on price feeds it subscribed to and updates balances based on the account position.

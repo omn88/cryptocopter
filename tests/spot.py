@@ -12,7 +12,7 @@ def get_new_orders(price_low: float, price_high: float):
     order_list = []
     for item in range(number_of_orders):
         price = price_low + item * ((price_high - price_low) / (number_of_orders - 1))
-        quantity = 333 / number_of_orders / price
+        quantity = 0.1
 
         order_list.append(
             {

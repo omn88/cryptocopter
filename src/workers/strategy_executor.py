@@ -19,6 +19,7 @@ from src.common.identifiers.spot import (
     LoadConfig,
     RemoveRecord,
     SaveConfig,
+    SellConfig,
     State,
     StateInfo,
     SubscriptionInfo,
@@ -91,6 +92,23 @@ class StrategyExecutor:
                             new_record=strategy_data, db=self.db
                         )
                     )
+                if isinstance(strategy_data, SellConfig):
+                    trading_system: TradingSystem = self.id_to_system.pop(
+                        strategy_data.config.hp_id
+                    )
+                    assert trading_system.strategy
+
+                    trading_system.strategy.sell_position.config = strategy_data.config
+                    trading_system.strategy.sell_position.state_info = (
+                        strategy_data.state_info
+                    )
+
+                    trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
+                        config=strategy_data.config,
+                        buy_orders=trading_system.strategy.buy_position.orders,
+                        sell_orders=trading_system.strategy.sell_position.orders,
+                    )
+
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(system_id=strategy_data.hp_id)
                 # if isinstance(strategy_data, SaveConfig):

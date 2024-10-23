@@ -32,8 +32,6 @@ from src.common.identifiers.common import (
 from src.gui.identifiers.spot import PositionData
 from src.position_handler.spot import PositionHandler
 
-STAGNATION_LIMIT = 8
-
 
 class HpManager:
     def __init__(
@@ -60,15 +58,31 @@ class HpManager:
             db=db,
             state_info=state_info,
         )
-        self.sell_position: Optional[PositionHandler] = None
+        self.sell_position: PositionHandler = PositionHandler(
+            client=client,
+            strategy_logger=logger,
+            config=HPConfig(
+                symbol_info=self.buy_position.config.symbol_info,
+                hp_id=self.buy_position.config.hp_id,
+            ),
+            ui_queue=ui_queue,
+            db=db,
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
         self.state = State.NEW
 
         self.states = [
-            State.CLOSED,
             State.NEW,
-            State.OPEN,
+            State.BUYING,
+            State.PARTIALLY_BOUGHT,
+            State.BOUGHT,
+            State.READY_TO_SELL,
+            State.SELLING,
+            State.PARTIALLY_SOLD,
+            State.PART_SOLD_PART_BOUGHT,
+            State.SOLD_PART_BOUGHT,
+            State.SOLD,
             State.RECOVERING,
-            State.STAGNATED,
         ]
 
         # Initialize any other common attributes
@@ -79,389 +93,262 @@ class HpManager:
 
         self.transitions = self.get_transitions()
 
-    def __str__(self):
-        return (
-            f"HpManager(client={self.client}, "
-            f"logger={self.logger}, "
-            f"balance={self.balance}, state={self.state}, "
-            f"buy_position={self.buy_position}, sell position={self.sell_position})"
-        )
-
     def get_transitions(self):
-        # add balance conditions where orders are to be send and update the variable after orders are cancelled.
         return [
-            # {
-            #     "trigger": "process_recovery",
-            #     "source": State.RECOVERING,
-            #     "dest": State.NEW,
-            #     "conditions": "conditions_for_recovering_to_new",
-            #     "after": "handle_recovery_to_new",
-            # },
-            # {
-            #     "trigger": "process_recovery",
-            #     "source": State.RECOVERING,
-            #     "dest": State.OPEN,
-            #     "conditions": "conditions_for_recovering_to_open",
-            #     "after": "handle_recovery_to_open",
-            # },
-            # {
-            #     "trigger": "process_recovery",
-            #     "source": State.RECOVERING,
-            #     "dest": State.STAGNATED,
-            #     "conditions": "conditions_for_recovering_to_stagnated",
-            #     "after": "handle_recovery_to_stagnated",
-            # },
             {
-                "trigger": "process_account",
-                "source": [
-                    State.NEW,
-                    State.OPEN,
-                    State.STAGNATED,
-                    State.RECOVERING,
-                    State.CLOSED,
-                ],
-                "dest": "=",
-                "after": "handle_account",
+                # No 1
+                "trigger": "process_ticker",
+                "source": State.NEW,
+                "dest": State.BUYING,
+                "conditions": "conditions_for_sending_buy_orders",
+                "after": "send_buy_orders",
             },
             {
-                "trigger": "process_order",
-                "source": [State.OPEN, State.STAGNATED],
-                "dest": "=",
-                "conditions": "conditions_for_new_order_confirmation",
-                "after": "confirm_new_order",
+                # No 2
+                "trigger": "process_ticker",
+                "source": State.BUYING,
+                "dest": State.NEW,
+                "conditions": "conditions_for_cancelling_unfilled_buy_orders",
+                "after": "cancel_unfilled_buy_orders",
             },
             {
-                "trigger": "process_order",
-                "source": [State.OPEN, State.STAGNATED],
-                "dest": "=",
-                "conditions": "conditions_for_order_cancellation",
-                "after": "confirm_cancelled_order",
+                # No 3
+                "trigger": "process_ticker",
+                "source": State.BUYING,
+                "dest": State.PARTIALLY_BOUGHT,
+                "conditions": "conditions_for_cancelling_partially_bought_orders",
+                "after": "cancel_partially_bought_orders",
             },
             {
-                "trigger": "process_order",
-                "source": State.OPEN,
-                "dest": "=",
-                "conditions": "conditions_for_order_expiration",
-                "after": "confirm_expired_order",
+                # No 4
+                "trigger": "process_ticker",
+                "source": State.PARTIALLY_BOUGHT,
+                "dest": State.BUYING,
+                "conditions": "conditions_for_resending_partially_bought_position",
+                "after": "resend_buy_orders",
             },
             {
+                # No 5
+                "trigger": "process_ticker",
+                "source": State.PARTIALLY_BOUGHT,
+                "dest": State.SELLING,
+                "conditions": "conditions_for_sending_sell_orders_for_partially_bought_position",
+                "after": "send_sell_orders",
+            },
+            {
+                # No 6
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.PARTIALLY_BOUGHT,
+                "conditions": "conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position",
+                "after": "cancel_unfilled_sell_orders",
+            },
+            {
+                # No 7
                 "trigger": "process_signal",
-                "source": "*",
-                "dest": State.CLOSED,
+                "source": State.BUYING,
+                "dest": State.BOUGHT,
                 "conditions": "conditions_for_all_orders_filled_buy",
                 "before": "close_filled_position_buy",
             },
             {
+                # No 8
+                "trigger": "process_ticker",
+                "source": State.BOUGHT,
+                "dest": State.SELLING,
+                "conditions": "conditions_for_sending_sell_orders",
+                "before": "send_sell_orders",
+            },
+            {
+                # No 9
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.BOUGHT,
+                "conditions": "conditions_for_cancelling_unfilled_sell_orders",
+                "before": "cancel_unfilled_sell_orders",
+            },
+            {
+                # No 10
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.PARTIALLY_SOLD,
+                "conditions": "conditions_for_cancelling_partially_sold_orders",
+                "after": "cancel_partially_sold_orders",
+            },
+            {
+                # No 11
+                "trigger": "process_ticker",
+                "source": State.PARTIALLY_SOLD,
+                "dest": State.SELLING,
+                "conditions": "conditions_for_resending_partially_sold_orders",
+                "after": "resend_sell_orders",
+            },
+            {
+                # No 12
                 "trigger": "process_signal",
-                "source": "*",
-                "dest": State.CLOSED,
+                "source": State.SELLING,
+                "dest": State.SOLD,
                 "conditions": "conditions_for_all_orders_filled_sell",
                 "before": "close_filled_position_sell",
             },
             {
+                # No 13
+                "trigger": "process_ticker",
+                "source": State.SELLING,
+                "dest": State.PART_SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_sell_position",
+                "after": "cancel_partially_sold_orders",
+            },
+            {
+                # No 14
+                "trigger": "process_ticker",
+                "source": State.PART_SOLD_PART_BOUGHT,
+                "dest": State.SELLING,
+                "conditions": "conditions_for_resending_sell_orders_from_part_sold_and_bought_orders",
+                "before": "resend_sell_orders",
+            },
+            {
+                # No 15
+                "trigger": "process_ticker",
+                "source": State.PART_SOLD_PART_BOUGHT,
+                "dest": State.BUYING,
+                "conditions": "conditions_for_resending_buy_orders_from_part_sold_and_bought_orders",
+                "after": "resend_buy_orders",
+            },
+            {
+                # No 16
+                "trigger": "process_ticker",
+                "source": State.BUYING,
+                "dest": State.PART_SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_cancelling_partially_sold_and_bought_orders_buy_position",
+                "before": "cancel_partially_bought_orders",
+            },
+            {
+                # No 17
+                "trigger": "process_signal",
+                "source": State.BUYING,
+                "dest": State.PARTIALLY_SOLD,
+                "conditions": "conditions_for_buying_fully_previously_partially_sold_position",
+                "before": "close_filled_position_buy",
+            },
+            {
+                # No 18
+                "trigger": "process_signal",
+                "source": State.SELLING,
+                "dest": State.SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
+                "after": "close_sold_position_which_is_part_bought",
+            },
+            {
+                # No 19
+                "trigger": "process_ticker",
+                "source": State.SOLD_PART_BOUGHT,
+                "dest": State.BUYING,
+                "conditions": "conditions_for_resending_buy_orders_for_sold_position",
+                "after": "resend_buy_orders",
+            },
+            {
+                # No 20
+                "trigger": "process_ticker",
+                "source": State.BUYING,
+                "dest": State.SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_cancelling_buy_orders_to_sold_part_bought",
+                "after": "cancel_partially_bought_orders",
+            },
+            {
                 "trigger": "process_order",
-                "source": [State.NEW, State.OPEN],
+                "source": State.BUYING,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled_buy",
                 "before": "handle_order_filled_buy",
             },
             {
                 "trigger": "process_order",
-                "source": [State.NEW, State.OPEN],
+                "source": State.BUYING,
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled_buy",
                 "before": "handle_order_partially_filled_buy",
             },
             {
                 "trigger": "process_order",
-                "source": [State.NEW, State.OPEN],
+                "source": State.SELLING,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled_sell",
                 "before": "handle_order_filled_sell",
             },
             {
                 "trigger": "process_order",
-                "source": [State.NEW, State.OPEN],
+                "source": State.SELLING,
                 "dest": "=",
                 "conditions": "conditions_for_order_partially_filled_sell",
                 "before": "handle_order_partially_filled_sell",
             },
             {
                 "trigger": "process_ticker",
-                "source": State.NEW,
-                "dest": State.OPEN,
-                "conditions": "conditions_for_sending_buy_orders",
-                "after": "send_buy_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.NEW,
-                "dest": State.OPEN,
-                "conditions": "conditions_for_sending_sell_orders",
-                "after": "send_sell_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.STAGNATED,
-                "dest": State.OPEN,
-                "conditions": "conditions_for_resending_buy_orders",
-                "after": "resend_buy_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.STAGNATED,
-                "dest": State.OPEN,
-                "conditions": "conditions_for_resending_sell_orders",
-                "after": "resend_sell_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.OPEN,
-                "dest": State.STAGNATED,
-                "conditions": "conditions_for_cancelling_buy_orders",
-                "after": "cancel_buy_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.OPEN,
-                "dest": State.STAGNATED,
-                "conditions": "conditions_for_cancelling_sell_orders",
-                "after": "cancel_sell_orders",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.OPEN,
+                "source": State.BUYING,
                 "dest": "=",
                 "conditions": "conditions_for_position_stagnation_buy",
                 "after": "increase_stagnation_counter_buy",
             },
             {
                 "trigger": "process_ticker",
-                "source": State.OPEN,
+                "source": State.SELLING,
                 "dest": "=",
                 "conditions": "conditions_for_position_stagnation_sell",
                 "after": "increase_stagnation_counter_sell",
             },
             {
-                "trigger": "process_ticker",
-                "source": State.CLOSED,
+                "trigger": "process_order",
+                "source": "*",
                 "dest": "=",
-                "after": "allow_messages",
+                "conditions": "conditions_for_new_order_confirmation",
+                "after": "confirm_new_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_cancellation",
+                "after": "confirm_cancelled_order",
+            },
+            {
+                "trigger": "process_order",
+                "source": "*",
+                "dest": "=",
+                "conditions": "conditions_for_order_expiration",
+                "after": "confirm_expired_order",
             },
         ]
 
     def calculate_trigger_send_orders_price_buy(self):
+        price = 0
+
+        for order in self.buy_position.orders:
+            if order.status != ORDER_STATUS_FILLED:
+                price = max(price, order.price)
+
         return self.buy_position.config.symbol_info.adjust_price(
-            self.buy_position.config.price_high
-            * (1 + (self.buy_position.config.order_trigger / 100))
+            price * (1 + (self.buy_position.config.order_trigger / 100))
         )
 
-    def calculate_trigger_send_orders_price_sell(self):
-        return self.sell_position.config.symbol_info.adjust_price(
-            self.sell_position.config.sell_price
-            * (1 - (self.sell_position.config.order_trigger / 100))
-        )
-
-    def calculate_trigger_cancel_orders_price_buy(self):
-        return self.buy_position.config.symbol_info.adjust_price(
-            self.buy_position.config.price_high
-            * (1 + (2 * self.buy_position.config.order_trigger / 100))
-        )
-
-    def calculate_trigger_cancel_orders_price_sell(self):
-        return self.sell_position.config.symbol_info.adjust_price(
-            self.sell_position.config.sell_price
-            * (1 - (2 * self.sell_position.config.order_trigger / 100))
-        )
-
-    # def conditions_for_recovering_to_new(self, *args, **kwargs) -> bool:
-    #     # This has to figure out whether this is new target order or just limit dca, or not?
-
-    #     condition = (
-    #         self.state == State.RECOVERING
-    #         and self.position_handler.last_state == State.NEW
-    #     )
-    #     if condition:
-    #         self.logger.info("[Recovering] %s to state NEW", self.config)
-    #     return condition
-
-    # def conditions_for_recovering_to_open(self, *args, **kwargs) -> bool:
-    #     # This has to figure out whether this is new target order or just limit dca, or not?
-
-    #     condition = (
-    #         self.state == State.RECOVERING
-    #         and self.position_handler.last_state == State.OPEN
-    #     )
-    #     if condition:
-    #         self.logger.info("[Recovering] %s to state OPEN", self.config)
-    #     return condition
-
-    # def conditions_for_recovering_to_stagnated(self, *args, **kwargs) -> bool:
-    #     # This has to figure out whether this is new target order or just limit dca, or not?
-
-    #     condition = (
-    #         self.state == State.RECOVERING
-    #         and self.position_handler.last_state == State.STAGNATED
-    #     )
-    #     if condition:
-    #         self.logger.info("[Recovering] %s to state STAGNATED", self.config)
-    #     return condition
-
-    def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
-        condition = (
-            self.execution_report.order_type
-            in [
-                ORDER_TYPE_LIMIT,
-                ORDER_TYPE_MARKET,
-            ]
-            and self.execution_report.current_order_status == ORDER_STATUS_NEW
-            and self.execution_report.symbol
-            == self.buy_position.config.symbol_info.symbol
-        )
-        if condition:
-            self.logger.info(
-                "[New Order] %s, order type: %s order status: %s",
-                self.execution_report.symbol,
-                self.execution_report.order_type,
-                self.execution_report.current_order_status,
+    def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
+        rem_quant = 0.0
+        for order in self.buy_position.orders:
+            rem_quant += order.quantity_stable - order.quantity_stable * (
+                order.realized_quantity / order.quantity
             )
-        return condition
-
-    def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
-            and self.execution_report.symbol
-            == self.buy_position.config.symbol_info.symbol
+        self.logger.debug(
+            "Remaining quantity: %s for %s",
+            rem_quant,
+            self.buy_position.config.symbol_info.symbol,
         )
-        if condition:
-            self.logger.info(
-                "[Cancelled order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
-        )
-        if condition:
-            self.logger.info(
-                "[Expired order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_order_filled_buy(self, *args, **kwargs):
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status == ORDER_STATUS_FILLED
-            and self.execution_report.order_id
-            in [order.order_id for order in self.buy_position.orders]
-        )
-        if condition:
-            self.logger.info(
-                "[Filled order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_order_filled_sell(self, *args, **kwargs):
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status == ORDER_STATUS_FILLED
-            and self.execution_report.order_id
-            in [order.order_id for order in self.sell_position.orders]
-        )
-        if condition:
-            self.logger.info(
-                "[Filled order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_order_partially_filled_buy(self, *args, **kwargs):
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status
-            == ORDER_STATUS_PARTIALLY_FILLED
-            and self.execution_report.order_id
-            in [order.order_id for order in self.buy_position.orders]
-        )
-        if condition:
-            self.logger.info(
-                "[Partially filled order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_order_partially_filled_sell(self, *args, **kwargs):
-        condition = (
-            self.execution_report.order_type == ORDER_TYPE_LIMIT
-            and self.execution_report.current_order_status
-            == ORDER_STATUS_PARTIALLY_FILLED
-            and self.execution_report.order_id
-            in [order.order_id for order in self.sell_position.orders]
-        )
-        if condition:
-            self.logger.info(
-                "[Partially filled order] %s %s @ %s",
-                self.execution_report.symbol,
-                self.execution_report.side,
-                self.execution_report.price,
-            )
-        return condition
-
-    def conditions_for_all_orders_filled_buy(self, *args, **kwargs):
-        condition = (
-            self.state == State.OPEN
-            and all(
-                order.status == ORDER_STATUS_FILLED
-                for order in self.buy_position.orders
-            )
-            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
-        )
-        if condition:
-            self.logger.info(
-                "[All orders filled] %s %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.side,
-            )
-        return condition
-
-    def conditions_for_all_orders_filled_sell(self, *args, **kwargs):
-        condition = (
-            self.state == State.OPEN
-            and all(
-                order.status == ORDER_STATUS_FILLED
-                for order in self.sell_position.orders
-            )
-            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
-        )
-        if condition:
-            self.logger.info(
-                "[All orders filled] %s %s",
-                self.sell_position.config.symbol_info.symbol,
-                self.sell_position.state_info.side,
-            )
-        return condition
+        return rem_quant
 
     def conditions_for_sending_buy_orders(self, *args, **kwargs) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
         condition = (
             self.state == State.NEW
-            and self.buy_position.state_info.side == PositionSide.LONG
+            and self.buy_position.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
             and self.balance > self.buy_position.config.budget
         )
@@ -479,201 +366,21 @@ class HpManager:
 
         return condition
 
-    def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
-        rem_quant = 0.0
-        for order in self.buy_position.orders:
-            rem_quant += order.quantity_stable - order.quantity_stable * (
-                order.realized_quantity / order.quantity
-            )
-        self.logger.debug(
-            "Remaining quantity: %s for %s",
-            rem_quant,
-            self.buy_position.config.symbol_info.symbol,
-        )
-        return rem_quant
-
-    def conditions_for_resending_buy_orders(self, *args, **kwargs) -> bool:
-        remaining_quant = self.get_remaining_quantity_buy()
-        condition = (
-            self.state == State.STAGNATED
-            and self.buy_position.state_info.side == PositionSide.LONG
-            and self.ticker_update.last_price
-            <= self.calculate_trigger_send_orders_price_buy()
-            and self.balance > remaining_quant
-        )
-        if condition:
-            self.logger.info(
-                "[Resend buy orders] %s, state: %s, balance: %s, remaining quantity: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.state,
-                self.balance,
-                remaining_quant,
-            )
-
-        return condition
-
-    def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
-        assert self.sell_position
-        condition = (
-            self.sell_position is not None
-            and self.state == State.NEW
-            and self.sell_position.state_info.side == PositionSide.SHORT
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_send_orders_price_sell()
-        )
-        if condition:
-            self.logger.info(
-                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s, balance: %s",
-                self.sell_position.config.hp_id,
-                self.sell_position.config.symbol_info.symbol,
-                self.sell_position.state_info.side,
-                self.state,
-                self.sell_position.config.budget,
-            )
-
-        return condition
-
-    def conditions_for_resending_sell_orders(self, *args, **kwargs) -> bool:
-        assert self.sell_position
-        condition = (
-            self.sell_position is not None
-            and self.state == State.STAGNATED
-            and self.sell_position.state_info.side == PositionSide.SHORT
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_send_orders_price_sell()
-        )
-        if condition:
-            self.logger.info(
-                "[Resend sell orders] %s, state: %s",
-                self.sell_position.config.symbol_info.symbol,
-                self.state,
-            )
-
-        return condition
-
-    def conditions_for_cancelling_buy_orders(self, *args, **kwargs) -> bool:
-        condition = (
-            self.state == State.OPEN
-            and self.buy_position.state_info.side == PositionSide.LONG
-            and self.buy_position.state_info.stagnation_counter >= STAGNATION_LIMIT
-            and self.ticker_update.last_price
-            > self.calculate_trigger_cancel_orders_price_buy()
-        )
-        if condition:
-            self.logger.info(
-                "[Stagnation Cancel BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.buy_position.config.symbol_info.symbol,
-                self.buy_position.state_info.stagnation_counter,
-                STAGNATION_LIMIT,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
-            )
-
-        return condition
-
-    def conditions_for_cancelling_sell_orders(self, *args, **kwargs) -> bool:
-        assert self.sell_position
-        condition = (
-            self.sell_position is not None
-            and self.state == State.OPEN
-            and self.sell_position.state_info.side == PositionSide.SHORT
-            and self.sell_position.state_info.stagnation_counter >= STAGNATION_LIMIT
-            and self.ticker_update.last_price
-            < self.calculate_trigger_cancel_orders_price_sell()
-        )
-        if condition:
-            self.logger.info(
-                "[Stagnation Cancel SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell_position.config.symbol_info.symbol,
-                self.sell_position.state_info.stagnation_counter,
-                STAGNATION_LIMIT,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_sell(),
-            )
-
-        return condition
-
-    def conditions_for_position_stagnation_buy(self, *args, **kwargs) -> bool:
-        date_time_now = datetime.now()
-
-        condition = self.state == State.OPEN and date_time_now > datetime.strptime(
-            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        if condition:
-            self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
-                condition,
-                date_time_now,
-                self.buy_position.state_info.next_monitor_time,
-            )
-
-        return condition
-
-    def conditions_for_position_stagnation_sell(self, *args, **kwargs) -> bool:
-        assert self.sell_position
-        date_time_now = datetime.now()
-
-        condition = (
-            self.sell_position is not None
-            and self.state == State.OPEN
-            and date_time_now
-            > datetime.strptime(
-                self.sell_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-            )
-        )
-        if condition:
-            self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
-                condition,
-                date_time_now,
-                self.sell_position.state_info.next_monitor_time,
-            )
-
-        return condition
-
     async def send_buy_orders(self, *args, **kwargs) -> None:
-        self.balance -= self.buy_position.config.budget
-
-        await self.buy_position.open_position(
-            side=self.buy_position.state_info.side,
-            symbol_info=self.buy_position.config.symbol_info,
-        )
-
-    async def resend_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info(
-            "Resending %s %s",
-            self.buy_position.config.symbol_info.symbol,
-            self.buy_position.state_info.side.value,
-        )
+        self.logger.info("Sending %s BUY", self.buy_position.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
-        new_orders = []
 
-        for order in self.buy_position.orders:
-            if order.status != ORDER_STATUS_FILLED:
-                order = Order(
-                    quantity=self.buy_position.config.symbol_info.adjust_quantity(
-                        order.quantity - order.realized_quantity
-                    ),
-                    price=self.buy_position.config.symbol_info.adjust_price(
-                        order.price
-                    ),
-                    quantity_stable=round(
-                        (order.quantity - order.realized_quantity) * order.price, 2
-                    ),
-                    precision=self.buy_position.config.symbol_info.precision,
-                    price_precision=self.buy_position.config.symbol_info.price_precision,
-                )
-                new_orders.append(order)
-                self.logger.info("New order prepared: %s", order)
-
-        self.buy_position.orders = new_orders
+        self.buy_position.order_handler.prepare_buy_orders(
+            config=self.buy_position.config
+        )
 
         await self.buy_position.order_handler.create_orders(
             side=self.buy_position.state_info.side,
             symbol_info=self.buy_position.config.symbol_info,
             orders=self.buy_position.orders,
         )
-        self.state = State.OPEN
+        self.state = State.BUYING
+        self.buy_position.state_info.state = State.NEW
 
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
@@ -709,41 +416,198 @@ class HpManager:
             )
         )
 
-    async def resend_sell_orders(self, *args, **kwargs) -> None:
-        assert self.sell_position
-        self.logger.info(
-            "Resending %s %s",
-            self.sell_position.config.symbol_info.symbol,
-            self.sell_position.state_info.side.value,
+    def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.NEW
+            and self.sell_position.state_info.state == State.NEW
+            and self.state == State.BUYING
+            and self.buy_position.state_info.stagnation_counter
+            >= self.buy_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_cancel_orders_price_buy()
+            and all(
+                order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
+            )
         )
-        new_orders = []
+        # if condition:
+        #     self.logger.info(
+        #         "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+        #         self.buy_position.config.symbol_info.symbol,
+        #         self.buy_position.state_info.stagnation_counter,
+        #         self.buy_position.state_info.stagnation_limit,
+        #         self.ticker_update.last_price,
+        #         self.calculate_trigger_cancel_orders_price_buy(),
+        #         self.state,
+        #         self.buy_position.state_info.state
+        #     )
 
-        for order in self.sell_position.orders:
-            if order.status != ORDER_STATUS_FILLED:
-                order = Order(
-                    quantity=self.sell_position.config.symbol_info.adjust_quantity(
-                        order.quantity - order.realized_quantity
-                    ),
-                    price=self.sell_position.config.symbol_info.adjust_price(
-                        order.price
-                    ),
-                    quantity_stable=round(
-                        (order.quantity - order.realized_quantity) * order.price, 2
-                    ),
-                    precision=self.sell_position.config.symbol_info.precision,
-                    price_precision=self.sell_position.config.symbol_info.price_precision,
+        self.logger.info(
+            "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.stagnation_counter,
+            self.buy_position.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_buy(),
+            self.state,
+            self.buy_position.state_info.state,
+        )
+
+        return condition
+
+    async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
+        self.logger.info("Orders: %s", self.buy_position.orders)
+        self.balance += self.get_remaining_quantity_buy()
+        await self.buy_position.cancel_position()
+        self.buy_position.state_info = StateInfo()
+
+    def conditions_for_cancelling_partially_bought_orders(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.NEW
+            and self.buy_position.state_info.stagnation_counter
+            >= self.buy_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_cancel_orders_price_buy()
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.stagnation_counter,
+                self.buy_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+            )
+
+        return condition
+
+    async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
+        self.logger.info("Orders: %s", self.buy_position.orders)
+        self.balance += self.get_remaining_quantity_buy()
+        await self.buy_position.cancel_position()
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+
+    def conditions_for_resending_partially_bought_position(
+        self, *args, **kwargs
+    ) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
+        condition = (
+            self.state == State.PARTIALLY_BOUGHT
+            and self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.NEW
+            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.balance > self.buy_position.config.budget
+        )
+        if condition:
+            self.logger.info(
+                "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.side,
+                self.state,
+                self.buy_position.config.budget,
+                self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
+            )
+
+        return condition
+
+    async def resend_buy_orders(self, *args, **kwargs) -> None:
+        self.logger.info(
+            "Resending %s BUY", self.buy_position.config.symbol_info.symbol
+        )
+        self.balance -= self.get_remaining_quantity_buy()
+
+        await self.buy_position.order_handler.create_orders(
+            side=self.buy_position.state_info.side,
+            symbol_info=self.buy_position.config.symbol_info,
+            orders=self.buy_position.orders,
+        )
+        self.state = State.BUYING
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+
+        self.logger.info("Will update orders: %s", self.buy_position.orders)
+
+        for order in self.buy_position.orders:
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    hp_id=str(self.buy_position.config.hp_id),
                 )
-                new_orders.append(order)
-                self.logger.info("New order prepared: %s", order)
+            )
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.buy_position.config, state_info=self.buy_position.state_info
+            )
+        )
 
-        self.sell_position.orders = new_orders
+        self.buy_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.buy_position.config,
+                state_info=self.buy_position.state_info,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.buy_position.orders)
+                    / sum(order.quantity for order in self.buy_position.orders),
+                    2,
+                ),
+            )
+        )
+
+    def calculate_trigger_send_orders_price_sell(self):
+        return self.sell_position.config.symbol_info.adjust_price(
+            self.sell_position.config.price_low
+            * (1 - (self.sell_position.config.order_trigger / 100))
+        )
+
+    def conditions_for_sending_sell_orders_for_partially_bought_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.NEW
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_send_orders_price_sell()
+        )
+        if condition:
+            self.logger.info(
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.sell_position.config.hp_id,
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.sell_position.state_info.state,
+                self.sell_position.config.budget,
+            )
+
+        return condition
+
+    async def send_sell_orders(self, *args, **kwargs) -> None:
+        self.logger.info(
+            "Sending %s SELL", self.sell_position.config.symbol_info.symbol
+        )
+
+        self.sell_position.order_handler.prepare_sell_orders(
+            config=self.buy_position.config,
+            buy_orders=self.buy_position.orders,
+            sell_orders=self.sell_position.orders,
+        )
 
         await self.sell_position.order_handler.create_orders(
             side=self.sell_position.state_info.side,
             symbol_info=self.sell_position.config.symbol_info,
             orders=self.sell_position.orders,
         )
-        self.state = State.OPEN
+        self.state = State.SELLING
 
         for order in self.sell_position.orders:
             self.db.run_db_task(
@@ -777,35 +641,28 @@ class HpManager:
             )
         )
 
-    async def send_sell_orders(self, *args, **kwargs) -> None:
-        assert self.sell_position
-        self.logger.info(
-            "Opening %s %s",
-            self.sell_position.config.symbol_info.symbol,
-            self.sell_position.state_info.side.value,
+    def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.BUYING
+            and self.sell_position.state_info.state == State.NEW
+            and all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.buy_position.orders
+            )
+            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
-        self.balance -= self.sell_position.config.budget
-
-        await self.sell_position.open_position(
-            side=self.sell_position.state_info.side,
-            symbol_info=self.sell_position.config.symbol_info,
-        )
-
-    async def cancel_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
-        self.state = State.STAGNATED
-        self.logger.info("Orders: %s", self.buy_position.orders)
-        self.balance += self.get_remaining_quantity_buy()
-        await self.buy_position.cancel_position(state=self.state)
-
-    async def cancel_sell_orders(self, *args, **kwargs) -> None:
-        assert self.sell_position
-        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
-        self.state = State.STAGNATED
-        await self.sell_position.cancel_position(state=self.state)
+        if condition:
+            self.logger.info(
+                "[All orders filled] %s %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.side,
+            )
+        return condition
 
     async def close_filled_position_buy(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
+
+        self.buy_position.state_info.state = State.BOUGHT
 
         self.buy_position.ui_queue.put_nowait(
             PositionData(
@@ -824,15 +681,202 @@ class HpManager:
             )
         )
 
+    def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.NEW
+            and self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+            and all(
+                order.status == ORDER_STATUS_NEW for order in self.sell_position.orders
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
+    async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
+        await self.sell_position.cancel_position()
+
+    def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.buy_position.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
+            and self.sell_position.state_info.state == State.NEW
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_send_orders_price_sell()
+        )
+        if condition:
+            self.logger.info(
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.sell_position.config.hp_id,
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.sell_position.state_info.state,
+                self.sell_position.config.budget,
+            )
+
+        return condition
+
+    def conditions_for_cancelling_unfilled_sell_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.BOUGHT
+            and self.sell_position.state_info.state == State.NEW
+            and self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
+    def conditions_for_resending_partially_sold_orders(self, *args, **kwargs) -> bool:
+        trigger_send_orders_price = self.calculate_trigger_send_orders_price_sell()
+        condition = (
+            self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.buy_position.state_info.state == State.BOUGHT
+            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.balance > self.sell_position.config.budget
+        )
+        if condition:
+            self.logger.info(
+                "[Resend sell orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.state,
+                self.sell_position.config.budget,
+                self.balance,
+                trigger_send_orders_price,
+                self.ticker_update.last_price,
+            )
+
+        return condition
+
+    async def resend_sell_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Sending %s SELL")
+
+        await self.sell_position.order_handler.create_orders(
+            side=self.sell_position.state_info.side,
+            symbol_info=self.sell_position.config.symbol_info,
+            orders=self.sell_position.orders,
+        )
+        self.state = State.SELLING
+        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+
+        self.logger.info("Will update orders: %s", self.sell_position.orders)
+
+        for order in self.sell_position.orders:
+            self.db.run_db_task(
+                self.db.update_order(
+                    price=order.price,
+                    quantity=order.quantity,
+                    quantity_stable=order.quantity_stable,
+                    realized_quantity=order.realized_quantity,
+                    time_in_force=order.time_in_force,
+                    status=order.status,
+                    order_type=order.order_type,
+                    order_id=order.order_id,
+                    hp_id=str(self.sell_position.config.hp_id),
+                )
+            )
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+            )
+        )
+
+        self.sell_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.sell_position.orders)
+                    / sum(order.quantity for order in self.sell_position.orders),
+                    2,
+                ),
+            )
+        )
+
+    def conditions_for_cancelling_partially_sold_orders(self, *args, **kwargs) -> bool:
+        condition = (
+            self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+            and not all(
+                order.status == ORDER_STATUS_NEW for order in self.sell_position.orders
+            )
+            and self.buy_position.state_info.state == State.BOUGHT
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
+
+        return condition
+
+    async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
+        await self.sell_position.cancel_position()
+        self.sell_position.state_info = StateInfo(
+            side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
+        )
+
+    def conditions_for_all_orders_filled_sell(self, *args, **kwargs) -> bool:
+        condition = (
+            self.state == State.SELLING
+            and self.buy_position.state_info.state == State.BOUGHT
+            and all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.sell_position.orders
+            )
+            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
+        )
+        if condition:
+            self.logger.info(
+                "[All orders filled] %s %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+            )
+        return condition
+
     async def close_filled_position_sell(self, *args, **kwargs) -> None:
-        assert self.sell_position
         self.logger.info("All order filled, archiving position")
+
+        self.sell_position.state_info.state = State.SOLD
 
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=StateInfo(
-                    state=State.CLOSED,
+                    state=State.SOLD,
                     stagnation_counter=self.sell_position.state_info.stagnation_counter,
                     side=PositionSide.SHORT,
                 ),
@@ -849,16 +893,459 @@ class HpManager:
             )
         )
 
+    def conditions_for_cancelling_partially_sold_and_bought_orders_sell_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_cancel_orders_price_sell()
+        )
+        # if condition:
+        #     self.logger.info(
+        #         "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+        #         self.sell_position.config.symbol_info.symbol,
+        #         self.sell_position.state_info.stagnation_counter,
+        #         self.sell_position.state_info.stagnation_limit,
+        #         self.ticker_update.last_price,
+        #         self.calculate_trigger_cancel_orders_price_sell(),
+        #     )
+
+        self.logger.info(
+            "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+            self.sell_position.config.symbol_info.symbol,
+            self.sell_position.state_info.stagnation_counter,
+            self.sell_position.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_sell(),
+        )
+
+        return condition
+
+    async def cancel_sell_part_sold_part_bought(self, *args, **kwargs) -> None:
+        self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
+        await self.sell_position.cancel_position()
+        self.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info = StateInfo(
+            side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
+        )
+
+    def conditions_for_resending_sell_orders_from_part_sold_and_bought_orders(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_send_orders_price_sell()
+        )
+        if condition:
+            self.logger.info(
+                "[Resend sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.sell_position.config.hp_id,
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.sell_position.state_info.state,
+                self.sell_position.config.budget,
+            )
+
+        return condition
+
+    def conditions_for_resending_buy_orders_from_part_sold_and_bought_orders(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_send_orders_price_buy()
+        )
+        if condition:
+            self.logger.info(
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.sell_position.config.hp_id,
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.sell_position.state_info.state,
+                self.sell_position.config.budget,
+            )
+
+        return condition
+
+    def conditions_for_cancelling_partially_sold_and_bought_orders_buy_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.buy_position.state_info.stagnation_counter
+            >= self.buy_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_cancel_orders_price_buy()
+        )
+        # if condition:
+        #     self.logger.info(
+        #         "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+        #         self.sell_position.config.symbol_info.symbol,
+        #         self.sell_position.state_info.stagnation_counter,
+        #         self.sell_position.state_info.stagnation_limit,
+        #         self.ticker_update.last_price,
+
+        #         self.calculate_trigger_cancel_orders_price_buy(),
+        #     )
+
+        self.logger.info(
+            "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.stagnation_counter,
+            self.buy_position.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_buy(),
+        )
+
+        return condition
+
+    def conditions_for_buying_fully_previously_partially_sold_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.state == State.BUYING
+            and self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.buy_position.orders
+            )
+            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
+        )
+        if condition:
+            self.logger.info(
+                "[All orders filled] %s %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.side,
+            )
+        return condition
+
+    def conditions_for_closing_sold_position_which_is_part_bought(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.state == State.SELLING
+            and self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.SOLD
+            and all(
+                order.status == ORDER_STATUS_FILLED
+                for order in self.sell_position.orders
+            )
+            and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
+        )
+        if condition:
+            self.logger.info(
+                "[All orders filled] %s %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.side,
+            )
+        return condition
+
+    async def close_sold_position_which_is_part_bought(self, *args, **kwargs) -> None:
+        self.logger.info("Close sold position which is partially bought")
+
+        self.sell_position.state_info.state = State.SOLD
+
+        self.sell_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.sell_position.config,
+                state_info=StateInfo(
+                    state=State.SOLD,
+                    stagnation_counter=self.sell_position.state_info.stagnation_counter,
+                    side=PositionSide.SHORT,
+                ),
+                completeness=round(
+                    sum(order.realized_quantity for order in self.sell_position.orders)
+                    / sum(order.quantity for order in self.buy_position.orders),
+                    2,
+                ),
+            )
+        )
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.buy_position.config, state_info=self.buy_position.state_info
+            )
+        )
+
+    def conditions_for_resending_buy_orders_for_sold_position(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.SOLD
+            and self.ticker_update.last_price
+            <= self.calculate_trigger_send_orders_price_buy()
+        )
+        if condition:
+            self.logger.info(
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                self.sell_position.config.hp_id,
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.side,
+                self.sell_position.state_info.state,
+                self.sell_position.config.budget,
+            )
+
+        return condition
+
+    def conditions_for_cancelling_buy_orders_to_sold_part_bought(
+        self, *args, **kwargs
+    ) -> bool:
+        condition = (
+            self.buy_position.state_info.state == State.SOLD
+            and self.sell_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.stagnation_counter
+            >= self.sell_position.state_info.stagnation_limit
+            and self.ticker_update.last_price
+            >= self.calculate_trigger_cancel_orders_price_buy()
+        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+            )
+
+        return condition
+
+    def conditions_for_order_filled_buy(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.buy_position.orders]
+        )
+        if condition:
+            self.logger.info(
+                "[Filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
+
+    async def handle_order_filled_buy(self, *args, **kwargs) -> None:
+        self.logger.debug("Entering handle order filled")
+
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+        if self.sell_position.state_info.state == State.SOLD:
+            self.sell_position.state_info.state = State.PARTIALLY_SOLD
+
+        await self.buy_position.handle_order_filled(
+            execution_report=self.execution_report
+        )
+
+        if all(
+            order.status == ORDER_STATUS_FILLED for order in self.buy_position.orders
+        ):
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            self.logger.info("All orders filled, sending: %s", signal)
+            self.core_queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
+
+    def conditions_for_order_partially_filled_buy(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status
+            == ORDER_STATUS_PARTIALLY_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.buy_position.orders]
+        )
+        if condition:
+            self.logger.info(
+                "[Partially filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
+
+    async def handle_order_partially_filled_buy(self, *args, **kwargs):
+        self.logger.debug("Entering handle order partially filled")
+
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+
+        await self.buy_position.handle_order_partially_filled(
+            execution_report=self.execution_report
+        )
+
+    def conditions_for_order_filled_sell(self, *args, **kwargs) -> bool:
+        assert self.sell_position
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.sell_position.orders]
+        )
+        if condition:
+            self.logger.info(
+                "[Filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
+
+    async def handle_order_filled_sell(self, *args, **kwargs) -> None:
+        self.logger.debug("Entering handle order filled")
+
+        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+
+        await self.sell_position.handle_order_filled(
+            execution_report=self.execution_report
+        )
+
+        if all(
+            order.status == ORDER_STATUS_FILLED for order in self.sell_position.orders
+        ):
+            self.sell_position.state_info.state = State.SOLD
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            self.logger.info("All orders filled, sending: %s", signal)
+            self.core_queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
+
+    def conditions_for_order_partially_filled_sell(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status
+            == ORDER_STATUS_PARTIALLY_FILLED
+            and self.execution_report.order_id
+            in [order.order_id for order in self.sell_position.orders]
+        )
+        if condition:
+            self.logger.info(
+                "[Partially filled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
+
+    async def handle_order_partially_filled_sell(self, *args, **kwargs):
+        self.logger.debug("Entering handle order partially filled")
+
+        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+
+        await self.sell_position.handle_order_partially_filled(
+            execution_report=self.execution_report
+        )
+
+    def conditions_for_position_stagnation_buy(self, *args, **kwargs) -> bool:
+        date_time_now = datetime.now()
+
+        condition = self.state == State.BUYING and date_time_now > datetime.strptime(
+            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
+        )
+        if condition:
+            self.logger.info(
+                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                condition,
+                date_time_now,
+                self.buy_position.state_info.next_monitor_time,
+            )
+        return condition
+
+    def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
+        self.logger.info(
+            "Entering increase stagnation coutner buy, counter before adding 1: %s",
+            self.buy_position.state_info.stagnation_counter,
+        )
+        self.buy_position.state_info.stagnation_counter += 1
+
+        if (
+            self.buy_position.state_info.stagnation_counter
+            < self.buy_position.state_info.stagnation_limit
+        ):
+            self.logger.info(
+                "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
+                self.buy_position.config.hp_id,
+                self.buy_position.state_info.stagnation_counter,
+                self.buy_position.state_info.stagnation_limit,
+            )
+        else:
+            self.logger.info(
+                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
+                self.buy_position.config.hp_id,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+            )
+        time_date = datetime.strptime(
+            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
+        )
+        time_date += timedelta(hours=1)
+        self.buy_position.state_info.next_monitor_time = time_date.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        self.logger.info("Orders: %s", self.buy_position.orders)
+
+        self.buy_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.buy_position.config,
+                state_info=self.buy_position.state_info,
+                completeness=round(
+                    sum(order.realized_quantity for order in self.buy_position.orders)
+                    / sum(order.quantity for order in self.buy_position.orders),
+                    2,
+                ),
+            )
+        )
+
+        self.db.run_db_task(
+            self.db.update_price_level(
+                config=self.buy_position.config, state_info=self.buy_position.state_info
+            )
+        )
+
+    def conditions_for_position_stagnation_sell(self, *args, **kwargs) -> bool:
+        assert self.sell_position
+        date_time_now = datetime.now()
+
+        condition = (
+            self.sell_position is not None
+            and self.state == State.SELLING
+            and date_time_now
+            > datetime.strptime(
+                self.sell_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
+            )
+        )
+        if condition:
+            self.logger.info(
+                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                condition,
+                date_time_now,
+                self.sell_position.state_info.next_monitor_time,
+            )
+
+        return condition
+
     async def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
         assert self.sell_position
         self.sell_position.state_info.stagnation_counter += 1
 
-        if self.sell_position.state_info.stagnation_counter < STAGNATION_LIMIT:
+        if (
+            self.sell_position.state_info.stagnation_counter
+            < self.sell_position.state_info.stagnation_limit
+        ):
             self.logger.info(
                 "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
                 self.sell_position.config.hp_id,
                 self.sell_position.state_info.stagnation_counter,
-                STAGNATION_LIMIT,
+                self.sell_position.state_info.stagnation_limit,
             )
         else:
             self.logger.info(
@@ -892,50 +1379,27 @@ class HpManager:
             )
         )
 
-    async def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
-        self.buy_position.state_info.stagnation_counter += 1
-
-        if self.buy_position.state_info.stagnation_counter < STAGNATION_LIMIT:
+    def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type
+            in [
+                ORDER_TYPE_LIMIT,
+                ORDER_TYPE_MARKET,
+            ]
+            and self.execution_report.current_order_status == ORDER_STATUS_NEW
+            and self.execution_report.symbol
+            == self.buy_position.config.symbol_info.symbol
+        )
+        if condition:
             self.logger.info(
-                "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
-                self.buy_position.config.hp_id,
-                self.buy_position.state_info.stagnation_counter,
-                STAGNATION_LIMIT,
+                "[New Order] %s, order type: %s order status: %s",
+                self.execution_report.symbol,
+                self.execution_report.order_type,
+                self.execution_report.current_order_status,
             )
-        else:
-            self.logger.info(
-                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
-                self.buy_position.config.hp_id,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
-            )
-        time_date = datetime.strptime(
-            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        time_date += timedelta(hours=1)
-        self.buy_position.state_info.next_monitor_time = time_date.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        self.buy_position.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy_position.config,
-                state_info=self.buy_position.state_info,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.buy_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
-            )
-        )
-
-        self.db.run_db_task(
-            self.db.update_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
-            )
-        )
+        return condition
 
     async def confirm_new_order(self, *args, **kwargs) -> None:
-        assert self.sell_position
         for order in self.buy_position.orders:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
@@ -944,16 +1408,32 @@ class HpManager:
                     "New order confirmation: %s", self.execution_report.order_id
                 )
 
-        for order in self.sell_position.orders:
-            if order.order_id == self.execution_report.order_id:
-                order.status = self.execution_report.current_order_status
-                order.order_id = self.execution_report.order_id
-                self.logger.debug(
-                    "New order confirmation: %s", self.execution_report.order_id
-                )
+        if self.sell_position:
+            for order in self.sell_position.orders:
+                if order.order_id == self.execution_report.order_id:
+                    order.status = self.execution_report.current_order_status
+                    order.order_id = self.execution_report.order_id
+                    self.logger.debug(
+                        "New order confirmation: %s", self.execution_report.order_id
+                    )
+
+    def conditions_for_order_cancellation(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
+            and self.execution_report.symbol
+            == self.buy_position.config.symbol_info.symbol
+        )
+        if condition:
+            self.logger.info(
+                "[Cancelled order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
 
     async def confirm_cancelled_order(self, *args, **kwargs) -> None:
-        assert self.sell_position
         for order in self.buy_position.orders:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
@@ -961,17 +1441,32 @@ class HpManager:
                 self.logger.debug(
                     "Cancelled order confirmation: %s", self.execution_report.order_id
                 )
+        if self.sell_position:
+            for order in self.sell_position.orders:
+                if order.order_id == self.execution_report.order_id:
+                    order.status = self.execution_report.current_order_status
+                    order.order_id = self.execution_report.order_id
+                    self.logger.debug(
+                        "Cancelled order confirmation: %s",
+                        self.execution_report.order_id,
+                    )
 
-        for order in self.sell_position.orders:
-            if order.order_id == self.execution_report.order_id:
-                order.status = self.execution_report.current_order_status
-                order.order_id = self.execution_report.order_id
-                self.logger.debug(
-                    "Cancelled order confirmation: %s", self.execution_report.order_id
-                )
+    def conditions_for_order_expiration(self, *args, **kwargs) -> bool:
+        condition = (
+            self.execution_report.order_type == ORDER_TYPE_LIMIT
+            and self.execution_report.current_order_status == ORDER_STATUS_EXPIRED
+        )
+
+        if condition:
+            self.logger.info(
+                "[Expired order] %s %s @ %s",
+                self.execution_report.symbol,
+                self.execution_report.side,
+                self.execution_report.price,
+            )
+        return condition
 
     async def confirm_expired_order(self, *args, **kwargs) -> None:
-        assert self.sell_position
         for order in self.buy_position.orders:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
@@ -980,73 +1475,77 @@ class HpManager:
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
 
-        for order in self.sell_position.orders:
-            if order.order_id == self.execution_report.order_id:
-                order.status = self.execution_report.current_order_status
-                order.order_id = self.execution_report.order_id
-                self.logger.debug(
-                    "Expired order confirmation: %s", self.execution_report.order_id
-                )
+        if self.sell_position:
+            for order in self.sell_position.orders:
+                if order.order_id == self.execution_report.order_id:
+                    order.status = self.execution_report.current_order_status
+                    order.order_id = self.execution_report.order_id
+                    self.logger.debug(
+                        "Expired order confirmation: %s", self.execution_report.order_id
+                    )
 
-    async def handle_account(self, *args, **kwargs):
-        for balance in self.account_position.balances:
-            if balance.asset == "USDT":
-                self.balance = round(balance.free, 2)
-        self.logger.debug("Account update: %s", self.account_position)
-
-    async def handle_order_filled_buy(self, *args, **kwargs) -> None:
-        self.logger.debug("Entering handle order filled")
-
-        await self.buy_position.handle_order_filled(
-            execution_report=self.execution_report
+    def calculate_trigger_cancel_orders_price_buy(self):
+        return self.buy_position.config.symbol_info.adjust_price(
+            self.buy_position.config.price_high
+            * (1 + (2 * self.buy_position.config.order_trigger / 100))
         )
 
-        if all(
-            order.status == ORDER_STATUS_FILLED for order in self.buy_position.orders
-        ):
-            signal = Signal.HP_ALL_ORDERS_FILLED
-            self.logger.info("All orders filled, sending: %s", signal)
-            self.core_queue.put(
-                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
-            )
-
-    async def handle_order_filled_sell(self, *args, **kwargs) -> None:
-        assert self.sell_position
-        self.logger.debug("Entering handle order filled")
-
-        await self.sell_position.handle_order_filled(
-            execution_report=self.execution_report
+    def calculate_trigger_cancel_orders_price_sell(self):
+        return self.sell_position.config.symbol_info.adjust_price(
+            self.sell_position.config.price_low
+            * (1 - (2 * self.sell_position.config.order_trigger / 100))
         )
 
-        if all(
-            order.status == ORDER_STATUS_FILLED for order in self.sell_position.orders
-        ):
-            signal = Signal.HP_ALL_ORDERS_FILLED
-            self.logger.info("All orders filled, sending: %s", signal)
-            self.core_queue.put(
-                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
-            )
+    # def get_transitions(self):
+    #     # add balance conditions where orders are to be send and update the variable after orders are cancelled.
+    #     return [
+    #         # {
+    #         #     "trigger": "process_recovery",
+    #         #     "source": State.RECOVERING,
+    #         #     "dest": State.NEW,
+    #         #     "conditions": "conditions_for_recovering_to_new",
+    #         #     "after": "handle_recovery_to_new",
+    #         # },
+    #         # {
+    #         #     "trigger": "process_recovery",
+    #         #     "source": State.RECOVERING,
+    #         #     "dest": State.OPEN,
+    #         #     "conditions": "conditions_for_recovering_to_open",
+    #         #     "after": "handle_recovery_to_open",
+    #         # },
+    #         # {
+    #         #     "trigger": "process_recovery",
+    #         #     "source": State.RECOVERING,
+    #         #     "dest": State.STAGNATED,
+    #         #     "conditions": "conditions_for_recovering_to_stagnated",
+    #         #     "after": "handle_recovery_to_stagnated",
+    #         # },
+    #         {
+    #             "trigger": "process_account",
+    #             "source": [
+    #                 State.NEW,
+    #                 State.OPEN,
+    #                 State.STAGNATED,
+    #                 State.RECOVERING,
+    #                 State.CLOSED,
+    #             ],
+    #             "dest": "=",
+    #             "after": "handle_account",
+    #         },
 
-    async def handle_order_partially_filled_buy(self, *args, **kwargs):
-        self.logger.debug("Entering handle order partially filled")
+    #         {
+    #             "trigger": "process_ticker",
+    #             "source": State.CLOSED,
+    #             "dest": "=",
+    #             "after": "allow_messages",
+    #         },
+    #     ]
 
-        await self.buy_position.handle_order_partially_filled(
-            execution_report=self.execution_report
-        )
-
-    async def handle_order_partially_filled_sell(self, *args, **kwargs):
-        assert self.sell_position
-        self.logger.debug("Entering handle order partially filled")
-
-        await self.sell_position.handle_order_partially_filled(
-            execution_report=self.execution_report
-        )
-
-    async def allow_messages(self, *args, **kwargs) -> None:
-        self.logger.info(
-            "Ticker update from allow messages method: %s",
-            self.ticker_update.last_price,
-        )
+    # async def allow_messages(self, *args, **kwargs) -> None:
+    # self.logger.info(
+    #     "Ticker update from allow messages method: %s",
+    #     self.ticker_update.last_price,
+    # )
 
     # async def handle_recovery_to_new(self, *args, **kwargs) -> None:
     #     self.logger.debug("Handle recovery to new, just put to IDLE in GUI")

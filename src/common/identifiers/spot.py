@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 import queue
 from typing import Dict, List, NamedTuple, Optional, Union
-from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from src.common.identifiers.common import (
     Mode,
     PositionSide,
@@ -13,10 +13,16 @@ from src.common.symbol_info import SymbolInfo
 
 class State(Enum):
     NEW = "NEW"
-    OPEN = "OPEN"
-    STAGNATED = "STAGNATED"
+    BUYING = "BUYING"
+    PARTIALLY_BOUGHT = "PARTIALLY_BOUGHT"
+    BOUGHT = "BOUGHT"
+    READY_TO_SELL = "READY_TO_SELL"
+    SELLING = "SELLING"
+    PARTIALLY_SOLD = "PARTIALLY_SOLD"
+    SOLD = "SOLD"
+    PART_SOLD_PART_BOUGHT = "PART_SOLD_PART_BOUGHT"
+    SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
     RECOVERING = "RECOVERING"
-    CLOSED = "CLOSED"
 
 
 class Signal(Enum):
@@ -63,7 +69,7 @@ class Order:
     realized_quantity: float = 0
     open_time = None
     time_in_force: str = TIME_IN_FORCE_GTC
-    status: str = "PREPARED"
+    status: str = ORDER_STATUS_NEW
     order_type: str = ORDER_TYPE_LIMIT
 
     def __repr__(self) -> str:
@@ -251,13 +257,13 @@ class SubscriptionInfo(NamedTuple):
 
 @dataclass
 class StateInfo:
-    state: Optional[State] = None
+    state: State = State.NEW
     stagnation_counter: int = 0
     stagnation_limit: int = 8
     next_monitor_time: str = ""
     open_time: str = ""
     close_time: str = ""
-    side: PositionSide = PositionSide.FLAT
+    side: PositionSide = PositionSide.LONG
 
     def __str__(self):
         return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
@@ -269,6 +275,14 @@ class NewRecord(NamedTuple):
 
     def __str__(self):
         return f"NewRecord(config={self.config}, state_info={self.state_info})"
+
+
+class SellConfig(NamedTuple):
+    config: HPConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"SellConfig(config={self.config}, state_info={self.state_info})"
 
 
 class RemoveRecord(NamedTuple):
