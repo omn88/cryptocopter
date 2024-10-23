@@ -1073,7 +1073,112 @@ async def test_buy_partially_partially_sold_position(
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
 
+    # Buy partially last order
     strategy = await simulate_third_buy_order_partial_fill(strategy)
+
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_PARTIALLY_FILLED
+
+
+async def test_cancel_buy_to_part_sold_part_bought(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+
+    assert strategy.state == State.PARTIALLY_BOUGHT
+    strategy = await simulate_move_to_sell_from_partially_bought_position(
+        strategy=strategy
+    )
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.26,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.26,
+    )
+
+    assert strategy.state == State.SELLING
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.sell_position.orders[0].quantity == 0.52
+    assert strategy.sell_position.orders[0].realized_quantity == 0.26
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+
+    # Cancel Sell position
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.sell_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert (
+        strategy.conditions_for_cancelling_partially_sold_and_bought_orders_sell_position()
+    )
+    assert not strategy.conditions_for_cancelling_partially_sold_orders()
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.state == State.SELLING
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.PART_SOLD_PART_BOUGHT
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+
+    # Reopen Buy position
+
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1010
+    strategy.ticker_update = TickerUpdate(last_price=1010)
+
+    assert not strategy.conditions_for_sending_buy_orders()
+    assert (
+        strategy.conditions_for_resending_buy_orders_from_part_sold_and_bought_orders()
+    )
+    await strategy.process_ticker()
+
+    assert strategy.state == State.BUYING
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+
+    # Buy partially last order
+    strategy = await simulate_third_buy_order_partial_fill(strategy)
+
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_PARTIALLY_FILLED
+
+    # Cancel Buy orders
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    time = datetime.datetime.now() + datetime.timedelta(hours=1)
+    strategy.buy_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert (
+        strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
+    )
+
+    await strategy.process_ticker()
+
+    assert strategy.state == State.PART_SOLD_PART_BOUGHT
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
 
 
 # async def test_default_scenario_buy_with_low_budget(spot_buy):

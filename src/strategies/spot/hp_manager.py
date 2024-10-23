@@ -466,6 +466,7 @@ class HpManager:
     ) -> bool:
         condition = (
             self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.NEW
             and self.buy_position.state_info.stagnation_counter
             >= self.buy_position.state_info.stagnation_limit
             and self.ticker_update.last_price
@@ -976,22 +977,32 @@ class HpManager:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy_position.state_info.state == State.PARTIALLY_SOLD
-            and self.sell_position.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell_position.state_info.stagnation_counter
-            >= self.sell_position.state_info.stagnation_limit
+            self.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell_position.state_info.state == State.PARTIALLY_SOLD
+            and self.buy_position.state_info.stagnation_counter
+            >= self.buy_position.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
         )
-        if condition:
-            self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell_position.config.symbol_info.symbol,
-                self.sell_position.state_info.stagnation_counter,
-                self.sell_position.state_info.stagnation_limit,
-                self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
-            )
+        # if condition:
+        #     self.logger.info(
+        #         "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+        #         self.sell_position.config.symbol_info.symbol,
+        #         self.sell_position.state_info.stagnation_counter,
+        #         self.sell_position.state_info.stagnation_limit,
+        #         self.ticker_update.last_price,
+
+        #         self.calculate_trigger_cancel_orders_price_buy(),
+        #     )
+
+        self.logger.info(
+            "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.stagnation_counter,
+            self.buy_position.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_buy(),
+        )
 
         return condition
 
