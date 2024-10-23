@@ -233,7 +233,7 @@ class HpManager:
             },
             {
                 # No 18
-                "trigger": "process_ticker",
+                "trigger": "process_signal",
                 "source": State.SELLING,
                 "dest": State.SOLD_PART_BOUGHT,
                 "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
@@ -852,6 +852,7 @@ class HpManager:
     def conditions_for_all_orders_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.SELLING
+            and self.buy_position.state_info.state == State.BOUGHT
             and all(
                 order.status == ORDER_STATUS_FILLED
                 for order in self.sell_position.orders
@@ -1037,7 +1038,7 @@ class HpManager:
             and self.sell_position.state_info.state == State.SOLD
             and all(
                 order.status == ORDER_STATUS_FILLED
-                for order in self.buy_position.orders
+                for order in self.sell_position.orders
             )
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )

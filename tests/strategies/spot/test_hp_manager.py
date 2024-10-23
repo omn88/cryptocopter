@@ -1281,6 +1281,52 @@ async def test_buy_fully_partially_sold_position(
     assert strategy.state == State.PARTIALLY_SOLD
 
 
+async def test_sell_fully_partially_bought_position(
+    trading_system_factory,
+) -> None:
+    strategy: HpManager = get_default_buy_position(trading_system_factory)
+    strategy = await simulate_partially_bought_position(strategy=strategy)
+    strategy = await simulate_move_to_sell_from_partially_bought_position(
+        strategy=strategy
+    )
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.52,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.52,
+    )
+    await strategy.process_order()
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.sell_position.orders[0].quantity == 0.52
+    assert strategy.sell_position.orders[0].realized_quantity == 0.52
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SOLD
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    assert strategy.conditions_for_closing_sold_position_which_is_part_bought()
+
+    await strategy.process_signal()
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell_position.state_info.state == State.SOLD
+    assert strategy.state == State.SOLD_PART_BOUGHT
+
+
+
 # async def test_default_scenario_buy_with_low_budget(spot_buy):
 #     spot_buy.model.client.create_order.side_effect = get_new_orders(
 #         price_low=spot_buy.model.config.price_low,
