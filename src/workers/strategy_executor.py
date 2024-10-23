@@ -96,14 +96,17 @@ class StrategyExecutor:
                     trading_system: TradingSystem = self.id_to_system.pop(
                         strategy_data.config.hp_id
                     )
+                    assert trading_system.strategy
 
                     trading_system.strategy.sell_position.config = strategy_data.config
                     trading_system.strategy.sell_position.state_info = (
                         strategy_data.state_info
                     )
 
-                    trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_orders(
-                        strategy_data.config, strategy_data.state_info
+                    trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
+                        config=strategy_data.config,
+                        buy_orders=trading_system.strategy.buy_position.orders,
+                        sell_orders=trading_system.strategy.sell_position.orders,
                     )
 
                 if isinstance(strategy_data, RemoveRecord):

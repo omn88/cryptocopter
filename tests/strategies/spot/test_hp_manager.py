@@ -169,7 +169,7 @@ async def test_cancel_default_position_untouched_then_resend_orders(
     """
 
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
@@ -193,7 +193,7 @@ async def test_cancel_default_position_untouched_then_resend_orders(
         order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
     )
 
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     assert strategy.buy_position.orders[0].quantity == 0.24
     assert strategy.buy_position.orders[1].quantity == 0.28
@@ -205,7 +205,7 @@ async def test_default_position_first_order_filled_partially(
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     # Simulate partial fill
     strategy.execution_report = ExecutionReport(
@@ -227,7 +227,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_partial_fill(strategy=strategy)
 
     strategy.buy_position.state_info.stagnation_counter = (
@@ -265,7 +265,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 
 async def test_default_position_first_order_filled(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -287,7 +287,7 @@ async def test_default_position_first_order_filled_then_cancel(
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
 
@@ -309,7 +309,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
 async def test_default_position_all_buy_orders_filled(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
     strategy = await simulate_third_buy_order_fill(strategy=strategy)
@@ -319,7 +319,7 @@ async def test_conditions_for_new_buy_order_confirmation(
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -331,7 +331,7 @@ async def test_conditions_for_new_buy_order_confirmation(
 
 async def test_conditions_for_buy_order_cancellation(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
@@ -342,7 +342,7 @@ async def test_conditions_for_buy_order_cancellation(trading_system_factory) -> 
 
 async def test_conditions_for_buy_order_expiration(trading_system_factory) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
     )
@@ -357,7 +357,7 @@ async def test_stagnation_counter_increase_buy(trading_system_factory) -> None:
     """
 
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     assert strategy.buy_position.state_info.stagnation_counter == 0
     assert strategy.buy_position.state_info.stagnation_limit == 8
@@ -386,7 +386,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_partial_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
 
@@ -405,7 +405,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
     assert strategy.buy_position.orders[0].quantity == 0.12
     assert strategy.buy_position.orders[1].quantity == 0.28
@@ -416,7 +416,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     trading_system_factory,
 ) -> None:
     strategy: HpManager = get_default_buy_position(trading_system_factory)
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
 
@@ -734,7 +734,9 @@ async def test_resend_sell_position_first_order_filled_partially(
 
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert not strategy.conditions_for_sending_sell_orders()
-    assert strategy.conditions_for_resending_partially_sold_position()
+    assert (
+        strategy.conditions_for_resending_sell_orders_from_part_sold_and_bought_orders()
+    )
 
     await strategy.process_ticker()
 
@@ -1037,7 +1039,7 @@ async def test_buy_partially_partially_sold_position(
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert (
-        strategy.conditions_for_cancelling_partially_filled_sell_orders_from_partially_bought_position()
+        strategy.conditions_for_cancelling_partially_sold_and_bought_orders_sell_position()
     )
 
     assert strategy.state == State.SELLING

@@ -371,7 +371,7 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
 
 
 async def simulate_bought_position(strategy: HpManager) -> HpManager:
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
     strategy = await simulate_third_buy_order_fill(strategy=strategy)
@@ -380,7 +380,7 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
 
 
 async def simulate_partially_bought_position(strategy: HpManager) -> HpManager:
-    strategy = await move_to_buy_position_active(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
     strategy = await simulate_cancel_buy_position(strategy=strategy)
