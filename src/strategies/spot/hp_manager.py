@@ -644,6 +644,7 @@ class HpManager:
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.BUYING
+            and self.sell_position.state_info.state == State.NEW
             and all(
                 order.status == ORDER_STATUS_FILLED
                 for order in self.buy_position.orders
