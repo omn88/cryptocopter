@@ -1,6 +1,5 @@
 import datetime
 import logging
-from unittest.mock import MagicMock
 
 from binance.enums import (
     ORDER_TYPE_LIMIT,
@@ -150,7 +149,7 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.buy_position.orders) == 3
     assert all(
@@ -203,7 +202,7 @@ async def test_default_position_first_order_filled_partially(
         last_executed_quantity=0.05,
         last_executed_price=1400,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -232,7 +231,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
     assert strategy.conditions_for_cancelling_partially_bought_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.buy_position.orders) == 3
     assert all(
@@ -263,7 +262,7 @@ async def test_default_position_first_order_filled(trading_system_factory) -> No
         last_executed_quantity=0.1,
         last_executed_price=1400,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -361,7 +360,7 @@ async def test_stagnation_counter_increase_buy(trading_system_factory) -> None:
     )
 
     assert strategy.conditions_for_position_stagnation_buy()
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.stagnation_counter == 1
     assert strategy.buy_position.state_info.stagnation_limit == 8
@@ -398,7 +397,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
     strategy.ticker_update = TickerUpdate(last_price=1414)
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     logger.info("State: %s", strategy.state)
     assert strategy.state == State.BUYING
@@ -439,7 +438,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -501,7 +500,7 @@ async def test_send_sell_orders_for_bought_position(trading_system_factory) -> N
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert strategy.conditions_for_sending_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.NEW
@@ -536,7 +535,7 @@ async def test_sell_orders_stagnation_increase(trading_system_factory) -> None:
     )
 
     assert strategy.conditions_for_position_stagnation_sell()
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.sell_position.state_info.stagnation_counter == 1
     assert strategy.sell_position.state_info.stagnation_limit == 8
@@ -573,7 +572,7 @@ async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert strategy.conditions_for_cancelling_unfilled_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
@@ -612,7 +611,7 @@ async def test_resend_unfilled_sell_orders(trading_system_factory) -> None:
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert strategy.conditions_for_cancelling_unfilled_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
@@ -627,7 +626,7 @@ async def test_resend_unfilled_sell_orders(trading_system_factory) -> None:
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert strategy.conditions_for_sending_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.NEW
@@ -654,7 +653,7 @@ async def test_sell_position_first_order_filled_partially(
         last_executed_quantity=0.425,
         last_executed_price=4200,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -678,7 +677,7 @@ async def test_sell_position_first_order_filled(
         last_executed_quantity=0.85,
         last_executed_price=4200,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
@@ -709,7 +708,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert strategy.conditions_for_cancelling_partially_sold_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
@@ -741,7 +740,7 @@ async def test_resend_sell_position_first_order_filled_partially(
     assert not strategy.conditions_for_sending_sell_orders()
     assert strategy.conditions_for_resending_partially_sold_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
@@ -805,7 +804,7 @@ async def test_close_mode_single_generated_position(
         last_executed_quantity=0.85,
         last_executed_price=4200,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
@@ -821,7 +820,7 @@ async def test_close_mode_single_generated_position(
 
     strategy.signal_update = event.content
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.sell_position.state_info.state == State.SOLD
     assert strategy.state == State.SOLD
@@ -878,7 +877,7 @@ async def test_send_sell_orders_for_partially_bought_position(
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert strategy.conditions_for_sending_sell_orders_for_partially_bought_position()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.NEW
@@ -914,7 +913,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
     )
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
@@ -938,7 +937,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
 
     assert strategy.calculate_trigger_send_orders_price_buy() == 1010
     strategy.ticker_update = TickerUpdate(last_price=1010)
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
@@ -956,7 +955,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
         last_executed_price=1000,
         cumulative_filled_quantity=0.33,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -970,7 +969,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
 
     strategy.signal_update = event.content
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.BOUGHT
@@ -993,7 +992,7 @@ async def test_sell_partially_partially_bought_position(
         last_executed_price=4200,
         cumulative_filled_quantity=0.26,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -1024,7 +1023,7 @@ async def test_buy_partially_partially_sold_position(
     )
 
     assert strategy.state == State.SELLING
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -1052,7 +1051,7 @@ async def test_buy_partially_partially_sold_position(
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.SELLING
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1067,7 +1066,7 @@ async def test_buy_partially_partially_sold_position(
     assert (
         strategy.conditions_for_resending_buy_orders_from_part_sold_and_bought_orders()
     )
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1102,7 +1101,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     assert strategy.state == State.SELLING
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -1130,7 +1129,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.SELLING
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1145,7 +1144,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert (
         strategy.conditions_for_resending_buy_orders_from_part_sold_and_bought_orders()
     )
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1174,7 +1173,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
     )
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1202,7 +1201,7 @@ async def test_buy_fully_partially_sold_position(
     )
 
     assert strategy.state == State.SELLING
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -1230,7 +1229,7 @@ async def test_buy_fully_partially_sold_position(
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.SELLING
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1245,7 +1244,7 @@ async def test_buy_fully_partially_sold_position(
     assert (
         strategy.conditions_for_resending_buy_orders_from_part_sold_and_bought_orders()
     )
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1260,7 +1259,7 @@ async def test_buy_fully_partially_sold_position(
         last_executed_price=1000,
         cumulative_filled_quantity=0.33,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -1276,7 +1275,7 @@ async def test_buy_fully_partially_sold_position(
 
     strategy.signal_update = event.content
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PARTIALLY_SOLD
 
@@ -1298,7 +1297,7 @@ async def test_sell_fully_partially_bought_position(
         last_executed_price=4200,
         cumulative_filled_quantity=0.52,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
@@ -1319,7 +1318,7 @@ async def test_sell_fully_partially_bought_position(
 
     assert strategy.conditions_for_closing_sold_position_which_is_part_bought()
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.sell_position.state_info.state == State.SOLD
@@ -1343,7 +1342,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         last_executed_price=4200,
         cumulative_filled_quantity=0.52,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
@@ -1364,7 +1363,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     assert strategy.conditions_for_closing_sold_position_which_is_part_bought()
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.sell_position.state_info.state == State.SOLD
@@ -1377,7 +1376,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     assert not strategy.conditions_for_sending_buy_orders()
     assert strategy.conditions_for_resending_buy_orders_for_sold_position()
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
@@ -1392,7 +1391,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         last_executed_price=1000,
         cumulative_filled_quantity=0.33,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -1408,7 +1407,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     strategy.signal_update = event.content
     assert strategy.state == State.BUYING
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD

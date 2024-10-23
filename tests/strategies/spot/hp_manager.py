@@ -87,7 +87,7 @@ async def process_ticker(strategy: HpManager, last_price: float):
     logger.info("Processing ticker with last price: %s", last_price)
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
-    await strategy.process_ticker()  # type: ignore
+    await strategy.process_ticker()  # type: ignore[attr-defined]  # type: ignore
 
 
 async def simulate_order_filled(strategy: HpManager, order: Order):
@@ -100,7 +100,7 @@ async def simulate_order_filled(strategy: HpManager, order: Order):
         cumulative_filled_quantity=order.quantity,
         last_executed_quantity=order.quantity,
     )
-    await strategy.process_order()  # type: ignore
+    await strategy.process_order()  # type: ignore[attr-defined]
 
 
 async def simulate_order_partially_filled(
@@ -115,7 +115,7 @@ async def simulate_order_partially_filled(
         last_executed_quantity=last_realized_quantity,
         cumulative_filled_quantity=last_realized_quantity,
     )
-    await strategy.process_order()  # type: ignore
+    await strategy.process_order()  # type: ignore[attr-defined]  # type: ignore
 
 
 async def db_and_gui_assertions(
@@ -200,7 +200,7 @@ async def move_to_buy_position_active(
 
     assert strategy.conditions_for_sending_buy_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     logger.info("State: %s", strategy.state)
     assert strategy.state == State.BUYING
@@ -219,7 +219,7 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
         last_executed_price=1400,
         cumulative_filled_quantity=0.12,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -239,7 +239,7 @@ async def simulate_first_buy_order_fill(strategy: HpManager) -> HpManager:
         last_executed_price=1400,
         cumulative_filled_quantity=0.24,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     logger.info("Orders: %s", strategy.buy_position.orders)
@@ -260,7 +260,7 @@ async def simulate_second_buy_order_fill(strategy: HpManager) -> HpManager:
         last_executed_price=1400,
         cumulative_filled_quantity=0.28,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -280,7 +280,7 @@ async def simulate_third_buy_order_partial_fill(strategy: HpManager) -> HpManage
         last_executed_price=1400,
         cumulative_filled_quantity=0.18,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -298,7 +298,7 @@ async def simulate_third_buy_order_fill(strategy: HpManager) -> HpManager:
         last_executed_price=1400,
         cumulative_filled_quantity=0.33,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
@@ -314,7 +314,7 @@ async def simulate_third_buy_order_fill(strategy: HpManager) -> HpManager:
 
     strategy.signal_update = event.content
 
-    await strategy.process_signal()
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.BOUGHT
@@ -338,7 +338,7 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
     assert strategy.conditions_for_cancelling_partially_bought_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.buy_position.orders) == 3
 
@@ -359,7 +359,7 @@ async def simulate_cancel_unfilled_buy_position(strategy: HpManager) -> HpManage
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.buy_position.orders) == 3
 
@@ -383,7 +383,7 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
         strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
     )
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
@@ -462,7 +462,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert strategy.conditions_for_sending_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.NEW
@@ -522,7 +522,7 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert strategy.conditions_for_sending_sell_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.NEW
@@ -539,7 +539,7 @@ async def simulate_first_sell_order_fill(strategy: HpManager) -> HpManager:
         last_executed_price=4200,
         cumulative_filled_quantity=0.85,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
@@ -556,7 +556,7 @@ async def simulate_partial_fill_sell(strategy: HpManager) -> HpManager:
         last_executed_quantity=0.425,
         last_executed_price=4200,
     )
-    await strategy.process_order()
+    await strategy.process_order()  # type: ignore[attr-defined]
 
     logger.info("Orders: %s", strategy.buy_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
@@ -580,7 +580,7 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert strategy.conditions_for_cancelling_partially_sold_orders()
 
-    await strategy.process_ticker()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.sell_position.orders) == 1
 
