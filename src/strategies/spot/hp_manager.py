@@ -1140,6 +1140,8 @@ class HpManager:
         self.logger.debug("Entering handle order filled")
 
         self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+        if self.sell_position.state_info.state == State.SOLD:
+            self.sell_position.state_info.state = State.PARTIALLY_SOLD
 
         await self.buy_position.handle_order_filled(
             execution_report=self.execution_report
