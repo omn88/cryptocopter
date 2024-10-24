@@ -23,7 +23,6 @@ from src.common.identifiers.spot import (
     LoadConfig,
     RemoveRecord,
     SaveConfig,
-    State,
     StateInfo,
     UiState,
 )
@@ -147,12 +146,12 @@ class HpManager(BoxLayout):
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
                     # if data.recovering:
-                    #     if data.state_info.state == UiState.OPEN:
+                    #     if data.ui_state == UiState.OPEN:
                     #         logger.info(
                     #             "Recovering position to active tab in GUI: %s", data
                     #         )
                     #         self.recovery_to_active(data=data)
-                    #     if data.state_info.state == UiState.NEW:
+                    #     if data.ui_state == UiState.NEW:
                     #         logger.info(
                     #             "Recovering position to idle tab in GUI: %s", data
                     #         )
@@ -175,13 +174,13 @@ class HpManager(BoxLayout):
                         )
                         self.update_idle_position(data=data)
                     else:
-                        if data.state_info.state in [UiState.NEW, None]:
+                        if data.ui_state in [UiState.NEW, None]:
                             logger.info(
                                 "New position added to Idle, system id: %s",
                                 str(data.config.hp_id),
                             )
                             self.add_new_position_to_idle(data=data)
-                        # if data.state_info.state == UiState.OPEN:
+                        # if data.ui_state == UiState.OPEN:
                         #     logger.info(
                         #         "New position added to Active, system id: %s",
                         #         str(data.config.hp_id),
@@ -497,7 +496,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.state_info.state),
+                state=str(data.ui_state),
                 completeness=str(data.completeness),
             ).to_dict()
         )
@@ -525,7 +524,7 @@ class HpManager(BoxLayout):
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                 completeness=str(data.completeness),
-                state=str(data.state_info.state),
+                state=str(data.ui_state),
             ).to_dict()
         )
         self.filter_records("active", "All")
@@ -571,7 +570,7 @@ class HpManager(BoxLayout):
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                 completeness=str(data.completeness),
-                state=str(data.state_info.state),
+                state=str(data.ui_state),
             ).to_dict()
         )
         self.filter_records("active", "All")
@@ -596,7 +595,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.state_info.state),
+                state=str(data.ui_state),
                 completeness=str(data.completeness),
             ).to_dict()
         )
@@ -611,9 +610,9 @@ class HpManager(BoxLayout):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
-                position["state"] = str(data.state_info.state)
+                position["state"] = str(data.ui_state)
 
-                if data.state_info.state == UiState.CLOSED:
+                if data.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
@@ -642,7 +641,7 @@ class HpManager(BoxLayout):
                         )
 
                         self.filter_records("archive", "All")
-                if data.state_info.state == UiState.STAGNATED:
+                if data.ui_state == UiState.STAGNATED:
                     trigger_price = data.config.symbol_info.adjust_price(
                         (
                             (1 + (data.config.order_trigger / 100))
@@ -664,7 +663,7 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                        state=str(data.state_info.state),
+                        state=str(data.ui_state),
                         completeness=str(data.completeness),
                     )
                     self.idle_records.append(idle_position.to_dict())
@@ -681,9 +680,9 @@ class HpManager(BoxLayout):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
-                position["state"] = str(data.state_info.state)
-                logger.info("Data state: %s", data.state_info.state)
-                if data.state_info.state == UiState.OPEN:
+                position["state"] = str(data.ui_state)
+                logger.info("Data state: %s", data.ui_state)
+                if data.ui_state == UiState.OPEN:
                     self.idle_records.remove(position)
                     cancel_price = data.config.symbol_info.adjust_price(
                         (
@@ -706,11 +705,11 @@ class HpManager(BoxLayout):
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                         stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                         completeness=str(data.completeness),
-                        state=str(data.state_info.state),
+                        state=str(data.ui_state),
                     )
                     self.active_records.append(active_position.to_dict())
                     logger.info("Activating price level: %s", active_position)
-                if data.state_info.state == UiState.CLOSED:
+                if data.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
