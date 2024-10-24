@@ -24,6 +24,11 @@ class State(Enum):
     SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
     RECOVERING = "RECOVERING"
 
+class UiState(Enum):
+    NEW = "NEW"
+    OPEN = "OPEN"
+    STAGNATED = "STAGNATED"
+    CLOSED = "CLOSED"
 
 class Signal(Enum):
     HP_ALL_ORDERS_FILLED = "HP_ALL_ORDERS_FILLED"
