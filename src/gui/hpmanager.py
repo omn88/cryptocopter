@@ -180,12 +180,12 @@ class HpManager(BoxLayout):
                                 str(data.config.hp_id),
                             )
                             self.add_new_position_to_idle(data=data)
-                        # if data.ui_state == UiState.OPEN:
-                        #     logger.info(
-                        #         "New position added to Active, system id: %s",
-                        #         str(data.config.hp_id),
-                        #     )
-                        #     self.add_new_position_to_active(data=data)
+                        if data.ui_state == UiState.OPEN:
+                            logger.info(
+                                "New position added to Active, system id: %s",
+                                str(data.config.hp_id),
+                            )
+                            self.add_new_position_to_active(data=data)
                     logger.info(
                         "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
