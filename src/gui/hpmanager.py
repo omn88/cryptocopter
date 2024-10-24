@@ -308,7 +308,12 @@ class HpManager(BoxLayout):
             )
         )
         self.ui_queue.put_nowait(
-            PositionData(config=config, state_info=state_info, completeness=0)
+            PositionData(
+                config=config,
+                state_info=state_info,
+                ui_state=UiState.NEW,
+                completeness=0,
+            )
         )
 
         self.filter_records(tab="idle", symbol_filter="All")

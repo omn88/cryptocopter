@@ -12,6 +12,7 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     Order,
+    UiState,
 )
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
@@ -77,6 +78,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.STAGNATED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -111,6 +113,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -157,6 +160,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),

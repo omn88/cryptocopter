@@ -170,7 +170,9 @@ class OrderHandler:
         for _ in range(self.MAX_RETRIES):
             try:
                 price = symbol_info.adjust_price(order.price)
-                quantity = symbol_info.adjust_quantity(order.quantity - order.realized_quantity)
+                quantity = symbol_info.adjust_quantity(
+                    order.quantity - order.realized_quantity
+                )
                 symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,

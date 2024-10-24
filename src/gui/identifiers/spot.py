@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import HPConfig, StateInfo
+from src.common.identifiers.spot import HPConfig, StateInfo, UiState
 
 
 class PositionData:
@@ -8,19 +8,23 @@ class PositionData:
         self,
         config: HPConfig,
         state_info: StateInfo,
+        ui_state: UiState,
         completeness: float,
         recovering: bool = False,
     ):
         self.config = config
         self.state_info = state_info
+        self.ui_state = ui_state
         self.order_cancel = 2 * config.order_trigger
         self.completeness = completeness
+
         self.recovering = recovering
 
     def __repr__(self) -> str:
         return (
             f"PositionData(config={self.config}, "
             f"state_info={self.state_info}, "
+            f"ui_state={self.ui_state}, "
             f"order_cancel={self.order_cancel}, "
             f"completeness={self.completeness:.2f}, "
             f"recovering={self.recovering})"

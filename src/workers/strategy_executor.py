@@ -25,6 +25,7 @@ from src.common.identifiers.spot import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
+    UiState,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
@@ -191,6 +192,7 @@ class StrategyExecutor:
             PositionData(
                 config=new_record.config,
                 state_info=new_record.state_info,
+                ui_state=UiState.NEW,
                 completeness=0,
             )
         )

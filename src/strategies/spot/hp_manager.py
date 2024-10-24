@@ -24,6 +24,7 @@ from src.common.identifiers.spot import (
     StateInfo,
     TickerUpdate,
     Order,
+    UiState,
 )
 from src.common.identifiers.common import (
     BinanceClient,
@@ -408,6 +409,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -556,6 +558,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -633,6 +636,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -668,6 +672,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -811,6 +816,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -880,6 +886,7 @@ class HpManager:
                     stagnation_counter=self.sell_position.state_info.stagnation_counter,
                     side=PositionSide.SHORT,
                 ),
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -1063,6 +1070,7 @@ class HpManager:
                     stagnation_counter=self.sell_position.state_info.stagnation_counter,
                     side=PositionSide.SHORT,
                 ),
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -1297,6 +1305,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -1365,6 +1374,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
