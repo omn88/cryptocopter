@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import datetime
 from enum import Enum, auto
 import queue
 from typing import Dict, List, NamedTuple, Optional, Union
@@ -275,6 +276,11 @@ class StateInfo:
     def __str__(self):
         return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
 
+    def generate_next_monitor_time(self):
+        self.next_monitor_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
 
 class NewRecord(NamedTuple):
     config: HPConfig
@@ -295,9 +301,10 @@ class SellConfig(NamedTuple):
 class RemoveRecord(NamedTuple):
     hp_id: str
     symbol: str
+    side: str
 
     def __str__(self):
-        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}')"
+        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
 
 
 class SaveConfig(NamedTuple):

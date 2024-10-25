@@ -201,7 +201,7 @@
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
 
 
 <RecordListItemIdle@BoxLayout>:
@@ -260,7 +260,7 @@
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
 
 
 <RecordListItemArchive@BoxLayout>:

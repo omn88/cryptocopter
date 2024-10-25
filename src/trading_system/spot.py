@@ -57,6 +57,12 @@ class TradingSystem:
             core_queue=self.core_queue,
         )
 
+        self.strategy.buy_position.orders = (
+            self.strategy.buy_position.order_handler.prepare_buy_orders(
+                config=self.config
+            )
+        )
+
         self.strategy_logger.info("Config status: %s", state_info.state)
 
         # if state_info.last_state is not None:
@@ -90,6 +96,7 @@ class TradingSystem:
 
                     if EventName.TICKER == event.name:
                         assert isinstance(event.content, TickerUpdate)
+                        logger.info("Received ticker: %s", event.content)
                         self.state_machine.model.ticker_update = event.content
                         if self.state_machine.model.state == State.RECOVERING:
                             await self.state_machine.model.process_recovery()

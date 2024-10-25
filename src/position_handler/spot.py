@@ -100,9 +100,7 @@ class PositionHandler:
                 logger.info("Order: %s partially filled", order.order_id)
 
         self.state_info.stagnation_counter = 0
-        self.state_info.next_monitor_time = (
-            datetime.datetime.now() + datetime.timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.state_info.generate_next_monitor_time()
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
@@ -137,9 +135,7 @@ class PositionHandler:
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         self.state_info.stagnation_counter = 0
-        self.state_info.next_monitor_time = (
-            datetime.datetime.now() + datetime.timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.state_info.generate_next_monitor_time()
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )

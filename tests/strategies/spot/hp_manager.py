@@ -1,4 +1,3 @@
-import datetime
 import logging
 import queue
 import time
@@ -327,10 +326,7 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.buy_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy_position.state_info.generate_next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -350,10 +346,7 @@ async def simulate_cancel_unfilled_buy_position(strategy: HpManager) -> HpManage
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.buy_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -372,10 +365,7 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -571,10 +561,7 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)

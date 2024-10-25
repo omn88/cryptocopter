@@ -321,9 +321,10 @@ class HpManager(BoxLayout):
         self,
         hp_id,
         symbol,
+        side,
         *args,
     ) -> None:
-        record = RemoveRecord(hp_id=hp_id, symbol=symbol)
+        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
         self.config_queue.put_nowait(record)
         logger.info("Remove record: %s sent to backend.", record)
 
@@ -637,6 +638,7 @@ class HpManager(BoxLayout):
                             RemoveRecord(
                                 hp_id=str(data.config.hp_id),
                                 symbol=data.config.symbol_info.symbol,
+                                side=data.state_info.side.value,
                             )
                         )
 

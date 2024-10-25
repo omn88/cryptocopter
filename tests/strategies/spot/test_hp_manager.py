@@ -140,10 +140,7 @@ async def test_cancel_default_position_untouched(trading_system_factory) -> None
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.buy_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -221,10 +218,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.buy_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -563,10 +557,7 @@ async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -602,10 +593,7 @@ async def test_resend_unfilled_sell_orders(trading_system_factory) -> None:
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -699,10 +687,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -902,10 +887,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         strategy.sell_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -1037,10 +1019,7 @@ async def test_buy_partially_partially_sold_position(
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert (
@@ -1115,10 +1094,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert (
@@ -1162,10 +1138,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.buy_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -1215,10 +1188,7 @@ async def test_buy_fully_partially_sold_position(
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
-    time = datetime.datetime.now() + datetime.timedelta(hours=1)
-    strategy.sell_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell_position.state_info.generate_next_monitor_time()
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert (

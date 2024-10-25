@@ -94,9 +94,9 @@ class StrategyExecutor:
                         )
                     )
                 if isinstance(strategy_data, SellConfig):
-                    trading_system: TradingSystem = self.id_to_system.pop(
-                        strategy_data.config.hp_id
-                    )
+                    trading_system: TradingSystem = self.id_to_system[
+                        f"{strategy_data.config.hp_id}"
+                    ]
                     assert trading_system.strategy
 
                     trading_system.strategy.sell_position.config = strategy_data.config
@@ -111,7 +111,9 @@ class StrategyExecutor:
                     )
 
                 if isinstance(strategy_data, RemoveRecord):
-                    await self.remove_record(system_id=strategy_data.hp_id)
+                    await self.remove_record(
+                        hp_id=strategy_data.hp_id, side=strategy_data.side
+                    )
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -198,14 +200,59 @@ class StrategyExecutor:
         )
         self.logger.info("System: %s initialized.", new_record.config)
 
-    async def remove_record(self, system_id: str) -> None:
-        if system_id in self.id_to_system:
-            trading_system: TradingSystem = self.id_to_system.pop(system_id)
+    async def remove_record(self, hp_id: str, side: str) -> None:
+        if hp_id in self.id_to_system:
+            trading_system: TradingSystem = self.id_to_system[f"{hp_id}"]
+            assert trading_system.strategy
+            if (
+                side == "BUY"
+                and trading_system.strategy.sell_position.state_info.state == State.NEW
+                and trading_system.strategy.buy_position.state_info.state == State.NEW
+            ):
+                self.broker.unsubscribe(system_id=hp_id)
+                await trading_system.stop()
+                self.logger.debug(f"Removed trading system with {hp_id}.")
 
-            self.broker.unsubscribe(system_id=system_id)
+            if (
+                side == "BUY"
+                and trading_system.strategy.buy_position.state_info.state != State.NEW
+            ):
+                if trading_system.strategy.state == State.BUYING:
+                    await trading_system.strategy.buy_position.cancel_position()
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=trading_system.strategy.buy_position.config,
+                        state_info=trading_system.strategy.buy_position.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=sum(
+                            order.realized_quantity
+                            for order in trading_system.strategy.buy_position.orders
+                        )
+                        / sum(
+                            order.quantity
+                            for order in trading_system.strategy.buy_position.orders
+                        ),
+                    )
+                )
 
-            await trading_system.stop()
-            self.logger.debug(f"Removed trading system with {system_id}.")
+            if side == "SELL":
+                if trading_system.strategy.state == State.SELLING:
+                    await trading_system.strategy.sell_position.cancel_position()
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=trading_system.strategy.sell_position.config,
+                        state_info=trading_system.strategy.sell_position.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=sum(
+                            order.realized_quantity
+                            for order in trading_system.strategy.sell_position.orders
+                        )
+                        / sum(
+                            order.quantity
+                            for order in trading_system.strategy.sell_position.orders
+                        ),
+                    )
+                )
 
     def initialize_positions_from_db(self):
         active_price_levels = self.db.run_db_task(

@@ -365,6 +365,17 @@ class HpManager:
                 self.ticker_update.last_price,
             )
 
+        self.logger.info(
+            "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.side,
+            self.state,
+            self.buy_position.config.budget,
+            self.balance,
+            trigger_send_orders_price,
+            self.ticker_update.last_price,
+        )
+
         return condition
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
@@ -382,6 +393,10 @@ class HpManager:
         )
         self.state = State.BUYING
         self.buy_position.state_info.state = State.NEW
+
+        self.buy_position.state_info.next_monitor_time = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
@@ -1291,13 +1306,8 @@ class HpManager:
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
-        time_date = datetime.strptime(
-            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        time_date += timedelta(hours=1)
-        self.buy_position.state_info.next_monitor_time = time_date.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+
+        self.buy_position.state_info.generate_next_monitor_time()
 
         self.logger.info("Orders: %s", self.buy_position.orders)
 
