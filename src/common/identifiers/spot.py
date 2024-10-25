@@ -274,7 +274,11 @@ class StateInfo:
     side: PositionSide = PositionSide.LONG
 
     def __str__(self):
-        return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
+        return (
+            f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, "
+            f"stagnation_limit={self.stagnation_limit}, next_monitor_time='{self.next_monitor_time}', "
+            f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side})"
+        )
 
     def generate_next_monitor_time(self):
         self.next_monitor_time = (

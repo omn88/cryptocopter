@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import logging
 import queue
 from typing import Optional
@@ -62,6 +63,10 @@ class TradingSystem:
                 config=self.config
             )
         )
+        self.strategy.buy_position.state_info.open_time = (
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+        self.strategy.buy_position.state_info.generate_next_monitor_time()
 
         self.strategy_logger.info("Config status: %s", state_info.state)
 
@@ -92,11 +97,10 @@ class TradingSystem:
                     event = self.state_machine.model.core_queue.get_nowait()
                     assert isinstance(event, Event)
 
-                    logger.debug("New event: %s", event)
+                    logger.info("New event: %s", event)
 
                     if EventName.TICKER == event.name:
                         assert isinstance(event.content, TickerUpdate)
-                        logger.info("Received ticker: %s", event.content)
                         self.state_machine.model.ticker_update = event.content
                         if self.state_machine.model.state == State.RECOVERING:
                             await self.state_machine.model.process_recovery()
@@ -138,7 +142,7 @@ class TradingSystem:
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
         self.strategy_logger.info(
-            "Closing trading system: %s", self.strategy.config.system_id
+            "Closing trading system: %s", self.strategy.buy_position.config.hp_id
         )
         self.strategy.core_queue.put_nowait(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))

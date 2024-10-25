@@ -159,6 +159,7 @@ class HpManager(BoxLayout):
 
                     if any(
                         record["hp_id"] == data.config.hp_id
+                        and record["side"] == data.state_info.side.value
                         for record in self.active_records
                     ):
                         logger.info(
@@ -167,6 +168,7 @@ class HpManager(BoxLayout):
                         self.update_active_position(data=data)
                     elif any(
                         record["hp_id"] == data.config.hp_id
+                        and record["side"] == data.state_info.side.value
                         for record in self.idle_records
                     ):
                         logger.info(

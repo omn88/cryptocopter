@@ -1,15 +1,13 @@
-import datetime
 import queue
-from typing import List, Optional
+from typing import List
 import logging
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient, PositionSide
+from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
-    State,
     StateInfo,
     Order,
     UiState,
