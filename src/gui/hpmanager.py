@@ -180,6 +180,15 @@ class HpManager(BoxLayout):
                                 data.config.hp_id,
                             )
                             self.add_new_position_to_idle(data=data)
+                            self.ui_queue.put_nowait(
+                                HPUpdate(
+                                    hp_id=data.config.hp_id,
+                                    asset=data.config.symbol_info.symbol[-4],
+                                    buy_price=0,
+                                    quantity=0,
+                                    quantity_usdt=0,
+                                )
+                            )
                         if data.ui_state == UiState.OPEN:
                             logger.info(
                                 "New position added to Active, system id: %s",
@@ -607,7 +616,10 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
-            if position["hp_id"] == data.config.hp_id:
+            if (
+                position["hp_id"] == data.config.hp_id
+                and position["side"] == data.state_info.side.value
+            ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
@@ -621,7 +633,7 @@ class HpManager(BoxLayout):
                     archived_position = ArchivedPosition(
                         open_time=data.state_info.open_time,
                         close_time=data.state_info.close_time,
-                        hp_id=str(data.config.hp_id),
+                        hp_id=data.config.hp_id,
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -636,7 +648,7 @@ class HpManager(BoxLayout):
                     if data.completeness == 1.0:
                         self.config_queue.put_nowait(
                             RemoveRecord(
-                                hp_id=str(data.config.hp_id),
+                                hp_id=data.config.hp_id,
                                 symbol=data.config.symbol_info.symbol,
                                 side=data.state_info.side.value,
                             )
@@ -657,7 +669,7 @@ class HpManager(BoxLayout):
                     self.active_records.remove(position)
                     idle_position = IdlePosition(
                         open_time=data.state_info.open_time,
-                        hp_id=str(data.config.hp_id),
+                        hp_id=data.config.hp_id,
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -678,7 +690,10 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if position["hp_id"] == data.config.hp_id:
+            if (
+                position["hp_id"] == data.config.hp_id
+                and position["side"] == data.state_info.side.value
+            ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
