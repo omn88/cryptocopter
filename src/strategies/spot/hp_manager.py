@@ -381,9 +381,7 @@ class HpManager:
         self.state = State.BUYING
         self.buy_position.state_info.state = State.NEW
 
-        self.buy_position.state_info.next_monitor_time = datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        self.buy_position.state_info.generate_next_monitor_time()
 
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
@@ -1262,7 +1260,7 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                "[Handle stagnation BUY]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
                 self.buy_position.state_info.next_monitor_time,
@@ -1331,7 +1329,7 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                "[Handle stagnation Sell]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
                 self.sell_position.state_info.next_monitor_time,

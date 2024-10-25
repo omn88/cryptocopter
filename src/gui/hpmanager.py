@@ -158,17 +158,15 @@ class HpManager(BoxLayout):
                     #         self.recovery_to_idle(data=data)
 
                     if any(
-                        record["hp_id"] == data.config.hp_id
-                        and record["side"] == data.state_info.side.value
+                        int(record["hp_id"]) == data.config.hp_id
                         for record in self.active_records
                     ):
                         logger.info(
                             "Record %s found in active records", data.config.hp_id
                         )
                         self.update_active_position(data=data)
-                    elif any(
-                        record["hp_id"] == data.config.hp_id
-                        and record["side"] == data.state_info.side.value
+                    if any(
+                        int(record["hp_id"]) == data.config.hp_id
                         for record in self.idle_records
                     ):
                         logger.info(
@@ -680,7 +678,7 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if position["hp_id"] == data.config.hp_id:
+            if int(position["hp_id"]) == data.config.hp_id:
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
