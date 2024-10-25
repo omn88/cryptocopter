@@ -57,7 +57,7 @@ class StrategyExecutor:
         self.broker = broker
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
-        self.id_to_system: Dict = {}
+        self.id_to_system: Dict[str, TradingSystem] = {}
         self.symbols_info = symbols_info
         self.hp_list_data: List[HPUpdate] = []
         self.balances = balances
@@ -95,7 +95,7 @@ class StrategyExecutor:
                     )
                 if isinstance(strategy_data, SellConfig):
                     trading_system: TradingSystem = self.id_to_system[
-                        f"{strategy_data.config.hp_id}"
+                        strategy_data.config.hp_id
                     ]
                     assert trading_system.strategy
 
@@ -202,8 +202,8 @@ class StrategyExecutor:
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info("Entering remove record")
-        if int(hp_id) in self.id_to_system:
-            trading_system: TradingSystem = self.id_to_system[f"{hp_id}"]
+        if hp_id in self.id_to_system:
+            trading_system: TradingSystem = self.id_to_system[hp_id]
             self.logger.info(
                 "Found trading system with hp id: %s, side to remove: %s", hp_id, side
             )

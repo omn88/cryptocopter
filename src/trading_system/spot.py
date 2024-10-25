@@ -125,12 +125,10 @@ class TradingSystem:
                     elif EventName.SENTINEL == event.name:
                         assert isinstance(event.content, SentinelUpdate)
                         self.state_machine.model.state = State.CLOSED
-                        await self.state_machine.model.position_handler.cancel_position(
-                            state=self.state_machine.model.state
-                        )
+                        await self.state_machine.model.buy_position.cancel_position()
                         logger.info(
                             "Trading system: %s closed successfully.",
-                            self.state_machine.model.config.system_id,
+                            self.state_machine.model.buy_position.config.hp_id,
                         )
                         return
 
@@ -144,6 +142,6 @@ class TradingSystem:
         self.strategy_logger.info(
             "Closing trading system: %s", self.strategy.buy_position.config.hp_id
         )
-        self.strategy.core_queue.put_nowait(
+        self.core_queue.put_nowait(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )

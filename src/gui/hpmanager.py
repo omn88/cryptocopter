@@ -158,7 +158,7 @@ class HpManager(BoxLayout):
                     #         self.recovery_to_idle(data=data)
 
                     if any(
-                        int(record["hp_id"]) == data.config.hp_id
+                        record["hp_id"] == data.config.hp_id
                         for record in self.active_records
                     ):
                         logger.info(
@@ -166,7 +166,7 @@ class HpManager(BoxLayout):
                         )
                         self.update_active_position(data=data)
                     if any(
-                        int(record["hp_id"]) == data.config.hp_id
+                        record["hp_id"] == data.config.hp_id
                         for record in self.idle_records
                     ):
                         logger.info(
@@ -177,13 +177,13 @@ class HpManager(BoxLayout):
                         if data.ui_state in [UiState.NEW, None]:
                             logger.info(
                                 "New position added to Idle, system id: %s",
-                                str(data.config.hp_id),
+                                data.config.hp_id,
                             )
                             self.add_new_position_to_idle(data=data)
                         if data.ui_state == UiState.OPEN:
                             logger.info(
                                 "New position added to Active, system id: %s",
-                                str(data.config.hp_id),
+                                data.config.hp_id,
                             )
                             self.add_new_position_to_active(data=data)
                     logger.info(
@@ -678,7 +678,7 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.idle_records:
-            if int(position["hp_id"]) == data.config.hp_id:
+            if position["hp_id"] == data.config.hp_id:
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.completeness)
@@ -697,7 +697,7 @@ class HpManager(BoxLayout):
                     )
                     active_position = ActivePosition(
                         open_time=data.state_info.open_time,
-                        hp_id=str(data.config.hp_id),
+                        hp_id=data.config.hp_id,
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -719,7 +719,7 @@ class HpManager(BoxLayout):
                     archived_position = ArchivedPosition(
                         open_time=data.state_info.open_time,
                         close_time=data.state_info.close_time,
-                        hp_id=str(data.config.hp_id),
+                        hp_id=data.config.hp_id,
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
