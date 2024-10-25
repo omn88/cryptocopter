@@ -56,7 +56,7 @@ async def test_default_position(trading_system_factory) -> None:
 
     trading_system = trading_system_factory(
         hp_config=HPConfig(
-            hp_id=1000,
+            hp_id="1000",
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
             price_low=1000,
             price_high=1400,
@@ -68,7 +68,7 @@ async def test_default_position(trading_system_factory) -> None:
 
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
-    assert strategy.buy_position.config.hp_id == 1000
+    assert strategy.buy_position.config.hp_id == "1000"
     assert strategy.buy_position.config.price_low == 1000
     assert strategy.buy_position.config.price_high == 1400
     assert strategy.buy_position.config.order_trigger == 1
@@ -89,7 +89,7 @@ async def test_default_position(trading_system_factory) -> None:
     assert strategy.buy_position.orders[1].quantity == 0.28
     assert strategy.buy_position.orders[2].quantity == 0.33
 
-    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.hp_id == "1000"
     assert strategy.sell_position.config.price_low == 0
     assert strategy.sell_position.config.price_high == 0
     assert strategy.sell_position.config.order_trigger == 0
@@ -471,7 +471,7 @@ async def test_send_sell_orders_for_bought_position(trading_system_factory) -> N
         )
     )
 
-    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.hp_id == "1000"
     assert strategy.sell_position.config.price_low == 4200
     assert strategy.sell_position.config.price_high == 4200
     assert strategy.sell_position.config.order_trigger == 1
@@ -839,7 +839,7 @@ async def test_send_sell_orders_for_partially_bought_position(
         )
     )
 
-    assert strategy.sell_position.config.hp_id == 1000
+    assert strategy.sell_position.config.hp_id == "1000"
     assert strategy.sell_position.config.price_low == 4200
     assert strategy.sell_position.config.price_high == 4200
     assert strategy.sell_position.config.order_trigger == 1

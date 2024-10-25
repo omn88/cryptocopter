@@ -290,7 +290,7 @@ class HpManager(BoxLayout):
             return
 
         config = HPConfig(
-            hp_id=int(self.ids.hp_id_input.text),
+            hp_id=self.ids.hp_id_input.text,
             symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
             price_low=float(self.ids.sell_price_input.text),
             price_high=float(self.ids.sell_price_input.text),

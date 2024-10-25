@@ -215,7 +215,7 @@ class Event(NamedTuple):
 @dataclass
 class HPConfig:
     symbol_info: SymbolInfo
-    hp_id: int = 0
+    hp_id: str = "0"
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
@@ -237,7 +237,7 @@ class SubscriptionType(Enum):
 
 @dataclass
 class HPUpdate:
-    hp_id: int
+    hp_id: str
     asset: str
     buy_price: float
     quantity: float

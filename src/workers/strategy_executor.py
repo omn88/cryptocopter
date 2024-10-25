@@ -160,7 +160,7 @@ class StrategyExecutor:
             state_info=new_record.state_info, usdt_balance=self.balances["USDT"]
         )
         assert trading_system.strategy is not None
-
+        assert new_record.config.hp_id, "HP ID is zero after strategy init"
         self.id_to_system[new_record.config.hp_id] = trading_system
 
         self.broker.subscribe(
@@ -201,14 +201,19 @@ class StrategyExecutor:
         self.logger.info("System: %s initialized.", new_record.config)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
-        if hp_id in self.id_to_system:
+        self.logger.info("Entering remove record")
+        if int(hp_id) in self.id_to_system:
             trading_system: TradingSystem = self.id_to_system[f"{hp_id}"]
+            self.logger.info(
+                "Found trading system with hp id: %s, side to remove: %s", hp_id, side
+            )
             assert trading_system.strategy
             if (
                 side == "BUY"
                 and trading_system.strategy.sell_position.state_info.state == State.NEW
                 and trading_system.strategy.buy_position.state_info.state == State.NEW
             ):
+                self.logger.info("Entered trading system removal!")
                 self.broker.unsubscribe(system_id=hp_id)
                 await trading_system.stop()
                 self.logger.debug(f"Removed trading system with {hp_id}.")
@@ -392,19 +397,19 @@ class StrategyExecutor:
     #         logger.error("Failed to retrieve USDT balance: %s", e)
     #         raise e
 
-    def generate_hp_id(self) -> int:
+    def generate_hp_id(self) -> str:
         """
         Generate the next HP ID starting from 1000.
         It checks the list of HP entries to find the highest existing ID.
         """
         if not self.hp_list_data:
-            return 1000  # Start from 1000 if no entries are present
+            return "1000"  # Start from 1000 if no entries are present
 
         # Extract all the existing HP IDs
-        hp_ids = [entry.hp_id for entry in self.hp_list_data]
+        hp_ids = [int(entry.hp_id) for entry in self.hp_list_data]
 
         # Get the highest HP ID and increment it
-        return max(hp_ids) + 1
+        return str(max(hp_ids) + 1)
 
     def initialize_hp_list(self) -> None:
         """
