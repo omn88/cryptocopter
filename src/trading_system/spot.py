@@ -122,26 +122,6 @@ class TradingSystem:
                         self.state_machine.model.signal_update = event.content
                         await self.state_machine.model.process_signal()  # type: ignore
 
-                    elif EventName.SENTINEL == event.name:
-                        assert isinstance(event.content, SentinelUpdate)
-                        self.state_machine.model.state = State.CLOSED
-                        await self.state_machine.model.buy_position.cancel_position()
-                        logger.info(
-                            "Trading system: %s closed successfully.",
-                            self.state_machine.model.buy_position.config.hp_id,
-                        )
-                        return
-
                     self.state_machine.model.core_queue.task_done()
                 except queue.Empty:
                     await asyncio.sleep(0.1)
-
-    async def stop(self):
-        # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
-        # It might involve cancelling the tasks that were started in `start`.
-        self.strategy_logger.info(
-            "Closing trading system: %s", self.strategy.buy_position.config.hp_id
-        )
-        self.core_queue.put_nowait(
-            Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
-        )

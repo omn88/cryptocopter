@@ -8,6 +8,7 @@ import threading
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.exceptions import BinanceAPIException, BinanceRequestException
+from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
@@ -208,22 +209,107 @@ class StrategyExecutor:
                 "Found trading system with hp id: %s, side to remove: %s", hp_id, side
             )
             assert trading_system.strategy
+            bp = trading_system.strategy.buy_position
+            sp = trading_system.strategy.sell_position
+
             if (
                 side == "BUY"
-                and trading_system.strategy.sell_position.state_info.state == State.NEW
+                and sp.state_info.state == State.NEW
                 and trading_system.strategy.buy_position.state_info.state == State.NEW
             ):
                 self.logger.info("Entered trading system removal!")
                 self.broker.unsubscribe(system_id=hp_id)
-                await trading_system.stop()
-                self.logger.debug(f"Removed trading system with {hp_id}.")
+                trading_system.strategy.state = State.CLOSED
+                trading_system.strategy.buy_position.orders = await trading_system.strategy.buy_position.order_handler.cancel_remaining_limit_orders(
+                    symbol=trading_system.strategy.buy_position.config.symbol_info.symbol,
+                    orders=trading_system.strategy.buy_position.orders,
+                )
+                for order in trading_system.strategy.buy_position.orders:
+                    if order.status == ORDER_STATUS_CANCELED:
+                        self.db.run_db_task(
+                            self.db.update_order(
+                                price=order.price,
+                                quantity=order.quantity,
+                                quantity_stable=order.quantity_stable,
+                                realized_quantity=order.realized_quantity,
+                                time_in_force=order.time_in_force,
+                                status=order.status,
+                                order_type=order.order_type,
+                                order_id=order.order_id,
+                                hp_id=str(
+                                    trading_system.strategy.buy_position.config.hp_id
+                                ),
+                            )
+                        )
+
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=trading_system.strategy.buy_position.config,
+                        state_info=trading_system.strategy.buy_position.state_info,
+                    )
+                )
+
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=trading_system.strategy.buy_position.config,
+                        state_info=trading_system.strategy.buy_position.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=round(
+                            sum(
+                                order.realized_quantity
+                                for order in trading_system.strategy.buy_position.orders
+                            )
+                            / sum(
+                                order.quantity
+                                for order in trading_system.strategy.buy_position.orders
+                            ),
+                            2,
+                        ),
+                    )
+                )
+
+                self.ui_queue.put_nowait(
+                    HPUpdate(
+                        hp_id=hp_id,
+                        asset=bp.config.symbol_info.symbol[:-4],
+                        buy_price=0,
+                        quantity=0,
+                        quantity_usdt=0,
+                        sell_price=0,
+                        state=State.CLOSED,
+                    )
+                )
+                self.logger.info(f"Removed trading system with {hp_id}.")
+                return
 
             if (
                 side == "BUY"
-                and trading_system.strategy.buy_position.state_info.state != State.NEW
+                and trading_system.strategy.buy_position.state_info.state
+                == State.PARTIALLY_BOUGHT
             ):
                 if trading_system.strategy.state == State.BUYING:
-                    await trading_system.strategy.buy_position.cancel_position()
+                    trading_system.strategy.buy_position.orders = await trading_system.strategy.buy_position.order_handler.cancel_remaining_limit_orders(
+                        symbol=trading_system.strategy.buy_position.config.symbol_info.symbol,
+                        orders=trading_system.strategy.buy_position.orders,
+                    )
+                    for order in trading_system.strategy.buy_position.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.update_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=str(
+                                        trading_system.strategy.buy_position.config.hp_id
+                                    ),
+                                )
+                            )
+
                 self.ui_queue.put_nowait(
                     PositionData(
                         config=trading_system.strategy.buy_position.config,
@@ -239,23 +325,57 @@ class StrategyExecutor:
                         ),
                     )
                 )
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=trading_system.strategy.buy_position.config,
+                        state_info=trading_system.strategy.buy_position.state_info,
+                    )
+                )
 
             if side == "SELL":
                 if trading_system.strategy.state == State.SELLING:
-                    await trading_system.strategy.sell_position.cancel_position()
+                    sp.orders = await sp.order_handler.cancel_remaining_limit_orders(
+                        symbol=sp.config.symbol_info.symbol,
+                        orders=sp.orders,
+                    )
+                    for order in sp.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.update_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=str(sp.config.hp_id),
+                                )
+                            )
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=trading_system.strategy.sell_position.config,
-                        state_info=trading_system.strategy.sell_position.state_info,
+                        config=sp.config,
+                        state_info=sp.state_info,
                         ui_state=UiState.CLOSED,
-                        completeness=sum(
-                            order.realized_quantity
-                            for order in trading_system.strategy.sell_position.orders
-                        )
-                        / sum(
-                            order.quantity
-                            for order in trading_system.strategy.sell_position.orders
-                        ),
+                        completeness=sum(order.realized_quantity for order in sp.orders)
+                        / sum(order.quantity for order in sp.orders),
+                    )
+                )
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=trading_system.strategy.buy_position.config,
+                        state_info=trading_system.strategy.buy_position.state_info,
+                    )
+                )
+                self.ui_queue.put_nowait(
+                    HPUpdate(
+                        hp_id=hp_id,
+                        asset=bp.config.symbol_info.symbol[:-4],
+                        buy_price=0,
+                        quantity=0,
+                        quantity_usdt=0,
+                        sell_price=0,
                     )
                 )
 
@@ -435,7 +555,7 @@ class StrategyExecutor:
                     ),
                     sell_price=0,
                     expected_return=0,
-                    state="NEW",
+                    state=State.NEW,
                 )
                 self.hp_list_data.append(hp_update)
                 self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
@@ -451,7 +571,7 @@ class StrategyExecutor:
                         quantity_usdt=float(item["quantity_usdt"]),
                         sell_price=0,
                         expected_return=0,
-                        state="",
+                        state=State.NEW,
                     )
                 )
 

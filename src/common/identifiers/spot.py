@@ -248,7 +248,7 @@ class HPUpdate:
     current_price: float = 0.0  # Default value for fields that might not be present yet
     net: float = 0.0
     net_percent: float = 0.0
-    state: str = "NEW"
+    state: State = State.NEW
 
 
 class SubscriptionTarget(Enum):

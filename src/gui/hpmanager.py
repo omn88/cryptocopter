@@ -183,7 +183,7 @@ class HpManager(BoxLayout):
                             self.ui_queue.put_nowait(
                                 HPUpdate(
                                     hp_id=data.config.hp_id,
-                                    asset=data.config.symbol_info.symbol[-4],
+                                    asset=data.config.symbol_info.symbol[:-4],
                                     buy_price=0,
                                     quantity=0,
                                     quantity_usdt=0,
@@ -235,23 +235,25 @@ class HpManager(BoxLayout):
                                 current_price = self.symbols_info[symbol].adjust_price(
                                     price=float(ticker["c"])
                                 )
-
-                                net_percent = round(
-                                    100
-                                    * (
-                                        current_price / float(strategy["buy_price"]) - 1
-                                    ),
-                                    2,
-                                )
-                                net = round(
-                                    1
-                                    + (net_percent / 100)
-                                    * float(strategy["quantity_usdt"]),
-                                    2,
-                                )
                                 strategy["current_price"] = str(current_price)
-                                strategy["net"] = str(net)
-                                strategy["net_percent"] = str(net_percent)
+
+                                if float(strategy["buy_price"]):
+                                    net_percent = round(
+                                        100
+                                        * (
+                                            current_price / float(strategy["buy_price"])
+                                            - 1
+                                        ),
+                                        2,
+                                    )
+                                    net = round(
+                                        1
+                                        + (net_percent / 100)
+                                        * float(strategy["quantity_usdt"]),
+                                        2,
+                                    )
+                                    strategy["net"] = str(net)
+                                    strategy["net_percent"] = str(net_percent)
                                 self.ids.hp_list.refresh_from_data()
             except queue.Empty:
                 await asyncio.sleep(0.1)

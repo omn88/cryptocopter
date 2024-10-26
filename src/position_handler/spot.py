@@ -42,7 +42,7 @@ class PositionHandler:
 
     async def cancel_position(self) -> None:
         logger.info(
-            "Start canceling position: %s %s, system id: %s",
+            "Start canceling position: %s %s, hp id: %s",
             self.config.symbol_info.symbol,
             self.state_info.side,
             self.config.hp_id,
