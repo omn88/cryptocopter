@@ -23,6 +23,7 @@ from src.common.identifiers.spot import (
     LoadConfig,
     RemoveRecord,
     SaveConfig,
+    State,
     StateInfo,
     UiState,
 )
@@ -106,6 +107,62 @@ class HpManager(BoxLayout):
             )
         )
 
+    def update_hp_list(self, data: HPUpdate):
+        logger.info("Entering update hp list")
+
+        list_of_hp_ids = [int(item["hp_id"]) for item in self.hp_list_data]
+
+        logger.info("List of HP IDs: %s", list_of_hp_ids)
+
+        if int(data.hp_id) not in list_of_hp_ids:
+            hp_record = {
+                "hp_manager": self,
+                "hp_id": str(data.hp_id),
+                "asset": str(data.asset),
+                "buy_price": str(data.buy_price),
+                "quantity": str(data.quantity),
+                "quantity_usdt": str(data.quantity_usdt),
+                "sell_price": str(data.sell_price),
+                "expected_return": str(data.expected_return),
+                "current_price": str(data.current_price),  # Include current price
+                "net": str(data.net),  # Include net value
+                "net_percent": str(data.net_percent),  # Include net percentage
+                "state": str(data.state),  # Include the state of the position
+            }
+
+            self.hp_list_data.append(hp_record)
+
+            logger.info("Added new HP %s to %s", hp_record, self.hp_list_data)
+        else:
+            logger.info("HP is already in the list, time to update")
+            for index, hp in enumerate(self.hp_list_data):
+                logger.info("Checking item %s, %s", index, hp)
+                if hp["hp_id"] == data.hp_id:
+                    logger.info("Found a match with hp id: %s", data.hp_id)
+                    # Update hp fields
+                    hp["buy_price"] = str(data.buy_price)
+                    hp["quantity"] = str(data.quantity)
+                    hp["quantity_usdt"] = str(data.quantity_usdt)
+                    hp["sell_price"] = str(data.sell_price)
+                    hp["expected_return"] = str(data.expected_return)
+                    hp["current_price"] = str(
+                        data.current_price
+                    )  # Include current price
+                    hp["net"] = str(data.net)  # Include net value
+                    hp["net_percent"] = str(data.net_percent)  # Include net percentage
+                    hp["state"] = str(
+                        data.state.value
+                    )  # Include the state of the position
+
+                    # Check if state is CLOSED and quantity is 0, then remove it by index
+                    if (
+                        hp["state"] == State.CLOSED.value
+                        and float(hp["quantity"]) == 0.0
+                    ):
+                        logger.info("State closed, removing item with index %s", index)
+                        self.hp_list_data.pop(index)
+                    break  # Exit the loop once the correct item is found and processed
+
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
         while True:
@@ -119,26 +176,7 @@ class HpManager(BoxLayout):
                 if isinstance(data, HPUpdate):
                     logger.info("Received HP Update: %s", data)
 
-                    hp_record = {
-                        "hp_manager": self,
-                        "hp_id": str(data.hp_id),
-                        "asset": str(data.asset),
-                        "buy_price": str(data.buy_price),
-                        "quantity": str(data.quantity),
-                        "quantity_usdt": str(data.quantity_usdt),
-                        "sell_price": str(data.sell_price),
-                        "expected_return": str(data.expected_return),
-                        "current_price": str(
-                            data.current_price
-                        ),  # Include current price
-                        "net": str(data.net),  # Include net value
-                        "net_percent": str(data.net_percent),  # Include net percentage
-                        "state": str(data.state),  # Include the state of the position
-                    }
-
-                    # Append the record to the hp_list_data
-                    self.hp_list_data.append(hp_record)
-                    # logger.info("Updated HP list data: %s", self.hp_list_data)
+                    self.update_hp_list(data=data)
 
                     # Refresh the RecycleView or ListView in the UI to reflect new data
                     self.ids.hp_list.refresh_from_data()

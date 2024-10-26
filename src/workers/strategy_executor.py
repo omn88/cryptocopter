@@ -215,16 +215,16 @@ class StrategyExecutor:
             if (
                 side == "BUY"
                 and sp.state_info.state == State.NEW
-                and trading_system.strategy.buy_position.state_info.state == State.NEW
+                and bp.state_info.state == State.NEW
             ):
                 self.logger.info("Entered trading system removal!")
                 self.broker.unsubscribe(system_id=hp_id)
                 trading_system.strategy.state = State.CLOSED
-                trading_system.strategy.buy_position.orders = await trading_system.strategy.buy_position.order_handler.cancel_remaining_limit_orders(
-                    symbol=trading_system.strategy.buy_position.config.symbol_info.symbol,
-                    orders=trading_system.strategy.buy_position.orders,
+                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                    symbol=bp.config.symbol_info.symbol,
+                    orders=bp.orders,
                 )
-                for order in trading_system.strategy.buy_position.orders:
+                for order in bp.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.run_db_task(
                             self.db.update_order(
@@ -236,33 +236,25 @@ class StrategyExecutor:
                                 status=order.status,
                                 order_type=order.order_type,
                                 order_id=order.order_id,
-                                hp_id=str(
-                                    trading_system.strategy.buy_position.config.hp_id
-                                ),
+                                hp_id=str(bp.config.hp_id),
                             )
                         )
 
                 self.db.run_db_task(
                     self.db.update_price_level(
-                        config=trading_system.strategy.buy_position.config,
-                        state_info=trading_system.strategy.buy_position.state_info,
+                        config=bp.config,
+                        state_info=bp.state_info,
                     )
                 )
 
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=trading_system.strategy.buy_position.config,
-                        state_info=trading_system.strategy.buy_position.state_info,
+                        config=bp.config,
+                        state_info=bp.state_info,
                         ui_state=UiState.CLOSED,
                         completeness=round(
-                            sum(
-                                order.realized_quantity
-                                for order in trading_system.strategy.buy_position.orders
-                            )
-                            / sum(
-                                order.quantity
-                                for order in trading_system.strategy.buy_position.orders
-                            ),
+                            sum(order.realized_quantity for order in bp.orders)
+                            / sum(order.quantity for order in bp.orders),
                             2,
                         ),
                     )
@@ -282,17 +274,13 @@ class StrategyExecutor:
                 self.logger.info(f"Removed trading system with {hp_id}.")
                 return
 
-            if (
-                side == "BUY"
-                and trading_system.strategy.buy_position.state_info.state
-                == State.PARTIALLY_BOUGHT
-            ):
+            if side == "BUY" and bp.state_info.state == State.PARTIALLY_BOUGHT:
                 if trading_system.strategy.state == State.BUYING:
-                    trading_system.strategy.buy_position.orders = await trading_system.strategy.buy_position.order_handler.cancel_remaining_limit_orders(
-                        symbol=trading_system.strategy.buy_position.config.symbol_info.symbol,
-                        orders=trading_system.strategy.buy_position.orders,
+                    bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                        symbol=bp.config.symbol_info.symbol,
+                        orders=bp.orders,
                     )
-                    for order in trading_system.strategy.buy_position.orders:
+                    for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
                                 self.db.update_order(
@@ -304,31 +292,23 @@ class StrategyExecutor:
                                     status=order.status,
                                     order_type=order.order_type,
                                     order_id=order.order_id,
-                                    hp_id=str(
-                                        trading_system.strategy.buy_position.config.hp_id
-                                    ),
+                                    hp_id=str(bp.config.hp_id),
                                 )
                             )
 
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=trading_system.strategy.buy_position.config,
-                        state_info=trading_system.strategy.buy_position.state_info,
+                        config=bp.config,
+                        state_info=bp.state_info,
                         ui_state=UiState.CLOSED,
-                        completeness=sum(
-                            order.realized_quantity
-                            for order in trading_system.strategy.buy_position.orders
-                        )
-                        / sum(
-                            order.quantity
-                            for order in trading_system.strategy.buy_position.orders
-                        ),
+                        completeness=sum(order.realized_quantity for order in bp.orders)
+                        / sum(order.quantity for order in bp.orders),
                     )
                 )
                 self.db.run_db_task(
                     self.db.update_price_level(
-                        config=trading_system.strategy.buy_position.config,
-                        state_info=trading_system.strategy.buy_position.state_info,
+                        config=bp.config,
+                        state_info=bp.state_info,
                     )
                 )
 
@@ -364,8 +344,8 @@ class StrategyExecutor:
                 )
                 self.db.run_db_task(
                     self.db.update_price_level(
-                        config=trading_system.strategy.buy_position.config,
-                        state_info=trading_system.strategy.buy_position.state_info,
+                        config=sp.config,
+                        state_info=sp.state_info,
                     )
                 )
                 self.ui_queue.put_nowait(
