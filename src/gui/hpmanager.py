@@ -127,7 +127,7 @@ class HpManager(BoxLayout):
                 "current_price": str(data.current_price),  # Include current price
                 "net": str(data.net),  # Include net value
                 "net_percent": str(data.net_percent),  # Include net percentage
-                "state": str(data.state),  # Include the state of the position
+                "state": str(data.state.value),  # Include the state of the position
             }
 
             self.hp_list_data.append(hp_record)
