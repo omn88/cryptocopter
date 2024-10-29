@@ -110,14 +110,14 @@ def trading_system_factory(mock_AsyncClient):
             core_queue=queue.Queue(),
             state_info=state_info,
         )
-        if state_info.side == PositionSide.LONG:
-            strategy.buy_position.orders = (
-                strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
-            )
-            strategy.client.create_order.side_effect = get_new_orders(
-                price_low=strategy.buy_position.config.price_low,
-                price_high=strategy.buy_position.config.price_high,
-            )
+
+        strategy.buy_position.orders = (
+            strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
+        )
+        strategy.client.create_order.side_effect = get_new_orders(
+            price_low=strategy.buy_position.config.price_low,
+            price_high=strategy.buy_position.config.price_high,
+        )
 
         state_machine = AsyncMachine(
             model=strategy,
