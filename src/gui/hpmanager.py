@@ -23,6 +23,7 @@ from src.common.identifiers.spot import (
     LoadConfig,
     RemoveRecord,
     SaveConfig,
+    SellConfig,
     State,
     StateInfo,
     UiState,
@@ -350,7 +351,7 @@ class HpManager(BoxLayout):
         state_info = StateInfo(side=PositionSide.SHORT)
 
         self.config_queue.put_nowait(
-            NewRecord(
+            SellConfig(
                 config=config,
                 state_info=state_info,
             )

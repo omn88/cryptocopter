@@ -602,6 +602,8 @@ class HpManager:
         )
         self.state = State.SELLING
 
+        self.sell_position.state_info.generate_next_monitor_time()
+
         for order in self.sell_position.orders:
             self.db.run_db_task(
                 self.db.update_order(
@@ -778,6 +780,7 @@ class HpManager:
         )
         self.state = State.SELLING
         self.sell_position.state_info.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info.generate_next_monitor_time()
 
         self.logger.info("Will update orders: %s", self.sell_position.orders)
 
@@ -1195,6 +1198,14 @@ class HpManager:
             self.logger.info("All orders filled, sending: %s", signal)
             self.core_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
+            self.sell_position.ui_queue.put_nowait(
+                PositionData(
+                    config=self.sell_position.config,
+                    state_info=self.sell_position.state_info,
+                    ui_state=UiState.CLOSED,
+                    completeness=1.0,
+                )
             )
 
     def conditions_for_order_partially_filled_sell(self, *args, **kwargs) -> bool:
