@@ -513,6 +513,7 @@ class HpManager:
             "Resending %s BUY", self.buy_position.config.symbol_info.symbol
         )
         self.balance -= self.get_remaining_quantity_buy()
+        self.buy_position.state_info.stagnation_counter = 0
 
         await self.buy_position.order_handler.create_orders(
             side=self.buy_position.state_info.side,

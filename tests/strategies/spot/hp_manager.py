@@ -1042,3 +1042,44 @@ async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
+
+
+async def buy_fully_last_order(strategy: HpManager) -> HpManager:
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445864,
+        last_executed_quantity=0.1,
+        last_executed_price=1000,
+        cumulative_filled_quantity=0.33,
+    )
+    await strategy.process_order()  # type: ignore[attr-defined]
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy_position.orders)
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
+
+    logger.info("In queue: %s", strategy.buy_position.ui_queue.qsize())
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.stagnation_counter == 0
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.completeness == 1.0
+    assert content.recovering is False
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    return strategy
