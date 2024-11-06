@@ -264,6 +264,22 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
 
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.14
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
     return strategy
 
 
@@ -285,6 +301,23 @@ async def simulate_first_buy_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
 
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.28
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
     return strategy
 
 
@@ -304,6 +337,23 @@ async def simulate_second_buy_order_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.61
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
 
@@ -362,7 +412,9 @@ async def simulate_third_buy_order_fill(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
+async def cancel_partially_bought_position_first_order_filled_partially(
+    strategy: HpManager,
+) -> HpManager:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
@@ -379,23 +431,133 @@ async def simulate_cancel_buy_position(strategy: HpManager) -> HpManager:
 
     assert len(strategy.buy_position.orders) == 3
 
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.12
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.14
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
     return strategy
 
 
-async def simulate_cancel_unfilled_buy_position(strategy: HpManager) -> HpManager:
+async def cancel_partially_bought_position_first_order_filled(
+    strategy: HpManager,
+) -> HpManager:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
 
-    strategy.buy_position.state_info.generate_next_monitor_time()
+    assert strategy.buy_position.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
-    assert strategy.conditions_for_cancelling_unfilled_buy_orders()
+
+    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
+    assert strategy.conditions_for_cancelling_partially_bought_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert len(strategy.buy_position.orders) == 3
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.24
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.28
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    return strategy
+
+
+async def cancel_partially_bought_position_two_orders_filled(
+    strategy: HpManager,
+) -> HpManager:
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    assert strategy.buy_position.state_info.next_monitor_time
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+
+    assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
+    assert strategy.conditions_for_cancelling_partially_bought_orders()
+
+    await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    assert len(strategy.buy_position.orders) == 3
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.24
+    assert strategy.buy_position.orders[1].realized_quantity == 0.28
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.61
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
 
@@ -452,41 +614,7 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
     strategy = assert_default_buy_position_data(strategy=strategy)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
 
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.ui_state == UiState.OPEN
-    assert content.order_cancel == 2.0
-    assert content.completeness == 0.28
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
-
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
-
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.ui_state == UiState.OPEN
-    assert content.order_cancel == 2.0
-    assert content.completeness == 0.61
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
 
     strategy = await simulate_third_buy_order_fill(strategy=strategy)
 
@@ -529,60 +657,11 @@ async def simulate_partially_bought_position(strategy: HpManager) -> HpManager:
     strategy = assert_default_buy_position_data(strategy=strategy)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
 
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.ui_state == UiState.OPEN
-    assert content.order_cancel == 2.0
-    assert content.completeness == 0.28
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
-
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
 
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.ui_state == UiState.OPEN
-    assert content.order_cancel == 2.0
-    assert content.completeness == 0.61
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
-
-    strategy = await simulate_cancel_buy_position(strategy=strategy)
-
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.ui_state == UiState.STAGNATED
-    assert content.order_cancel == 2.0
-    assert content.completeness == 0.61
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
+    strategy = await cancel_partially_bought_position_two_orders_filled(
+        strategy=strategy
+    )
 
     return strategy
 
@@ -862,6 +941,10 @@ async def cancel_sell_position_part_bought_part_sold(strategy: HpManager) -> HpM
     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
 
+    logger.info(
+        "There is %s events in the queue", strategy.sell_position.ui_queue.qsize()
+    )
+
     assert strategy.sell_position.ui_queue.qsize() == 1
     content = strategy.buy_position.ui_queue.get_nowait()
     logger.info("Content: %s", content)
@@ -881,6 +964,7 @@ async def cancel_sell_position_part_bought_part_sold(strategy: HpManager) -> HpM
     assert strategy.sell_position.ui_queue.qsize() == 0
 
     return strategy
+
 
 async def reopen_buy_part_bought_part_sold(strategy: HpManager) -> HpManager:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1010
@@ -913,5 +997,48 @@ async def reopen_buy_part_bought_part_sold(strategy: HpManager) -> HpManager:
     assert content.recovering is False
 
     assert strategy.sell_position.ui_queue.qsize() == 0
+
+    return strategy
+
+
+async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
+    strategy.buy_position.state_info.stagnation_counter = (
+        strategy.buy_position.state_info.stagnation_limit
+    )
+
+    strategy.buy_position.state_info.generate_next_monitor_time()
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert strategy.conditions_for_cancelling_unfilled_buy_orders()
+
+    await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    assert len(strategy.buy_position.orders) == 3
+    assert all(
+        order.status == ORDER_STATUS_CANCELED for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert strategy.state == State.NEW
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.NEW
+    assert state_info.stagnation_counter == 8
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert state_info.next_monitor_time
+
+    assert content.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.completeness == 0.00
+    assert content.recovering is False
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
