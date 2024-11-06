@@ -8,6 +8,7 @@ import threading
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.exceptions import BinanceAPIException, BinanceRequestException
+from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
@@ -25,6 +26,7 @@ from src.common.identifiers.spot import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
+    UiState,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
@@ -56,7 +58,7 @@ class StrategyExecutor:
         self.broker = broker
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
-        self.id_to_system: Dict = {}
+        self.id_to_system: Dict[str, TradingSystem] = {}
         self.symbols_info = symbols_info
         self.hp_list_data: List[HPUpdate] = []
         self.balances = balances
@@ -93,9 +95,9 @@ class StrategyExecutor:
                         )
                     )
                 if isinstance(strategy_data, SellConfig):
-                    trading_system: TradingSystem = self.id_to_system.pop(
+                    trading_system: TradingSystem = self.id_to_system[
                         strategy_data.config.hp_id
-                    )
+                    ]
                     assert trading_system.strategy
 
                     trading_system.strategy.sell_position.config = strategy_data.config
@@ -110,7 +112,9 @@ class StrategyExecutor:
                     )
 
                 if isinstance(strategy_data, RemoveRecord):
-                    await self.remove_record(system_id=strategy_data.hp_id)
+                    await self.remove_record(
+                        hp_id=strategy_data.hp_id, side=strategy_data.side
+                    )
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -157,7 +161,7 @@ class StrategyExecutor:
             state_info=new_record.state_info, usdt_balance=self.balances["USDT"]
         )
         assert trading_system.strategy is not None
-
+        assert new_record.config.hp_id, "HP ID is zero after strategy init"
         self.id_to_system[new_record.config.hp_id] = trading_system
 
         self.broker.subscribe(
@@ -191,19 +195,169 @@ class StrategyExecutor:
             PositionData(
                 config=new_record.config,
                 state_info=new_record.state_info,
+                ui_state=UiState.NEW,
                 completeness=0,
             )
         )
         self.logger.info("System: %s initialized.", new_record.config)
 
-    async def remove_record(self, system_id: str) -> None:
-        if system_id in self.id_to_system:
-            trading_system: TradingSystem = self.id_to_system.pop(system_id)
+    async def remove_record(self, hp_id: str, side: str) -> None:
+        self.logger.info("Entering remove record")
+        if hp_id in self.id_to_system:
+            trading_system: TradingSystem = self.id_to_system[hp_id]
+            self.logger.info(
+                "Found trading system with hp id: %s, side to remove: %s", hp_id, side
+            )
+            assert trading_system.strategy
+            bp = trading_system.strategy.buy_position
+            sp = trading_system.strategy.sell_position
 
-            self.broker.unsubscribe(system_id=system_id)
+            if (
+                side == "BUY"
+                and sp.state_info.state == State.NEW
+                and bp.state_info.state == State.NEW
+            ):
+                self.logger.info("Entered trading system removal!")
+                self.broker.unsubscribe(system_id=hp_id)
+                trading_system.strategy.state = State.CLOSED
+                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                    symbol=bp.config.symbol_info.symbol,
+                    orders=bp.orders,
+                )
+                for order in bp.orders:
+                    if order.status == ORDER_STATUS_CANCELED:
+                        self.db.run_db_task(
+                            self.db.update_order(
+                                price=order.price,
+                                quantity=order.quantity,
+                                quantity_stable=order.quantity_stable,
+                                realized_quantity=order.realized_quantity,
+                                time_in_force=order.time_in_force,
+                                status=order.status,
+                                order_type=order.order_type,
+                                order_id=order.order_id,
+                                hp_id=str(bp.config.hp_id),
+                            )
+                        )
 
-            await trading_system.stop()
-            self.logger.debug(f"Removed trading system with {system_id}.")
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=bp.config,
+                        state_info=bp.state_info,
+                    )
+                )
+
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=bp.config,
+                        state_info=bp.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=round(
+                            sum(order.realized_quantity for order in bp.orders)
+                            / sum(order.quantity for order in bp.orders),
+                            2,
+                        ),
+                    )
+                )
+
+                self.ui_queue.put_nowait(
+                    HPUpdate(
+                        hp_id=hp_id,
+                        asset=bp.config.symbol_info.symbol[:-4],
+                        buy_price=0,
+                        quantity=0,
+                        quantity_usdt=0,
+                        sell_price=0,
+                        state=State.CLOSED,
+                    )
+                )
+                self.logger.info(f"Removed trading system with {hp_id}.")
+                return
+
+            if side == "BUY" and bp.state_info.state == State.PARTIALLY_BOUGHT:
+                if trading_system.strategy.state == State.BUYING:
+                    bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                        symbol=bp.config.symbol_info.symbol,
+                        orders=bp.orders,
+                    )
+                    for order in bp.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.update_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=str(bp.config.hp_id),
+                                )
+                            )
+
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=bp.config,
+                        state_info=bp.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=sum(order.realized_quantity for order in bp.orders)
+                        / sum(order.quantity for order in bp.orders),
+                    )
+                )
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=bp.config,
+                        state_info=bp.state_info,
+                    )
+                )
+
+            if side == "SELL":
+                if trading_system.strategy.state == State.SELLING:
+                    sp.orders = await sp.order_handler.cancel_remaining_limit_orders(
+                        symbol=sp.config.symbol_info.symbol,
+                        orders=sp.orders,
+                    )
+                    for order in sp.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.update_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=str(sp.config.hp_id),
+                                )
+                            )
+                self.ui_queue.put_nowait(
+                    PositionData(
+                        config=sp.config,
+                        state_info=sp.state_info,
+                        ui_state=UiState.CLOSED,
+                        completeness=sum(order.realized_quantity for order in sp.orders)
+                        / sum(order.quantity for order in sp.orders),
+                    )
+                )
+                self.db.run_db_task(
+                    self.db.update_price_level(
+                        config=sp.config,
+                        state_info=sp.state_info,
+                    )
+                )
+                self.ui_queue.put_nowait(
+                    HPUpdate(
+                        hp_id=hp_id,
+                        asset=bp.config.symbol_info.symbol[:-4],
+                        buy_price=0,
+                        quantity=0,
+                        quantity_usdt=0,
+                        sell_price=0,
+                    )
+                )
 
     def initialize_positions_from_db(self):
         active_price_levels = self.db.run_db_task(
@@ -343,19 +497,19 @@ class StrategyExecutor:
     #         logger.error("Failed to retrieve USDT balance: %s", e)
     #         raise e
 
-    def generate_hp_id(self) -> int:
+    def generate_hp_id(self) -> str:
         """
         Generate the next HP ID starting from 1000.
         It checks the list of HP entries to find the highest existing ID.
         """
         if not self.hp_list_data:
-            return 1000  # Start from 1000 if no entries are present
+            return "1000"  # Start from 1000 if no entries are present
 
         # Extract all the existing HP IDs
-        hp_ids = [entry.hp_id for entry in self.hp_list_data]
+        hp_ids = [int(entry.hp_id) for entry in self.hp_list_data]
 
         # Get the highest HP ID and increment it
-        return max(hp_ids) + 1
+        return str(max(hp_ids) + 1)
 
     def initialize_hp_list(self) -> None:
         """
@@ -381,7 +535,7 @@ class StrategyExecutor:
                     ),
                     sell_price=0,
                     expected_return=0,
-                    state="NEW",
+                    state=State.NEW,
                 )
                 self.hp_list_data.append(hp_update)
                 self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
@@ -397,7 +551,7 @@ class StrategyExecutor:
                         quantity_usdt=float(item["quantity_usdt"]),
                         sell_price=0,
                         expected_return=0,
-                        state="",
+                        state=State.NEW,
                     )
                 )
 

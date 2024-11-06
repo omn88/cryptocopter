@@ -193,6 +193,6 @@ class PortfolioUI(BoxLayout):
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
 
-        logger.info(
+        logger.debug(
             "Coin list after updating with account positions: %s", self.coin_list_data
         )

@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import queue
-from typing import Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -23,7 +22,7 @@ from src.common.identifiers.spot import (
     State,
     StateInfo,
     TickerUpdate,
-    Order,
+    UiState,
 )
 from src.common.identifiers.common import (
     BinanceClient,
@@ -83,6 +82,7 @@ class HpManager:
             State.SOLD_PART_BOUGHT,
             State.SOLD,
             State.RECOVERING,
+            State.CLOSED,
         ]
 
         # Initialize any other common attributes
@@ -382,6 +382,8 @@ class HpManager:
         self.state = State.BUYING
         self.buy_position.state_info.state = State.NEW
 
+        self.buy_position.state_info.generate_next_monitor_time()
+
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
@@ -408,6 +410,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -429,28 +432,17 @@ class HpManager:
                 order.status == ORDER_STATUS_NEW for order in self.buy_position.orders
             )
         )
-        # if condition:
-        #     self.logger.info(
-        #         "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
-        #         self.buy_position.config.symbol_info.symbol,
-        #         self.buy_position.state_info.stagnation_counter,
-        #         self.buy_position.state_info.stagnation_limit,
-        #         self.ticker_update.last_price,
-        #         self.calculate_trigger_cancel_orders_price_buy(),
-        #         self.state,
-        #         self.buy_position.state_info.state
-        #     )
-
-        self.logger.info(
-            "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
-            self.buy_position.config.symbol_info.symbol,
-            self.buy_position.state_info.stagnation_counter,
-            self.buy_position.state_info.stagnation_limit,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price_buy(),
-            self.state,
-            self.buy_position.state_info.state,
-        )
+        if condition:
+            self.logger.info(
+                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+                self.buy_position.config.symbol_info.symbol,
+                self.buy_position.state_info.stagnation_counter,
+                self.buy_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+                self.state,
+                self.buy_position.state_info.state,
+            )
 
         return condition
 
@@ -521,6 +513,7 @@ class HpManager:
             "Resending %s BUY", self.buy_position.config.symbol_info.symbol
         )
         self.balance -= self.get_remaining_quantity_buy()
+        self.buy_position.state_info.stagnation_counter = 0
 
         await self.buy_position.order_handler.create_orders(
             side=self.buy_position.state_info.side,
@@ -556,6 +549,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -609,6 +603,8 @@ class HpManager:
         )
         self.state = State.SELLING
 
+        self.sell_position.state_info.generate_next_monitor_time()
+
         for order in self.sell_position.orders:
             self.db.run_db_task(
                 self.db.update_order(
@@ -633,6 +629,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -668,6 +665,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -783,6 +781,7 @@ class HpManager:
         )
         self.state = State.SELLING
         self.sell_position.state_info.state = State.PARTIALLY_SOLD
+        self.sell_position.state_info.generate_next_monitor_time()
 
         self.logger.info("Will update orders: %s", self.sell_position.orders)
 
@@ -811,6 +810,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -880,6 +880,7 @@ class HpManager:
                     stagnation_counter=self.sell_position.state_info.stagnation_counter,
                     side=PositionSide.SHORT,
                 ),
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),
@@ -904,24 +905,15 @@ class HpManager:
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
         )
-        # if condition:
-        #     self.logger.info(
-        #         "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-        #         self.sell_position.config.symbol_info.symbol,
-        #         self.sell_position.state_info.stagnation_counter,
-        #         self.sell_position.state_info.stagnation_limit,
-        #         self.ticker_update.last_price,
-        #         self.calculate_trigger_cancel_orders_price_sell(),
-        #     )
-
-        self.logger.info(
-            "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-            self.sell_position.config.symbol_info.symbol,
-            self.sell_position.state_info.stagnation_counter,
-            self.sell_position.state_info.stagnation_limit,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price_sell(),
-        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_sell(),
+            )
 
         return condition
 
@@ -986,25 +978,15 @@ class HpManager:
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
         )
-        # if condition:
-        #     self.logger.info(
-        #         "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-        #         self.sell_position.config.symbol_info.symbol,
-        #         self.sell_position.state_info.stagnation_counter,
-        #         self.sell_position.state_info.stagnation_limit,
-        #         self.ticker_update.last_price,
-
-        #         self.calculate_trigger_cancel_orders_price_buy(),
-        #     )
-
-        self.logger.info(
-            "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-            self.buy_position.config.symbol_info.symbol,
-            self.buy_position.state_info.stagnation_counter,
-            self.buy_position.state_info.stagnation_limit,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price_buy(),
-        )
+        if condition:
+            self.logger.info(
+                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                self.sell_position.config.symbol_info.symbol,
+                self.sell_position.state_info.stagnation_counter,
+                self.sell_position.state_info.stagnation_limit,
+                self.ticker_update.last_price,
+                self.calculate_trigger_cancel_orders_price_buy(),
+            )
 
         return condition
 
@@ -1063,6 +1045,7 @@ class HpManager:
                     stagnation_counter=self.sell_position.state_info.stagnation_counter,
                     side=PositionSide.SHORT,
                 ),
+                ui_state=UiState.CLOSED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -1217,6 +1200,14 @@ class HpManager:
             self.core_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
+            self.sell_position.ui_queue.put_nowait(
+                PositionData(
+                    config=self.sell_position.config,
+                    state_info=self.sell_position.state_info,
+                    ui_state=UiState.CLOSED,
+                    completeness=1.0,
+                )
+            )
 
     def conditions_for_order_partially_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
@@ -1252,7 +1243,7 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                "[Handle stagnation BUY]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
                 self.buy_position.state_info.next_monitor_time,
@@ -1283,13 +1274,8 @@ class HpManager:
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
-        time_date = datetime.strptime(
-            self.buy_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        time_date += timedelta(hours=1)
-        self.buy_position.state_info.next_monitor_time = time_date.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+
+        self.buy_position.state_info.generate_next_monitor_time()
 
         self.logger.info("Orders: %s", self.buy_position.orders)
 
@@ -1297,6 +1283,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.buy_position.orders)
                     / sum(order.quantity for order in self.buy_position.orders),
@@ -1325,7 +1312,7 @@ class HpManager:
         )
         if condition:
             self.logger.info(
-                "[Handle stagnation]: %s, time now: %s, monitor time: %s",
+                "[Handle stagnation Sell]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
                 self.sell_position.state_info.next_monitor_time,
@@ -1365,6 +1352,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.sell_position.orders)
                     / sum(order.quantity for order in self.sell_position.orders),

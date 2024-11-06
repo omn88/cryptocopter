@@ -170,7 +170,9 @@ class OrderHandler:
         for _ in range(self.MAX_RETRIES):
             try:
                 price = symbol_info.adjust_price(order.price)
-                quantity = symbol_info.adjust_quantity(order.quantity)
+                quantity = symbol_info.adjust_quantity(
+                    order.quantity - order.realized_quantity
+                )
                 symbol_info.validate_order(price=price, quantity=quantity)
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
@@ -258,14 +260,14 @@ class OrderHandler:
         logger.info("Cancelling remaining limit orders: %s", orders)
         assert orders
         for order in orders:
-            if order.status == ORDER_STATUS_PARTIALLY_FILLED:
+            if order.status == ORDER_STATUS_PARTIALLY_FILLED and order.order_id:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
 
                 logger.info(
                     "Cancelled partially filled order with id: %s", order.order_id
                 )
-            elif order.status == ORDER_STATUS_NEW:
+            elif order.status == ORDER_STATUS_NEW and order.order_id:
                 await self.cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
                 logger.info("Cancelled new order with id: %s", order.order_id)

@@ -201,7 +201,7 @@
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
 
 
 <RecordListItemIdle@BoxLayout>:
@@ -260,7 +260,7 @@
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.system_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
 
 
 <RecordListItemArchive@BoxLayout>:
@@ -435,8 +435,8 @@
 
     Button:
         id: action_button
-        text: "SELL HP" if root.sell_price == "0" else "CANCEL"
+        text: "SELL HP" if root.sell_price == "0.0" else "CANCEL"
         size_hint_x: 0.1
         on_release:
-            if root.sell_price == "0": root.hp_manager.sell_hp(root.hp_id, root.asset, root.quantity, root.buy_price)
+            if root.sell_price == "0.0": root.hp_manager.sell_hp(root.hp_id, root.asset, root.quantity, root.buy_price)
             else: root.hp_manager.cancel_sell(root.hp_id)

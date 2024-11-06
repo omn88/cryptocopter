@@ -330,7 +330,7 @@ class Database:
                 # Mark the current record as not current
                 await cur.execute(
                     "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
-                    (config.system_id,),
+                    (config.hp_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()

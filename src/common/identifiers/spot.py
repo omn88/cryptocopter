@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import datetime
 from enum import Enum, auto
 import queue
 from typing import Dict, List, NamedTuple, Optional, Union
@@ -22,7 +23,15 @@ class State(Enum):
     SOLD = "SOLD"
     PART_SOLD_PART_BOUGHT = "PART_SOLD_PART_BOUGHT"
     SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
+    CLOSED = "CLOSED"
     RECOVERING = "RECOVERING"
+
+
+class UiState(Enum):
+    NEW = "NEW"
+    OPEN = "OPEN"
+    STAGNATED = "STAGNATED"
+    CLOSED = "CLOSED"
 
 
 class Signal(Enum):
@@ -207,7 +216,7 @@ class Event(NamedTuple):
 @dataclass
 class HPConfig:
     symbol_info: SymbolInfo
-    hp_id: int = 0
+    hp_id: str = "0"
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
@@ -229,7 +238,7 @@ class SubscriptionType(Enum):
 
 @dataclass
 class HPUpdate:
-    hp_id: int
+    hp_id: str
     asset: str
     buy_price: float
     quantity: float
@@ -239,7 +248,7 @@ class HPUpdate:
     current_price: float = 0.0  # Default value for fields that might not be present yet
     net: float = 0.0
     net_percent: float = 0.0
-    state: str = "NEW"
+    state: State = State.NEW
 
 
 class SubscriptionTarget(Enum):
@@ -266,7 +275,16 @@ class StateInfo:
     side: PositionSide = PositionSide.LONG
 
     def __str__(self):
-        return f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, next_monitor_time='{self.next_monitor_time}')"
+        return (
+            f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, "
+            f"stagnation_limit={self.stagnation_limit}, next_monitor_time='{self.next_monitor_time}', "
+            f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side})"
+        )
+
+    def generate_next_monitor_time(self):
+        self.next_monitor_time = (
+            datetime.datetime.now() + datetime.timedelta(hours=1)
+        ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class NewRecord(NamedTuple):
@@ -288,9 +306,10 @@ class SellConfig(NamedTuple):
 class RemoveRecord(NamedTuple):
     hp_id: str
     symbol: str
+    side: str
 
     def __str__(self):
-        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}')"
+        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
 
 
 class SaveConfig(NamedTuple):

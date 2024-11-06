@@ -1,17 +1,16 @@
-import datetime
 import queue
-from typing import List, Optional
+from typing import List
 import logging
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient, PositionSide
+from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
-    State,
     StateInfo,
     Order,
+    UiState,
 )
 from src.gui.identifiers.spot import PositionData
 from src.order_handler.spot import OrderHandler
@@ -43,7 +42,7 @@ class PositionHandler:
 
     async def cancel_position(self) -> None:
         logger.info(
-            "Start canceling position: %s %s, system id: %s",
+            "Start canceling position: %s %s, hp id: %s",
             self.config.symbol_info.symbol,
             self.state_info.side,
             self.config.hp_id,
@@ -77,6 +76,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.STAGNATED,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -98,9 +98,7 @@ class PositionHandler:
                 logger.info("Order: %s partially filled", order.order_id)
 
         self.state_info.stagnation_counter = 0
-        self.state_info.next_monitor_time = (
-            datetime.datetime.now() + datetime.timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.state_info.generate_next_monitor_time()
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
@@ -111,6 +109,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),
@@ -134,9 +133,7 @@ class PositionHandler:
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         self.state_info.stagnation_counter = 0
-        self.state_info.next_monitor_time = (
-            datetime.datetime.now() + datetime.timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+        self.state_info.generate_next_monitor_time()
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
@@ -157,6 +154,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
+                ui_state=UiState.OPEN,
                 completeness=round(
                     sum(order.realized_quantity for order in self.orders)
                     / sum(order.quantity for order in self.orders),

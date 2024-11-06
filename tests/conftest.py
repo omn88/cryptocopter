@@ -8,7 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
-
+from src.strategies.spot.hp_manager import HpManager
 from src.common.database import Database
 from src.common.identifiers.futures import (
     Event,
@@ -16,10 +16,8 @@ from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.common import Mode, PositionSide
-from src.common.identifiers.spot import HPConfig, StateInfo
+from src.common.identifiers.spot import HPConfig, SellConfig, StateInfo
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
-from src.common.symbol_info import SymbolInfo
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.strategies.futures.base import BaseFuturesStrategy
@@ -110,14 +108,14 @@ def trading_system_factory(mock_AsyncClient):
             core_queue=queue.Queue(),
             state_info=state_info,
         )
-        if state_info.side == PositionSide.LONG:
-            strategy.buy_position.orders = (
-                strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
-            )
-            strategy.client.create_order.side_effect = get_new_orders(
-                price_low=strategy.buy_position.config.price_low,
-                price_high=strategy.buy_position.config.price_high,
-            )
+
+        strategy.buy_position.orders = (
+            strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
+        )
+        strategy.client.create_order.side_effect = get_new_orders(
+            price_low=strategy.buy_position.config.price_low,
+            price_high=strategy.buy_position.config.price_high,
+        )
 
         state_machine = AsyncMachine(
             model=strategy,
@@ -127,6 +125,7 @@ def trading_system_factory(mock_AsyncClient):
             send_event=True,
             queued=True,
         )
+
         return state_machine
 
     return create_trading_system

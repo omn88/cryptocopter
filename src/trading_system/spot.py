@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import logging
 import queue
 from typing import Optional
@@ -57,6 +58,16 @@ class TradingSystem:
             core_queue=self.core_queue,
         )
 
+        self.strategy.buy_position.orders = (
+            self.strategy.buy_position.order_handler.prepare_buy_orders(
+                config=self.config
+            )
+        )
+        self.strategy.buy_position.state_info.open_time = (
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+        self.strategy.buy_position.state_info.generate_next_monitor_time()
+
         self.strategy_logger.info("Config status: %s", state_info.state)
 
         # if state_info.last_state is not None:
@@ -86,7 +97,7 @@ class TradingSystem:
                     event = self.state_machine.model.core_queue.get_nowait()
                     assert isinstance(event, Event)
 
-                    logger.debug("New event: %s", event)
+                    logger.info("New event: %s", event)
 
                     if EventName.TICKER == event.name:
                         assert isinstance(event.content, TickerUpdate)
@@ -111,28 +122,6 @@ class TradingSystem:
                         self.state_machine.model.signal_update = event.content
                         await self.state_machine.model.process_signal()  # type: ignore
 
-                    elif EventName.SENTINEL == event.name:
-                        assert isinstance(event.content, SentinelUpdate)
-                        self.state_machine.model.state = State.CLOSED
-                        await self.state_machine.model.position_handler.cancel_position(
-                            state=self.state_machine.model.state
-                        )
-                        logger.info(
-                            "Trading system: %s closed successfully.",
-                            self.state_machine.model.config.system_id,
-                        )
-                        return
-
                     self.state_machine.model.core_queue.task_done()
                 except queue.Empty:
                     await asyncio.sleep(0.1)
-
-    async def stop(self):
-        # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
-        # It might involve cancelling the tasks that were started in `start`.
-        self.strategy_logger.info(
-            "Closing trading system: %s", self.strategy.config.system_id
-        )
-        self.strategy.core_queue.put_nowait(
-            Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
-        )
