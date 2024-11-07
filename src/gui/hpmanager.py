@@ -108,51 +108,52 @@ class HpManager(BoxLayout):
             )
         )
 
-    def update_hp_list(self, data: HPUpdate):
+    def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
 
-        list_of_hp_ids = [int(item["hp_id"]) for item in self.hp_list_data]
-
+        list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
         logger.info("List of HP IDs: %s", list_of_hp_ids)
 
-        if int(data.hp_id) not in list_of_hp_ids:
+        if int(update.hp_id) not in list_of_hp_ids:
             hp_record = {
                 "hp_manager": self,
-                "hp_id": str(data.hp_id),
-                "asset": str(data.asset),
-                "buy_price": str(data.buy_price),
-                "quantity": str(data.quantity),
-                "quantity_usdt": str(data.quantity_usdt),
-                "sell_price": str(data.sell_price),
-                "expected_return": str(data.expected_return),
-                "current_price": str(data.current_price),  # Include current price
-                "net": str(data.net),  # Include net value
-                "net_percent": str(data.net_percent),  # Include net percentage
-                "state": str(data.state.value),  # Include the state of the position
+                "hp_id": str(update.hp_id),
+                "asset": str(update.asset),
+                "buy_price": str(update.buy_price),
+                "quantity": str(update.quantity),
+                "quantity_usdt": str(update.quantity_usdt),
+                "sell_price": str(update.sell_price),
+                "expected_return": str(update.expected_return),
+                "current_price": str(update.current_price),  # Include current price
+                "net": str(update.net),  # Include net value
+                "net_percent": str(update.net_percent),  # Include net percentage
+                "state": str(update.state.value),  # Include the state of the position
             }
 
-            self.hp_list_data.append(hp_record)
+            hp_list.append(hp_record)
 
-            logger.info("Added new HP %s to %s", hp_record, self.hp_list_data)
+            logger.info("Added new HP %s to %s", hp_record, hp_list)
         else:
             logger.info("HP is already in the list, time to update")
-            for index, hp in enumerate(self.hp_list_data):
+            for index, hp in enumerate(hp_list):
                 logger.info("Checking item %s, %s", index, hp)
-                if hp["hp_id"] == data.hp_id:
-                    logger.info("Found a match with hp id: %s", data.hp_id)
+                if hp["hp_id"] == update.hp_id:
+                    logger.info("Found a match with hp id: %s", update.hp_id)
                     # Update hp fields
-                    hp["buy_price"] = str(data.buy_price)
-                    hp["quantity"] = str(data.quantity)
-                    hp["quantity_usdt"] = str(data.quantity_usdt)
-                    hp["sell_price"] = str(data.sell_price)
-                    hp["expected_return"] = str(data.expected_return)
+                    hp["buy_price"] = str(update.buy_price)
+                    hp["quantity"] = str(update.quantity)
+                    hp["quantity_usdt"] = str(update.quantity_usdt)
+                    hp["sell_price"] = str(update.sell_price)
+                    hp["expected_return"] = str(update.expected_return)
                     hp["current_price"] = str(
-                        data.current_price
+                        update.current_price
                     )  # Include current price
-                    hp["net"] = str(data.net)  # Include net value
-                    hp["net_percent"] = str(data.net_percent)  # Include net percentage
+                    hp["net"] = str(update.net)  # Include net value
+                    hp["net_percent"] = str(
+                        update.net_percent
+                    )  # Include net percentage
                     hp["state"] = str(
-                        data.state.value
+                        update.state.value
                     )  # Include the state of the position
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
@@ -161,8 +162,10 @@ class HpManager(BoxLayout):
                         and float(hp["quantity"]) == 0.0
                     ):
                         logger.info("State closed, removing item with index %s", index)
-                        self.hp_list_data.pop(index)
+                        hp_list.pop(index)
                     break  # Exit the loop once the correct item is found and processed
+
+        return hp_list
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
@@ -177,14 +180,18 @@ class HpManager(BoxLayout):
                 if isinstance(data, HPUpdate):
                     logger.info("Received HP Update: %s", data)
 
-                    self.update_hp_list(data=data)
+                    self.hp_list_data = self.update_hp_list(
+                        update=data, hp_list=self.hp_list_data
+                    )
 
                     # Refresh the RecycleView or ListView in the UI to reflect new data
                     self.ids.hp_list.refresh_from_data()
 
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
-                    self.update_hp_list(data=data.hp_update)
+                    self.hp_list_data = self.update_hp_list(
+                        update=data.hp_update, hp_list=self.hp_list_data
+                    )
                     if any(
                         record["hp_id"] == data.config.hp_id
                         for record in self.active_records
