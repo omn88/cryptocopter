@@ -194,7 +194,7 @@ class StrategyExecutor:
             PositionData(
                 config=new_record.config,
                 state_info=new_record.state_info,
-                hp_update=hp_update,
+                hp_update=HPUpdate(),
             )
         )
         self.logger.info("System: %s initialized.", new_record.config)
@@ -254,7 +254,9 @@ class StrategyExecutor:
 
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=bp.config, state_info=bp.state_info, hp_update=hp_update
+                        config=bp.config,
+                        state_info=bp.state_info,
+                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
                     )
                 )
 

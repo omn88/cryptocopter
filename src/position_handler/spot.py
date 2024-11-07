@@ -83,13 +83,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.config.hp_id,
-                    asset=self.config.symbol_info.symbol[:-4],
-                    buy_price=buy_price,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
-                ),
+                hp_update=HPUpdate(),
             )
         )
 
@@ -119,11 +113,6 @@ class PositionHandler:
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
 
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config, state_info=self.state_info, hp_update=hp_update
-            )
-        )
         self.db.run_db_task(
             self.db.update_order(
                 order_id=execution_report.order_id,
@@ -164,11 +153,6 @@ class PositionHandler:
                 )
 
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config, state_info=self.state_info, hp_update=hp_update
-            )
-        )
 
         self.db.run_db_task(
             self.db.update_order(

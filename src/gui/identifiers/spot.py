@@ -5,14 +5,14 @@ from src.common.identifiers.spot import HPConfig, State, StateInfo
 
 @dataclass
 class HPUpdate:
-    hp_id: str
-    asset: str
-    buy_price: float
-    quantity: float
-    quantity_usdt: float
+    hp_id: str = ""
+    asset: str = ""
+    buy_price: float = 0.0
+    quantity: float = 0.0
+    quantity_usdt: float = 0.0
     sell_price: float = 0.0
     expected_return: float = 0.0
-    current_price: float = 0.0  # Default value for fields that might not be present yet
+    current_price: float = 0.0
     net: float = 0.0
     net_percent: float = 0.0
     state: State = State.NEW
