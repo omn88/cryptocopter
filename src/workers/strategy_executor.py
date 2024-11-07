@@ -291,7 +291,9 @@ class StrategyExecutor:
                 ) / sum(order.quantity for order in bp.orders)
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=bp.config, state_info=bp.state_info, hp_update=hp_update
+                        config=bp.config,
+                        state_info=bp.state_info,
+                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
                     )
                 )
                 self.db.run_db_task(
@@ -331,7 +333,7 @@ class StrategyExecutor:
                     PositionData(
                         config=sp.config,
                         state_info=sp.state_info,
-                        hp_update=hp_update,
+                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
                     )
                 )
                 self.db.run_db_task(

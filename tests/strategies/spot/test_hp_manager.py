@@ -926,9 +926,9 @@ async def test_sell_position_first_order_filled(
     assert state_info.next_monitor_time
     assert state_info.state == State.SOLD
     assert content.state_info.side == PositionSide.SHORT
-    assert content.state_info.ui_state == UiState.OPEN
+    assert content.state_info.ui_state == UiState.CLOSED
     assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.00
+    assert content.state_info.completeness == 1.00
     assert content.recovering is False
 
     assert strategy.sell_position.ui_queue.qsize() == 1
@@ -1149,9 +1149,9 @@ async def test_close_mode_single_generated_position(
     assert state_info.next_monitor_time
     assert state_info.state == State.SOLD
     assert content.state_info.side == PositionSide.SHORT
-    assert content.state_info.ui_state == UiState.OPEN
+    assert content.state_info.ui_state == UiState.CLOSED
     assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.00
+    assert content.state_info.completeness == 1.00
     assert content.recovering is False
 
     assert strategy.sell_position.ui_queue.qsize() == 1
@@ -1820,7 +1820,7 @@ async def test_sell_fully_partially_bought_position(
     assert state_info.side == PositionSide.SHORT
     assert state_info.next_monitor_time
 
-    assert content.state_info.ui_state == UiState.OPEN
+    assert content.state_info.ui_state == UiState.CLOSED
     assert content.order_cancel == 2.0
     assert content.state_info.completeness == 1.0
     assert content.recovering is False
@@ -1907,7 +1907,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert state_info.side == PositionSide.SHORT
     assert state_info.next_monitor_time
 
-    assert content.state_info.ui_state == UiState.OPEN
+    assert content.state_info.ui_state == UiState.CLOSED
     assert content.order_cancel == 2.0
     assert content.state_info.completeness == 1.0
     assert content.recovering is False

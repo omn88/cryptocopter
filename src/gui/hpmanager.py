@@ -184,6 +184,7 @@ class HpManager(BoxLayout):
 
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
+                    self.update_hp_list(data=data.hp_update)
                     if any(
                         record["hp_id"] == data.config.hp_id
                         for record in self.active_records

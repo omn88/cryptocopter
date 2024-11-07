@@ -629,7 +629,7 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
     assert state_info.state == State.BOUGHT
     assert state_info.next_monitor_time
 
-    assert content.state_info.ui_state == UiState.OPEN
+    assert content.state_info.ui_state == UiState.CLOSED
     assert content.order_cancel == 2.0
     assert content.state_info.completeness == 1.00
 
