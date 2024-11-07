@@ -16,7 +16,6 @@ from src.common.identifiers.spot import (
     NewRecord,
     CsvConfig,
     HPConfig,
-    HPUpdate,
     LoadConfig,
     RemoveRecord,
     SaveConfig,
@@ -29,7 +28,7 @@ from src.common.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import PositionData
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.trading_system.spot import TradingSystem
 from src.workers.broker_spot import BrokerSpot
 
@@ -195,8 +194,7 @@ class StrategyExecutor:
             PositionData(
                 config=new_record.config,
                 state_info=new_record.state_info,
-                ui_state=UiState.NEW,
-                completeness=0,
+                hp_update=hp_update,
             )
         )
         self.logger.info("System: %s initialized.", new_record.config)
@@ -247,30 +245,19 @@ class StrategyExecutor:
                     )
                 )
 
-                self.ui_queue.put_nowait(
-                    PositionData(
-                        config=bp.config,
-                        state_info=bp.state_info,
-                        ui_state=UiState.CLOSED,
-                        completeness=round(
-                            sum(order.realized_quantity for order in bp.orders)
-                            / sum(order.quantity for order in bp.orders),
-                            2,
-                        ),
-                    )
+                bp.state_info.ui_state = UiState.CLOSED
+                bp.state_info.completeness = round(
+                    sum(order.realized_quantity for order in bp.orders)
+                    / sum(order.quantity for order in bp.orders),
+                    2,
                 )
 
                 self.ui_queue.put_nowait(
-                    HPUpdate(
-                        hp_id=hp_id,
-                        asset=bp.config.symbol_info.symbol[:-4],
-                        buy_price=0,
-                        quantity=0,
-                        quantity_usdt=0,
-                        sell_price=0,
-                        state=State.CLOSED,
+                    PositionData(
+                        config=bp.config, state_info=bp.state_info, hp_update=hp_update
                     )
                 )
+
                 self.logger.info(f"Removed trading system with {hp_id}.")
                 return
 
@@ -296,13 +283,13 @@ class StrategyExecutor:
                                 )
                             )
 
+                bp.state_info.ui_state = UiState.CLOSED
+                bp.state_info.completeness = sum(
+                    order.realized_quantity for order in bp.orders
+                ) / sum(order.quantity for order in bp.orders)
                 self.ui_queue.put_nowait(
                     PositionData(
-                        config=bp.config,
-                        state_info=bp.state_info,
-                        ui_state=UiState.CLOSED,
-                        completeness=sum(order.realized_quantity for order in bp.orders)
-                        / sum(order.quantity for order in bp.orders),
+                        config=bp.config, state_info=bp.state_info, hp_update=hp_update
                     )
                 )
                 self.db.run_db_task(
@@ -333,29 +320,22 @@ class StrategyExecutor:
                                     hp_id=str(sp.config.hp_id),
                                 )
                             )
+
+                sp.state_info.ui_state = UiState.CLOSED
+                sp.state_info.completeness = sum(
+                    order.realized_quantity for order in sp.orders
+                ) / sum(order.quantity for order in sp.orders)
                 self.ui_queue.put_nowait(
                     PositionData(
                         config=sp.config,
                         state_info=sp.state_info,
-                        ui_state=UiState.CLOSED,
-                        completeness=sum(order.realized_quantity for order in sp.orders)
-                        / sum(order.quantity for order in sp.orders),
+                        hp_update=hp_update,
                     )
                 )
                 self.db.run_db_task(
                     self.db.update_price_level(
                         config=sp.config,
                         state_info=sp.state_info,
-                    )
-                )
-                self.ui_queue.put_nowait(
-                    HPUpdate(
-                        hp_id=hp_id,
-                        asset=bp.config.symbol_info.symbol[:-4],
-                        buy_price=0,
-                        quantity=0,
-                        quantity_usdt=0,
-                        sell_price=0,
                     )
                 )
 

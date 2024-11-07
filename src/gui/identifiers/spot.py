@@ -1,6 +1,21 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import HPConfig, StateInfo, UiState
+from src.common.identifiers.spot import HPConfig, State, StateInfo
+
+
+@dataclass
+class HPUpdate:
+    hp_id: str
+    asset: str
+    buy_price: float
+    quantity: float
+    quantity_usdt: float
+    sell_price: float = 0.0
+    expected_return: float = 0.0
+    current_price: float = 0.0  # Default value for fields that might not be present yet
+    net: float = 0.0
+    net_percent: float = 0.0
+    state: State = State.NEW
 
 
 class PositionData:
@@ -8,15 +23,13 @@ class PositionData:
         self,
         config: HPConfig,
         state_info: StateInfo,
-        ui_state: UiState,
-        completeness: float,
+        hp_update: HPUpdate,
         recovering: bool = False,
     ):
         self.config = config
         self.state_info = state_info
-        self.ui_state = ui_state
         self.order_cancel = 2 * config.order_trigger
-        self.completeness = completeness
+        self.hp_update = hp_update
 
         self.recovering = recovering
 
@@ -24,9 +37,7 @@ class PositionData:
         return (
             f"PositionData(config={self.config}, "
             f"state_info={self.state_info}, "
-            f"ui_state={self.ui_state}, "
             f"order_cancel={self.order_cancel}, "
-            f"completeness={self.completeness:.2f}, "
             f"recovering={self.recovering})"
         )
 

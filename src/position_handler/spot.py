@@ -12,7 +12,7 @@ from src.common.identifiers.spot import (
     Order,
     UiState,
 )
-from src.gui.identifiers.spot import PositionData
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.order_handler.spot import OrderHandler
 
 
@@ -68,6 +68,13 @@ class PositionHandler:
                     )
                 )
 
+        self.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.state_info.ui_state = UiState.STAGNATED
+
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
@@ -76,11 +83,12 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
-                ui_state=UiState.STAGNATED,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
+                hp_update=HPUpdate(
+                    hp_id=self.config.hp_id,
+                    asset=self.config.symbol_info.symbol[:-4],
+                    buy_price=buy_price,
+                    quantity=quantity,
+                    quantity_usdt=quantity_usdt,
                 ),
             )
         )
@@ -97,24 +105,23 @@ class PositionHandler:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
+        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
         self.state_info.stagnation_counter = 0
         self.state_info.generate_next_monitor_time()
+        self.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.state_info.ui_state = UiState.OPEN
+
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
 
-        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-
         self.ui_queue.put_nowait(
             PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
+                config=self.config, state_info=self.state_info, hp_update=hp_update
             )
         )
         self.db.run_db_task(
@@ -134,6 +141,13 @@ class PositionHandler:
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         self.state_info.stagnation_counter = 0
         self.state_info.generate_next_monitor_time()
+        self.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.state_info.ui_state = UiState.OPEN
+
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
@@ -152,14 +166,7 @@ class PositionHandler:
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
         self.ui_queue.put_nowait(
             PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
+                config=self.config, state_info=self.state_info, hp_update=hp_update
             )
         )
 

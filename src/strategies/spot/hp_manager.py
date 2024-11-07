@@ -28,7 +28,7 @@ from src.common.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
-from src.gui.identifiers.spot import PositionData
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.position_handler.spot import PositionHandler
 
 
@@ -383,6 +383,13 @@ class HpManager:
         self.buy_position.state_info.state = State.NEW
 
         self.buy_position.state_info.generate_next_monitor_time()
+        self.buy_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+
+        self.buy_position.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
@@ -410,12 +417,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.buy_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 
@@ -522,6 +524,12 @@ class HpManager:
         )
         self.state = State.BUYING
         self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+        self.buy_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+        self.buy_position.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
@@ -549,12 +557,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.buy_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 
@@ -605,6 +608,14 @@ class HpManager:
 
         self.sell_position.state_info.generate_next_monitor_time()
 
+        self.sell_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.sell_position.orders)
+            / sum(order.quantity for order in self.sell_position.orders),
+            2,
+        )
+
+        self.sell_position.state_info.ui_state = UiState.OPEN
+
         for order in self.sell_position.orders:
             self.db.run_db_task(
                 self.db.update_order(
@@ -629,12 +640,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.sell_position.orders)
-                    / sum(order.quantity for order in self.sell_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 
@@ -660,17 +666,18 @@ class HpManager:
         self.logger.info("All order filled, archiving position")
 
         self.buy_position.state_info.state = State.BOUGHT
+        self.buy_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+        self.buy_position.state_info.ui_state = UiState.CLOSED
 
         self.buy_position.ui_queue.put_nowait(
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                ui_state=UiState.CLOSED,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.buy_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
         self.db.run_db_task(
@@ -782,6 +789,12 @@ class HpManager:
         self.state = State.SELLING
         self.sell_position.state_info.state = State.PARTIALLY_SOLD
         self.sell_position.state_info.generate_next_monitor_time()
+        self.sell_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.sell_position.orders)
+            / sum(order.quantity for order in self.sell_position.orders),
+            2,
+        )
+        self.sell_position.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Will update orders: %s", self.sell_position.orders)
 
@@ -810,12 +823,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.sell_position.orders)
-                    / sum(order.quantity for order in self.sell_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 
@@ -872,20 +880,18 @@ class HpManager:
 
         self.sell_position.state_info.state = State.SOLD
 
+        self.sell_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.sell_position.orders)
+            / sum(order.quantity for order in self.sell_position.orders),
+            2,
+        )
+        self.sell_position.state_info.ui_state = UiState.CLOSED
+
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
-                state_info=StateInfo(
-                    state=State.SOLD,
-                    stagnation_counter=self.sell_position.state_info.stagnation_counter,
-                    side=PositionSide.SHORT,
-                ),
-                ui_state=UiState.CLOSED,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.sell_position.orders)
-                    / sum(order.quantity for order in self.sell_position.orders),
-                    2,
-                ),
+                state_info=self.sell_position.state_info,
+                hp_update=hp_update,
             )
         )
         self.db.run_db_task(
@@ -1037,20 +1043,18 @@ class HpManager:
 
         self.sell_position.state_info.state = State.SOLD
 
+        self.sell_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.sell_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+        self.sell_position.state_info.ui_state = UiState.CLOSED
+
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
-                state_info=StateInfo(
-                    state=State.SOLD,
-                    stagnation_counter=self.sell_position.state_info.stagnation_counter,
-                    side=PositionSide.SHORT,
-                ),
-                ui_state=UiState.CLOSED,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.sell_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
+                state_info=self.sell_position.state_info,
+                hp_update=hp_update,
             )
         )
         self.db.run_db_task(
@@ -1195,6 +1199,9 @@ class HpManager:
             order.status == ORDER_STATUS_FILLED for order in self.sell_position.orders
         ):
             self.sell_position.state_info.state = State.SOLD
+            self.sell_position.state_info.ui_state = UiState.CLOSED
+            self.sell_position.state_info.completeness = 1.0
+
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All orders filled, sending: %s", signal)
             self.core_queue.put(
@@ -1204,8 +1211,7 @@ class HpManager:
                 PositionData(
                     config=self.sell_position.config,
                     state_info=self.sell_position.state_info,
-                    ui_state=UiState.CLOSED,
-                    completeness=1.0,
+                    hp_update=hp_update,
                 )
             )
 
@@ -1277,18 +1283,20 @@ class HpManager:
 
         self.buy_position.state_info.generate_next_monitor_time()
 
+        self.buy_position.state_info.ui_state = UiState.OPEN
+        self.buy_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+
         self.logger.info("Orders: %s", self.buy_position.orders)
 
         self.buy_position.ui_queue.put_nowait(
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.buy_position.orders)
-                    / sum(order.quantity for order in self.buy_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 
@@ -1341,23 +1349,19 @@ class HpManager:
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
-        time_date = datetime.strptime(
-            self.sell_position.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        time_date += timedelta(hours=1)
-        self.sell_position.state_info.next_monitor_time = time_date.strftime(
-            "%Y-%m-%d %H:%M:%S"
+
+        self.sell_position.state_info.generate_next_monitor_time()
+        self.sell_position.state_info.ui_state = UiState.OPEN
+        self.sell_position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.sell_position.orders)
+            / sum(order.quantity for order in self.sell_position.orders),
+            2,
         )
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.sell_position.orders)
-                    / sum(order.quantity for order in self.sell_position.orders),
-                    2,
-                ),
+                hp_update=hp_update,
             )
         )
 

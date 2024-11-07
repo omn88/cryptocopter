@@ -27,13 +27,6 @@ class State(Enum):
     RECOVERING = "RECOVERING"
 
 
-class UiState(Enum):
-    NEW = "NEW"
-    OPEN = "OPEN"
-    STAGNATED = "STAGNATED"
-    CLOSED = "CLOSED"
-
-
 class Signal(Enum):
     HP_ALL_ORDERS_FILLED = "HP_ALL_ORDERS_FILLED"
     NULL = "NULL"
@@ -65,6 +58,13 @@ class CsvConfig(NamedTuple):
     budget: float
     order_trigger: float
     mode: str
+
+
+class UiState(Enum):
+    NEW = "NEW"
+    OPEN = "OPEN"
+    STAGNATED = "STAGNATED"
+    CLOSED = "CLOSED"
 
 
 @dataclass
@@ -236,21 +236,6 @@ class SubscriptionType(Enum):
     USER = auto()
 
 
-@dataclass
-class HPUpdate:
-    hp_id: str
-    asset: str
-    buy_price: float
-    quantity: float
-    quantity_usdt: float
-    sell_price: float = 0.0
-    expected_return: float = 0.0
-    current_price: float = 0.0  # Default value for fields that might not be present yet
-    net: float = 0.0
-    net_percent: float = 0.0
-    state: State = State.NEW
-
-
 class SubscriptionTarget(Enum):
     FRONTEND = auto()
     BACKEND = auto()
@@ -273,12 +258,15 @@ class StateInfo:
     open_time: str = ""
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
+    completeness: float = 0.0
+    ui_state: UiState = UiState.NEW
 
     def __str__(self):
         return (
             f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, "
             f"stagnation_limit={self.stagnation_limit}, next_monitor_time='{self.next_monitor_time}', "
-            f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side})"
+            f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side}, ui_state={self.ui_state}, "
+            f"completeness={self.completeness:.2f})"
         )
 
     def generate_next_monitor_time(self):
