@@ -138,7 +138,7 @@ async def db_and_gui_assertions(
     )
 
 
-def get_default_buy_position(trading_system_factory) -> AsyncMachine:
+def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
     trading_system = trading_system_factory(
         hp_config=HPConfig(
             hp_id="1000",
@@ -148,7 +148,7 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
             order_trigger=1.0,
             budget=1000,
         ),
-        hp_list=[],
+        hp_list=hp_list,
     )
 
     strategy = trading_system.model
@@ -169,10 +169,15 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
     assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.buy_position.state_info.stagnation_counter == 0
     assert strategy.buy_position.state_info.stagnation_limit == 8
+    assert strategy.buy_position.state_info.completeness == 0
+    assert strategy.buy_position.state_info.ui_state == UiState.NEW
 
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
-    assert strategy.state == State.NEW
+
     assert len(strategy.buy_position.orders) == 3
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
 
     assert strategy.sell_position.config.hp_id == "1000"
     assert strategy.sell_position.config.price_low == 0
@@ -183,16 +188,54 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
     assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
 
     assert strategy.sell_position.state_info.side == PositionSide.SHORT
-    assert strategy.sell_position.state_info.state == State.NEW
+
     assert strategy.sell_position.state_info.stagnation_counter == 0
     assert strategy.sell_position.state_info.stagnation_limit == 8
-
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.NEW
     assert len(strategy.sell_position.orders) == 0
 
     return trading_system
 
 
-def assert_default_buy_position_data(strategy: HpManager) -> HpManager:
+def assert_default_buy_position_data(
+    strategy: HpManager, content: PositionData
+) -> HpManager:
+    config = content.config
+    assert isinstance(config, HPConfig)
+
+    assert config.hp_id == "1000"
+    assert config.price_low == 1000
+    assert config.price_high == 1400
+    assert config.budget == 1000
+    assert config.order_trigger == 1.0
+    assert config.mode == Mode.DCA
+    assert config.symbol_info.symbol == "BTCUSDT"
+    assert config.symbol_info.precision == 2
+    assert config.symbol_info.price_precision == 2
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.NEW
+    assert state_info.stagnation_counter == 0
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert not state_info.next_monitor_time
+
+    assert content.state_info.ui_state == UiState.NEW
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.00
+    assert content.recovering is False
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    return strategy
+
+
+def assert_default_active_position_data(
+    strategy: HpManager, content: PositionData
+) -> HpManager:
     assert strategy.buy_position.ui_queue.qsize() == 1
     content = strategy.buy_position.ui_queue.get_nowait()
     logger.info("Content: %s", content)
@@ -228,6 +271,22 @@ def assert_default_buy_position_data(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
+
+
+def assert_default_hp_list_item(hp_list):
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
 
 
 async def move_to_buy_position_active(
