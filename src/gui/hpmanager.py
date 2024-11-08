@@ -67,6 +67,7 @@ class HpManager(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
+        test_mode=False,  # Add a test_mode parameter
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -80,13 +81,24 @@ class HpManager(BoxLayout):
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
-        asyncio.create_task(self.update_ui())
-        asyncio.create_task(self.refresh_ui())
+        # Suppress GUI initialization when in test mode
+        if not test_mode:
+            # Create the SearchableDropDown instance with the client
+            self.symbol_input = SearchableDropDown(
+                client=self.client, options=self.symbols
+            )
+            # Add it to the layout where needed
+            self.ids.symbol_container.add_widget(self.symbol_input)
 
-        # Create the SearchableDropDown instance with the client
-        self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
-        # Add it to the layout where needed
-        self.ids.symbol_container.add_widget(self.symbol_input)
+        # Do not start async tasks in the constructor
+        self.is_tasks_initialized = False
+
+    def initialize_tasks(self):
+        # Separate method to start async tasks
+        if not self.is_tasks_initialized:
+            asyncio.create_task(self.update_ui())
+            asyncio.create_task(self.refresh_ui())
+            self.is_tasks_initialized = True
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
@@ -131,7 +143,6 @@ class HpManager(BoxLayout):
             }
 
             hp_list.append(hp_record)
-
             logger.info("Added new HP %s to %s", hp_record, hp_list)
         else:
             logger.info("HP is already in the list, time to update")

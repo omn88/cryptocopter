@@ -9,7 +9,6 @@ from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.strategies.spot.hp_manager import HpManager
 from src.common.database import Database
 from src.common.identifiers.futures import (
     Event,
@@ -26,6 +25,7 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.gui.hpmanager import HpManager as HPGUI
 
 from src.workers.strategy_executor import generate_hp_id
 from tests.data.sample_dataframes import raw_data_generate
@@ -132,13 +132,35 @@ def trading_system_factory(mock_AsyncClient):
             PositionData(
                 config=hp_config,
                 state_info=strategy.buy_position.state_info,
-                hp_update=HPUpdate(hp_id=generate_hp_id(hp_list=hp_list)),
+                hp_update=HPUpdate(
+                    hp_id=generate_hp_id(hp_list=hp_list),
+                    asset=strategy.buy_position.config.symbol_info.symbol[:-4],
+                ),
             )
         )
 
         return state_machine
 
     return create_trading_system
+
+
+@pytest.fixture
+async def hp_gui(mock_AsyncClient) -> HPGUI:
+    # Set up a mock HpManager instance
+    mock_config_queue = MagicMock()
+    mock_ui_queue = MagicMock()
+
+    hp_manager = HPGUI(
+        client=mock_AsyncClient,
+        strategy_logger=MagicMock(),
+        strategy_id="test_strategy",
+        config_queue=mock_config_queue,
+        ui_queue=mock_ui_queue,
+        symbols_info=MagicMock(),
+        test_mode=True,
+    )
+
+    return hp_manager
 
 
 @pytest.fixture

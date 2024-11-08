@@ -25,6 +25,7 @@ from src.common.identifiers.spot import (
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
+from src.gui.hpmanager import HpManager as HPGUI
 from tests.strategies.spot.hp_manager import (
     assert_default_buy_position_data,
     buy_fully_last_order,
@@ -52,14 +53,14 @@ from tests.strategies.spot.hp_manager import (
 logger = logging.getLogger("test_hp_manager")
 
 
-async def test_default_position(trading_system_factory) -> None:
+async def test_default_position(hp_gui: HPGUI, trading_system_factory) -> None:
     """
     This test purpose is to instantiate basic buy position and assert on
     the default values
 
     Path 1
     """
-
+    hp_list = []
     trading_system = trading_system_factory(
         hp_config=HPConfig(
             hp_id="1000",
@@ -69,7 +70,7 @@ async def test_default_position(trading_system_factory) -> None:
             order_trigger=1.0,
             budget=1000,
         ),
-        hp_list=[],
+        hp_list=hp_list,
     )
 
     strategy = trading_system.model
@@ -145,6 +146,21 @@ async def test_default_position(trading_system_factory) -> None:
     assert content.recovering is False
 
     assert strategy.buy_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
 
 
 async def test_default_position_send_orders(trading_system_factory) -> None:
