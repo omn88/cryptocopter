@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import queue
-from typing import Dict
+from typing import Dict, List
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
 import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.database import Database
 from src.common.identifiers.futures import (
@@ -26,6 +27,7 @@ from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
 
+from src.workers.strategy_executor import generate_hp_id
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
 
@@ -94,7 +96,7 @@ async def test_db():
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
     def create_trading_system(
-        hp_config: HPConfig, state_info: StateInfo, balance: float = 10000
+        hp_config: HPConfig, hp_list: List[HPUpdate], balance: float = 10000
     ):
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
@@ -106,7 +108,7 @@ def trading_system_factory(mock_AsyncClient):
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
-            state_info=state_info,
+            state_info=StateInfo(),
         )
 
         strategy.buy_position.orders = (
@@ -124,6 +126,14 @@ def trading_system_factory(mock_AsyncClient):
             initial=strategy.state,
             send_event=True,
             queued=True,
+        )
+
+        ui_queue.put_nowait(
+            PositionData(
+                config=hp_config,
+                state_info=strategy.buy_position.state_info,
+                hp_update=HPUpdate(hp_id=generate_hp_id(hp_list=hp_list)),
+            )
         )
 
         return state_machine

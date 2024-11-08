@@ -143,7 +143,7 @@ class StrategyExecutor:
             )
             new_record.state_info.state = State.NEW
             new_record.state_info.side = PositionSide.LONG
-            new_record.config.hp_id = self.generate_hp_id()
+            new_record.config.hp_id = generate_hp_id(hp_list=self.hp_list_data)
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
@@ -157,7 +157,9 @@ class StrategyExecutor:
             db=db,
         )
         await trading_system.initialize_strategy(
-            state_info=new_record.state_info, usdt_balance=self.balances["USDT"]
+            config=new_record.config,
+            state_info=new_record.state_info,
+            usdt_balance=self.balances["USDT"],
         )
         assert trading_system.strategy is not None
         assert new_record.config.hp_id, "HP ID is zero after strategy init"
@@ -189,14 +191,6 @@ class StrategyExecutor:
         )
 
         asyncio.create_task(trading_system.worker())
-
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=new_record.config,
-                state_info=new_record.state_info,
-                hp_update=HPUpdate(),
-            )
-        )
         self.logger.info("System: %s initialized.", new_record.config)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
@@ -481,20 +475,6 @@ class StrategyExecutor:
     #         logger.error("Failed to retrieve USDT balance: %s", e)
     #         raise e
 
-    def generate_hp_id(self) -> str:
-        """
-        Generate the next HP ID starting from 1000.
-        It checks the list of HP entries to find the highest existing ID.
-        """
-        if not self.hp_list_data:
-            return "1000"  # Start from 1000 if no entries are present
-
-        # Extract all the existing HP IDs
-        hp_ids = [int(entry.hp_id) for entry in self.hp_list_data]
-
-        # Get the highest HP ID and increment it
-        return str(max(hp_ids) + 1)
-
     def initialize_hp_list(self) -> None:
         """
         Initialize the HP list by fetching data from the database and populating the UI.
@@ -510,7 +490,7 @@ class StrategyExecutor:
 
             for item in hp_list_raw:
                 hp_update = HPUpdate(
-                    hp_id=self.generate_hp_id(),
+                    hp_id=generate_hp_id(hp_list=self.hp_list_data),
                     asset=item["Asset"],
                     buy_price=float(item["Price"]),
                     quantity=float(item["Quantity"]),
@@ -546,6 +526,21 @@ class StrategyExecutor:
             self.logger.info("All HPs send to UI.")
         else:
             self.logger.info("No records found in the HP list table.")
+
+
+def generate_hp_id(hp_list: List[HPUpdate]) -> str:
+    """
+    Generate the next HP ID starting from 1000.
+    It checks the list of HP entries to find the highest existing ID.
+    """
+    if not hp_list:
+        return "1000"  # Start from 1000 if no entries are present
+
+    # Extract all the existing HP IDs
+    hp_ids = [int(entry.hp_id) for entry in hp_list]
+
+    # Get the highest HP ID and increment it
+    return str(max(hp_ids) + 1)
 
 
 def get_hp_list():

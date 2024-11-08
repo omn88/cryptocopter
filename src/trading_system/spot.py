@@ -10,6 +10,7 @@ from src.common.identifiers.common import (
     BinanceClient,
     SentinelUpdate,
 )
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
     AccountPosition,
@@ -45,7 +46,9 @@ class TradingSystem:
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
 
-    async def initialize_strategy(self, state_info: StateInfo, usdt_balance: float):
+    async def initialize_strategy(
+        self, config: HPConfig, state_info: StateInfo, usdt_balance: float
+    ):
         # Strategy initialization
         self.strategy = HpManager(
             client=self.client,
@@ -86,6 +89,14 @@ class TradingSystem:
             initial=self.strategy.state,
             send_event=True,
             queued=True,
+        )
+
+        self.ui_queue.put_nowait(
+            PositionData(
+                config=config,
+                state_info=state_info,
+                hp_update=HPUpdate(),
+            )
         )
 
     async def worker(self):

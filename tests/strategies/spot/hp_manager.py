@@ -148,7 +148,7 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
             order_trigger=1.0,
             budget=1000,
         ),
-        state_info=StateInfo(),
+        hp_list=[],
     )
 
     strategy = trading_system.model

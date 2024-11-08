@@ -69,7 +69,7 @@ async def test_default_position(trading_system_factory) -> None:
             order_trigger=1.0,
             budget=1000,
         ),
-        state_info=StateInfo(),
+        hp_list=[],
     )
 
     strategy = trading_system.model
@@ -110,6 +110,39 @@ async def test_default_position(trading_system_factory) -> None:
     assert len(strategy.sell_position.orders) == 0
     assert strategy.sell_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    config = content.config
+    assert isinstance(config, HPConfig)
+
+    assert config.hp_id == "1000"
+    assert config.price_low == 1000
+    assert config.price_high == 1400
+    assert config.budget == 1000
+    assert config.order_trigger == 1.0
+    assert config.mode == Mode.DCA
+    assert config.symbol_info.symbol == "BTCUSDT"
+    assert config.symbol_info.precision == 2
+    assert config.symbol_info.price_precision == 2
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.NEW
+    assert state_info.stagnation_counter == 0
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert not state_info.next_monitor_time
+
+    assert content.state_info.ui_state == UiState.NEW
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.00
+    assert content.recovering is False
 
     assert strategy.buy_position.ui_queue.qsize() == 0
 
