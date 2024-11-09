@@ -694,14 +694,17 @@ class HpManager:
         )
         self.buy_position.state_info.ui_state = UiState.CLOSED
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
+        quantity = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            - sum(order.realized_quantity for order in self.sell_position.orders),
+            2,
+        )
         quantity_usdt = 0.0
         for order in self.buy_position.orders:
             quantity_usdt += order.realized_quantity * order.price
-        buy_price = quantity_usdt / quantity
+        buy_price = round(quantity_usdt / quantity, 2)
 
+        self.logger.info("Sending HP update with state BOUGHT!!!")
         self.buy_position.ui_queue.put_nowait(
             PositionData(
                 config=self.buy_position.config,
@@ -710,7 +713,7 @@ class HpManager:
                     hp_id=self.buy_position.config.hp_id,
                     buy_price=buy_price,
                     quantity=quantity,
-                    quantity_usdt=quantity,
+                    quantity_usdt=quantity_usdt,
                     state=State.BOUGHT,
                 ),
             )
@@ -1228,9 +1231,11 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
+        quantity = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            - sum(order.realized_quantity for order in self.sell_position.orders),
+            2,
+        )
         quantity_usdt = 0.0
 
         self.logger.info("BP Orders: %s", self.buy_position.orders)
@@ -1242,7 +1247,7 @@ class HpManager:
         for order in self.sell_position.orders:
             quantity_usdt -= order.realized_quantity * order.price
 
-        buy_price = quantity_usdt / quantity
+        buy_price = round(quantity_usdt / quantity, 2)
 
         self.logger.info(
             "Handler order filled BUY state info: %s", self.buy_position.state_info
