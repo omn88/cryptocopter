@@ -15,7 +15,7 @@ class HPUpdate:
     current_price: float = 0.0
     net: float = 0.0
     net_percent: float = 0.0
-    state: State = State.NEW
+    state: State = State.NONE
 
 
 class PositionData:

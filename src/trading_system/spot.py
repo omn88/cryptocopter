@@ -6,10 +6,7 @@ from typing import Optional
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import (
-    BinanceClient,
-    SentinelUpdate,
-)
+from src.common.identifiers.common import BinanceClient
 from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
@@ -95,7 +92,7 @@ class TradingSystem:
             PositionData(
                 config=config,
                 state_info=state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.config.hp_id),
             )
         )
 

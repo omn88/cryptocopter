@@ -83,7 +83,7 @@ class PositionHandler:
             PositionData(
                 config=self.config,
                 state_info=self.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.config.hp_id),
             )
         )
 

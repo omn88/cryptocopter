@@ -126,6 +126,8 @@ class HpManager(BoxLayout):
         list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
         logger.info("List of HP IDs: %s", list_of_hp_ids)
 
+        logger.info("update: %s", update)
+
         if int(update.hp_id) not in list_of_hp_ids:
             hp_record = {
                 "hp_manager": self,
@@ -151,21 +153,20 @@ class HpManager(BoxLayout):
                 if hp["hp_id"] == update.hp_id:
                     logger.info("Found a match with hp id: %s", update.hp_id)
                     # Update hp fields
-                    hp["buy_price"] = str(update.buy_price)
-                    hp["quantity"] = str(update.quantity)
-                    hp["quantity_usdt"] = str(update.quantity_usdt)
-                    hp["sell_price"] = str(update.sell_price)
-                    hp["expected_return"] = str(update.expected_return)
-                    hp["current_price"] = str(
-                        update.current_price
-                    )  # Include current price
-                    hp["net"] = str(update.net)  # Include net value
-                    hp["net_percent"] = str(
-                        update.net_percent
-                    )  # Include net percentage
-                    hp["state"] = str(
-                        update.state.value
-                    )  # Include the state of the position
+                    if update.buy_price:
+                        hp["buy_price"] = str(update.buy_price)
+                    if update.quantity:
+                        hp["quantity"] = str(update.quantity)
+                    if update.quantity_usdt:
+                        hp["quantity_usdt"] = str(update.quantity_usdt)
+                    if update.sell_price:
+                        hp["sell_price"] = str(update.sell_price)
+                    if update.expected_return:
+                        hp["expected_return"] = str(update.expected_return)
+                    if update.state.value:
+                        hp["state"] = str(
+                            update.state.value
+                        )  # Include the state of the position
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
                     if (
@@ -258,24 +259,22 @@ class HpManager(BoxLayout):
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
                             if symbol == strategy["symbol"]:
-                                price = str(
+                                strategy["current_price"] = str(
                                     self.symbols_info[symbol].adjust_price(
                                         price=float(ticker["c"])
                                     )
                                 )
-                                strategy["current_price"] = price
 
                     for strategy in self.idle_records:
                         assert isinstance(data.content, AllTickers)
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
                             if symbol == strategy["symbol"]:
-                                price = str(
+                                strategy["current_price"] = str(
                                     self.symbols_info[symbol].adjust_price(
                                         price=float(ticker["c"])
                                     )
                                 )
-                                strategy["current_price"] = price
 
                     for strategy in self.hp_list_data:
                         assert isinstance(data.content, AllTickers)

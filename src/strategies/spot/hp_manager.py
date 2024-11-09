@@ -556,7 +556,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
             )
         )
 
@@ -639,7 +639,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
             )
         )
 
@@ -836,7 +836,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
             )
         )
 
@@ -1433,7 +1433,7 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
             )
         )
 
@@ -1498,7 +1498,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                hp_update=HPUpdate(),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
             )
         )
 

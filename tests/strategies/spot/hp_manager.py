@@ -236,11 +236,6 @@ def assert_default_buy_position_data(
 def assert_default_active_position_data(
     strategy: HpManager, content: PositionData
 ) -> HpManager:
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
     config = content.config
     assert isinstance(config, HPConfig)
 
@@ -286,7 +281,7 @@ def assert_default_hp_list_item(hp_list):
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
-    assert item["state"] == "NEW"
+    assert item["state"] == ""
 
 
 async def move_to_buy_position_active(
@@ -670,7 +665,12 @@ async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
 async def simulate_bought_position(strategy: HpManager) -> HpManager:
     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
-    strategy = assert_default_buy_position_data(strategy=strategy)
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
 
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
@@ -713,7 +713,13 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
 
 async def simulate_partially_bought_position(strategy: HpManager) -> HpManager:
     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-    strategy = assert_default_buy_position_data(strategy=strategy)
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
     strategy = await simulate_first_buy_order_fill(strategy=strategy)
 
     strategy = await simulate_second_buy_order_fill(strategy=strategy)
@@ -1080,10 +1086,12 @@ async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
 
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    return strategy
+
+
+def assert_cancelled_untouched_position(
+    strategy: HpManager, content: PositionData
+) -> HpManager:
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
 

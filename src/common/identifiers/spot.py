@@ -25,6 +25,7 @@ class State(Enum):
     SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
     CLOSED = "CLOSED"
     RECOVERING = "RECOVERING"
+    NONE = ""
 
 
 class Signal(Enum):
