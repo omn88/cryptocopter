@@ -1232,6 +1232,10 @@ class HpManager:
             order.realized_quantity for order in self.buy_position.orders
         ) - sum(order.realized_quantity for order in self.sell_position.orders)
         quantity_usdt = 0.0
+
+        self.logger.info("BP Orders: %s", self.buy_position.orders)
+        self.logger.info("SP Orders: %s", self.sell_position.orders)
+
         for order in self.buy_position.orders:
             quantity_usdt += order.realized_quantity * order.price
 
@@ -1242,6 +1246,13 @@ class HpManager:
 
         self.logger.info(
             "Handler order filled BUY state info: %s", self.buy_position.state_info
+        )
+
+        self.logger.info(
+            "Quantity: %s, quantity usdt: %s, buy price: %s",
+            quantity,
+            quantity_usdt,
+            buy_price,
         )
 
         self.buy_position.ui_queue.put_nowait(
