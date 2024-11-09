@@ -490,49 +490,146 @@ async def test_default_position_all_buy_orders_filled(
     )
 
 
-# async def test_conditions_for_new_buy_order_confirmation(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-#     strategy = assert_default_buy_position_data(strategy=strategy)
+async def test_conditions_for_new_buy_order_confirmation(
+    hp_gui: HPGUI, trading_system_factory
+) -> None:
+    """
+    Path 1
+    """
 
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_NEW,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_new_order_confirmation()
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    # Path 1: Send buy orders
+
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_new_order_confirmation()
 
 
-# async def test_conditions_for_buy_order_cancellation(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     assert isinstance(strategy, HpManager)
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-#     strategy = assert_default_buy_position_data(strategy=strategy)
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_CANCELED,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_order_cancellation()
+async def test_conditions_for_buy_order_cancellation(hp_gui: HPGUI, trading_system_factory
+) -> None:
+    """
+    Path 1
+    """
+
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    # Path 1: Send buy orders
+
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_order_cancellation()
 
 
-# async def test_conditions_for_buy_order_expiration(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     assert isinstance(strategy, HpManager)
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-#     strategy = assert_default_buy_position_data(strategy=strategy)
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
-#     )
-#     assert strategy.conditions_for_order_expiration()
+async def test_conditions_for_buy_order_expiration(hp_gui: HPGUI, trading_system_factory
+) -> None:
+    """
+    Path 1
+    """
+
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    # Path 1: Send buy orders
+
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
+    )
+    assert strategy.conditions_for_order_expiration()
 
 
 # async def test_stagnation_counter_increase_buy(trading_system_factory) -> None:
