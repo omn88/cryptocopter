@@ -16,7 +16,7 @@ from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.spot import HPConfig, SellConfig, StateInfo
+from src.common.identifiers.spot import HPConfig, SellConfig, State, StateInfo
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -135,6 +135,7 @@ def trading_system_factory(mock_AsyncClient):
                 hp_update=HPUpdate(
                     hp_id=generate_hp_id(hp_list=hp_list),
                     asset=strategy.buy_position.config.symbol_info.symbol[:-4],
+                    state=State.NEW,
                 ),
             )
         )

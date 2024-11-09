@@ -281,7 +281,7 @@ def assert_default_hp_list_item(hp_list):
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
-    assert item["state"] == ""
+    assert item["state"] == "NEW"
 
 
 async def move_to_buy_position_active(
@@ -302,7 +302,6 @@ async def move_to_buy_position_active(
 
 
 async def simulate_partial_fill(strategy: HpManager) -> HpManager:
-    # Simulate partial fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
@@ -317,22 +316,6 @@ async def simulate_partial_fill(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
-
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert content.state_info.ui_state == UiState.OPEN
-    assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.14
-    assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
 

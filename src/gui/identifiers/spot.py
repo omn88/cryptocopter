@@ -37,6 +37,7 @@ class PositionData:
         return (
             f"PositionData(config={self.config}, "
             f"state_info={self.state_info}, "
+            f"hp_update={self.hp_update}, "
             f"order_cancel={self.order_cancel}, "
             f"recovering={self.recovering})"
         )

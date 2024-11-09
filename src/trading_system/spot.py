@@ -92,7 +92,7 @@ class TradingSystem:
             PositionData(
                 config=config,
                 state_info=state_info,
-                hp_update=HPUpdate(hp_id=self.config.hp_id),
+                hp_update=HPUpdate(hp_id=self.config.hp_id, state=State.NEW),
             )
         )
 
