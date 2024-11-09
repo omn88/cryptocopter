@@ -184,33 +184,78 @@ async def test_cancel_default_position_untouched(
     assert_default_hp_list_item(hp_list=hp_list)
 
 
-# async def test_cancel_default_position_untouched_then_resend_orders(
-#     trading_system_factory,
-# ) -> None:
-#     """
-#     This test purpose is to instantiate basic buy position then trigger
-#     the conditions with which the position will be cancelled untouched and the states
-#     will get back to State.NEW
-#     """
+async def test_cancel_default_position_untouched_then_resend_orders(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    """
+    This test purpose is to instantiate basic buy position then trigger
+    the conditions with which the position will be cancelled untouched and the states
+    will get back to State.NEW
+    """
 
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
 
-#     strategy = assert_default_buy_position_data(strategy=strategy)
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
 
-#     strategy = await cancel_untouched_buy_position(strategy=strategy)
-#     assert strategy.state == State.NEW
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
 
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
 
-#     assert strategy.buy_position.orders[0].quantity == 0.24
-#     assert strategy.buy_position.orders[1].quantity == 0.28
-#     assert strategy.buy_position.orders[2].quantity == 0.33
-#     assert all(order.realized_quantity == 0.0 for order in strategy.buy_position.orders)
+    # Path 1: Send buy orders
 
-#     strategy = assert_default_buy_position_data(strategy=strategy)
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+
+    # Path 0: Cancel untouched position
+
+    strategy = await cancel_untouched_buy_position(strategy=strategy)
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    strategy = assert_cancelled_untouched_position(strategy, content)
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
+    assert strategy.state == State.NEW
+
+    # Path 1: Resend buy orders
+
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
 
 
 # async def test_default_position_first_order_filled_partially(
