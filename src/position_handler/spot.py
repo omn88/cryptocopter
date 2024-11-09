@@ -47,6 +47,7 @@ class PositionHandler:
             self.state_info.side,
             self.config.hp_id,
         )
+        self.state_info.stagnation_counter = 0
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
@@ -77,14 +78,6 @@ class PositionHandler:
 
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
-        )
-
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                hp_update=HPUpdate(hp_id=self.config.hp_id),
-            )
         )
 
     async def handle_order_partially_filled(

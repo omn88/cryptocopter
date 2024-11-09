@@ -1079,7 +1079,7 @@ def assert_cancelled_untouched_position(
     assert isinstance(state_info, StateInfo)
 
     assert state_info.state == State.NEW
-    assert state_info.stagnation_counter == 8
+    assert state_info.stagnation_counter == 0
     assert state_info.stagnation_limit == 8
     assert state_info.side == PositionSide.LONG
     assert state_info.next_monitor_time

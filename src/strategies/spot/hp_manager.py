@@ -452,7 +452,18 @@ class HpManager:
         self.logger.info("Orders: %s", self.buy_position.orders)
         self.balance += self.get_remaining_quantity_buy()
         await self.buy_position.cancel_position()
-        self.buy_position.state_info = StateInfo()
+        self.buy_position.state_info.state = State.NEW
+
+        self.buy_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.buy_position.config,
+                state_info=self.buy_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=self.buy_position.config.hp_id,
+                    state=self.buy_position.state_info.state,
+                ),
+            )
+        )
 
     def conditions_for_cancelling_partially_bought_orders(
         self, *args, **kwargs
@@ -480,9 +491,20 @@ class HpManager:
     async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.buy_position.state_info.side.value)
         self.logger.info("Orders: %s", self.buy_position.orders)
+        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
         self.balance += self.get_remaining_quantity_buy()
         await self.buy_position.cancel_position()
-        self.buy_position.state_info.state = State.PARTIALLY_BOUGHT
+
+        self.buy_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.buy_position.config,
+                state_info=self.buy_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=self.buy_position.config.hp_id,
+                    state=self.buy_position.state_info.state,
+                ),
+            )
+        )
 
     def conditions_for_resending_partially_bought_position(
         self, *args, **kwargs
@@ -729,6 +751,17 @@ class HpManager:
         self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
         await self.sell_position.cancel_position()
 
+        self.sell_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=self.sell_position.config.hp_id,
+                    state=self.sell_position.state_info.state,
+                ),
+            )
+        )
+
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
             self.buy_position.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
@@ -866,8 +899,17 @@ class HpManager:
     async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell_position.state_info.side.value)
         await self.sell_position.cancel_position()
-        self.sell_position.state_info = StateInfo(
-            side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
+        self.sell_position.state_info.state = State.PARTIALLY_SOLD
+
+        self.sell_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=self.sell_position.config.hp_id,
+                    state=self.sell_position.state_info.state,
+                ),
+            )
         )
 
     def conditions_for_all_orders_filled_sell(self, *args, **kwargs) -> bool:
@@ -956,6 +998,17 @@ class HpManager:
         self.state = State.PARTIALLY_SOLD
         self.sell_position.state_info = StateInfo(
             side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
+        )
+
+        self.sell_position.ui_queue.put_nowait(
+            PositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=self.sell_position.config.hp_id,
+                    state=self.sell_position.state_info.state,
+                ),
+            )
         )
 
     def conditions_for_resending_sell_orders_from_part_sold_and_bought_orders(
@@ -1200,6 +1253,7 @@ class HpManager:
                     buy_price=buy_price,
                     quantity=quantity,
                     quantity_usdt=quantity_usdt,
+                    state=self.state,
                 ),
             )
         )
@@ -1255,6 +1309,7 @@ class HpManager:
                     buy_price=buy_price,
                     quantity=quantity,
                     quantity_usdt=quantity_usdt,
+                    state=self.state,
                 ),
             )
         )
@@ -1303,6 +1358,7 @@ class HpManager:
                     hp_id=self.sell_position.config.hp_id,
                     quantity=quantity,
                     quantity_usdt=quantity_usdt,
+                    state=self.state,
                 ),
             ),
         )
@@ -1374,6 +1430,7 @@ class HpManager:
                     hp_id=self.buy_position.config.hp_id,
                     quantity=quantity,
                     quantity_usdt=quantity_usdt,
+                    state=self.state,
                 ),
             )
         )
