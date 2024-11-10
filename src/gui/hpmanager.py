@@ -366,13 +366,6 @@ class HpManager(BoxLayout):
                 state_info=state_info,
             )
         )
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=config,
-                state_info=state_info,
-                hp_update=HPUpdate(hp_id=config.hp_id, sell_price=config.price_low),
-            )
-        )
 
         self.filter_records(tab="idle", symbol_filter="All")
 

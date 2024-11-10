@@ -110,6 +110,17 @@ class StrategyExecutor:
                         sell_orders=trading_system.strategy.sell_position.orders,
                     )
 
+                    self.ui_queue.put_nowait(
+                        PositionData(
+                            config=trading_system.strategy.sell_position.config,
+                            state_info=trading_system.strategy.sell_position.state_info,
+                            hp_update=HPUpdate(
+                                hp_id=trading_system.strategy.sell_position.config.hp_id,
+                                sell_price=trading_system.strategy.sell_position.config.price_low,
+                            ),
+                        )
+                    )
+
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side

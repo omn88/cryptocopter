@@ -44,6 +44,7 @@ from tests.strategies.spot.hp_manager import (
     reopen_buy_part_bought_part_sold,
     resend_part_bought_first_order_filled,
     resend_part_bought_first_order_filled_partially,
+    send_sell_orders_for_bought_position,
     simulate_bought_position,
     simulate_cancel_sell_position,
     simulate_first_buy_order_fill,
@@ -828,84 +829,18 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
 
-# async def test_send_sell_orders_for_bought_position(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_send_sell_orders_for_bought_position(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy.sell_position.config = HPConfig(
-#         hp_id=strategy.buy_position.config.hp_id,
-#         symbol_info=strategy.buy_position.config.symbol_info,
-#         price_low=4200,
-#         price_high=4200,
-#         order_trigger=1.0,
-#         budget=round(
-#             sum(order.realized_quantity for order in strategy.buy_position.orders), 2
-#         ),
-#         mode=Mode.SINGLE,
-#     )
-#     strategy.sell_position.state_info = StateInfo(side=PositionSide.SHORT)
-#     strategy.sell_position.orders = (
-#         strategy.sell_position.order_handler.prepare_sell_orders(
-#             config=strategy.sell_position.config,
-#             buy_orders=strategy.buy_position.orders,
-#             sell_orders=strategy.sell_position.orders,
-#         )
-#     )
-
-#     assert strategy.sell_position.config.hp_id == "1000"
-#     assert strategy.sell_position.config.price_low == 4200
-#     assert strategy.sell_position.config.price_high == 4200
-#     assert strategy.sell_position.config.order_trigger == 1
-#     assert strategy.sell_position.config.budget == 0.85
-#     assert strategy.sell_position.config.mode == Mode.SINGLE
-#     assert strategy.sell_position.config.symbol_info.symbol == "BTCUSDT"
-
-#     assert strategy.sell_position.state_info.side == PositionSide.SHORT
-#     assert strategy.sell_position.state_info.state == State.NEW
-#     assert strategy.sell_position.state_info.stagnation_counter == 0
-#     assert strategy.sell_position.state_info.stagnation_limit == 8
-
-#     assert len(strategy.sell_position.orders) == 1
-#     assert strategy.sell_position.orders[0].quantity == 0.85
-#     assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
-
-#     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
-#     assert strategy.state == State.BOUGHT
-
-#     strategy.ticker_update = TickerUpdate(last_price=4158.0)
-#     assert strategy.conditions_for_sending_sell_orders()
-
-#     await strategy.process_ticker()  # type: ignore[attr-defined]
-
-#     assert strategy.state == State.SELLING
-#     assert strategy.sell_position.state_info.state == State.NEW
-
-#     assert strategy.sell_position.orders[0].quantity == 0.85
-#     assert strategy.sell_position.orders[0].realized_quantity == 0.0
-
-#     assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
-
-#     assert strategy.sell_position.ui_queue.qsize() == 1
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
-
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.next_monitor_time
-#     assert state_info.state == State.NEW
-#     assert state_info.stagnation_counter == 0
-#     assert state_info.stagnation_limit == 8
-#     assert content.state_info.side == PositionSide.SHORT
-#     assert content.state_info.ui_state == UiState.OPEN
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 0.00
-#     assert content.recovering is False
-
-#     assert strategy.buy_position.ui_queue.qsize() == 0
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
 
 # async def test_sell_orders_stagnation_increase(trading_system_factory) -> None:
