@@ -42,6 +42,7 @@ from tests.strategies.spot.hp_manager import (
     move_to_partially_sold,
     move_to_sell_position_active,
     reopen_buy_part_bought_part_sold,
+    resend_part_bought_first_order_filled,
     resend_part_bought_first_order_filled_partially,
     simulate_bought_position,
     simulate_cancel_sell_position,
@@ -774,52 +775,57 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
 
-# async def test_default_position_first_order_filled_then_cancel_then_resend(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-#     strategy = assert_default_buy_position_data(strategy=strategy)
-#     strategy = await simulate_first_buy_order_fill(strategy=strategy)
+async def test_default_position_first_order_filled_then_cancel_then_resend(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await cancel_partially_bought_position_first_order_filled(
-#         strategy=strategy
-#     )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
 
-#     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
-#     strategy.ticker_update = TickerUpdate(last_price=1212)
-#     await strategy.process_ticker()  # type: ignore[attr-defined]
+    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
 
-#     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
-#     assert strategy.state == State.BUYING
-#     assert len(strategy.buy_position.orders) == 3
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
 
-#     assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
-#     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
-#     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+    # Path 1: Send buy orders
 
-#     assert strategy.buy_position.orders[0].quantity == 0.24
-#     assert strategy.buy_position.orders[1].quantity == 0.28
-#     assert strategy.buy_position.orders[2].quantity == 0.33
+    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
 
-#     assert strategy.buy_position.ui_queue.qsize() == 1
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+    strategy = assert_default_active_position_data(strategy=strategy, content=content)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert_default_hp_list_item(hp_list=hp_list)
 
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
+    # Simulate full order fill
+    strategy = await simulate_first_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert state_info.state == State.PARTIALLY_BOUGHT
-#     assert state_info.next_monitor_time
+    # Cancel partially bought position
+    strategy = await cancel_partially_bought_position_first_order_filled(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert content.state_info.ui_state == UiState.OPEN
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 0.28
-
-#     assert strategy.buy_position.ui_queue.qsize() == 0
+    # Resend buy orders after 1st order was filled
+    strategy = await resend_part_bought_first_order_filled(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
 
 # async def test_send_sell_orders_for_bought_position(trading_system_factory) -> None:
