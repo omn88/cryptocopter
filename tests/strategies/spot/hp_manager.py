@@ -1543,6 +1543,8 @@ async def cancel_untouched_sell_position(
 
     logger.info("HP List after the update: %s", hp_list)
 
+    return strategy
+
 
 def assert_cancelled_untouched_position(
     strategy: HpManager, content: PositionData
