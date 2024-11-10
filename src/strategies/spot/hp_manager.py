@@ -578,7 +578,9 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
+                hp_update=HPUpdate(
+                    hp_id=self.buy_position.config.hp_id, state=self.state
+                ),
             )
         )
 

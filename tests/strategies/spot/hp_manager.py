@@ -672,6 +672,64 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     return strategy
 
 
+async def resend_part_bought_first_order_filled_partially(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> HpManager:
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1414
+    strategy.ticker_update = TickerUpdate(last_price=1414)
+
+    await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    logger.info("State: %s", strategy.state)
+    assert strategy.state == State.BUYING
+    assert len(strategy.buy_position.orders) == 3
+
+    assert strategy.buy_position.orders[0].quantity == 0.24
+    assert strategy.buy_position.orders[1].quantity == 0.28
+    assert strategy.buy_position.orders[2].quantity == 0.33
+
+    assert strategy.buy_position.orders[0].realized_quantity == 0.12
+    assert strategy.buy_position.orders[1].realized_quantity == 0.0
+    assert strategy.buy_position.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert content.state_info.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.14
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy
+
+
 async def cancel_partially_bought_position_first_order_filled(
     strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
 ) -> HpManager:
@@ -845,11 +903,17 @@ async def simulate_bought_position(strategy: HpManager) -> HpManager:
     assert isinstance(content, PositionData)
 
     strategy = assert_default_buy_position_data(strategy=strategy, content=content)
-    strategy = await simulate_first_buy_order_fill(strategy=strategy)
+    strategy = await simulate_first_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-    strategy = await simulate_second_buy_order_fill(strategy=strategy)
+    strategy = await simulate_second_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-    strategy = await simulate_third_buy_order_fill(strategy=strategy)
+    strategy = await simulate_third_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
     return strategy
 
