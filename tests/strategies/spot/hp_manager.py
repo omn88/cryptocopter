@@ -1098,7 +1098,7 @@ async def send_sell_orders_for_bought_position(
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
-    assert item["state"] == "BOUGHT"
+    assert item["state"] == "SELLING"
 
     logger.info("HP List after the update: %s", hp_list)
 

@@ -666,6 +666,7 @@ class HpManager:
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
                     sell_price=self.sell_position.config.price_high,
+                    state=self.state
                 ),
             )
         )
@@ -877,7 +878,7 @@ class HpManager:
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
+                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id, state=self.state),
             )
         )
 
