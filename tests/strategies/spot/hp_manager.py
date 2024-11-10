@@ -1483,6 +1483,67 @@ async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
     return strategy
 
 
+async def cancel_untouched_sell_position(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> HpManager:
+    strategy.sell_position.state_info.stagnation_counter = (
+        strategy.sell_position.state_info.stagnation_limit
+    )
+
+    strategy.sell_position.state_info.generate_next_monitor_time()
+
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
+    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.conditions_for_cancelling_unfilled_sell_orders()
+
+    await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    assert len(strategy.sell_position.orders) == 1
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert all(
+        order.status == ORDER_STATUS_CANCELED for order in strategy.sell_position.orders
+    )
+    assert strategy.sell_position.state_info.state == State.NEW
+    assert strategy.state == State.BOUGHT
+
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.next_monitor_time
+    assert state_info.state == State.NEW
+    assert content.state_info.side == PositionSide.SHORT
+    assert content.state_info.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.00
+    assert content.recovering is False
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usdt"] == "1002.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BOUGHT"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+
 def assert_cancelled_untouched_position(
     strategy: HpManager, content: PositionData
 ) -> HpManager:

@@ -37,6 +37,7 @@ from tests.strategies.spot.hp_manager import (
     cancel_partially_bought_position_first_order_filled_partially,
     cancel_sell_position_part_bought_part_sold,
     cancel_untouched_buy_position,
+    cancel_untouched_sell_position,
     get_default_buy_position,
     move_to_buy_position_active,
     move_to_partially_sold,
@@ -843,7 +844,8 @@ async def test_send_sell_orders_for_bought_position(
     )
 
 
-async def test_sell_orders_stagnation_increase(trading_system_factory, hp_gui: HPGUI
+async def test_sell_orders_stagnation_increase(
+    trading_system_factory, hp_gui: HPGUI
 ) -> None:
     hp_list = []
     strategy, hp_list = await simulate_bought_position(
@@ -914,60 +916,22 @@ async def test_sell_orders_stagnation_increase(trading_system_factory, hp_gui: H
     logger.info("HP List after the update: %s", hp_list)
 
 
-# async def test_cancel_unfilled_sell_orders(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_cancel_unfilled_sell_orders(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await move_to_sell_position_active(strategy)
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert strategy.sell_position.orders[0].quantity == 0.85
-#     assert strategy.sell_position.orders[0].realized_quantity == 0.0
-
-#     assert strategy.sell_position.orders[0].status == ORDER_STATUS_NEW
-
-#     assert strategy.sell_position.state_info.stagnation_counter == 0
-#     assert strategy.sell_position.state_info.stagnation_limit == 8
-
-#     strategy.sell_position.state_info.stagnation_counter = (
-#         strategy.sell_position.state_info.stagnation_limit
-#     )
-
-#     strategy.sell_position.state_info.generate_next_monitor_time()
-
-#     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
-#     strategy.ticker_update = TickerUpdate(last_price=4116.0)
-#     assert strategy.conditions_for_cancelling_unfilled_sell_orders()
-
-#     await strategy.process_ticker()  # type: ignore[attr-defined]
-
-#     assert len(strategy.sell_position.orders) == 1
-
-#     logger.info("Orders: %s", strategy.sell_position.orders)
-#     assert all(
-#         order.status == ORDER_STATUS_CANCELED for order in strategy.sell_position.orders
-#     )
-#     assert strategy.sell_position.state_info.state == State.NEW
-#     assert strategy.state == State.BOUGHT
-
-#     assert strategy.sell_position.ui_queue.qsize() == 1
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
-
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.next_monitor_time
-#     assert state_info.state == State.NEW
-#     assert content.state_info.side == PositionSide.SHORT
-#     assert content.state_info.ui_state == UiState.STAGNATED
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 0.00
-#     assert content.recovering is False
-
-#     assert strategy.buy_position.ui_queue.qsize() == 0
+    strategy = await cancel_untouched_sell_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
 
 # async def test_resend_unfilled_sell_orders(trading_system_factory) -> None:
