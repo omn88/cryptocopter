@@ -1068,79 +1068,117 @@ async def test_sell_position_first_order_filled_partially(
     logger.info("HP List after the update: %s", hp_list)
 
 
-# async def test_sell_position_first_order_filled(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_sell_position_first_order_filled(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await move_to_sell_position_active(strategy)
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     # Simulate first order fill
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=5617834,
-#         last_executed_quantity=0.85,
-#         last_executed_price=4200,
-#     )
-#     await strategy.process_order()  # type: ignore[attr-defined]
+    # Simulate first order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.85,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.85,
+    )
+    await strategy.process_order()  # type: ignore[attr-defined]
 
-#     logger.info("Orders: %s", strategy.sell_position.orders)
-#     assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
-#     assert strategy.state == State.SELLING
-#     assert strategy.sell_position.state_info.state == State.SOLD
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.SOLD
 
-#     assert strategy.sell_position.ui_queue.qsize() == 2
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.sell_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
 
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
 
-#     assert state_info.next_monitor_time
-#     assert state_info.state == State.SOLD
-#     assert content.state_info.side == PositionSide.SHORT
-#     assert content.state_info.ui_state == UiState.CLOSED
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 1.00
-#     assert content.recovering is False
+    assert state_info.next_monitor_time
+    assert state_info.state == State.SOLD
+    assert content.state_info.side == PositionSide.SHORT
+    assert content.state_info.ui_state == UiState.CLOSED
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 1.00
+    assert content.recovering is False
 
-#     assert strategy.sell_position.ui_queue.qsize() == 1
+    assert strategy.sell_position.ui_queue.qsize() == 0
 
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
 
-#     assert state_info.next_monitor_time
-#     assert state_info.state == State.SOLD
-#     assert content.state_info.side == PositionSide.SHORT
-#     assert content.state_info.ui_state == UiState.CLOSED
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 1.00
-#     assert content.recovering is False
+    logger.info("HP List after the update: %s", hp_list)
 
-#     assert strategy.sell_position.ui_queue.qsize() == 0
+    assert strategy.core_queue.qsize() == 1
+    event = strategy.core_queue.get_nowait()
 
-#     assert strategy.core_queue.qsize() == 1
-#     event = strategy.core_queue.get_nowait()
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
 
-#     assert isinstance(event, Event)
-#     assert event.name == EventName.SIGNAL
-#     assert isinstance(event.content, SignalUpdate)
+    strategy.signal_update = event.content
 
-#     strategy.signal_update = event.content
+    await strategy.process_signal()  # type: ignore[attr-defined]
 
-#     await strategy.process_signal()  # type: ignore[attr-defined]
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
 
-#     assert strategy.sell_position.state_info.state == State.SOLD
-#     assert strategy.state == State.SOLD
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.next_monitor_time
+    assert state_info.state == State.SOLD
+    assert content.state_info.side == PositionSide.SHORT
+    assert content.state_info.ui_state == UiState.CLOSED
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 1.00
+    assert content.recovering is False
+
+    assert strategy.sell_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SOLD"
+
+    logger.info("HP List after the update: %s", hp_list)
 
 
 # async def test_cancel_sell_position_first_order_filled_partially(
