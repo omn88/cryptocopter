@@ -1182,52 +1182,63 @@ async def test_resend_sell_position_first_order_filled_partially(
     )
 
 
-# async def test_conditions_for_new_sell_order_confirmation(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_conditions_for_new_sell_order_confirmation(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await move_to_sell_position_active(strategy)
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_NEW,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_new_order_confirmation()
-
-
-# async def test_conditions_for_sell_order_cancellation(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
-
-#     strategy = await move_to_sell_position_active(strategy)
-
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_CANCELED,
-#         symbol=strategy.buy_position.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_order_cancellation()
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_NEW,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_new_order_confirmation()
 
 
-# async def test_conditions_for_sell_order_expiration(trading_system_factory) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_conditions_for_sell_order_cancellation(trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await move_to_sell_position_active(strategy)
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
-#     )
-#     assert strategy.conditions_for_order_expiration()
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_CANCELED,
+        symbol=strategy.buy_position.config.symbol_info.symbol,
+    )
+    assert strategy.conditions_for_order_cancellation()
+
+
+async def test_conditions_for_sell_order_expiration(trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
+
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
+
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
+    )
+    assert strategy.conditions_for_order_expiration()
 
 
 # async def test_close_mode_single_generated_position(
