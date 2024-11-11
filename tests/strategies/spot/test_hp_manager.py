@@ -53,6 +53,7 @@ from tests.strategies.spot.hp_manager import (
     simulate_partial_fill,
     simulate_partial_fill_sell,
     simulate_partially_bought_position,
+    simulate_resend_sell_position,
     simulate_second_buy_order_fill,
     simulate_third_buy_order_fill,
     simulate_third_buy_order_partial_fill,
@@ -1155,51 +1156,30 @@ async def test_cancel_sell_position_first_order_filled_partially(
     )
 
 
-# async def test_resend_sell_position_first_order_filled_partially(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_bought_position(strategy=strategy)
+async def test_resend_sell_position_first_order_filled_partially(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    hp_list = []
+    strategy, hp_list = await simulate_bought_position(
+        trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
+    )
+    assert isinstance(strategy, HpManager)
 
-#     strategy = await move_to_sell_position_active(strategy)
+    strategy, hp_list = await send_sell_orders_for_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     strategy = await simulate_partial_fill_sell(strategy)
+    strategy, hp_list = await simulate_partial_fill_sell(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     strategy = await move_to_partially_sold(strategy)
+    strategy, hp_list = await simulate_cancel_sell_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
-#     assert strategy.state == State.PARTIALLY_SOLD
-#     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
-
-#     strategy.ticker_update = TickerUpdate(last_price=4158.0)
-#     assert not strategy.conditions_for_sending_sell_orders()
-#     assert strategy.conditions_for_resending_partially_sold_orders()
-
-#     await strategy.process_ticker()  # type: ignore[attr-defined]
-
-#     assert strategy.state == State.SELLING
-#     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
-
-#     assert strategy.sell_position.ui_queue.qsize() == 1
-
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
-
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.next_monitor_time
-#     assert state_info.state == State.PARTIALLY_SOLD
-#     assert content.state_info.side == PositionSide.SHORT
-#     assert content.state_info.ui_state == UiState.OPEN
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 0.5
-#     assert content.recovering is False
-
-#     assert strategy.sell_position.ui_queue.qsize() == 0
+    strategy, hp_list = await simulate_resend_sell_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
 
 # async def test_conditions_for_new_sell_order_confirmation(
