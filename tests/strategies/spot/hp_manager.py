@@ -1222,27 +1222,6 @@ async def send_sell_orders_for_bought_position(
 
     return strategy, hp_list
 
-
-async def simulate_partially_bought_position(strategy: HpManager) -> HpManager:
-    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
-    strategy = await simulate_first_buy_order_fill(strategy=strategy)
-
-    strategy = await simulate_second_buy_order_fill(strategy=strategy)
-
-    strategy = await cancel_partially_bought_position_two_orders_filled(
-        strategy=strategy
-    )
-
-    return strategy
-
-
 async def simulate_move_to_sell_from_partially_bought_position(
     strategy: HpManager,
 ) -> HpManager:
