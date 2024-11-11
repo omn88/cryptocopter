@@ -950,7 +950,8 @@ async def send_sell_orders_for_partially_bought_position(
     return strategy, hp_list
 
 
-async def cancel_unfilled_sell_orders_for_partially_bought_position(strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+async def cancel_unfilled_sell_orders_for_partially_bought_position(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
@@ -1012,7 +1013,6 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(strategy: Hp
     logger.info("HP List after the update: %s", hp_list)
 
     return strategy, hp_list
-
 
 
 # async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:

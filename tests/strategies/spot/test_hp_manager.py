@@ -1347,7 +1347,9 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    strategy, hp_list = await cancel_unfilled_sell_orders_for_partially_bought_position(strategy=strategy, hp_gui=hp_gui, hp_list=hp_list)
+    strategy, hp_list = await cancel_unfilled_sell_orders_for_partially_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
 
 # async def test_fill_orders_for_previously_partially_bought_position(
