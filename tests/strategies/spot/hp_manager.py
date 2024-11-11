@@ -145,7 +145,7 @@ def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
     trading_system = trading_system_factory(
         hp_config=HPConfig(
             hp_id="1000",
-            symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
+            symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             price_low=1000,
             price_high=1400,
             order_trigger=1.0,
@@ -178,9 +178,9 @@ def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
 
     assert len(strategy.buy_position.orders) == 3
-    assert strategy.buy_position.orders[0].quantity == 0.24
-    assert strategy.buy_position.orders[1].quantity == 0.28
-    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert strategy.buy_position.orders[0].quantity == 0.2381
+    assert strategy.buy_position.orders[1].quantity == 0.27778
+    assert strategy.buy_position.orders[2].quantity == 0.33333
 
     assert strategy.sell_position.config.hp_id == "1000"
     assert strategy.sell_position.config.price_low == 0
@@ -214,7 +214,7 @@ def assert_default_buy_position_data(
     assert config.order_trigger == 1.0
     assert config.mode == Mode.DCA
     assert config.symbol_info.symbol == "BTCUSDT"
-    assert config.symbol_info.precision == 2
+    assert config.symbol_info.precision == 5
     assert config.symbol_info.price_precision == 2
 
     state_info = content.state_info
@@ -249,7 +249,7 @@ def assert_default_active_position_data(
     assert config.order_trigger == 1.0
     assert config.mode == Mode.DCA
     assert config.symbol_info.symbol == "BTCUSDT"
-    assert config.symbol_info.precision == 2
+    assert config.symbol_info.precision == 5
     assert config.symbol_info.price_precision == 2
 
     state_info = content.state_info
@@ -366,7 +366,7 @@ async def simulate_first_buy_order_fill(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
         order_id=445860,
-        last_executed_quantity=0.1,
+        last_executed_quantity=0.24,
         last_executed_price=1400,
         cumulative_filled_quantity=0.24,
         price=1400.0,
@@ -425,7 +425,7 @@ async def simulate_second_buy_order_fill(
         current_order_status=ORDER_STATUS_FILLED,
         order_id=445861,
         last_executed_quantity=0.28,
-        last_executed_price=1400,
+        last_executed_price=1200,
         cumulative_filled_quantity=0.28,
         price=1200,
     )
@@ -509,8 +509,6 @@ async def simulate_third_buy_order_fill(
     assert strategy.state == State.BOUGHT
 
     assert strategy.core_queue.qsize() == 0
-
-    logger.info("QUEUE SIZE: %s", strategy.buy_position.ui_queue.qsize())
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -601,9 +599,9 @@ async def resend_part_bought_first_order_filled(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
 
-    assert strategy.buy_position.orders[0].quantity == 0.24
-    assert strategy.buy_position.orders[1].quantity == 0.28
-    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert strategy.buy_position.orders[0].quantity == 0.2381
+    assert strategy.buy_position.orders[1].quantity == 0.27778
+    assert strategy.buy_position.orders[2].quantity == 0.33333
 
     assert strategy.buy_position.orders[0].realized_quantity == 0.24
     assert strategy.buy_position.orders[1].realized_quantity == 0.0
@@ -682,9 +680,9 @@ async def cancel_partially_bought_position_first_order_filled_partially(
 
     assert len(strategy.buy_position.orders) == 3
 
-    assert strategy.buy_position.orders[0].quantity == 0.24
-    assert strategy.buy_position.orders[1].quantity == 0.28
-    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert strategy.buy_position.orders[0].quantity == 0.2381
+    assert strategy.buy_position.orders[1].quantity == 0.27778
+    assert strategy.buy_position.orders[2].quantity == 0.33333
 
     assert strategy.buy_position.orders[0].realized_quantity == 0.12
     assert strategy.buy_position.orders[1].realized_quantity == 0.0
@@ -743,9 +741,9 @@ async def resend_part_bought_first_order_filled_partially(
     assert strategy.state == State.BUYING
     assert len(strategy.buy_position.orders) == 3
 
-    assert strategy.buy_position.orders[0].quantity == 0.24
-    assert strategy.buy_position.orders[1].quantity == 0.28
-    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert strategy.buy_position.orders[0].quantity == 0.2381
+    assert strategy.buy_position.orders[1].quantity == 0.27778
+    assert strategy.buy_position.orders[2].quantity == 0.33333
 
     assert strategy.buy_position.orders[0].realized_quantity == 0.12
     assert strategy.buy_position.orders[1].realized_quantity == 0.0
@@ -808,9 +806,9 @@ async def cancel_partially_bought_position_first_order_filled(
 
     assert len(strategy.buy_position.orders) == 3
 
-    assert strategy.buy_position.orders[0].quantity == 0.24
-    assert strategy.buy_position.orders[1].quantity == 0.28
-    assert strategy.buy_position.orders[2].quantity == 0.33
+    assert strategy.buy_position.orders[0].quantity == 0.2381
+    assert strategy.buy_position.orders[1].quantity == 0.27778
+    assert strategy.buy_position.orders[2].quantity == 0.33333
 
     assert strategy.buy_position.orders[0].realized_quantity == 0.24
     assert strategy.buy_position.orders[1].realized_quantity == 0.0

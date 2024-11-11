@@ -151,14 +151,20 @@ class HpManager(BoxLayout):
             for index, hp in enumerate(hp_list):
                 logger.info("Checking item %s, %s", index, hp)
                 if hp["hp_id"] == update.hp_id:
-                    logger.info("Found a match with hp id: %s", update.hp_id)
+                    logger.info(
+                        "Found a match with hp id: %s, quantity: %s",
+                        update.hp_id,
+                        update.quantity,
+                    )
                     # Update hp fields
                     if update.buy_price:
                         hp["buy_price"] = str(update.buy_price)
                     if update.quantity:
-                        hp["quantity"] = str(update.quantity)
-                    if update.quantity_usdt:
-                        hp["quantity_usdt"] = str(update.quantity_usdt)
+                        hp["quantity"] = str(
+                            self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
+                                float(hp["quantity"]) + update.quantity
+                            )
+                        )
                     if update.sell_price:
                         hp["sell_price"] = str(update.sell_price)
                     if update.expected_return:
@@ -167,6 +173,19 @@ class HpManager(BoxLayout):
                         hp["state"] = str(
                             update.state.value
                         )  # Include the state of the position
+
+                    hp["quantity_usdt"] = str(
+                        self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
+                            float(hp["buy_price"]) * float(hp["quantity"])
+                        )
+                    )
+
+                    logger.info(
+                        "Buy price: %s, Quantity: %s, total: %s",
+                        hp["buy_price"],
+                        hp["quantity"],
+                        hp["quantity_usdt"],
+                    )
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
                     if (

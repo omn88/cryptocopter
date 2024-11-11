@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
+from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.common.database import Database
 from src.common.identifiers.futures import (
@@ -157,7 +158,9 @@ async def hp_gui(mock_AsyncClient) -> HPGUI:
         strategy_id="test_strategy",
         config_queue=mock_config_queue,
         ui_queue=mock_ui_queue,
-        symbols_info=MagicMock(),
+        symbols_info={
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
+        },
         test_mode=True,
     )
 

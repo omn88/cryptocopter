@@ -260,7 +260,7 @@ class HpManager:
                 "source": State.BUYING,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled_buy",
-                "before": "handle_order_filled_buy",
+                "after": "handle_order_filled_buy",
             },
             {
                 "trigger": "process_order",
@@ -274,7 +274,7 @@ class HpManager:
                 "source": State.SELLING,
                 "dest": "=",
                 "conditions": "conditions_for_order_filled_sell",
-                "before": "handle_order_filled_sell",
+                "after": "handle_order_filled_sell",
             },
             {
                 "trigger": "process_order",
@@ -700,15 +700,15 @@ class HpManager:
         )
         self.buy_position.state_info.ui_state = UiState.CLOSED
 
-        quantity = round(
+        quantity = self.buy_position.config.symbol_info.adjust_quantity(
             sum(order.realized_quantity for order in self.buy_position.orders)
-            - sum(order.realized_quantity for order in self.sell_position.orders),
-            2,
+            - sum(order.realized_quantity for order in self.sell_position.orders)
         )
-        quantity_usdt = 0.0
+        total = 0.0
+        real_quant = 0.0
         for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-        buy_price = round(quantity_usdt / quantity, 2)
+            total += order.realized_quantity * order.price
+            real_quant += order.realized_quantity
 
         self.logger.info("Sending HP update with state BOUGHT!!!")
         self.buy_position.ui_queue.put_nowait(
@@ -717,9 +717,6 @@ class HpManager:
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
-                    buy_price=buy_price,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
                     state=State.BOUGHT,
                 ),
             )
@@ -953,25 +950,11 @@ class HpManager:
         )
         self.sell_position.state_info.ui_state = UiState.CLOSED
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
-        quantity_usdt = 0.0
-        for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-
-        for order in self.sell_position.orders:
-            quantity_usdt -= order.realized_quantity * order.price
-
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell_position.config.hp_id,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
-                ),
+                hp_update=HPUpdate(hp_id=self.sell_position.config.hp_id),
             )
         )
         self.db.run_db_task(
@@ -1141,24 +1124,13 @@ class HpManager:
         )
         self.sell_position.state_info.ui_state = UiState.CLOSED
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
-        quantity_usdt = 0.0
-        for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-
-        for order in self.sell_position.orders:
-            quantity_usdt -= order.realized_quantity * order.price
-
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.sell_position.config.hp_id,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
+                    state=self.state,
                 ),
             )
         )
@@ -1239,33 +1211,14 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        quantity = round(
-            sum(order.realized_quantity for order in self.buy_position.orders)
-            - sum(order.realized_quantity for order in self.sell_position.orders),
-            2,
-        )
-        quantity_usdt = 0.0
-
-        self.logger.info("BP Orders: %s", self.buy_position.orders)
-        self.logger.info("SP Orders: %s", self.sell_position.orders)
-
+        total = 0.0
+        real_quant = 0.0
         for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-
-        for order in self.sell_position.orders:
-            quantity_usdt -= order.realized_quantity * order.price
-
-        buy_price = round(quantity_usdt / quantity, 2)
+            total += order.realized_quantity * order.price
+            real_quant += order.realized_quantity
 
         self.logger.info(
             "Handler order filled BUY state info: %s", self.buy_position.state_info
-        )
-
-        self.logger.info(
-            "Quantity: %s, quantity usdt: %s, buy price: %s",
-            quantity,
-            quantity_usdt,
-            buy_price,
         )
 
         self.buy_position.ui_queue.put_nowait(
@@ -1274,9 +1227,10 @@ class HpManager:
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.sell_position.config.hp_id,
-                    buy_price=buy_price,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
+                    buy_price=self.buy_position.config.symbol_info.adjust_price(
+                        total / real_quant
+                    ),
+                    quantity=self.execution_report.last_executed_quantity,
                     state=self.state,
                 ),
             )
@@ -1317,22 +1271,22 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
-        quantity_usdt = 0
+        total = 0.0
+        real_quant = 0.0
         for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-        buy_price = quantity_usdt / quantity
+            total += order.realized_quantity * order.price
+            real_quant += order.realized_quantity
+
         self.buy_position.ui_queue.put_nowait(
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
-                    buy_price=buy_price,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
+                    buy_price=self.buy_position.config.symbol_info.adjust_price(
+                        total / real_quant
+                    ),
+                    quantity=self.execution_report.last_executed_quantity,
                     state=self.state,
                 ),
             )
@@ -1356,7 +1310,7 @@ class HpManager:
         return condition
 
     async def handle_order_filled_sell(self, *args, **kwargs) -> None:
-        self.logger.debug("Entering handle order filled")
+        self.logger.info("Entering handle order filled sell")
 
         self.sell_position.state_info.state = State.PARTIALLY_SOLD
 
@@ -1364,24 +1318,13 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
-        quantity_usdt = 0.0
-        for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-
-        for order in self.sell_position.orders:
-            quantity_usdt -= order.realized_quantity * order.price
-
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.sell_position.config.hp_id,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
+                    quantity=-self.execution_report.last_executed_quantity,
                     state=self.state,
                 ),
             ),
@@ -1403,11 +1346,7 @@ class HpManager:
                 PositionData(
                     config=self.sell_position.config,
                     state_info=self.sell_position.state_info,
-                    hp_update=HPUpdate(
-                        hp_id=self.sell_position.config.hp_id,
-                        quantity=quantity,
-                        quantity_usdt=quantity_usdt,
-                    ),
+                    hp_update=HPUpdate(hp_id=self.sell_position.config.hp_id),
                 )
             )
 
@@ -1437,23 +1376,17 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        quantity = sum(
-            order.realized_quantity for order in self.buy_position.orders
-        ) - sum(order.realized_quantity for order in self.sell_position.orders)
-        quantity_usdt = 0
-        for order in self.buy_position.orders:
-            quantity_usdt += order.realized_quantity * order.price
-
-        for order in self.sell_position.orders:
-            quantity_usdt -= order.realized_quantity * order.price
+        quantity = self.sell_position.config.symbol_info.adjust_quantity(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            - sum(order.realized_quantity for order in self.sell_position.orders)
+        )
         self.sell_position.ui_queue.put_nowait(
             PositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
-                    quantity=quantity,
-                    quantity_usdt=quantity_usdt,
+                    quantity=-self.execution_report.last_executed_quantity,
                     state=self.state,
                 ),
             )

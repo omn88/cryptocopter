@@ -934,7 +934,8 @@ async def test_cancel_unfilled_sell_orders(
     )
 
 
-async def test_resend_unfilled_sell_orders(trading_system_factory, hp_gui: HPGUI
+async def test_resend_unfilled_sell_orders(
+    trading_system_factory, hp_gui: HPGUI
 ) -> None:
     hp_list = []
     strategy, hp_list = await simulate_bought_position(
@@ -1018,14 +1019,14 @@ async def test_sell_position_first_order_filled_partially(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=5617834,
+        order_id=445863,
         last_executed_quantity=0.425,
         last_executed_price=4200,
         cumulative_filled_quantity=0.425,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
 
-    logger.info("Orders: %s", strategy.buy_position.orders)
+    logger.info("Orders: %s", strategy.sell_position.orders)
     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.state == State.SELLING
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
@@ -1047,6 +1048,24 @@ async def test_sell_position_first_order_filled_partially(
     assert content.recovering is False
 
     assert strategy.buy_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.425"
+    assert item["quantity_usdt"] == "501.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
+
+    logger.info("HP List after the update: %s", hp_list)
 
 
 # async def test_sell_position_first_order_filled(

@@ -127,10 +127,11 @@ class PositionHandler:
                 order.price = execution_report.price
                 order.realized_quantity = execution_report.cumulative_filled_quantity
                 logger.info(
-                    "Order: %s filled, symbol: %s, price: %s",
+                    "Order: %s filled, symbol: %s, price: %s, status: %s",
                     order.order_id,
                     execution_report.symbol,
                     order.price,
+                    order.status,
                 )
 
         self.state_info.ui_state = UiState.OPEN
