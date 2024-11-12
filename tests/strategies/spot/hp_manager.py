@@ -202,8 +202,13 @@ def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
 
 
 def assert_default_buy_position_data(
-    strategy: HpManager, content: PositionData
-) -> HpManager:
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
     config = content.config
     assert isinstance(config, HPConfig)
 
@@ -233,12 +238,47 @@ def assert_default_buy_position_data(
 
     assert strategy.buy_position.ui_queue.qsize() == 0
 
-    return strategy
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+    return strategy, hp_list
 
 
-def assert_default_active_position_data(
-    strategy: HpManager, content: PositionData
-) -> HpManager:
+async def move_to_buy_position_active(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict], trigger_price: float
+) -> Tuple[HpManager, List[Dict]]:
+    assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
+    strategy.ticker_update = TickerUpdate(last_price=trigger_price)
+
+    assert strategy.conditions_for_sending_buy_orders()
+
+    await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    logger.info("State: %s", strategy.state)
+    assert strategy.state == State.BUYING
+    assert len(strategy.buy_position.orders) == 3
+
+    assert strategy.buy_position.state_info.state == State.NEW
+    assert all(
+        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    )
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
     config = content.config
     assert isinstance(config, HPConfig)
 
@@ -268,10 +308,7 @@ def assert_default_active_position_data(
 
     assert strategy.buy_position.ui_queue.qsize() == 0
 
-    return strategy
-
-
-def assert_default_hp_list_item(hp_list):
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
@@ -284,24 +321,9 @@ def assert_default_hp_list_item(hp_list):
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
-    assert item["state"] == "NEW"
+    assert item["state"] == "BUYING"
 
-
-async def move_to_buy_position_active(
-    strategy: HpManager, trigger_price: float
-) -> HpManager:
-    assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
-    strategy.ticker_update = TickerUpdate(last_price=trigger_price)
-
-    assert strategy.conditions_for_sending_buy_orders()
-
-    await strategy.process_ticker()  # type: ignore[attr-defined]
-
-    logger.info("State: %s", strategy.state)
-    assert strategy.state == State.BUYING
-    assert len(strategy.buy_position.orders) == 3
-
-    return strategy
+    return strategy, hp_list
 
 
 async def simulate_partial_fill(
@@ -714,22 +736,64 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     return strategy, hp_list
 
 
-async def simulate_third_buy_order_partial_fill(strategy: HpManager) -> HpManager:
+async def simulate_second_buy_order_partial_fill(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
     # Simulate partial order fill of order which is rebuy after first time two first orders were fillled and this is the last one.
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
         order_id=445864,
-        last_executed_quantity=0.18,
-        last_executed_price=1400,
-        cumulative_filled_quantity=0.18,
+        last_executed_quantity=0.14,
+        last_executed_price=1200,
+        cumulative_filled_quantity=0.14,
     )
     await strategy.process_order()  # type: ignore[attr-defined]
     assert strategy.state == State.BUYING
     logger.info("Orders: %s", strategy.buy_position.orders)
-    assert strategy.buy_position.orders[2].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_PARTIALLY_FILLED
 
-    return strategy
+    assert strategy.buy_position.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy_position.orders[1].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.buy_position.orders[2].status == ORDER_STATUS_NEW
+
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.next_monitor_time
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert content.state_info.side == PositionSide.LONG
+    assert content.state_info.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.45
+    assert content.recovering is False
+
+    assert strategy.sell_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1292.31"
+    assert item["quantity"] == "0.26"
+    assert item["quantity_usdt"] == "336.0"
+    assert item["sell_price"] == "4200"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
 
 
 async def cancel_partially_bought_position_first_order_filled_partially(
@@ -1315,38 +1379,22 @@ async def simulate_bought_position(
     trading_system_factory, hp_gui: HPGUI, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     # Path 0: Default buy position
+    hp_list: List[Dict] = []
     trading_system: AsyncMachine = get_default_buy_position(
         trading_system_factory, hp_list
     )
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
 
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-
-    strategy = assert_default_buy_position_data(strategy=strategy, content=content)
-
-    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-    assert_default_hp_list_item(hp_list=hp_list)
+    strategy, hp_list = assert_default_buy_position_data(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
     # Path 1: Send buy orders
 
-    strategy = await move_to_buy_position_active(strategy=strategy, trigger_price=1414)
-
-    assert strategy.buy_position.state_info.state == State.NEW
-    assert all(
-        order.status == ORDER_STATUS_NEW for order in strategy.buy_position.orders
+    strategy, hp_list = await move_to_buy_position_active(
+        strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
-    assert strategy.buy_position.ui_queue.qsize() == 1
-    content = strategy.buy_position.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
-    strategy = assert_default_active_position_data(strategy=strategy, content=content)
-    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-    assert_default_hp_list_item(hp_list=hp_list)
-
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
@@ -1734,7 +1782,9 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def cancel_sell_position_part_bought_part_sold(strategy: HpManager) -> HpManager:
+async def cancel_sell_position_part_bought_part_sold(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -1777,12 +1827,32 @@ async def cancel_sell_position_part_bought_part_sold(strategy: HpManager) -> HpM
 
     assert strategy.sell_position.ui_queue.qsize() == 0
 
-    return strategy
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "4200"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "PART_SOLD_PART_BOUGHT"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
 
 
-async def reopen_buy_part_bought_part_sold(strategy: HpManager) -> HpManager:
-    assert strategy.calculate_trigger_send_orders_price_buy() == 1010
-    strategy.ticker_update = TickerUpdate(last_price=1010)
+async def reopen_buy_part_bought_part_sold(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
+    assert strategy.calculate_trigger_send_orders_price_buy() == 1212
+    strategy.ticker_update = TickerUpdate(last_price=1212)
 
     assert not strategy.conditions_for_sending_buy_orders()
     assert (
@@ -1807,15 +1877,35 @@ async def reopen_buy_part_bought_part_sold(strategy: HpManager) -> HpManager:
     assert content.state_info.side == PositionSide.LONG
     assert content.state_info.ui_state == UiState.OPEN
     assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.61
+    assert content.state_info.completeness == 0.28
     assert content.recovering is False
 
     assert strategy.sell_position.ui_queue.qsize() == 0
 
-    return strategy
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "4200"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
 
 
-async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
+async def cancel_untouched_buy_position(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
@@ -1835,7 +1925,43 @@ async def cancel_untouched_buy_position(strategy: HpManager) -> HpManager:
     assert strategy.buy_position.state_info.state == State.NEW
     assert strategy.state == State.NEW
 
-    return strategy
+    assert strategy.buy_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.NEW
+    assert state_info.stagnation_counter == 0
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert state_info.next_monitor_time
+
+    assert content.state_info.ui_state == UiState.STAGNATED
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.00
+    assert content.recovering is False
+
+    assert strategy.buy_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+    return strategy, hp_list
 
 
 async def cancel_untouched_sell_position(
@@ -1897,28 +2023,6 @@ async def cancel_untouched_sell_position(
     assert item["state"] == "BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
-
-    return strategy
-
-
-def assert_cancelled_untouched_position(
-    strategy: HpManager, content: PositionData
-) -> HpManager:
-    state_info = content.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.NEW
-    assert state_info.stagnation_counter == 0
-    assert state_info.stagnation_limit == 8
-    assert state_info.side == PositionSide.LONG
-    assert state_info.next_monitor_time
-
-    assert content.state_info.ui_state == UiState.STAGNATED
-    assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.00
-    assert content.recovering is False
-
-    assert strategy.buy_position.ui_queue.qsize() == 0
 
     return strategy
 

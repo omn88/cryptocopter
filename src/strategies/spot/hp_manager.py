@@ -416,7 +416,9 @@ class HpManager:
             PositionData(
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
-                hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id),
+                hp_update=HPUpdate(
+                    hp_id=self.buy_position.config.hp_id, state=self.state
+                ),
             )
         )
 
@@ -460,7 +462,7 @@ class HpManager:
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
-                    state=self.buy_position.state_info.state,
+                    state=self.state,
                 ),
             )
         )
@@ -501,7 +503,7 @@ class HpManager:
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
-                    state=self.buy_position.state_info.state,
+                    state=self.state,
                 ),
             )
         )
@@ -905,8 +907,7 @@ class HpManager:
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
                 hp_update=HPUpdate(
-                    hp_id=self.sell_position.config.hp_id,
-                    state=self.sell_position.state_info.state,
+                    hp_id=self.sell_position.config.hp_id, state=self.state
                 ),
             )
         )
@@ -999,7 +1000,7 @@ class HpManager:
                 state_info=self.sell_position.state_info,
                 hp_update=HPUpdate(
                     hp_id=self.sell_position.config.hp_id,
-                    state=self.sell_position.state_info.state,
+                    state=self.state,
                 ),
             )
         )
@@ -1209,12 +1210,27 @@ class HpManager:
         await self.buy_position.handle_order_filled(
             execution_report=self.execution_report
         )
+        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        remaining_sell_quantity = (
+            0
+            if not self.sell_position.orders
+            else self.sell_position.orders[0].realized_quantity
+        )
+        adjusted_total = 0.0
+        adjusted_real_quant = 0.0
 
-        total = 0.0
-        real_quant = 0.0
         for order in self.buy_position.orders:
-            total += order.realized_quantity * order.price
-            real_quant += order.realized_quantity
+            if remaining_sell_quantity > 0:
+                # Determine the quantity sold from this buy order
+                sold_from_order = min(order.realized_quantity, remaining_sell_quantity)
+                remaining_sell_quantity -= sold_from_order
+                effective_quantity = order.realized_quantity - sold_from_order
+            else:
+                effective_quantity = order.realized_quantity
+
+            # Update total and real quantity with adjusted values
+            adjusted_total += effective_quantity * order.price
+            adjusted_real_quant += effective_quantity
 
         self.logger.info(
             "Handler order filled BUY state info: %s", self.buy_position.state_info
@@ -1227,7 +1243,7 @@ class HpManager:
                 hp_update=HPUpdate(
                     hp_id=self.sell_position.config.hp_id,
                     buy_price=self.buy_position.config.symbol_info.adjust_price(
-                        total / real_quant
+                        adjusted_total / adjusted_real_quant
                     ),
                     quantity=self.execution_report.last_executed_quantity,
                     state=self.state,
@@ -1270,11 +1286,31 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        total = 0.0
-        real_quant = 0.0
+        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        remaining_sell_quantity = (
+            0
+            if not self.sell_position.orders
+            else self.sell_position.orders[0].realized_quantity
+        )
+        adjusted_total = 0.0
+        adjusted_real_quant = 0.0
+
         for order in self.buy_position.orders:
-            total += order.realized_quantity * order.price
-            real_quant += order.realized_quantity
+            if remaining_sell_quantity > 0:
+                # Determine the quantity sold from this buy order
+                sold_from_order = min(order.realized_quantity, remaining_sell_quantity)
+                remaining_sell_quantity -= sold_from_order
+                effective_quantity = order.realized_quantity - sold_from_order
+            else:
+                effective_quantity = order.realized_quantity
+
+            # Update total and real quantity with adjusted values
+            adjusted_total += effective_quantity * order.price
+            adjusted_real_quant += effective_quantity
+
+        self.logger.info(
+            "Handler order filled BUY state info: %s", self.buy_position.state_info
+        )
 
         self.buy_position.ui_queue.put_nowait(
             PositionData(
@@ -1283,7 +1319,7 @@ class HpManager:
                 hp_update=HPUpdate(
                     hp_id=self.buy_position.config.hp_id,
                     buy_price=self.buy_position.config.symbol_info.adjust_price(
-                        total / real_quant
+                        adjusted_total / adjusted_real_quant
                     ),
                     quantity=self.execution_report.last_executed_quantity,
                     state=self.state,
