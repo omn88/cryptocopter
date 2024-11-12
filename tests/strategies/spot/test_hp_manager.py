@@ -55,8 +55,10 @@ from tests.strategies.spot.hp_manager import (
     simulate_partial_fill_sell,
     simulate_resend_sell_position,
     simulate_second_buy_order_fill,
+    simulate_second_buy_order_fill_after_selling_half_of_first_order,
     simulate_second_buy_order_partial_fill,
     simulate_third_buy_order_fill,
+    simulate_third_buy_order_fill_after_selling_half_of_first_order,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -1488,49 +1490,26 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    strategy, hp_list = await simulate_second_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
+    (
+        strategy,
+        hp_list,
+    ) = await simulate_second_buy_order_fill_after_selling_half_of_first_order(
+        strategy=strategy,
+        hp_gui=hp_gui,
+        hp_list=hp_list,
+        order_id=445864,
+        sell_price="4200",
     )
-    strategy, hp_list = await simulate_third_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
+    (
+        strategy,
+        hp_list,
+    ) = await simulate_third_buy_order_fill_after_selling_half_of_first_order(
+        strategy=strategy,
+        hp_gui=hp_gui,
+        hp_list=hp_list,
+        order_id=445865,
+        sell_price="4200",
     )
-
-    # # Buy fully last order
-    # strategy = await buy_fully_last_order(strategy=strategy)
-
-    # assert strategy.core_queue.qsize() == 1
-    # event = strategy.core_queue.get_nowait()
-
-    # assert isinstance(event, Event)
-    # assert event.name == EventName.SIGNAL
-    # assert isinstance(event.content, SignalUpdate)
-
-    # strategy.signal_update = event.content
-
-    # await strategy.process_signal()  # type: ignore[attr-defined]
-
-    # assert strategy.state == State.PARTIALLY_SOLD
-
-    # assert strategy.buy_position.ui_queue.qsize() == 1
-
-    # content = strategy.buy_position.ui_queue.get_nowait()
-    # logger.info("Content: %s", content)
-    # assert isinstance(content, PositionData)
-    # state_info = content.state_info
-    # assert isinstance(state_info, StateInfo)
-
-    # assert state_info.state == State.BOUGHT
-    # assert state_info.stagnation_counter == 0
-    # assert state_info.stagnation_limit == 8
-    # assert state_info.side == PositionSide.LONG
-    # assert state_info.next_monitor_time
-
-    # assert content.state_info.ui_state == UiState.CLOSED
-    # assert content.order_cancel == 2.0
-    # assert content.state_info.completeness == 1.0
-    # assert content.recovering is False
-
-    # assert strategy.buy_position.ui_queue.qsize() == 0
 
 
 # async def test_sell_fully_partially_bought_position(
