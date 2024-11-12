@@ -1317,10 +1317,14 @@ async def test_cancel_buy_to_part_sold_part_bought(
     logger.info("HP List after the update: %s", hp_list)
 
     # Cancel Sell position
-    strategy, hp_list = await cancel_sell_position_part_bought_part_sold(strategy=strategy, hp_gui=hp_gui, hp_list=hp_list)
+    strategy, hp_list = await cancel_sell_position_part_bought_part_sold(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
     # Reopen Buy position
-    strategy, hp_list = await reopen_buy_part_bought_part_sold(strategy=strategy, hp_gui=hp_gui, hp_list=hp_list)
+    strategy, hp_list = await reopen_buy_part_bought_part_sold(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
     # Buy partially second order
     strategy, hp_list = await simulate_second_buy_order_partial_fill(
@@ -1383,102 +1387,150 @@ async def test_cancel_buy_to_part_sold_part_bought(
     logger.info("HP List after the update: %s", hp_list)
 
 
-# async def test_buy_fully_partially_sold_position(
-#     trading_system_factory,
-# ) -> None:
-#     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-#     strategy = trading_system.model
-#     assert isinstance(strategy, HpManager)
-#     strategy = await simulate_partially_bought_position(strategy=strategy)
+async def test_buy_fully_partially_sold_position(
+    trading_system_factory, hp_gui: HPGUI
+) -> None:
+    # Path 0: Default buy position
+    hp_list: List[Dict] = []
+    trading_system: AsyncMachine = get_default_buy_position(
+        trading_system_factory, hp_list
+    )
+    strategy = trading_system.model
+    assert isinstance(strategy, HpManager)
 
-#     assert strategy.state == State.PARTIALLY_BOUGHT
-#     strategy = await simulate_move_to_sell_from_partially_bought_position(
-#         strategy=strategy
-#     )
+    strategy, hp_list = assert_default_buy_position_data(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     # Buy half of available quantity
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-#         order_id=445863,
-#         last_executed_quantity=0.26,
-#         last_executed_price=4200,
-#         cumulative_filled_quantity=0.26,
-#     )
+    # Path 1: Send buy orders
 
-#     assert strategy.state == State.SELLING
-#     await strategy.process_order()  # type: ignore[attr-defined]
+    strategy, hp_list = await move_to_buy_position_active(
+        strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     logger.info("Orders: %s", strategy.sell_position.orders)
-#     assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
-#     assert strategy.sell_position.orders[0].quantity == 0.52
-#     assert strategy.sell_position.orders[0].realized_quantity == 0.26
-#     assert strategy.state == State.SELLING
-#     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
-#     assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
+    # Simulate full order fill
+    strategy, hp_list = await simulate_first_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+    )
 
-#     assert strategy.buy_position.ui_queue.qsize() == 1
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
+    # Cancel partially bought position
+    strategy = await cancel_partially_bought_position_first_order_filled(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert state_info.state == State.PARTIALLY_SOLD
-#     assert state_info.stagnation_counter == 0
-#     assert state_info.stagnation_limit == 8
-#     assert state_info.side == PositionSide.SHORT
-#     assert state_info.next_monitor_time
+    strategy, hp_list = await send_sell_orders_for_partially_bought_position(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert content.state_info.ui_state == UiState.OPEN
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 0.5
-#     assert content.recovering is False
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.12,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.12,
+    )
 
-#     assert strategy.buy_position.ui_queue.qsize() == 0
+    assert strategy.state == State.SELLING
+    await strategy.process_order()  # type: ignore[attr-defined]
 
-#     # Cancel Sell position
-#     strategy = await cancel_sell_position_part_bought_part_sold(strategy=strategy)
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.sell_position.orders[0].quantity == 0.24
+    assert strategy.sell_position.orders[0].realized_quantity == 0.12
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy_position.state_info.state == State.PARTIALLY_BOUGHT
 
-#     # Reopen Buy position
-#     strategy = await reopen_buy_part_bought_part_sold(strategy=strategy)
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
 
-#     # Buy fully last order
-#     strategy = await buy_fully_last_order(strategy=strategy)
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
 
-#     assert strategy.core_queue.qsize() == 1
-#     event = strategy.core_queue.get_nowait()
+    assert state_info.next_monitor_time
+    assert state_info.state == State.PARTIALLY_SOLD
+    assert content.state_info.side == PositionSide.SHORT
+    assert content.state_info.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.5
+    assert content.recovering is False
 
-#     assert isinstance(event, Event)
-#     assert event.name == EventName.SIGNAL
-#     assert isinstance(event.content, SignalUpdate)
+    assert strategy.sell_position.ui_queue.qsize() == 0
 
-#     strategy.signal_update = event.content
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-#     await strategy.process_signal()  # type: ignore[attr-defined]
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "4200"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
 
-#     assert strategy.state == State.PARTIALLY_SOLD
+    logger.info("HP List after the update: %s", hp_list)
 
-#     assert strategy.buy_position.ui_queue.qsize() == 1
+    # Cancel Sell position
+    strategy, hp_list = await cancel_sell_position_part_bought_part_sold(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     content = strategy.buy_position.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, PositionData)
-#     state_info = content.state_info
-#     assert isinstance(state_info, StateInfo)
+    # Reopen Buy position
+    strategy, hp_list = await reopen_buy_part_bought_part_sold(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
+    )
 
-#     assert state_info.state == State.BOUGHT
-#     assert state_info.stagnation_counter == 0
-#     assert state_info.stagnation_limit == 8
-#     assert state_info.side == PositionSide.LONG
-#     assert state_info.next_monitor_time
+    strategy, hp_list = await simulate_second_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
+    )
+    strategy, hp_list = await simulate_third_buy_order_fill(
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
+    )
 
-#     assert content.state_info.ui_state == UiState.CLOSED
-#     assert content.order_cancel == 2.0
-#     assert content.state_info.completeness == 1.0
-#     assert content.recovering is False
+    # # Buy fully last order
+    # strategy = await buy_fully_last_order(strategy=strategy)
 
-#     assert strategy.buy_position.ui_queue.qsize() == 0
+    # assert strategy.core_queue.qsize() == 1
+    # event = strategy.core_queue.get_nowait()
+
+    # assert isinstance(event, Event)
+    # assert event.name == EventName.SIGNAL
+    # assert isinstance(event.content, SignalUpdate)
+
+    # strategy.signal_update = event.content
+
+    # await strategy.process_signal()  # type: ignore[attr-defined]
+
+    # assert strategy.state == State.PARTIALLY_SOLD
+
+    # assert strategy.buy_position.ui_queue.qsize() == 1
+
+    # content = strategy.buy_position.ui_queue.get_nowait()
+    # logger.info("Content: %s", content)
+    # assert isinstance(content, PositionData)
+    # state_info = content.state_info
+    # assert isinstance(state_info, StateInfo)
+
+    # assert state_info.state == State.BOUGHT
+    # assert state_info.stagnation_counter == 0
+    # assert state_info.stagnation_limit == 8
+    # assert state_info.side == PositionSide.LONG
+    # assert state_info.next_monitor_time
+
+    # assert content.state_info.ui_state == UiState.CLOSED
+    # assert content.order_cancel == 2.0
+    # assert content.state_info.completeness == 1.0
+    # assert content.recovering is False
+
+    # assert strategy.buy_position.ui_queue.qsize() == 0
 
 
 # async def test_sell_fully_partially_bought_position(
