@@ -1021,6 +1021,65 @@ async def send_sell_orders_for_partially_bought_position(
     return strategy, hp_list
 
 
+async def sell_partially_partially_bought_position(
+    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+) -> Tuple[HpManager, List[Dict]]:
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+        order_id=445863,
+        last_executed_quantity=0.12,
+        last_executed_price=4200,
+        cumulative_filled_quantity=0.12,
+    )
+    await strategy.process_order()  # type: ignore[attr-defined]
+
+    logger.info("Orders: %s", strategy.sell_position.orders)
+    assert strategy.sell_position.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
+    assert strategy.sell_position.orders[0].quantity == 0.24
+    assert strategy.sell_position.orders[0].realized_quantity == 0.12
+    assert strategy.state == State.SELLING
+    assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
+
+    assert strategy.sell_position.ui_queue.qsize() == 1
+    content = strategy.buy_position.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, PositionData)
+
+    state_info = content.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.next_monitor_time
+    assert state_info.state == State.PARTIALLY_SOLD
+    assert content.state_info.side == PositionSide.SHORT
+    assert content.state_info.ui_state == UiState.OPEN
+    assert content.order_cancel == 2.0
+    assert content.state_info.completeness == 0.5
+    assert content.recovering is False
+
+    assert strategy.sell_position.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "4200"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
+
+
 async def cancel_unfilled_sell_orders_for_partially_bought_position(
     strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
