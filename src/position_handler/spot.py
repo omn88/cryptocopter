@@ -12,7 +12,7 @@ from src.common.identifiers.spot import (
     Order,
     UiState,
 )
-from src.gui.identifiers.spot import PositionData
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.order_handler.spot import OrderHandler
 
 
@@ -47,6 +47,7 @@ class PositionHandler:
             self.state_info.side,
             self.config.hp_id,
         )
+        self.state_info.stagnation_counter = 0
 
         self.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.config.symbol_info.symbol,
@@ -68,21 +69,15 @@ class PositionHandler:
                     )
                 )
 
+        self.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.state_info.ui_state = UiState.STAGNATED
+
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
-        )
-
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                ui_state=UiState.STAGNATED,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
-            )
         )
 
     async def handle_order_partially_filled(
@@ -97,26 +92,20 @@ class PositionHandler:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
+        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
         self.state_info.stagnation_counter = 0
         self.state_info.generate_next_monitor_time()
+        self.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.state_info.ui_state = UiState.OPEN
+
         self.db.run_db_task(
             self.db.update_price_level(config=self.config, state_info=self.state_info)
         )
 
-        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
-            )
-        )
         self.db.run_db_task(
             self.db.update_order(
                 order_id=execution_report.order_id,
@@ -132,36 +121,38 @@ class PositionHandler:
         )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        self.state_info.stagnation_counter = 0
-        self.state_info.generate_next_monitor_time()
-        self.db.run_db_task(
-            self.db.update_price_level(config=self.config, state_info=self.state_info)
-        )
         for order in self.orders:
             if execution_report.order_id == order.order_id:
                 order.status = execution_report.current_order_status
                 order.price = execution_report.price
                 order.realized_quantity = execution_report.cumulative_filled_quantity
                 logger.info(
-                    "Order: %s filled, symbol: %s, price: %s",
+                    "Order: %s filled, symbol: %s, price: %s, status: %s",
                     order.order_id,
                     execution_report.symbol,
                     order.price,
+                    order.status,
                 )
 
-        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=self.config,
-                state_info=self.state_info,
-                ui_state=UiState.OPEN,
-                completeness=round(
-                    sum(order.realized_quantity for order in self.orders)
-                    / sum(order.quantity for order in self.orders),
-                    2,
-                ),
-            )
+        self.state_info.ui_state = UiState.OPEN
+        self.state_info.stagnation_counter = 0
+        self.state_info.generate_next_monitor_time()
+
+        completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
         )
+
+        self.state_info.completeness = completeness
+
+        logger.info("Completeness: %s", completeness)
+
+        self.db.run_db_task(
+            self.db.update_price_level(config=self.config, state_info=self.state_info)
+        )
+
+        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
 
         self.db.run_db_task(
             self.db.update_order(

@@ -19,7 +19,6 @@ from src.common.identifiers.spot import (
     AllTickers,
     Event,
     EventName,
-    HPUpdate,
     LoadConfig,
     RemoveRecord,
     SaveConfig,
@@ -32,6 +31,7 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
     ActivePosition,
     ArchivedPosition,
+    HPUpdate,
     IdlePosition,
     PositionData,
 )
@@ -67,6 +67,7 @@ class HpManager(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
+        test_mode=False,  # Add a test_mode parameter
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -80,13 +81,24 @@ class HpManager(BoxLayout):
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
-        asyncio.create_task(self.update_ui())
-        asyncio.create_task(self.refresh_ui())
+        # Suppress GUI initialization when in test mode
+        if not test_mode:
+            # Create the SearchableDropDown instance with the client
+            self.symbol_input = SearchableDropDown(
+                client=self.client, options=self.symbols
+            )
+            # Add it to the layout where needed
+            self.ids.symbol_container.add_widget(self.symbol_input)
 
-        # Create the SearchableDropDown instance with the client
-        self.symbol_input = SearchableDropDown(client=self.client, options=self.symbols)
-        # Add it to the layout where needed
-        self.ids.symbol_container.add_widget(self.symbol_input)
+        # Do not start async tasks in the constructor
+        self.is_tasks_initialized = False
+
+    def initialize_tasks(self):
+        # Separate method to start async tasks
+        if not self.is_tasks_initialized:
+            asyncio.create_task(self.update_ui())
+            asyncio.create_task(self.refresh_ui())
+            self.is_tasks_initialized = True
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
@@ -108,52 +120,72 @@ class HpManager(BoxLayout):
             )
         )
 
-    def update_hp_list(self, data: HPUpdate):
+    def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
 
-        list_of_hp_ids = [int(item["hp_id"]) for item in self.hp_list_data]
-
+        list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
         logger.info("List of HP IDs: %s", list_of_hp_ids)
 
-        if int(data.hp_id) not in list_of_hp_ids:
+        logger.info("update: %s", update)
+
+        if int(update.hp_id) not in list_of_hp_ids:
             hp_record = {
                 "hp_manager": self,
-                "hp_id": str(data.hp_id),
-                "asset": str(data.asset),
-                "buy_price": str(data.buy_price),
-                "quantity": str(data.quantity),
-                "quantity_usdt": str(data.quantity_usdt),
-                "sell_price": str(data.sell_price),
-                "expected_return": str(data.expected_return),
-                "current_price": str(data.current_price),  # Include current price
-                "net": str(data.net),  # Include net value
-                "net_percent": str(data.net_percent),  # Include net percentage
-                "state": str(data.state.value),  # Include the state of the position
+                "hp_id": str(update.hp_id),
+                "asset": str(update.asset),
+                "buy_price": str(update.buy_price),
+                "quantity": str(update.quantity),
+                "quantity_usdt": str(update.quantity_usdt),
+                "sell_price": str(update.sell_price),
+                "expected_return": str(update.expected_return),
+                "current_price": str(update.current_price),  # Include current price
+                "net": str(update.net),  # Include net value
+                "net_percent": str(update.net_percent),  # Include net percentage
+                "state": str(update.state.value),  # Include the state of the position
             }
 
-            self.hp_list_data.append(hp_record)
-
-            logger.info("Added new HP %s to %s", hp_record, self.hp_list_data)
+            hp_list.append(hp_record)
+            logger.info("Added new HP %s to %s", hp_record, hp_list)
         else:
             logger.info("HP is already in the list, time to update")
-            for index, hp in enumerate(self.hp_list_data):
+            for index, hp in enumerate(hp_list):
                 logger.info("Checking item %s, %s", index, hp)
-                if hp["hp_id"] == data.hp_id:
-                    logger.info("Found a match with hp id: %s", data.hp_id)
+                if hp["hp_id"] == update.hp_id:
+                    logger.info(
+                        "Found a match with hp id: %s, quantity: %s",
+                        update.hp_id,
+                        update.quantity,
+                    )
                     # Update hp fields
-                    hp["buy_price"] = str(data.buy_price)
-                    hp["quantity"] = str(data.quantity)
-                    hp["quantity_usdt"] = str(data.quantity_usdt)
-                    hp["sell_price"] = str(data.sell_price)
-                    hp["expected_return"] = str(data.expected_return)
-                    hp["current_price"] = str(
-                        data.current_price
-                    )  # Include current price
-                    hp["net"] = str(data.net)  # Include net value
-                    hp["net_percent"] = str(data.net_percent)  # Include net percentage
-                    hp["state"] = str(
-                        data.state.value
-                    )  # Include the state of the position
+                    if update.buy_price:
+                        hp["buy_price"] = str(update.buy_price)
+                    if update.quantity:
+                        hp["quantity"] = str(
+                            self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
+                                float(hp["quantity"]) + update.quantity
+                            )
+                        )
+                    if update.sell_price:
+                        hp["sell_price"] = str(update.sell_price)
+                    if update.expected_return:
+                        hp["expected_return"] = str(update.expected_return)
+                    if update.state.value:
+                        hp["state"] = str(
+                            update.state.value
+                        )  # Include the state of the position
+
+                    hp["quantity_usdt"] = str(
+                        self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
+                            float(hp["buy_price"]) * float(hp["quantity"])
+                        )
+                    )
+
+                    logger.info(
+                        "Buy price: %s, Quantity: %s, total: %s",
+                        hp["buy_price"],
+                        hp["quantity"],
+                        hp["quantity_usdt"],
+                    )
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
                     if (
@@ -161,8 +193,10 @@ class HpManager(BoxLayout):
                         and float(hp["quantity"]) == 0.0
                     ):
                         logger.info("State closed, removing item with index %s", index)
-                        self.hp_list_data.pop(index)
+                        hp_list.pop(index)
                     break  # Exit the loop once the correct item is found and processed
+
+        return hp_list
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
@@ -177,14 +211,49 @@ class HpManager(BoxLayout):
                 if isinstance(data, HPUpdate):
                     logger.info("Received HP Update: %s", data)
 
-                    self.update_hp_list(data=data)
+                    self.hp_list_data = self.update_hp_list(
+                        update=data, hp_list=self.hp_list_data
+                    )
 
                     # Refresh the RecycleView or ListView in the UI to reflect new data
                     self.ids.hp_list.refresh_from_data()
 
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
-                    # if data.recovering:
+                    self.hp_list_data = self.update_hp_list(
+                        update=data.hp_update, hp_list=self.hp_list_data
+                    )
+                    if any(
+                        record["hp_id"] == data.config.hp_id
+                        for record in self.active_records
+                    ):
+                        logger.info(
+                            "Record %s found in active records", data.config.hp_id
+                        )
+                        self.update_active_position(data=data)
+
+                    if any(
+                        record["hp_id"] == data.config.hp_id
+                        for record in self.idle_records
+                    ):
+                        logger.info(
+                            "Record %s found in idle records", data.config.hp_id
+                        )
+                        self.update_idle_position(data=data)
+                    else:
+                        if data.state_info.ui_state in [UiState.NEW, None]:
+                            logger.info(
+                                "New position added to Idle, system id: %s",
+                                data.config.hp_id,
+                            )
+                            self.add_new_position_to_idle(data=data)
+                        if data.state_info.ui_state == UiState.OPEN:
+                            logger.info(
+                                "New position added to Active, system id: %s",
+                                data.config.hp_id,
+                            )
+                            self.add_new_position_to_active(data=data)
+                            # if data.recovering:
                     #     if data.ui_state == UiState.OPEN:
                     #         logger.info(
                     #             "Recovering position to active tab in GUI: %s", data
@@ -195,51 +264,13 @@ class HpManager(BoxLayout):
                     #             "Recovering position to idle tab in GUI: %s", data
                     #         )
                     #         self.recovery_to_idle(data=data)
-
-                    if any(
-                        record["hp_id"] == data.config.hp_id
-                        for record in self.active_records
-                    ):
-                        logger.info(
-                            "Record %s found in active records", data.config.hp_id
-                        )
-                        self.update_active_position(data=data)
-                    if any(
-                        record["hp_id"] == data.config.hp_id
-                        for record in self.idle_records
-                    ):
-                        logger.info(
-                            "Record %s found in idle records", data.config.hp_id
-                        )
-                        self.update_idle_position(data=data)
-                    else:
-                        if data.ui_state in [UiState.NEW, None]:
-                            logger.info(
-                                "New position added to Idle, system id: %s",
-                                data.config.hp_id,
-                            )
-                            self.add_new_position_to_idle(data=data)
-                            self.ui_queue.put_nowait(
-                                HPUpdate(
-                                    hp_id=data.config.hp_id,
-                                    asset=data.config.symbol_info.symbol[:-4],
-                                    buy_price=0,
-                                    quantity=0,
-                                    quantity_usdt=0,
-                                )
-                            )
-                        if data.ui_state == UiState.OPEN:
-                            logger.info(
-                                "New position added to Active, system id: %s",
-                                data.config.hp_id,
-                            )
-                            self.add_new_position_to_active(data=data)
                     logger.info(
                         "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
                         self.idle_records,
                         self.archive_records,
                     )
+                    logger.info("HP LIST: %s", self.hp_list_data)
 
                 if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                     for strategy in self.active_records:
@@ -247,24 +278,22 @@ class HpManager(BoxLayout):
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
                             if symbol == strategy["symbol"]:
-                                price = str(
+                                strategy["current_price"] = str(
                                     self.symbols_info[symbol].adjust_price(
                                         price=float(ticker["c"])
                                     )
                                 )
-                                strategy["current_price"] = price
 
                     for strategy in self.idle_records:
                         assert isinstance(data.content, AllTickers)
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
                             if symbol == strategy["symbol"]:
-                                price = str(
+                                strategy["current_price"] = str(
                                     self.symbols_info[symbol].adjust_price(
                                         price=float(ticker["c"])
                                     )
                                 )
-                                strategy["current_price"] = price
 
                     for strategy in self.hp_list_data:
                         assert isinstance(data.content, AllTickers)
@@ -354,14 +383,6 @@ class HpManager(BoxLayout):
             SellConfig(
                 config=config,
                 state_info=state_info,
-            )
-        )
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=config,
-                state_info=state_info,
-                ui_state=UiState.NEW,
-                completeness=0,
             )
         )
 
@@ -547,8 +568,8 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.ui_state),
-                completeness=str(data.completeness),
+                state=str(data.state_info.ui_state),
+                completeness=str(data.state_info.completeness),
             ).to_dict()
         )
         self.filter_records("idle", "All")
@@ -574,8 +595,8 @@ class HpManager(BoxLayout):
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                completeness=str(data.completeness),
-                state=str(data.ui_state),
+                completeness=str(data.state_info.completeness),
+                state=str(data.state_info.ui_state),
             ).to_dict()
         )
         self.filter_records("active", "All")
@@ -594,7 +615,7 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_trigger=str(data.config.order_trigger),
-                completeness=str(data.completeness),
+                completeness=str(data.state_info.completeness),
             ).to_dict()
         )
         self.filter_records("archive", "All")
@@ -620,8 +641,8 @@ class HpManager(BoxLayout):
                 budget=str(data.config.budget),
                 order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                 stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                completeness=str(data.completeness),
-                state=str(data.ui_state),
+                completeness=str(data.state_info.completeness),
+                state=str(data.state_info.ui_state),
             ).to_dict()
         )
         self.filter_records("active", "All")
@@ -646,8 +667,8 @@ class HpManager(BoxLayout):
                 price_high=str(data.config.price_high),
                 budget=str(data.config.budget),
                 order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.ui_state),
-                completeness=str(data.completeness),
+                state=str(data.state_info.ui_state),
+                completeness=str(data.state_info.completeness),
             ).to_dict()
         )
         self.filter_records("idle", "All")
@@ -663,10 +684,10 @@ class HpManager(BoxLayout):
             ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
-                position["completeness"] = str(data.completeness)
-                position["state"] = str(data.ui_state)
+                position["completeness"] = str(data.state_info.completeness)
+                position["state"] = str(data.state_info.ui_state)
 
-                if data.ui_state == UiState.CLOSED:
+                if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
@@ -682,11 +703,11 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
-                        completeness=str(data.completeness),
+                        completeness=str(data.state_info.completeness),
                     )
                     self.archive_records.append(archived_position.to_dict())
                     logger.info("Archiving price level: %s", archived_position)
-                    if data.completeness == 1.0:
+                    if data.state_info.completeness == 1.0:
                         self.config_queue.put_nowait(
                             RemoveRecord(
                                 hp_id=data.config.hp_id,
@@ -696,7 +717,7 @@ class HpManager(BoxLayout):
                         )
 
                         self.filter_records("archive", "All")
-                if data.ui_state == UiState.STAGNATED:
+                if data.state_info.ui_state == UiState.STAGNATED:
                     trigger_price = data.config.symbol_info.adjust_price(
                         (
                             (1 + (data.config.order_trigger / 100))
@@ -718,8 +739,8 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                        state=str(data.ui_state),
-                        completeness=str(data.completeness),
+                        state=str(data.state_info.ui_state),
+                        completeness=str(data.state_info.completeness),
                     )
                     self.idle_records.append(idle_position.to_dict())
                     logger.info("Price level stagnated: %s", idle_position)
@@ -737,10 +758,10 @@ class HpManager(BoxLayout):
             ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
-                position["completeness"] = str(data.completeness)
-                position["state"] = str(data.ui_state)
-                logger.info("Data state: %s", data.ui_state)
-                if data.ui_state == UiState.OPEN:
+                position["completeness"] = str(data.state_info.completeness)
+                position["state"] = str(data.state_info.ui_state)
+                logger.info("Data state: %s", data.state_info.ui_state)
+                if data.state_info.ui_state == UiState.OPEN:
                     self.idle_records.remove(position)
                     cancel_price = data.config.symbol_info.adjust_price(
                         (
@@ -762,12 +783,12 @@ class HpManager(BoxLayout):
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                         stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                        completeness=str(data.completeness),
-                        state=str(data.ui_state),
+                        completeness=str(data.state_info.completeness),
+                        state=str(data.state_info.ui_state),
                     )
                     self.active_records.append(active_position.to_dict())
                     logger.info("Activating price level: %s", active_position)
-                if data.ui_state == UiState.CLOSED:
+                if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
@@ -783,7 +804,7 @@ class HpManager(BoxLayout):
                         price_high=str(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
-                        completeness=str(data.completeness),
+                        completeness=str(data.state_info.completeness),
                     )
                     self.archive_records.append(archived_position.to_dict())
                     logger.info("Archiving price level: %s", archived_position)

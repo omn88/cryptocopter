@@ -1,14 +1,21 @@
+import os
+
+# Use dummy window for Kivy in headless testing
+os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
 import logging
 import queue
-from typing import Dict
+from typing import AsyncGenerator, Dict, List
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
 import pytest
+from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
-from src.strategies.spot.hp_manager import HpManager
+from src.common.common import generate_hp_id
+from src.common.symbol_info import SymbolInfo
+from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.common.database import Database
 from src.common.identifiers.futures import (
     Event,
@@ -16,7 +23,7 @@ from src.common.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.spot import HPConfig, SellConfig, StateInfo
+from src.common.identifiers.spot import HPConfig, SellConfig, State, StateInfo
 from src.common.identifiers.futures import StrategyConfig as ConfigFutures
 from src.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -25,6 +32,7 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.gui.hpmanager import HpManager as HPGUI
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -94,7 +102,7 @@ async def test_db():
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
     def create_trading_system(
-        hp_config: HPConfig, state_info: StateInfo, balance: float = 10000
+        hp_config: HPConfig, hp_list: List[HPUpdate], balance: float = 10000
     ):
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
@@ -106,7 +114,7 @@ def trading_system_factory(mock_AsyncClient):
             logger=StrategyLogger(name="test"),
             db=test_db,
             core_queue=queue.Queue(),
-            state_info=state_info,
+            state_info=StateInfo(),
         )
 
         strategy.buy_position.orders = (
@@ -126,9 +134,43 @@ def trading_system_factory(mock_AsyncClient):
             queued=True,
         )
 
+        ui_queue.put_nowait(
+            PositionData(
+                config=hp_config,
+                state_info=strategy.buy_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=generate_hp_id(hp_list=hp_list),
+                    asset=strategy.buy_position.config.symbol_info.symbol[:-4],
+                    state=State.NEW,
+                ),
+            )
+        )
+
         return state_machine
 
     return create_trading_system
+
+
+@pytest.fixture
+async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
+    with patch("kivy.base.EventLoop.ensure_window"):
+        # Set up a mock HpManager instance
+        mock_config_queue = MagicMock()
+        mock_ui_queue = MagicMock()
+
+        hp_manager = HPGUI(
+            client=mock_AsyncClient,
+            strategy_logger=MagicMock(),
+            strategy_id="test_strategy",
+            config_queue=mock_config_queue,
+            ui_queue=mock_ui_queue,
+            symbols_info={
+                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
+            },
+            test_mode=True,
+        )
+
+        yield hp_manager
 
 
 @pytest.fixture

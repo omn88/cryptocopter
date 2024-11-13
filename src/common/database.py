@@ -7,8 +7,8 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.common.identifiers.spot import HPUpdate, Order, StateInfo
-from src.common.identifiers.spot import HPConfig
+from src.common.identifiers.spot import Order, StateInfo, HPConfig
+from src.gui.identifiers.spot import HPUpdate
 
 logger = logging.getLogger("database")
 
