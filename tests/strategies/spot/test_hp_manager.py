@@ -1,7 +1,6 @@
 import datetime
 import logging
 from typing import Dict, List
-
 from binance.enums import (
     ORDER_TYPE_LIMIT,
     ORDER_STATUS_FILLED,
@@ -23,7 +22,6 @@ from src.common.identifiers.spot import (
     TickerUpdate,
     UiState,
 )
-from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.gui.hpmanager import HpManager as HPGUI

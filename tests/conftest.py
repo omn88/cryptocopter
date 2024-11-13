@@ -1,10 +1,14 @@
+import os
+# Use dummy window for Kivy in headless testing
+os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
 import logging
 import queue
-from typing import Dict, List
+from typing import AsyncGenerator, Dict, List
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
 import pytest
+from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
@@ -147,24 +151,25 @@ def trading_system_factory(mock_AsyncClient):
 
 
 @pytest.fixture
-async def hp_gui(mock_AsyncClient) -> HPGUI:
-    # Set up a mock HpManager instance
-    mock_config_queue = MagicMock()
-    mock_ui_queue = MagicMock()
+async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
+    with patch('kivy.base.EventLoop.ensure_window'):
+        # Set up a mock HpManager instance
+        mock_config_queue = MagicMock()
+        mock_ui_queue = MagicMock()
 
-    hp_manager = HPGUI(
-        client=mock_AsyncClient,
-        strategy_logger=MagicMock(),
-        strategy_id="test_strategy",
-        config_queue=mock_config_queue,
-        ui_queue=mock_ui_queue,
-        symbols_info={
-            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
-        },
-        test_mode=True,
-    )
+        hp_manager = HPGUI(
+            client=mock_AsyncClient,
+            strategy_logger=MagicMock(),
+            strategy_id="test_strategy",
+            config_queue=mock_config_queue,
+            ui_queue=mock_ui_queue,
+            symbols_info={
+                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
+            },
+            test_mode=True,
+        )
 
-    return hp_manager
+        yield hp_manager
 
 
 @pytest.fixture
