@@ -10,6 +10,7 @@ from decouple import Config, RepositoryEnv
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
+from src.common.common import generate_hp_id
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
@@ -537,21 +538,6 @@ class StrategyExecutor:
             self.logger.info("All HPs send to UI.")
         else:
             self.logger.info("No records found in the HP list table.")
-
-
-def generate_hp_id(hp_list: List[HPUpdate]) -> str:
-    """
-    Generate the next HP ID starting from 1000.
-    It checks the list of HP entries to find the highest existing ID.
-    """
-    if not hp_list:
-        return "1000"  # Start from 1000 if no entries are present
-
-    # Extract all the existing HP IDs
-    hp_ids = [int(entry.hp_id) for entry in hp_list]
-
-    # Get the highest HP ID and increment it
-    return str(max(hp_ids) + 1)
 
 
 def get_hp_list():

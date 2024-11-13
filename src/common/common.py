@@ -2,11 +2,28 @@ import errno
 import logging
 import os
 from datetime import datetime, timezone
+from typing import List
 import pytz
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import Signal, State
+from src.gui.identifiers.spot import HPUpdate
 
 logger = logging.getLogger("common")
+
+
+def generate_hp_id(hp_list: List[HPUpdate]) -> str:
+    """
+    Generate the next HP ID starting from 1000.
+    It checks the list of HP entries to find the highest existing ID.
+    """
+    if not hp_list:
+        return "1000"  # Start from 1000 if no entries are present
+
+    # Extract all the existing HP IDs
+    hp_ids = [int(entry.hp_id) for entry in hp_list]
+
+    # Get the highest HP ID and increment it
+    return str(max(hp_ids) + 1)
 
 
 def create_directory_with_timestamp():
