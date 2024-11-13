@@ -1,4 +1,5 @@
 import os
+
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
@@ -152,7 +153,7 @@ def trading_system_factory(mock_AsyncClient):
 
 @pytest.fixture
 async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
-    with patch('kivy.base.EventLoop.ensure_window'):
+    with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
         mock_ui_queue = MagicMock()
