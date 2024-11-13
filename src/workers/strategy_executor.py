@@ -60,7 +60,7 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict[str, TradingSystem] = {}
         self.symbols_info = symbols_info
-        self.hp_list_data: List[HPUpdate] = []
+        self.hp_configurations: List[HPConfig] = []
         self.balances = balances
 
         self.loop = None
@@ -149,13 +149,16 @@ class StrategyExecutor:
     ) -> None:
         self.logger.info("Initializing trading system: %s", new_record.config)
 
-        if not new_record.state_info.open_time:
+        self.hp_configurations.append(new_record.config)
+
+        if not new_record.config.hp_id:
+            self.logger.info("New HP ID to be generated")
+            new_record.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
             new_record.state_info.open_time = datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
-            new_record.state_info.state = State.NEW
-            new_record.state_info.side = PositionSide.LONG
-            new_record.config.hp_id = generate_hp_id(hp_list=self.hp_list_data)
+
+        self.logger.info("NEW HP ID: %s", new_record.config.hp_id)
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
@@ -487,57 +490,57 @@ class StrategyExecutor:
     #         logger.error("Failed to retrieve USDT balance: %s", e)
     #         raise e
 
-    def initialize_hp_list(self) -> None:
-        """
-        Initialize the HP list by fetching data from the database and populating the UI.
-        """
+    # def initialize_hp_list(self) -> None:
+    #     """
+    #     Initialize the HP list by fetching data from the database and populating the UI.
+    #     """
 
-        self.db.run_db_task(self.db.create_hp_list_table())
+    #     self.db.run_db_task(self.db.create_hp_list_table())
 
-        # Fetch existing records from the database
-        hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
-        if not hp_list_from_db:
-            logger.info("Creating new list.")
-            hp_list_raw: List[Dict] = get_hp_list()
+    #     # Fetch existing records from the database
+    #     hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
+    #     if not hp_list_from_db:
+    #         logger.info("Creating new list.")
+    #         hp_list_raw: List[Dict] = get_hp_list()
 
-            for item in hp_list_raw:
-                hp_update = HPUpdate(
-                    hp_id=generate_hp_id(hp_list=self.hp_list_data),
-                    asset=item["Asset"],
-                    buy_price=float(item["Price"]),
-                    quantity=float(item["Quantity"]),
-                    quantity_usdt=round(
-                        float(item["Price"]) * float(item["Quantity"]), 2
-                    ),
-                    sell_price=0,
-                    expected_return=0,
-                    state=State.NEW,
-                )
-                self.hp_list_data.append(hp_update)
-                self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
-        else:
-            logger.info("Reading list from the DB.")
-            for item in hp_list_from_db:
-                self.hp_list_data.append(
-                    HPUpdate(
-                        hp_id=item["hp_id"],
-                        asset=item["asset"],
-                        buy_price=float(item["buy_price"]),
-                        quantity=float(item["quantity"]),
-                        quantity_usdt=float(item["quantity_usdt"]),
-                        sell_price=0,
-                        expected_return=0,
-                        state=State.NEW,
-                    )
-                )
+    #         for item in hp_list_raw:
+    #             hp_update = HPUpdate(
+    #                 hp_id=generate_hp_id(hp_list=self.hp_configurations),
+    #                 asset=item["Asset"],
+    #                 buy_price=float(item["Price"]),
+    #                 quantity=float(item["Quantity"]),
+    #                 quantity_usdt=round(
+    #                     float(item["Price"]) * float(item["Quantity"]), 2
+    #                 ),
+    #                 sell_price=0,
+    #                 expected_return=0,
+    #                 state=State.NEW,
+    #             )
+    #             self.hp_configurations.append(hp_update)
+    #             self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
+    #     else:
+    #         logger.info("Reading list from the DB.")
+    #         for item in hp_list_from_db:
+    #             self.hp_configurations.append(
+    #                 HPUpdate(
+    #                     hp_id=item["hp_id"],
+    #                     asset=item["asset"],
+    #                     buy_price=float(item["buy_price"]),
+    #                     quantity=float(item["quantity"]),
+    #                     quantity_usdt=float(item["quantity_usdt"]),
+    #                     sell_price=0,
+    #                     expected_return=0,
+    #                     state=State.NEW,
+    #                 )
+    #             )
 
-        if self.hp_list_data:
-            self.logger.debug("HP list records found: %s", self.hp_list_data)
-            for record in self.hp_list_data:
-                self.ui_queue.put_nowait(record)
-            self.logger.info("All HPs send to UI.")
-        else:
-            self.logger.info("No records found in the HP list table.")
+    #     if self.hp_list_data:
+    #         self.logger.debug("HP list records found: %s", self.hp_list_data)
+    #         for record in self.hp_list_data:
+    #             self.ui_queue.put_nowait(record)
+    #         self.logger.info("All HPs send to UI.")
+    #     else:
+    #         self.logger.info("No records found in the HP list table.")
 
 
 def get_hp_list():

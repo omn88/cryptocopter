@@ -101,9 +101,7 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
-    def create_trading_system(
-        hp_config: HPConfig, hp_list: List[HPUpdate], balance: float = 10000
-    ):
+    def create_trading_system(hp_config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
         strategy = StrategyHP(
@@ -116,7 +114,7 @@ def trading_system_factory(mock_AsyncClient):
             core_queue=queue.Queue(),
             state_info=StateInfo(),
         )
-
+        strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[hp_config])
         strategy.buy_position.orders = (
             strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
         )
@@ -139,7 +137,7 @@ def trading_system_factory(mock_AsyncClient):
                 config=hp_config,
                 state_info=strategy.buy_position.state_info,
                 hp_update=HPUpdate(
-                    hp_id=generate_hp_id(hp_list=hp_list),
+                    hp_id=strategy.buy_position.config.hp_id,
                     asset=strategy.buy_position.config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),

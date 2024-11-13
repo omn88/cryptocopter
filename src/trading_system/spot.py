@@ -88,11 +88,18 @@ class TradingSystem:
             queued=True,
         )
 
+        assert self.config.symbol_info.symbol.endswith(
+            "USDT"
+        ), "Symbol must end with 'USDT'"
         self.ui_queue.put_nowait(
             PositionData(
                 config=config,
                 state_info=state_info,
-                hp_update=HPUpdate(hp_id=self.config.hp_id, state=State.NEW),
+                hp_update=HPUpdate(
+                    hp_id=self.config.hp_id,
+                    asset=self.config.symbol_info.symbol[:-4],
+                    state=State.NEW,
+                ),
             )
         )
 

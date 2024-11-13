@@ -1241,7 +1241,7 @@ class HpManager:
                 config=self.buy_position.config,
                 state_info=self.buy_position.state_info,
                 hp_update=HPUpdate(
-                    hp_id=self.sell_position.config.hp_id,
+                    hp_id=self.buy_position.config.hp_id,
                     buy_price=self.buy_position.config.symbol_info.adjust_price(
                         adjusted_total / adjusted_real_quant
                     ),
