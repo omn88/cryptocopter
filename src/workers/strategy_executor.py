@@ -151,12 +151,11 @@ class StrategyExecutor:
 
         self.hp_configurations.append(new_record.config)
 
-        if not new_record.config.hp_id:
-            self.logger.info("New HP ID to be generated")
-            new_record.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
-            new_record.state_info.open_time = datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+        self.logger.info(
+            "Bool new hp to be generated: %s", bool(not new_record.config.hp_id)
+        )
+        new_record.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
+        new_record.state_info.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         self.logger.info("NEW HP ID: %s", new_record.config.hp_id)
 
