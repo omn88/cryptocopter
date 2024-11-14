@@ -471,24 +471,6 @@ class StrategyExecutor:
     #         )
     #     return hp_config
 
-    # async def get_usdt_balance(self) -> float:
-    #     """
-    #     Retrieve the USDT balance from the spot market.
-
-    #     :return: The balance of USDT in the account.
-    #     :raises: BinanceAPIException, BinanceRequestException
-    #     """
-    #     try:
-    #         assert self.client is not None
-    #         account_info = await self.client.get_account()
-    #         for asset in account_info["balances"]:
-    #             if asset["asset"] == "USDT":
-    #                 return float(asset["free"])
-    #         return 0.0
-    #     except (BinanceAPIException, BinanceRequestException) as e:
-    #         logger.error("Failed to retrieve USDT balance: %s", e)
-    #         raise e
-
     # def initialize_hp_list(self) -> None:
     #     """
     #     Initialize the HP list by fetching data from the database and populating the UI.
