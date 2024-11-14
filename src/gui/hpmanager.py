@@ -509,9 +509,9 @@ class HpManager(BoxLayout):
         config = HPConfig(
             hp_id=hp_id,
             symbol_info=list(self.symbols_info.values())[0],
-            price_low=0,
-            price_high=0,
-            budget=0,
+            price_low=0.0,
+            price_high=0.0,
+            budget=0.0,
             order_trigger=1.0,
             mode=Mode.SINGLE,
         )
