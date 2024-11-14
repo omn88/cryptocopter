@@ -133,14 +133,30 @@ class HpManager(BoxLayout):
                 "hp_manager": self,
                 "hp_id": str(update.hp_id),
                 "asset": str(update.asset),
-                "buy_price": str(update.buy_price),
-                "quantity": str(update.quantity),
-                "quantity_usdt": str(update.quantity_usdt),
-                "sell_price": str(update.sell_price),
-                "expected_return": str(update.expected_return),
-                "current_price": str(update.current_price),  # Include current price
-                "net": str(update.net),  # Include net value
-                "net_percent": str(update.net_percent),  # Include net percentage
+                "buy_price": str(update.buy_price)
+                if update.buy_price is not None
+                else "0.0",
+                "quantity": str(update.quantity)
+                if update.quantity is not None
+                else "0.0",
+                "quantity_usdt": str(update.quantity_usdt)
+                if update.quantity_usdt is not None
+                else "0.0",
+                "sell_price": str(update.sell_price)
+                if update.sell_price is not None
+                else "0.0",
+                "expected_return": str(update.expected_return)
+                if update.expected_return is not None
+                else "0.0",
+                "current_price": str(update.current_price)
+                if update.current_price is not None
+                else "0.0",  # Include current price
+                "net": str(update.net)
+                if update.net is not None
+                else "0.0",  # Include net value
+                "net_percent": str(update.net_percent)
+                if update.net_percent is not None
+                else "0.0",  # Include net percentage
                 "state": str(update.state.value),  # Include the state of the position
             }
 
@@ -157,17 +173,17 @@ class HpManager(BoxLayout):
                         update.quantity,
                     )
                     # Update hp fields
-                    if update.buy_price:
+                    if update.buy_price is not None:
                         hp["buy_price"] = str(update.buy_price)
-                    if update.quantity:
+                    if update.quantity is not None:
                         hp["quantity"] = str(
                             self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
                                 float(hp["quantity"]) + update.quantity
                             )
                         )
-                    if update.sell_price:
+                    if update.sell_price is not None:
                         hp["sell_price"] = str(update.sell_price)
-                    if update.expected_return:
+                    if update.expected_return is not None:
                         hp["expected_return"] = str(update.expected_return)
                     if update.state.value:
                         hp["state"] = str(
@@ -314,6 +330,7 @@ class HpManager(BoxLayout):
                                         ),
                                         2,
                                     )
+                                    strategy["quantity_usdt"]
                                     net = round(
                                         1
                                         + (net_percent / 100)
