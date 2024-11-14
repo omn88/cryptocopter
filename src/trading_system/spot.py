@@ -97,6 +97,7 @@ class TradingSystem:
                 state_info=state_info,
                 hp_update=HPUpdate(
                     hp_id=self.config.hp_id,
+                    buy_price=self.config.price_high,
                     asset=self.config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),

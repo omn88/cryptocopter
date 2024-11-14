@@ -488,6 +488,27 @@ class HpManager(BoxLayout):
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
 
+    def cancel_sell(self, hp_id: str):
+        config = HPConfig(
+            hp_id=hp_id,
+            symbol_info=list(self.symbols_info.values())[0],
+            price_low=0,
+            price_high=0,
+            budget=0,
+            order_trigger=1.0,
+            mode=Mode.SINGLE,
+        )
+        state_info = StateInfo(side=PositionSide.SHORT)
+
+        self.config_queue.put_nowait(
+            SellConfig(
+                config=config,
+                state_info=state_info,
+            )
+        )
+
+        self.filter_records(tab="idle", symbol_filter="All")
+
     def fetch_hp_info(self, hp_id):
         """
         Fetches and populates the HP information into the Sell tab based on the provided hp_id.

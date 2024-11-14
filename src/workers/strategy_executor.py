@@ -105,11 +105,14 @@ class StrategyExecutor:
                         strategy_data.state_info
                     )
 
-                    trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
-                        config=strategy_data.config,
-                        buy_orders=trading_system.strategy.buy_position.orders,
-                        sell_orders=trading_system.strategy.sell_position.orders,
-                    )
+                    if strategy_data.config.price_low:
+                        trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
+                            config=strategy_data.config,
+                            buy_orders=trading_system.strategy.buy_position.orders,
+                            sell_orders=trading_system.strategy.sell_position.orders,
+                        )
+                    else:
+                        trading_system.strategy.sell_position.orders = []
 
                     self.ui_queue.put_nowait(
                         PositionData(
