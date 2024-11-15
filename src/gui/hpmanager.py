@@ -326,31 +326,33 @@ class HpManager(BoxLayout):
                         assert isinstance(data.content, AllTickers)
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
-                            if symbol == f"{strategy['asset']}USDT":
-                                current_price = self.symbols_info[symbol].adjust_price(
-                                    price=float(ticker["c"])
-                                )
-                                strategy["current_price"] = str(current_price)
+                            if strategy["state"] != "CLOSED":
+                                if symbol == f"{strategy['asset']}USDT":
+                                    current_price = self.symbols_info[
+                                        symbol
+                                    ].adjust_price(price=float(ticker["c"]))
+                                    strategy["current_price"] = str(current_price)
 
-                                if float(strategy["buy_price"]):
-                                    net_percent = round(
-                                        100
-                                        * (
-                                            current_price / float(strategy["buy_price"])
-                                            - 1
-                                        ),
-                                        2,
-                                    )
-                                    strategy["quantity_usdt"]
-                                    net = round(
-                                        1
-                                        + (net_percent / 100)
-                                        * float(strategy["quantity_usdt"]),
-                                        2,
-                                    )
-                                    strategy["net"] = str(net)
-                                    strategy["net_percent"] = str(net_percent)
-                                self.ids.hp_list.refresh_from_data()
+                                    if float(strategy["buy_price"]):
+                                        net_percent = round(
+                                            100
+                                            * (
+                                                current_price
+                                                / float(strategy["buy_price"])
+                                                - 1
+                                            ),
+                                            2,
+                                        )
+                                        strategy["quantity_usdt"]
+                                        net = round(
+                                            1
+                                            + (net_percent / 100)
+                                            * float(strategy["quantity_usdt"]),
+                                            2,
+                                        )
+                                        strategy["net"] = str(net)
+                                        strategy["net_percent"] = str(net_percent)
+                                    self.ids.hp_list.refresh_from_data()
             except queue.Empty:
                 await asyncio.sleep(0.1)
 

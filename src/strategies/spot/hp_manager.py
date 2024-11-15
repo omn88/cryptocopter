@@ -318,6 +318,12 @@ class HpManager:
                 "conditions": "conditions_for_order_expiration",
                 "after": "confirm_expired_order",
             },
+            {
+                "trigger": "process_ticker",
+                "source": State.CLOSED,
+                "dest": "=",
+                "after": "allow_messages",
+            },
         ]
 
     def calculate_trigger_send_orders_price_buy(self):
@@ -633,10 +639,14 @@ class HpManager:
 
         self.sell_position.state_info.generate_next_monitor_time()
 
-        self.sell_position.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.sell_position.orders)
-            / sum(order.quantity for order in self.sell_position.orders),
-            2,
+        self.sell_position.state_info.completeness = (
+            round(
+                sum(order.realized_quantity for order in self.sell_position.orders)
+                / sum(order.quantity for order in self.sell_position.orders),
+                2,
+            )
+            if self.sell_position.orders
+            else 0
         )
 
         self.sell_position.state_info.ui_state = UiState.OPEN
@@ -834,10 +844,14 @@ class HpManager:
         self.state = State.SELLING
         self.sell_position.state_info.state = State.PARTIALLY_SOLD
         self.sell_position.state_info.generate_next_monitor_time()
-        self.sell_position.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.sell_position.orders)
-            / sum(order.quantity for order in self.sell_position.orders),
-            2,
+        self.sell_position.state_info.completeness = (
+            round(
+                sum(order.realized_quantity for order in self.sell_position.orders)
+                / sum(order.quantity for order in self.sell_position.orders),
+                2,
+            )
+            if self.sell_position.orders
+            else 0
         )
         self.sell_position.state_info.ui_state = UiState.OPEN
 
@@ -941,10 +955,14 @@ class HpManager:
 
         self.sell_position.state_info.state = State.SOLD
 
-        self.sell_position.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.sell_position.orders)
-            / sum(order.quantity for order in self.sell_position.orders),
-            2,
+        self.sell_position.state_info.completeness = (
+            round(
+                sum(order.realized_quantity for order in self.sell_position.orders)
+                / sum(order.quantity for order in self.sell_position.orders),
+                2,
+            )
+            if self.sell_position.orders
+            else 0
         )
         self.sell_position.state_info.ui_state = UiState.CLOSED
 
@@ -1117,10 +1135,14 @@ class HpManager:
 
         self.sell_position.state_info.state = State.SOLD
 
-        self.sell_position.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.sell_position.orders)
-            / sum(order.quantity for order in self.buy_position.orders),
-            2,
+        self.sell_position.state_info.completeness = (
+            round(
+                sum(order.realized_quantity for order in self.sell_position.orders)
+                / sum(order.quantity for order in self.buy_position.orders),
+                2,
+            )
+            if self.sell_position.orders
+            else 0
         )
         self.sell_position.state_info.ui_state = UiState.CLOSED
 
@@ -1527,10 +1549,14 @@ class HpManager:
 
         self.sell_position.state_info.generate_next_monitor_time()
         self.sell_position.state_info.ui_state = UiState.OPEN
-        self.sell_position.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.sell_position.orders)
-            / sum(order.quantity for order in self.sell_position.orders),
-            2,
+        self.sell_position.state_info.completeness = (
+            round(
+                sum(order.realized_quantity for order in self.sell_position.orders)
+                / sum(order.quantity for order in self.sell_position.orders),
+                2,
+            )
+            if self.sell_position.orders
+            else 0
         )
         self.sell_position.ui_queue.put_nowait(
             PositionData(
@@ -1663,6 +1689,12 @@ class HpManager:
             * (1 - (2 * self.sell_position.config.order_trigger / 100))
         )
 
+    async def allow_messages(self, *args, **kwargs) -> None:
+        self.logger.info(
+            "Ticker update from allow messages method: %s",
+            self.ticker_update.last_price,
+        )
+
     # def get_transitions(self):
     #     # add balance conditions where orders are to be send and update the variable after orders are cancelled.
     #     return [
@@ -1707,12 +1739,6 @@ class HpManager:
     #             "after": "allow_messages",
     #         },
     #     ]
-
-    # async def allow_messages(self, *args, **kwargs) -> None:
-    # self.logger.info(
-    #     "Ticker update from allow messages method: %s",
-    #     self.ticker_update.last_price,
-    # )
 
     # async def handle_recovery_to_new(self, *args, **kwargs) -> None:
     #     self.logger.debug("Handle recovery to new, just put to IDLE in GUI")
