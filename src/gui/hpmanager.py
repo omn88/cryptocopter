@@ -12,6 +12,7 @@ from kivy.properties import (
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HPConfig,
@@ -67,6 +68,7 @@ class HpManager(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
+        db: Database,
         test_mode=False,  # Add a test_mode parameter
         **kwargs,
     ):
@@ -77,6 +79,7 @@ class HpManager(BoxLayout):
         self.ui_queue = ui_queue
         self.strategy_logger = strategy_logger
         self.config_queue = config_queue
+        self.db = db
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
@@ -204,13 +207,21 @@ class HpManager(BoxLayout):
                     )
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
-                    if (
-                        hp["state"] == State.CLOSED.value
-                        and float(hp["quantity"]) == 0.0
-                    ):
-                        logger.info("State closed, removing item with index %s", index)
-                        hp_list.pop(index)
+                    # if (
+                    #     hp["state"] == State.CLOSED.value
+                    #     and float(hp["quantity"]) == 0.0
+                    # ):
+                    #     logger.info("State closed, removing item with index %s", index)
+                    #     hp_list.pop(index)
                     break  # Exit the loop once the correct item is found and processed
+
+        # Find the updated record and send it to the DB
+        updated_hp = next(
+            (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
+        )
+        if updated_hp:
+            self.db.run_db_task(coro=self.db.upsert_hp_record(updated_hp))
+            logger.info("Sent updated HP record to DB: %s", updated_hp)
 
         return hp_list
 
@@ -515,7 +526,7 @@ class HpManager(BoxLayout):
             order_trigger=1.0,
             mode=Mode.SINGLE,
         )
-        state_info = StateInfo(side=PositionSide.SHORT)
+        state_info = StateInfo(side=PositionSide.SHORT, ui_state=UiState.CLOSED)
 
         self.config_queue.put_nowait(
             SellConfig(

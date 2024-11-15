@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS hp_list (
     quantity_usdt FLOAT NOT NULL,
     sell_price FLOAT NOT NULL,
     expected_return FLOAT NOT NULL,
+    net FLOAT DEFAULT 0.0, -- Added
+    net_percent FLOAT DEFAULT 0.0, -- Added
+    state VARCHAR(20) DEFAULT 'NEW', -- Added
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -255,26 +258,58 @@ class Database:
                 )
                 await conn.commit()
 
-    async def insert_hp_list_record(self, record_data: HPUpdate):
-        insert_query = """
-        INSERT INTO hp_list (hp_id, asset, buy_price, quantity, quantity_usdt, sell_price, expected_return)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    async def upsert_hp_record(self, hp_record: Dict):
         """
-        assert self.pool is not None
+        Insert or update a record in the hp_list table.
+        """
+        query_check = "SELECT id FROM hp_list WHERE hp_id=%s"
+        query_update = """
+        UPDATE hp_list
+        SET asset=%s, buy_price=%s, quantity=%s, quantity_usdt=%s, sell_price=%s, expected_return=%s, net=%s, net_percent=%s, state=%s, version_timestamp=CURRENT_TIMESTAMP
+        WHERE hp_id=%s
+        """
+        query_insert = """
+        INSERT INTO hp_list (hp_id, asset, buy_price, quantity, quantity_usdt, sell_price, expected_return, net, net_percent, state)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        assert self.pool
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    insert_query,
-                    (
-                        str(record_data.hp_id),
-                        str(record_data.asset),
-                        str(record_data.buy_price),
-                        str(record_data.quantity),
-                        str(record_data.quantity_usdt),
-                        str(record_data.sell_price),
-                        str(record_data.expected_return),
-                    ),
-                )
+                await cur.execute(query_check, (hp_record["hp_id"],))
+                exists = await cur.fetchone()
+
+                if exists:
+                    await cur.execute(
+                        query_update,
+                        (
+                            hp_record["asset"],
+                            hp_record["buy_price"],
+                            hp_record["quantity"],
+                            hp_record["quantity_usdt"],
+                            hp_record["sell_price"],
+                            hp_record["expected_return"],
+                            hp_record["net"],
+                            hp_record["net_percent"],
+                            hp_record["state"],
+                            hp_record["hp_id"],
+                        ),
+                    )
+                else:
+                    await cur.execute(
+                        query_insert,
+                        (
+                            hp_record["hp_id"],
+                            hp_record["asset"],
+                            hp_record["buy_price"],
+                            hp_record["quantity"],
+                            hp_record["quantity_usdt"],
+                            hp_record["sell_price"],
+                            hp_record["expected_return"],
+                            hp_record["net"],
+                            hp_record["net_percent"],
+                            hp_record["state"],
+                        ),
+                    )
                 await conn.commit()
 
     async def fetch_all_active_strategies(self) -> List[Dict]:

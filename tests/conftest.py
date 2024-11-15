@@ -161,6 +161,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             strategy_logger=MagicMock(),
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
+            db=MagicMock(),
             ui_queue=mock_ui_queue,
             symbols_info={
                 "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)

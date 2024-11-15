@@ -256,7 +256,7 @@ class StateInfo:
     stagnation_counter: int = 0
     stagnation_limit: int = 8
     next_monitor_time: str = ""
-    open_time: str = ""
+    open_time: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
     completeness: float = 0.0
