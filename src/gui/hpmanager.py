@@ -326,7 +326,7 @@ class HpManager(BoxLayout):
                         assert isinstance(data.content, AllTickers)
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
-                            if strategy["state"] != "CLOSED":
+                            if strategy["state"] not in ["CLOSED", "SOLD"]:
                                 if symbol == f"{strategy['asset']}USDT":
                                     current_price = self.symbols_info[
                                         symbol

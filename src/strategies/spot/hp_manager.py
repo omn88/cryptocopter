@@ -327,7 +327,7 @@ class HpManager:
             },
             {
                 "trigger": "process_ticker",
-                "source": State.CLOSED,
+                "source": [State.CLOSED, State.SOLD],
                 "dest": "=",
                 "after": "allow_messages",
             },

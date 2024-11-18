@@ -440,3 +440,4 @@
         on_release:
             if root.sell_price == "0.0": root.hp_manager.sell_hp(root.hp_id, root.asset, root.quantity, root.buy_price)
             else: root.hp_manager.cancel_sell(root.hp_id)
+        disabled: root.state == "SOLD"
