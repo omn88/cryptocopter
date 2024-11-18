@@ -112,7 +112,14 @@ class StrategyExecutor:
                             sell_orders=trading_system.strategy.sell_position.orders,
                         )
                     else:
-                        trading_system.strategy.sell_position.orders = []
+                        if (
+                            trading_system.strategy.sell_position.state_info.state
+                            == State.SELLING
+                        ):
+                            await trading_system.strategy.sell_position.cancel_position()
+                            trading_system.strategy.sell_position.state_info.ui_state = (
+                                UiState.CLOSED
+                            )
 
                     self.ui_queue.put_nowait(
                         PositionData(

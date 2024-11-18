@@ -152,6 +152,13 @@ class HpManager:
                 "after": "close_filled_position_buy",
             },
             {
+                # No x probably to allow msg to come when it is already bought.
+                "trigger": "process_signal",
+                "source": State.BOUGHT,
+                "dest": State.BOUGHT,
+                "after": "close_filled_position_buy",
+            },
+            {
                 # No 8
                 "trigger": "process_ticker",
                 "source": State.BOUGHT,
@@ -775,6 +782,7 @@ class HpManager:
         condition = (
             self.buy_position.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
             and self.sell_position.state_info.state == State.NEW
+            and self.sell_position.config.price_low
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
         )
