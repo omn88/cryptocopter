@@ -259,7 +259,7 @@ class HpManager(BoxLayout):
                         )
                         self.update_active_position(data=data)
 
-                    if any(
+                    elif any(
                         record["hp_id"] == data.config.hp_id
                         for record in self.idle_records
                     ):

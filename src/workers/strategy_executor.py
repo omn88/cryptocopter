@@ -337,9 +337,12 @@ class StrategyExecutor:
                             )
 
                 sp.state_info.ui_state = UiState.CLOSED
-                sp.state_info.completeness = sum(
-                    order.realized_quantity for order in sp.orders
-                ) / sum(order.quantity for order in sp.orders) if sp.orders else 0
+                sp.state_info.completeness = (
+                    sum(order.realized_quantity for order in sp.orders)
+                    / sum(order.quantity for order in sp.orders)
+                    if sp.orders
+                    else 0
+                )
                 self.ui_queue.put_nowait(
                     PositionData(
                         config=sp.config,
