@@ -14,7 +14,7 @@ from src.common.common import generate_hp_id
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
-    NewRecord,
+    NewHP,
     CsvConfig,
     HPConfig,
     LoadConfig,
@@ -88,7 +88,7 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, NewRecord):
+                if isinstance(strategy_data, NewHP):
                     asyncio.create_task(
                         self.initialize_trading_system(
                             new_record=strategy_data, db=self.db
@@ -158,20 +158,16 @@ class StrategyExecutor:
 
     async def initialize_trading_system(
         self,
-        new_record: NewRecord,
+        new_hp: NewHP,
         db: Database,
     ) -> None:
-        self.logger.info("Initializing trading system: %s", new_record.config)
-
-        self.hp_configurations.append(new_record.config)
-
         self.logger.info(
-            "Bool new hp to be generated: %s", bool(not new_record.config.hp_id)
+            "Initializing new trading system with config: %s", new_hp.config
         )
-        new_record.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
-        new_record.state_info.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        self.logger.info("NEW HP ID: %s", new_record.config.hp_id)
+        self.hp_configurations.append(new_hp.config)
+        new_hp.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
+        new_hp.state_info.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
@@ -181,32 +177,32 @@ class StrategyExecutor:
             client=self.client,
             ui_queue=self.ui_queue,
             core_queue=core_queue,
-            config=new_record.config,
+            config=new_hp.config,
             db=db,
         )
         await trading_system.initialize_strategy(
-            config=new_record.config,
-            state_info=new_record.state_info,
+            config=new_hp.config,
+            state_info=new_hp.state_info,
             usdt_balance=self.balances["USDT"],
         )
         assert trading_system.strategy is not None
-        assert new_record.config.hp_id, "HP ID is zero after strategy init"
-        self.id_to_system[new_record.config.hp_id] = trading_system
+        assert new_hp.config.hp_id, "HP ID is zero after strategy init"
+        self.id_to_system[new_hp.config.hp_id] = trading_system
 
         self.broker.subscribe(
-            system_id=str(new_record.config.hp_id),
+            system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=new_record.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
         )
         self.broker.subscribe(
-            system_id=str(new_record.config.hp_id),
+            system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=new_record.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
@@ -214,12 +210,12 @@ class StrategyExecutor:
 
         db.run_db_task(
             db.insert_buy_price_level(
-                config=new_record.config, state_info=new_record.state_info
+                config=new_hp.config, state_info=new_hp.state_info
             )
         )
 
         asyncio.create_task(trading_system.worker())
-        self.logger.info("System: %s initialized.", new_record.config)
+        self.logger.info("System: %s initialized.", new_hp.config)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info("Entering remove record")
@@ -379,7 +375,7 @@ class StrategyExecutor:
 
         for price_level in active_price_levels:
             self.config_queue.put_nowait(
-                NewRecord(
+                NewHP(
                     config=HPConfig(
                         hp_id=price_level.get("hp_id"),
                         symbol_info=self.symbols_info[price_level["symbol"]],
@@ -458,7 +454,7 @@ class StrategyExecutor:
     #                 )
 
     #                 self.config_queue.put_nowait(
-    #                     NewRecord(config=config, state_info=StateInfo())
+    #                     NewHP(config=config, state_info=StateInfo())
     #                 )
     #                 # self.ui_queue.put_nowait(
     #                 #     PositionData(

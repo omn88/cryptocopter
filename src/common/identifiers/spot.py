@@ -276,12 +276,12 @@ class StateInfo:
         ).strftime("%Y-%m-%d %H:%M:%S")
 
 
-class NewRecord(NamedTuple):
+class NewHP(NamedTuple):
     config: HPConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"NewRecord(config={self.config}, state_info={self.state_info})"
+        return f"NewHP(config={self.config}, state_info={self.state_info})"
 
 
 class SellConfig(NamedTuple):

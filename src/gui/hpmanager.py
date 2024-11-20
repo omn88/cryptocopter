@@ -16,7 +16,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HPConfig,
-    NewRecord,
+    NewHP,
     AllTickers,
     Event,
     EventName,
@@ -107,20 +107,23 @@ class HpManager(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        self.config_queue.put_nowait(
-            NewRecord(
-                config=HPConfig(
-                    symbol_info=self.symbols_info[self.symbol_input.selected_value],
-                    price_low=float(self.symbol_input.price_low_input.text),
-                    price_high=float(self.symbol_input.price_high_input.text),
-                    budget=float(self.ids.budget_input.text),
-                    order_trigger=float(self.ids.order_trigger_input.text),
-                    mode=Mode.DCA
-                    if self.ids.mode_input.text == Mode.DCA.value
-                    else Mode.SINGLE,
-                ),
-                state_info=StateInfo(),
-            )
+        new_record = NewHP(
+            config=HPConfig(
+                symbol_info=self.symbols_info[self.symbol_input.selected_value],
+                price_low=float(self.symbol_input.price_low_input.text),
+                price_high=float(self.symbol_input.price_high_input.text),
+                budget=float(self.ids.budget_input.text),
+                order_trigger=float(self.ids.order_trigger_input.text),
+                mode=Mode.DCA
+                if self.ids.mode_input.text == Mode.DCA.value
+                else Mode.SINGLE,
+            ),
+            state_info=StateInfo(),
+        )
+
+        self.config_queue.put_nowait(new_hp)
+        logger.info(
+            "New record added: %s",
         )
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
