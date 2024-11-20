@@ -99,13 +99,13 @@ class StrategyExecutor:
                         strategy_data.config.hp_id
                     ]
                     assert trading_system.strategy
-
-                    trading_system.strategy.sell_position.config = strategy_data.config
-                    trading_system.strategy.sell_position.state_info = (
-                        strategy_data.state_info
-                    )
-
                     if strategy_data.config.price_low:
+                        trading_system.strategy.sell_position.config = (
+                            strategy_data.config
+                        )
+                        trading_system.strategy.sell_position.state_info = (
+                            strategy_data.state_info
+                        )
                         trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
                             config=strategy_data.config,
                             buy_orders=trading_system.strategy.buy_position.orders,
@@ -120,6 +120,9 @@ class StrategyExecutor:
                             trading_system.strategy.sell_position.state_info.ui_state = (
                                 UiState.CLOSED
                             )
+                            trading_system.strategy.sell_position.state_info.state = (
+                                trading_system.strategy.buy_position.state_info.state
+                            )
 
                     self.ui_queue.put_nowait(
                         PositionData(
@@ -128,6 +131,7 @@ class StrategyExecutor:
                             hp_update=HPUpdate(
                                 hp_id=trading_system.strategy.sell_position.config.hp_id,
                                 sell_price=trading_system.strategy.sell_position.config.price_low,
+                                state=trading_system.strategy.state,
                             ),
                         )
                     )

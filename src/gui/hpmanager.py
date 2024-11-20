@@ -398,6 +398,8 @@ class HpManager(BoxLayout):
         if not self.validate_sell_inputs():
             return
 
+        logger.info("Asset label: %s", self.ids.asset_label.text)
+
         config = HPConfig(
             hp_id=self.ids.hp_id_input.text,
             symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
