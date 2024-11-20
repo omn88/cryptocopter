@@ -19,8 +19,6 @@ def generate_hp_id(hp_list: List[HPConfig]) -> str:
     # Extract all the existing HP IDs, ignoring any with value '0'
     hp_ids = [int(entry.hp_id) for entry in hp_list if entry.hp_id != "0"]
 
-    logger.info("HP IDs: %s", hp_ids)
-
     if not hp_ids:
         logger.info("Returning 1000")
         return "1000"  # Start from 1000 if no valid entries are present

@@ -107,7 +107,7 @@ class HpManager(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        new_record = NewHP(
+        new_hp = NewHP(
             config=HPConfig(
                 symbol_info=self.symbols_info[self.symbol_input.selected_value],
                 price_low=float(self.symbol_input.price_low_input.text),
@@ -120,11 +120,8 @@ class HpManager(BoxLayout):
             ),
             state_info=StateInfo(),
         )
-
         self.config_queue.put_nowait(new_hp)
-        logger.info(
-            "New record added: %s",
-        )
+        logger.info("New HP added to the queue: %s", new_hp)
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
@@ -401,25 +398,20 @@ class HpManager(BoxLayout):
         if not self.validate_sell_inputs():
             return
 
-        logger.info("Asset label: %s", self.ids.asset_label.text)
-
-        config = HPConfig(
-            hp_id=self.ids.hp_id_input.text,
-            symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
-            price_low=float(self.ids.sell_price_input.text),
-            price_high=float(self.ids.sell_price_input.text),
-            budget=float(self.ids.quantity_label.text),
-            order_trigger=1.0,
-            mode=Mode.SINGLE,
+        sell_config = SellConfig(
+            config=HPConfig(
+                hp_id=self.ids.hp_id_input.text,
+                symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
+                price_low=float(self.ids.sell_price_input.text),
+                price_high=float(self.ids.sell_price_input.text),
+                budget=float(self.ids.quantity_label.text),
+                order_trigger=1.0,
+                mode=Mode.SINGLE,
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
         )
-        state_info = StateInfo(side=PositionSide.SHORT)
-
-        self.config_queue.put_nowait(
-            SellConfig(
-                config=config,
-                state_info=state_info,
-            )
-        )
+        self.config_queue.put_nowait(sell_config)
+        logger.info("Sell config added to the queue: %s", sell_config.config)
 
         self.filter_records(tab="idle", symbol_filter="All")
 
@@ -432,7 +424,7 @@ class HpManager(BoxLayout):
     ) -> None:
         record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
         self.config_queue.put_nowait(record)
-        logger.info("Remove record: %s sent to backend.", record)
+        logger.info("Remove record added to the queue.", record)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -471,16 +463,16 @@ class HpManager(BoxLayout):
         )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
 
         # Populate the fields in the Sell tab
-        self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
-        self.ids.asset_label.text = str(asset)  # Set the asset label
-        self.ids.quantity_label.text = str(quantity)  # Set the quantity label
+        self.ids.hp_id_input.text = str(hp_id)
+        self.ids.asset_label.text = str(asset)
+        self.ids.quantity_label.text = str(quantity)
         self.ids.quantity_usdt_label.text = str(
             round(float(quantity) * float(buy_price), 2)
-        )  # Set the quantity label
-        self.ids.buy_price_label.text = str(buy_price)  # Set the buy price label
+        )
+        self.ids.buy_price_label.text = str(buy_price)
 
         # Clear or reset the sell price field
-        self.ids.sell_price_input.text = ""  # Optional: Clear any previous sell price
+        self.ids.sell_price_input.text = ""
 
         # Optional: If you want to set focus on the sell price input field
         self.ids.sell_price_input.focus = True
@@ -523,10 +515,10 @@ class HpManager(BoxLayout):
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
 
-    def cancel_sell(self, hp_id: str):
+    def cancel_sell(self, hp_id: str, asset: str):
         config = HPConfig(
             hp_id=hp_id,
-            symbol_info=list(self.symbols_info.values())[0],
+            symbol_info=self.symbols_info[f"{asset}USDT"],
             price_low=0.0,
             price_high=0.0,
             budget=0.0,
@@ -542,6 +534,8 @@ class HpManager(BoxLayout):
             )
         )
 
+        logger.info("Cancel sell send to the config queue: %s", config)
+
         self.filter_records(tab="idle", symbol_filter="All")
 
     def fetch_hp_info(self, hp_id):
@@ -553,21 +547,16 @@ class HpManager(BoxLayout):
         - hp_id: The HP ID entered by the user.
         """
         try:
-            # Try to find the matching HP record in hp_list_data
             for item in self.hp_list_data:
                 if int(item["hp_id"]) == int(hp_id):
                     # Populate the fields in the Sell tab
-                    self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
-                    self.ids.asset_label.text = item["asset"]  # Set the asset label
-                    self.ids.quantity_label.text = item[
-                        "quantity"
-                    ]  # Set the quantity label
+                    self.ids.hp_id_input.text = str(hp_id)
+                    self.ids.asset_label.text = item["asset"]
+                    self.ids.quantity_label.text = item["quantity"]
                     self.ids.quantity_usdt_label.text = str(
                         round(float(item["quantity"]) * float(item["buy_price"]), 2)
-                    )  # Set the quantity in USDT based on quantity and buy price
-                    self.ids.buy_price_label.text = item[
-                        "buy_price"
-                    ]  # Set the buy price label
+                    )
+                    self.ids.buy_price_label.text = item["buy_price"]
 
                     # Clear or reset the sell price field
                     self.ids.sell_price_input.text = ""  # Clear any previous sell price
@@ -575,7 +564,7 @@ class HpManager(BoxLayout):
                     # Optional: Set focus on the sell price input field
                     self.ids.sell_price_input.focus = True
 
-                    return  # Exit the method after successfully populating the data
+                    return
 
             # If hp_id is not found in hp_list_data, raise ValueError to reset fields
             raise ValueError("HP ID not found")

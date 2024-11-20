@@ -90,9 +90,7 @@ class StrategyExecutor:
                 self.logger.info("New config for strategy executor: %s", strategy_data)
                 if isinstance(strategy_data, NewHP):
                     asyncio.create_task(
-                        self.initialize_trading_system(
-                            new_record=strategy_data, db=self.db
-                        )
+                        self.initialize_trading_system(new_hp=strategy_data, db=self.db)
                     )
                 if isinstance(strategy_data, SellConfig):
                     trading_system: TradingSystem = self.id_to_system[
@@ -100,6 +98,9 @@ class StrategyExecutor:
                     ]
                     assert trading_system.strategy
                     if strategy_data.config.price_low:
+                        self.logger.info(
+                            "Sell price set: %s", strategy_data.config.price_low
+                        )
                         trading_system.strategy.sell_position.config = (
                             strategy_data.config
                         )
@@ -112,15 +113,21 @@ class StrategyExecutor:
                             sell_orders=trading_system.strategy.sell_position.orders,
                         )
                     else:
-                        if (
-                            trading_system.strategy.sell_position.state_info.state
-                            == State.SELLING
-                        ):
+                        self.logger.info(
+                            "Sell price set to 0, so cancelling current position"
+                        )
+                        if trading_system.strategy.state == State.SELLING:
+                            trading_system.strategy.sell_position.config.price_low = (
+                                strategy_data.config.price_low
+                            )
+                            self.logger.info(
+                                "After referencing strategy state, not sell position state, really starting to cancel position."
+                            )
                             await trading_system.strategy.sell_position.cancel_position()
                             trading_system.strategy.sell_position.state_info.ui_state = (
                                 UiState.CLOSED
                             )
-                            trading_system.strategy.sell_position.state_info.state = (
+                            trading_system.strategy.state = (
                                 trading_system.strategy.buy_position.state_info.state
                             )
 
@@ -215,7 +222,7 @@ class StrategyExecutor:
         )
 
         asyncio.create_task(trading_system.worker())
-        self.logger.info("System: %s initialized.", new_hp.config)
+        self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info("Entering remove record")
