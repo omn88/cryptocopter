@@ -16,7 +16,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HPConfig,
-    NewHP,
+    HpNew,
     AllTickers,
     Event,
     EventName,
@@ -107,7 +107,7 @@ class HpManager(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        new_hp = NewHP(
+        new_hp = HpNew(
             config=HPConfig(
                 symbol_info=self.symbols_info[self.symbol_input.selected_value],
                 price_low=float(self.symbol_input.price_low_input.text),

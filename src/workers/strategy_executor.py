@@ -14,7 +14,8 @@ from src.common.common import generate_hp_id
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
-    NewHP,
+    HpClose,
+    HpNew,
     CsvConfig,
     HPConfig,
     LoadConfig,
@@ -88,9 +89,9 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, NewHP):
+                if isinstance(strategy_data, HpNew):
                     asyncio.create_task(
-                        self.initialize_trading_system(new_hp=strategy_data, db=self.db)
+                        self.initialize_trading_system(new_hp=strategy_data)
                     )
                 if isinstance(strategy_data, SellConfig):
                     trading_system: TradingSystem = self.id_to_system[
@@ -145,6 +146,8 @@ class StrategyExecutor:
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
+                if isinstance(strategy_data, HpClose):
+                    await self.terminate_trading_system(close_data=strategy_data)
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -163,8 +166,7 @@ class StrategyExecutor:
 
     async def initialize_trading_system(
         self,
-        new_hp: NewHP,
-        db: Database,
+        new_hp: HpNew,
     ) -> None:
         self.logger.info(
             "Initializing new trading system with config: %s", new_hp.config
@@ -183,7 +185,8 @@ class StrategyExecutor:
             ui_queue=self.ui_queue,
             core_queue=core_queue,
             config=new_hp.config,
-            db=db,
+            db=self.db,
+            config_queue=self.config_queue,
         )
         await trading_system.initialize_strategy(
             config=new_hp.config,
@@ -213,14 +216,23 @@ class StrategyExecutor:
             ),
         )
 
-        db.run_db_task(
-            db.insert_buy_price_level(
+        self.db.run_db_task(
+            self.db.insert_buy_price_level(
                 config=new_hp.config, state_info=new_hp.state_info
             )
         )
 
         asyncio.create_task(trading_system.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
+
+    async def terminate_trading_system(
+        self,
+        close_data: HpClose,
+    ) -> None:
+        self.logger.info("Entered trading system removal!")
+        hp_id = close_data.config.hp_id
+        self.broker.unsubscribe(system_id=hp_id)
+        self.logger.info(f"Removed trading system with {hp_id}.")
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info("Entering remove record")
@@ -279,7 +291,9 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=trading_system.strategy.state),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                        ),
                     )
                 )
 
@@ -317,7 +331,9 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=trading_system.strategy.state),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                        ),
                     )
                 )
                 self.db.run_db_task(
@@ -362,7 +378,9 @@ class StrategyExecutor:
                         config=sp.config,
                         state_info=sp.state_info,
                         hp_update=HPUpdate(
-                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                            hp_id=bp.config.hp_id,
+                            state=trading_system.strategy.state,
+                            sell_price=0.0,
                         ),
                     )
                 )
@@ -384,7 +402,7 @@ class StrategyExecutor:
 
         for price_level in active_price_levels:
             self.config_queue.put_nowait(
-                NewHP(
+                HpNew(
                     config=HPConfig(
                         hp_id=price_level.get("hp_id"),
                         symbol_info=self.symbols_info[price_level["symbol"]],
@@ -463,7 +481,7 @@ class StrategyExecutor:
     #                 )
 
     #                 self.config_queue.put_nowait(
-    #                     NewHP(config=config, state_info=StateInfo())
+    #                     HpNew(config=config, state_info=StateInfo())
     #                 )
     #                 # self.ui_queue.put_nowait(
     #                 #     PositionData(

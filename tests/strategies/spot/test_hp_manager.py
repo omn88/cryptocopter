@@ -764,7 +764,7 @@ async def test_sell_position_first_order_filled(
         current_order_status=ORDER_STATUS_FILLED,
         order_id=445863,
         last_executed_quantity=0.85,
-        last_executed_price=4200,
+        last_executed_price=4200.0,
         cumulative_filled_quantity=0.85,
     )
     await strategy.process_order()  # type: ignore[attr-defined]

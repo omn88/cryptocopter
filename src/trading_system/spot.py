@@ -33,6 +33,7 @@ class TradingSystem:
         config: HPConfig,
         strategy_logger: StrategyLogger,
         db: Database,
+        config_queue: queue.Queue,
     ):
         self.client = client
         self.config = config
@@ -40,6 +41,7 @@ class TradingSystem:
         self.core_queue = core_queue
         self.strategy_logger = strategy_logger
         self.db = db
+        self.config_queue = config_queue
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
 
@@ -56,6 +58,7 @@ class TradingSystem:
             balance=usdt_balance,
             db=self.db,
             core_queue=self.core_queue,
+            config_queue=self.config_queue,
         )
 
         self.strategy.buy_position.orders = (
