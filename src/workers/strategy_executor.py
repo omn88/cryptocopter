@@ -117,19 +117,17 @@ class StrategyExecutor:
                             "Sell price set to 0, so cancelling current position"
                         )
                         if trading_system.strategy.state == State.SELLING:
-                            trading_system.strategy.sell_position.config.price_low = (
-                                strategy_data.config.price_low
-                            )
-                            self.logger.info(
-                                "After referencing strategy state, not sell position state, really starting to cancel position."
-                            )
                             await trading_system.strategy.sell_position.cancel_position()
-                            trading_system.strategy.sell_position.state_info.ui_state = (
-                                UiState.CLOSED
-                            )
-                            trading_system.strategy.state = (
-                                trading_system.strategy.buy_position.state_info.state
-                            )
+
+                        trading_system.strategy.sell_position.config.price_low = (
+                            strategy_data.config.price_low
+                        )
+                        trading_system.strategy.sell_position.state_info.ui_state = (
+                            UiState.CLOSED
+                        )
+                        trading_system.strategy.state = (
+                            trading_system.strategy.buy_position.state_info.state
+                        )
 
                     self.ui_queue.put_nowait(
                         PositionData(
@@ -281,7 +279,7 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=trading_system.strategy.state),
                     )
                 )
 
@@ -294,6 +292,7 @@ class StrategyExecutor:
                         symbol=bp.config.symbol_info.symbol,
                         orders=bp.orders,
                     )
+                    trading_system.strategy.state = State.PARTIALLY_BOUGHT
                     for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
@@ -318,7 +317,7 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=trading_system.strategy.state),
                     )
                 )
                 self.db.run_db_task(
@@ -334,6 +333,7 @@ class StrategyExecutor:
                         symbol=sp.config.symbol_info.symbol,
                         orders=sp.orders,
                     )
+                    trading_system.strategy.state = bp.state_info.state
                     for order in sp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
@@ -349,7 +349,7 @@ class StrategyExecutor:
                                     hp_id=str(sp.config.hp_id),
                                 )
                             )
-
+                sp.config.price_low = 0.0
                 sp.state_info.ui_state = UiState.CLOSED
                 sp.state_info.completeness = (
                     sum(order.realized_quantity for order in sp.orders)
@@ -361,7 +361,9 @@ class StrategyExecutor:
                     PositionData(
                         config=sp.config,
                         state_info=sp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                        ),
                     )
                 )
                 self.db.run_db_task(
