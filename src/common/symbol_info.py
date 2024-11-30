@@ -37,7 +37,13 @@ class SymbolInfo:
     def validate_order(self, price, quantity):
         notional = price * quantity
         if notional < self.min_notional:
-            raise ValueError("Order notional is below MIN_NOTIONAL")
+            raise ValueError(
+                "Order notional is below MIN_NOTIONAL, notional: %s, min notional: %s, price: %s, quantity: %s",
+                notional,
+                self.min_notional,
+                price,
+                quantity,
+            )
 
     @staticmethod
     def calculate_precision(step_size):
