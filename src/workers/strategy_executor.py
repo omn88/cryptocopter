@@ -14,7 +14,8 @@ from src.common.common import generate_hp_id
 from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
-    NewRecord,
+    HpClose,
+    HpNew,
     CsvConfig,
     HPConfig,
     LoadConfig,
@@ -60,7 +61,7 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict[str, TradingSystem] = {}
         self.symbols_info = symbols_info
-        self.hp_list_data: List[HPUpdate] = []
+        self.hp_configurations: List[HPConfig] = []
         self.balances = balances
 
         self.loop = None
@@ -88,28 +89,46 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, NewRecord):
+                if isinstance(strategy_data, HpNew):
                     asyncio.create_task(
-                        self.initialize_trading_system(
-                            new_record=strategy_data, db=self.db
-                        )
+                        self.initialize_trading_system(new_hp=strategy_data)
                     )
                 if isinstance(strategy_data, SellConfig):
                     trading_system: TradingSystem = self.id_to_system[
                         strategy_data.config.hp_id
                     ]
                     assert trading_system.strategy
+                    if strategy_data.config.price_low:
+                        self.logger.info(
+                            "Sell price set: %s", strategy_data.config.price_low
+                        )
+                        trading_system.strategy.sell_position.config = (
+                            strategy_data.config
+                        )
+                        trading_system.strategy.sell_position.state_info = (
+                            strategy_data.state_info
+                        )
+                        trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
+                            config=strategy_data.config,
+                            buy_orders=trading_system.strategy.buy_position.orders,
+                            sell_orders=trading_system.strategy.sell_position.orders,
+                        )
+                    else:
+                        self.logger.info(
+                            "Sell price set to 0, so cancelling current position"
+                        )
+                        if trading_system.strategy.state == State.SELLING:
+                            await trading_system.strategy.sell_position.cancel_position()
 
-                    trading_system.strategy.sell_position.config = strategy_data.config
-                    trading_system.strategy.sell_position.state_info = (
-                        strategy_data.state_info
-                    )
-
-                    trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
-                        config=strategy_data.config,
-                        buy_orders=trading_system.strategy.buy_position.orders,
-                        sell_orders=trading_system.strategy.sell_position.orders,
-                    )
+                        trading_system.strategy.sell_position.config.price_low = (
+                            strategy_data.config.price_low
+                        )
+                        trading_system.strategy.sell_position.state_info.ui_state = (
+                            UiState.CLOSED
+                        )
+                        trading_system.strategy.state = (
+                            trading_system.strategy.buy_position.state_info.state
+                        )
 
                     self.ui_queue.put_nowait(
                         PositionData(
@@ -118,6 +137,7 @@ class StrategyExecutor:
                             hp_update=HPUpdate(
                                 hp_id=trading_system.strategy.sell_position.config.hp_id,
                                 sell_price=trading_system.strategy.sell_position.config.price_low,
+                                state=trading_system.strategy.state,
                             ),
                         )
                     )
@@ -126,6 +146,8 @@ class StrategyExecutor:
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
+                if isinstance(strategy_data, HpClose):
+                    await self.terminate_trading_system(close_data=strategy_data)
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -144,18 +166,15 @@ class StrategyExecutor:
 
     async def initialize_trading_system(
         self,
-        new_record: NewRecord,
-        db: Database,
+        new_hp: HpNew,
     ) -> None:
-        self.logger.info("Initializing trading system: %s", new_record.config)
+        self.logger.info(
+            "Initializing new trading system with config: %s", new_hp.config
+        )
 
-        if not new_record.state_info.open_time:
-            new_record.state_info.open_time = datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            new_record.state_info.state = State.NEW
-            new_record.state_info.side = PositionSide.LONG
-            new_record.config.hp_id = generate_hp_id(hp_list=self.hp_list_data)
+        self.hp_configurations.append(new_hp.config)
+        new_hp.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
+        new_hp.state_info.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
@@ -165,45 +184,55 @@ class StrategyExecutor:
             client=self.client,
             ui_queue=self.ui_queue,
             core_queue=core_queue,
-            config=new_record.config,
-            db=db,
+            config=new_hp.config,
+            db=self.db,
+            config_queue=self.config_queue,
         )
         await trading_system.initialize_strategy(
-            config=new_record.config,
-            state_info=new_record.state_info,
+            config=new_hp.config,
+            state_info=new_hp.state_info,
             usdt_balance=self.balances["USDT"],
         )
         assert trading_system.strategy is not None
-        assert new_record.config.hp_id, "HP ID is zero after strategy init"
-        self.id_to_system[new_record.config.hp_id] = trading_system
+        assert new_hp.config.hp_id, "HP ID is zero after strategy init"
+        self.id_to_system[new_hp.config.hp_id] = trading_system
 
         self.broker.subscribe(
-            system_id=str(new_record.config.hp_id),
+            system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=new_record.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
         )
         self.broker.subscribe(
-            system_id=str(new_record.config.hp_id),
+            system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=new_record.config.symbol_info.symbol,
+                symbol=new_hp.config.symbol_info.symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=core_queue,
             ),
         )
 
-        db.run_db_task(
-            db.insert_buy_price_level(
-                config=new_record.config, state_info=new_record.state_info
+        self.db.run_db_task(
+            self.db.insert_buy_price_level(
+                config=new_hp.config, state_info=new_hp.state_info
             )
         )
 
         asyncio.create_task(trading_system.worker())
-        self.logger.info("System: %s initialized.", new_record.config)
+        self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
+
+    async def terminate_trading_system(
+        self,
+        close_data: HpClose,
+    ) -> None:
+        self.logger.info("Entered trading system removal!")
+        hp_id = close_data.config.hp_id
+        self.broker.unsubscribe(system_id=hp_id)
+        self.logger.info(f"Removed trading system with {hp_id}.")
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info("Entering remove record")
@@ -262,7 +291,9 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                        ),
                     )
                 )
 
@@ -275,6 +306,7 @@ class StrategyExecutor:
                         symbol=bp.config.symbol_info.symbol,
                         orders=bp.orders,
                     )
+                    trading_system.strategy.state = State.PARTIALLY_BOUGHT
                     for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
@@ -299,7 +331,9 @@ class StrategyExecutor:
                     PositionData(
                         config=bp.config,
                         state_info=bp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id, state=trading_system.strategy.state
+                        ),
                     )
                 )
                 self.db.run_db_task(
@@ -315,6 +349,7 @@ class StrategyExecutor:
                         symbol=sp.config.symbol_info.symbol,
                         orders=sp.orders,
                     )
+                    trading_system.strategy.state = bp.state_info.state
                     for order in sp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
@@ -330,16 +365,23 @@ class StrategyExecutor:
                                     hp_id=str(sp.config.hp_id),
                                 )
                             )
-
+                sp.config.price_low = 0.0
                 sp.state_info.ui_state = UiState.CLOSED
-                sp.state_info.completeness = sum(
-                    order.realized_quantity for order in sp.orders
-                ) / sum(order.quantity for order in sp.orders)
+                sp.state_info.completeness = (
+                    sum(order.realized_quantity for order in sp.orders)
+                    / sum(order.quantity for order in sp.orders)
+                    if sp.orders
+                    else 0
+                )
                 self.ui_queue.put_nowait(
                     PositionData(
                         config=sp.config,
                         state_info=sp.state_info,
-                        hp_update=HPUpdate(hp_id=bp.config.hp_id, state=State.CLOSED),
+                        hp_update=HPUpdate(
+                            hp_id=bp.config.hp_id,
+                            state=trading_system.strategy.state,
+                            sell_price=0.0,
+                        ),
                     )
                 )
                 self.db.run_db_task(
@@ -360,7 +402,7 @@ class StrategyExecutor:
 
         for price_level in active_price_levels:
             self.config_queue.put_nowait(
-                NewRecord(
+                HpNew(
                     config=HPConfig(
                         hp_id=price_level.get("hp_id"),
                         symbol_info=self.symbols_info[price_level["symbol"]],
@@ -439,7 +481,7 @@ class StrategyExecutor:
     #                 )
 
     #                 self.config_queue.put_nowait(
-    #                     NewRecord(config=config, state_info=StateInfo())
+    #                     HpNew(config=config, state_info=StateInfo())
     #                 )
     #                 # self.ui_queue.put_nowait(
     #                 #     PositionData(
@@ -469,75 +511,57 @@ class StrategyExecutor:
     #         )
     #     return hp_config
 
-    # async def get_usdt_balance(self) -> float:
+    # def initialize_hp_list(self) -> None:
     #     """
-    #     Retrieve the USDT balance from the spot market.
-
-    #     :return: The balance of USDT in the account.
-    #     :raises: BinanceAPIException, BinanceRequestException
+    #     Initialize the HP list by fetching data from the database and populating the UI.
     #     """
-    #     try:
-    #         assert self.client is not None
-    #         account_info = await self.client.get_account()
-    #         for asset in account_info["balances"]:
-    #             if asset["asset"] == "USDT":
-    #                 return float(asset["free"])
-    #         return 0.0
-    #     except (BinanceAPIException, BinanceRequestException) as e:
-    #         logger.error("Failed to retrieve USDT balance: %s", e)
-    #         raise e
 
-    def initialize_hp_list(self) -> None:
-        """
-        Initialize the HP list by fetching data from the database and populating the UI.
-        """
+    #     self.db.run_db_task(self.db.create_hp_list_table())
 
-        self.db.run_db_task(self.db.create_hp_list_table())
+    #     # Fetch existing records from the database
+    #     hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
+    #     if not hp_list_from_db:
+    #         logger.info("Creating new list.")
+    #         hp_list_raw: List[Dict] = get_hp_list()
 
-        # Fetch existing records from the database
-        hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
-        if not hp_list_from_db:
-            logger.info("Creating new list.")
-            hp_list_raw: List[Dict] = get_hp_list()
+    #         for item in hp_list_raw:
+    #             hp_update = HPUpdate(
+    #                 hp_id=generate_hp_id(hp_list=self.hp_configurations),
+    #                 asset=item["Asset"],
+    #                 buy_price=float(item["Price"]),
+    #                 quantity=float(item["Quantity"]),
+    #                 quantity_usdt=round(
+    #                     float(item["Price"]) * float(item["Quantity"]), 2
+    #                 ),
+    #                 sell_price=0,
+    #                 expected_return=0,
+    #                 state=State.NEW,
+    #             )
+    #             self.hp_configurations.append(hp_update)
+    #             self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
+    #     else:
+    #         logger.info("Reading list from the DB.")
+    #         for item in hp_list_from_db:
+    #             self.hp_configurations.append(
+    #                 HPUpdate(
+    #                     hp_id=item["hp_id"],
+    #                     asset=item["asset"],
+    #                     buy_price=float(item["buy_price"]),
+    #                     quantity=float(item["quantity"]),
+    #                     quantity_usdt=float(item["quantity_usdt"]),
+    #                     sell_price=0,
+    #                     expected_return=0,
+    #                     state=State.NEW,
+    #                 )
+    #             )
 
-            for item in hp_list_raw:
-                hp_update = HPUpdate(
-                    hp_id=generate_hp_id(hp_list=self.hp_list_data),
-                    asset=item["Asset"],
-                    buy_price=float(item["Price"]),
-                    quantity=float(item["Quantity"]),
-                    quantity_usdt=round(
-                        float(item["Price"]) * float(item["Quantity"]), 2
-                    ),
-                    sell_price=0,
-                    expected_return=0,
-                    state=State.NEW,
-                )
-                self.hp_list_data.append(hp_update)
-                self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
-        else:
-            logger.info("Reading list from the DB.")
-            for item in hp_list_from_db:
-                self.hp_list_data.append(
-                    HPUpdate(
-                        hp_id=item["hp_id"],
-                        asset=item["asset"],
-                        buy_price=float(item["buy_price"]),
-                        quantity=float(item["quantity"]),
-                        quantity_usdt=float(item["quantity_usdt"]),
-                        sell_price=0,
-                        expected_return=0,
-                        state=State.NEW,
-                    )
-                )
-
-        if self.hp_list_data:
-            self.logger.debug("HP list records found: %s", self.hp_list_data)
-            for record in self.hp_list_data:
-                self.ui_queue.put_nowait(record)
-            self.logger.info("All HPs send to UI.")
-        else:
-            self.logger.info("No records found in the HP list table.")
+    #     if self.hp_list_data:
+    #         self.logger.debug("HP list records found: %s", self.hp_list_data)
+    #         for record in self.hp_list_data:
+    #             self.ui_queue.put_nowait(record)
+    #         self.logger.info("All HPs send to UI.")
+    #     else:
+    #         self.logger.info("No records found in the HP list table.")
 
 
 def get_hp_list():

@@ -12,7 +12,6 @@ from src.common.identifiers.spot import (
     Order,
     UiState,
 )
-from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.order_handler.spot import OrderHandler
 
 
@@ -88,8 +87,10 @@ class PositionHandler:
                 order.status = execution_report.current_order_status
                 order.realized_quantity = execution_report.cumulative_filled_quantity
                 order.quantity_stable -= (
-                    execution_report.price * execution_report.last_executed_quantity
+                    execution_report.last_executed_price
+                    * execution_report.last_executed_quantity
                 )
+                order.price = execution_report.last_executed_price
                 logger.info("Order: %s partially filled", order.order_id)
 
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
@@ -113,7 +114,7 @@ class PositionHandler:
                 quantity=execution_report.quantity,
                 realized_quantity=execution_report.cumulative_filled_quantity,
                 status=execution_report.current_order_status,
-                price=execution_report.price,
+                price=execution_report.last_executed_price,
                 time_in_force=execution_report.time_in_force,
                 order_type=execution_report.order_type,
                 quantity_stable=self.orders[0].quantity_stable,
@@ -124,7 +125,7 @@ class PositionHandler:
         for order in self.orders:
             if execution_report.order_id == order.order_id:
                 order.status = execution_report.current_order_status
-                order.price = execution_report.price
+                order.price = execution_report.last_executed_price
                 order.realized_quantity = execution_report.cumulative_filled_quantity
                 logger.info(
                     "Order: %s filled, symbol: %s, price: %s, status: %s",
@@ -161,7 +162,7 @@ class PositionHandler:
                 quantity=execution_report.quantity,
                 realized_quantity=execution_report.cumulative_filled_quantity,
                 status=execution_report.current_order_status,
-                price=execution_report.price,
+                price=execution_report.last_executed_price,
                 time_in_force=execution_report.time_in_force,
                 order_type=execution_report.order_type,
                 quantity_stable=self.orders[0].quantity_stable,

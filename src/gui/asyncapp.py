@@ -197,6 +197,7 @@ class AsyncApp(App):
             strategy_id=strategy_id,
             symbols_info=symbols_info,
             config_queue=back_end.config_queue,
+            db=self.db,
             ui_queue=ui_queue,
         )
 
@@ -316,6 +317,7 @@ class AsyncApp(App):
                 logger.info("App: Please select a symbol.")
 
         if strategy_name == "HP Manager":
+            self.db.run_db_task(self.db.create_hp_list_table())
             for strategy in self.active_strategies:
                 if strategy["name"] == config.name:
                     logger.info(

@@ -6,24 +6,28 @@ from typing import List
 import pytz
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import Signal, State
-from src.gui.identifiers.spot import HPUpdate
+from src.common.identifiers.spot import HPConfig
 
 logger = logging.getLogger("common")
 
 
-def generate_hp_id(hp_list: List[HPUpdate]) -> str:
+def generate_hp_id(hp_list: List[HPConfig]) -> str:
     """
     Generate the next HP ID starting from 1000.
     It checks the list of HP entries to find the highest existing ID.
     """
-    if not hp_list:
-        return "1000"  # Start from 1000 if no entries are present
+    # Extract all the existing HP IDs, ignoring any with value '0'
+    hp_ids = [int(entry.hp_id) for entry in hp_list if entry.hp_id != "0"]
 
-    # Extract all the existing HP IDs
-    hp_ids = [int(entry.hp_id) for entry in hp_list]
+    if not hp_ids:
+        logger.info("Returning 1000")
+        return "1000"  # Start from 1000 if no valid entries are present
 
     # Get the highest HP ID and increment it
-    return str(max(hp_ids) + 1)
+    next_id = str(max(hp_ids) + 1)
+    logger.info("Next HP ID generated: %s", next_id)
+
+    return next_id
 
 
 def create_directory_with_timestamp():

@@ -12,10 +12,11 @@ from kivy.properties import (
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
+from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HPConfig,
-    NewRecord,
+    HpNew,
     AllTickers,
     Event,
     EventName,
@@ -67,6 +68,7 @@ class HpManager(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
+        db: Database,
         test_mode=False,  # Add a test_mode parameter
         **kwargs,
     ):
@@ -77,6 +79,7 @@ class HpManager(BoxLayout):
         self.ui_queue = ui_queue
         self.strategy_logger = strategy_logger
         self.config_queue = config_queue
+        self.db = db
         self.bind(active_records=self.update_active_symbols)
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
@@ -104,21 +107,21 @@ class HpManager(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        self.config_queue.put_nowait(
-            NewRecord(
-                config=HPConfig(
-                    symbol_info=self.symbols_info[self.symbol_input.selected_value],
-                    price_low=float(self.symbol_input.price_low_input.text),
-                    price_high=float(self.symbol_input.price_high_input.text),
-                    budget=float(self.ids.budget_input.text),
-                    order_trigger=float(self.ids.order_trigger_input.text),
-                    mode=Mode.DCA
-                    if self.ids.mode_input.text == Mode.DCA.value
-                    else Mode.SINGLE,
-                ),
-                state_info=StateInfo(),
-            )
+        new_hp = HpNew(
+            config=HPConfig(
+                symbol_info=self.symbols_info[self.symbol_input.selected_value],
+                price_low=float(self.symbol_input.price_low_input.text),
+                price_high=float(self.symbol_input.price_high_input.text),
+                budget=float(self.ids.budget_input.text),
+                order_trigger=float(self.ids.order_trigger_input.text),
+                mode=Mode.DCA
+                if self.ids.mode_input.text == Mode.DCA.value
+                else Mode.SINGLE,
+            ),
+            state_info=StateInfo(),
         )
+        self.config_queue.put_nowait(new_hp)
+        logger.info("New HP added to the queue: %s", new_hp)
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
@@ -133,14 +136,30 @@ class HpManager(BoxLayout):
                 "hp_manager": self,
                 "hp_id": str(update.hp_id),
                 "asset": str(update.asset),
-                "buy_price": str(update.buy_price),
-                "quantity": str(update.quantity),
-                "quantity_usdt": str(update.quantity_usdt),
-                "sell_price": str(update.sell_price),
-                "expected_return": str(update.expected_return),
-                "current_price": str(update.current_price),  # Include current price
-                "net": str(update.net),  # Include net value
-                "net_percent": str(update.net_percent),  # Include net percentage
+                "buy_price": str(update.buy_price)
+                if update.buy_price is not None
+                else "0.0",
+                "quantity": str(update.quantity)
+                if update.quantity is not None
+                else "0.0",
+                "quantity_usdt": str(update.quantity_usdt)
+                if update.quantity_usdt is not None
+                else "0.0",
+                "sell_price": str(update.sell_price)
+                if update.sell_price is not None
+                else "0.0",
+                "expected_return": str(update.expected_return)
+                if update.expected_return is not None
+                else "0.0",
+                "current_price": str(update.current_price)
+                if update.current_price is not None
+                else "0.0",  # Include current price
+                "net": str(update.net)
+                if update.net is not None
+                else "0.0",  # Include net value
+                "net_percent": str(update.net_percent)
+                if update.net_percent is not None
+                else "0.0",  # Include net percentage
                 "state": str(update.state.value),  # Include the state of the position
             }
 
@@ -157,17 +176,17 @@ class HpManager(BoxLayout):
                         update.quantity,
                     )
                     # Update hp fields
-                    if update.buy_price:
+                    if update.buy_price is not None:
                         hp["buy_price"] = str(update.buy_price)
-                    if update.quantity:
+                    if update.quantity is not None:
                         hp["quantity"] = str(
                             self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
                                 float(hp["quantity"]) + update.quantity
                             )
                         )
-                    if update.sell_price:
+                    if update.sell_price is not None:
                         hp["sell_price"] = str(update.sell_price)
-                    if update.expected_return:
+                    if update.expected_return is not None:
                         hp["expected_return"] = str(update.expected_return)
                     if update.state.value:
                         hp["state"] = str(
@@ -188,13 +207,21 @@ class HpManager(BoxLayout):
                     )
 
                     # Check if state is CLOSED and quantity is 0, then remove it by index
-                    if (
-                        hp["state"] == State.CLOSED.value
-                        and float(hp["quantity"]) == 0.0
-                    ):
-                        logger.info("State closed, removing item with index %s", index)
-                        hp_list.pop(index)
+                    # if (
+                    #     hp["state"] == State.CLOSED.value
+                    #     and float(hp["quantity"]) == 0.0
+                    # ):
+                    #     logger.info("State closed, removing item with index %s", index)
+                    #     hp_list.pop(index)
                     break  # Exit the loop once the correct item is found and processed
+
+        # Find the updated record and send it to the DB
+        updated_hp = next(
+            (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
+        )
+        if updated_hp:
+            self.db.run_db_task(coro=self.db.upsert_hp_record(updated_hp))
+            logger.info("Sent updated HP record to DB: %s", updated_hp)
 
         return hp_list
 
@@ -232,7 +259,7 @@ class HpManager(BoxLayout):
                         )
                         self.update_active_position(data=data)
 
-                    if any(
+                    elif any(
                         record["hp_id"] == data.config.hp_id
                         for record in self.idle_records
                     ):
@@ -299,30 +326,33 @@ class HpManager(BoxLayout):
                         assert isinstance(data.content, AllTickers)
                         for ticker in data.content.msg:
                             symbol = ticker.get("s")
-                            if symbol == f"{strategy['asset']}USDT":
-                                current_price = self.symbols_info[symbol].adjust_price(
-                                    price=float(ticker["c"])
-                                )
-                                strategy["current_price"] = str(current_price)
+                            if strategy["state"] not in ["CLOSED", "SOLD"]:
+                                if symbol == f"{strategy['asset']}USDT":
+                                    current_price = self.symbols_info[
+                                        symbol
+                                    ].adjust_price(price=float(ticker["c"]))
+                                    strategy["current_price"] = str(current_price)
 
-                                if float(strategy["buy_price"]):
-                                    net_percent = round(
-                                        100
-                                        * (
-                                            current_price / float(strategy["buy_price"])
-                                            - 1
-                                        ),
-                                        2,
-                                    )
-                                    net = round(
-                                        1
-                                        + (net_percent / 100)
-                                        * float(strategy["quantity_usdt"]),
-                                        2,
-                                    )
-                                    strategy["net"] = str(net)
-                                    strategy["net_percent"] = str(net_percent)
-                                self.ids.hp_list.refresh_from_data()
+                                    if float(strategy["buy_price"]):
+                                        net_percent = round(
+                                            100
+                                            * (
+                                                current_price
+                                                / float(strategy["buy_price"])
+                                                - 1
+                                            ),
+                                            2,
+                                        )
+                                        strategy["quantity_usdt"]
+                                        net = round(
+                                            1
+                                            + (net_percent / 100)
+                                            * float(strategy["quantity_usdt"]),
+                                            2,
+                                        )
+                                        strategy["net"] = str(net)
+                                        strategy["net_percent"] = str(net_percent)
+                                    self.ids.hp_list.refresh_from_data()
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -368,23 +398,20 @@ class HpManager(BoxLayout):
         if not self.validate_sell_inputs():
             return
 
-        config = HPConfig(
-            hp_id=self.ids.hp_id_input.text,
-            symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
-            price_low=float(self.ids.sell_price_input.text),
-            price_high=float(self.ids.sell_price_input.text),
-            budget=float(self.ids.quantity_label.text),
-            order_trigger=1.0,
-            mode=Mode.SINGLE,
+        sell_config = SellConfig(
+            config=HPConfig(
+                hp_id=self.ids.hp_id_input.text,
+                symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
+                price_low=float(self.ids.sell_price_input.text),
+                price_high=float(self.ids.sell_price_input.text),
+                budget=float(self.ids.quantity_label.text),
+                order_trigger=1.0,
+                mode=Mode.SINGLE,
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
         )
-        state_info = StateInfo(side=PositionSide.SHORT)
-
-        self.config_queue.put_nowait(
-            SellConfig(
-                config=config,
-                state_info=state_info,
-            )
-        )
+        self.config_queue.put_nowait(sell_config)
+        logger.info("Sell config added to the queue: %s", sell_config.config)
 
         self.filter_records(tab="idle", symbol_filter="All")
 
@@ -397,7 +424,7 @@ class HpManager(BoxLayout):
     ) -> None:
         record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
         self.config_queue.put_nowait(record)
-        logger.info("Remove record: %s sent to backend.", record)
+        logger.info("Remove record added to the queue.", record)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()
@@ -436,16 +463,16 @@ class HpManager(BoxLayout):
         )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
 
         # Populate the fields in the Sell tab
-        self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
-        self.ids.asset_label.text = str(asset)  # Set the asset label
-        self.ids.quantity_label.text = str(quantity)  # Set the quantity label
+        self.ids.hp_id_input.text = str(hp_id)
+        self.ids.asset_label.text = str(asset)
+        self.ids.quantity_label.text = str(quantity)
         self.ids.quantity_usdt_label.text = str(
             round(float(quantity) * float(buy_price), 2)
-        )  # Set the quantity label
-        self.ids.buy_price_label.text = str(buy_price)  # Set the buy price label
+        )
+        self.ids.buy_price_label.text = str(buy_price)
 
         # Clear or reset the sell price field
-        self.ids.sell_price_input.text = ""  # Optional: Clear any previous sell price
+        self.ids.sell_price_input.text = ""
 
         # Optional: If you want to set focus on the sell price input field
         self.ids.sell_price_input.focus = True
@@ -488,6 +515,29 @@ class HpManager(BoxLayout):
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
 
+    def cancel_sell(self, hp_id: str, asset: str):
+        config = HPConfig(
+            hp_id=hp_id,
+            symbol_info=self.symbols_info[f"{asset}USDT"],
+            price_low=0.0,
+            price_high=0.0,
+            budget=0.0,
+            order_trigger=1.0,
+            mode=Mode.SINGLE,
+        )
+        state_info = StateInfo(side=PositionSide.SHORT, ui_state=UiState.CLOSED)
+
+        self.config_queue.put_nowait(
+            SellConfig(
+                config=config,
+                state_info=state_info,
+            )
+        )
+
+        logger.info("Cancel sell send to the config queue: %s", config)
+
+        self.filter_records(tab="idle", symbol_filter="All")
+
     def fetch_hp_info(self, hp_id):
         """
         Fetches and populates the HP information into the Sell tab based on the provided hp_id.
@@ -497,21 +547,16 @@ class HpManager(BoxLayout):
         - hp_id: The HP ID entered by the user.
         """
         try:
-            # Try to find the matching HP record in hp_list_data
             for item in self.hp_list_data:
                 if int(item["hp_id"]) == int(hp_id):
                     # Populate the fields in the Sell tab
-                    self.ids.hp_id_input.text = str(hp_id)  # Set the HP ID field
-                    self.ids.asset_label.text = item["asset"]  # Set the asset label
-                    self.ids.quantity_label.text = item[
-                        "quantity"
-                    ]  # Set the quantity label
+                    self.ids.hp_id_input.text = str(hp_id)
+                    self.ids.asset_label.text = item["asset"]
+                    self.ids.quantity_label.text = item["quantity"]
                     self.ids.quantity_usdt_label.text = str(
                         round(float(item["quantity"]) * float(item["buy_price"]), 2)
-                    )  # Set the quantity in USDT based on quantity and buy price
-                    self.ids.buy_price_label.text = item[
-                        "buy_price"
-                    ]  # Set the buy price label
+                    )
+                    self.ids.buy_price_label.text = item["buy_price"]
 
                     # Clear or reset the sell price field
                     self.ids.sell_price_input.text = ""  # Clear any previous sell price
@@ -519,7 +564,7 @@ class HpManager(BoxLayout):
                     # Optional: Set focus on the sell price input field
                     self.ids.sell_price_input.focus = True
 
-                    return  # Exit the method after successfully populating the data
+                    return
 
             # If hp_id is not found in hp_list_data, raise ValueError to reset fields
             raise ValueError("HP ID not found")

@@ -141,17 +141,16 @@ async def db_and_gui_assertions(
     )
 
 
-def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
+def get_default_buy_position(trading_system_factory) -> AsyncMachine:
     trading_system = trading_system_factory(
         hp_config=HPConfig(
-            hp_id="1000",
+            hp_id="0",
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             price_low=1000,
             price_high=1400,
             order_trigger=1.0,
             budget=1000,
         ),
-        hp_list=hp_list,
     )
 
     strategy = trading_system.model
@@ -182,7 +181,7 @@ def get_default_buy_position(trading_system_factory, hp_list) -> AsyncMachine:
     assert strategy.buy_position.orders[1].quantity == 0.27778
     assert strategy.buy_position.orders[2].quantity == 0.33333
 
-    assert strategy.sell_position.config.hp_id == "1000"
+    assert strategy.sell_position.config.hp_id == "0"
     assert strategy.sell_position.config.price_low == 0
     assert strategy.sell_position.config.price_high == 0
     assert strategy.sell_position.config.order_trigger == 0
@@ -1731,9 +1730,7 @@ async def simulate_bought_position(
     trading_system_factory, hp_gui: HPGUI, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     # Path 0: Default buy position
-    trading_system: AsyncMachine = get_default_buy_position(
-        trading_system_factory, hp_list
-    )
+    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
     strategy = trading_system.model
     assert isinstance(strategy, HpManager)
 

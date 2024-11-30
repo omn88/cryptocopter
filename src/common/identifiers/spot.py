@@ -256,7 +256,7 @@ class StateInfo:
     stagnation_counter: int = 0
     stagnation_limit: int = 8
     next_monitor_time: str = ""
-    open_time: str = ""
+    open_time: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
     completeness: float = 0.0
@@ -276,12 +276,20 @@ class StateInfo:
         ).strftime("%Y-%m-%d %H:%M:%S")
 
 
-class NewRecord(NamedTuple):
+class HpNew(NamedTuple):
     config: HPConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"NewRecord(config={self.config}, state_info={self.state_info})"
+        return f"HpNew(config={self.config}, state_info={self.state_info})"
+
+
+class HpClose(NamedTuple):
+    config: HPConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"HpClose(config={self.config}, state_info={self.state_info})"
 
 
 class SellConfig(NamedTuple):
