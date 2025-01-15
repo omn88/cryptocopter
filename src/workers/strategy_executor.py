@@ -261,7 +261,7 @@ class StrategyExecutor:
                 for order in bp.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.run_db_task(
-                            self.db.update_order(
+                            self.db.upsert_order(
                                 price=order.price,
                                 quantity=order.quantity,
                                 quantity_stable=order.quantity_stable,
@@ -312,7 +312,7 @@ class StrategyExecutor:
                     for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
-                                self.db.update_order(
+                                self.db.upsert_order(
                                     price=order.price,
                                     quantity=order.quantity,
                                     quantity_stable=order.quantity_stable,
@@ -356,7 +356,7 @@ class StrategyExecutor:
                     for order in sp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
-                                self.db.update_order(
+                                self.db.upsert_order(
                                     price=order.price,
                                     quantity=order.quantity,
                                     quantity_stable=order.quantity_stable,

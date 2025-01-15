@@ -55,7 +55,7 @@ class PositionHandler:
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
                 self.db.run_db_task(
-                    self.db.update_order(
+                    self.db.upsert_order(
                         price=order.price,
                         quantity=order.quantity,
                         quantity_stable=order.quantity_stable,
@@ -109,7 +109,7 @@ class PositionHandler:
         )
 
         self.db.run_db_task(
-            self.db.update_order(
+            self.db.upsert_order(
                 order_id=execution_report.order_id,
                 hp_id=str(self.config.hp_id),
                 quantity=execution_report.quantity,
@@ -158,7 +158,7 @@ class PositionHandler:
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
 
         self.db.run_db_task(
-            self.db.update_order(
+            self.db.upsert_order(
                 order_id=execution_report.order_id,
                 hp_id=str(self.config.hp_id),
                 quantity=execution_report.quantity,

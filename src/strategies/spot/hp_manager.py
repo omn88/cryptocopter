@@ -410,7 +410,7 @@ class HpManager:
 
         for order in self.buy_position.orders:
             self.db.run_db_task(
-                self.db.update_order(
+                self.db.upsert_order(
                     price=order.price,
                     quantity=order.quantity,
                     quantity_stable=order.quantity_stable,
@@ -575,7 +575,7 @@ class HpManager:
 
         for order in self.buy_position.orders:
             self.db.run_db_task(
-                self.db.update_order(
+                self.db.upsert_order(
                     price=order.price,
                     quantity=order.quantity,
                     quantity_stable=order.quantity_stable,
@@ -665,7 +665,7 @@ class HpManager:
 
         for order in self.sell_position.orders:
             self.db.run_db_task(
-                self.db.update_order(
+                self.db.upsert_order(
                     price=order.price,
                     quantity=order.quantity,
                     quantity_stable=order.quantity_stable,
@@ -873,7 +873,7 @@ class HpManager:
 
         for order in self.sell_position.orders:
             self.db.run_db_task(
-                self.db.update_order(
+                self.db.upsert_order(
                     price=order.price,
                     quantity=order.quantity,
                     quantity_stable=order.quantity_stable,
@@ -1810,7 +1810,7 @@ class HpManager:
     #                 order.status = db_order.status
 
     #     updated_orders = [
-    #         await self.position_handler.order_handler.update_order_status(
+    #         await self.position_handler.order_handler.upsert_order_status(
     #             symbol=self.config.symbol_info.symbol, order=order
     #         )
     #         for order in orders
@@ -1835,7 +1835,7 @@ class HpManager:
     #                     order.status = updated_order.status
 
     #                     self.db.run_db_task(
-    #                         self.db.update_order(
+    #                         self.db.upsert_order(
     #                             price=order.price,
     #                             quantity=order.quantity,
     #                             quantity_stable=order.quantity_stable,

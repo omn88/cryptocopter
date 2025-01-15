@@ -217,27 +217,6 @@ class Database:
                 logger.info("Inserted strategy with ID: %s", strategy_id)
                 return strategy_id
 
-    async def insert_order(self, hp_id: int, order: Order, side: PositionSide) -> None:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO orders (order_id, hp_id, quantity, price, side, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        order.order_id,
-                        str(hp_id),
-                        order.quantity,
-                        order.price,
-                        side.value,
-                        order.quantity_stable,
-                        order.realized_quantity,
-                        order.time_in_force,
-                        order.status,
-                        order.order_type,
-                    ),
-                )
-                await conn.commit()
-
     async def insert_buy_price_level(
         self, config: HPConfig, state_info: StateInfo
     ) -> None:
@@ -397,7 +376,7 @@ class Database:
                 )
                 await conn.commit()
 
-    async def update_order(
+    async def upsert_order(
         self,
         order_id: int,
         hp_id: str,
