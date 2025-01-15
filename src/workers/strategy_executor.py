@@ -253,6 +253,7 @@ class StrategyExecutor:
                 self.logger.info("Entered trading system removal!")
                 self.broker.unsubscribe(system_id=hp_id)
                 trading_system.strategy.state = State.CLOSED
+                bp.state_info.state = State.CLOSED
                 bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
                     symbol=bp.config.symbol_info.symbol,
                     orders=bp.orders,
@@ -269,7 +270,7 @@ class StrategyExecutor:
                                 status=order.status,
                                 order_type=order.order_type,
                                 order_id=order.order_id,
-                                hp_id=str(bp.config.hp_id),
+                                hp_id=bp.config.hp_id,
                             )
                         )
 
@@ -306,7 +307,7 @@ class StrategyExecutor:
                         symbol=bp.config.symbol_info.symbol,
                         orders=bp.orders,
                     )
-                    trading_system.strategy.state = State.PARTIALLY_BOUGHT
+                    trading_system.strategy.state = bp.state_info.state
                     for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
@@ -362,7 +363,7 @@ class StrategyExecutor:
                                     status=order.status,
                                     order_type=order.order_type,
                                     order_id=order.order_id,
-                                    hp_id=str(sp.config.hp_id),
+                                    hp_id=sp.config.hp_id,
                                 )
                             )
                 sp.config.price_low = 0.0

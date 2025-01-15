@@ -411,8 +411,8 @@ class Database:
             async with conn.cursor() as cur:
                 # Mark the current order as not current
                 await cur.execute(
-                    "UPDATE orders SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE AND price=%s",
-                    (hp_id, price),
+                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
+                    (order_id,),
                 )
                 # Insert a new record with the updated values
                 version_timestamp = datetime.datetime.now().isoformat()
