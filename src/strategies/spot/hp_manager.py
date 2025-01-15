@@ -420,6 +420,7 @@ class HpManager:
                     order_type=order.order_type,
                     order_id=order.order_id,
                     hp_id=str(self.buy_position.config.hp_id),
+                    side=self.buy_position.state_info.side,
                 )
             )
         self.db.run_db_task(
@@ -584,6 +585,7 @@ class HpManager:
                     order_type=order.order_type,
                     order_id=order.order_id,
                     hp_id=str(self.buy_position.config.hp_id),
+                    side=self.buy_position.state_info.side,
                 )
             )
         self.db.run_db_task(
@@ -673,6 +675,7 @@ class HpManager:
                     order_type=order.order_type,
                     order_id=order.order_id,
                     hp_id=str(self.sell_position.config.hp_id),
+                    side=self.sell_position.state_info.side,
                 )
             )
         self.db.run_db_task(
@@ -880,6 +883,7 @@ class HpManager:
                     order_type=order.order_type,
                     order_id=order.order_id,
                     hp_id=str(self.sell_position.config.hp_id),
+                    side=self.sell_position.state_info.side,
                 )
             )
         self.db.run_db_task(

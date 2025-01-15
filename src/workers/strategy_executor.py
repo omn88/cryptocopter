@@ -271,6 +271,7 @@ class StrategyExecutor:
                                 order_type=order.order_type,
                                 order_id=order.order_id,
                                 hp_id=bp.config.hp_id,
+                                side=bp.state_info.side,
                             )
                         )
 
@@ -321,6 +322,7 @@ class StrategyExecutor:
                                     order_type=order.order_type,
                                     order_id=order.order_id,
                                     hp_id=str(bp.config.hp_id),
+                                    side=bp.state_info.side,
                                 )
                             )
 
@@ -364,6 +366,7 @@ class StrategyExecutor:
                                     order_type=order.order_type,
                                     order_id=order.order_id,
                                     hp_id=sp.config.hp_id,
+                                    side=sp.state_info.side,
                                 )
                             )
                 sp.config.price_low = 0.0

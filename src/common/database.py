@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
+from src.common.identifiers.common import PositionSide
 from src.common.identifiers.spot import Order, StateInfo, HPConfig
 from src.gui.identifiers.spot import HPUpdate
 
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS price_levels (
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,
+    side VARCHAR(20) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS orders (
     hp_id INT NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
+    side VARCHAR(20) NOT NULL,
     quantity_stable FLOAT NOT NULL,
     realized_quantity FLOAT NOT NULL,
     time_in_force VARCHAR(10) NOT NULL,
@@ -215,17 +217,18 @@ class Database:
                 logger.info("Inserted strategy with ID: %s", strategy_id)
                 return strategy_id
 
-    async def insert_order(self, hp_id: int, order: Order) -> None:
+    async def insert_order(self, hp_id: int, order: Order, side: PositionSide) -> None:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO orders (order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO orders (order_id, hp_id, quantity, price, side, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (
                         order.order_id,
                         str(hp_id),
                         order.quantity,
                         order.price,
+                        side.value,
                         order.quantity_stable,
                         order.realized_quantity,
                         order.time_in_force,
@@ -404,6 +407,7 @@ class Database:
         realized_quantity: float,
         time_in_force: str,
         status: str,
+        side: PositionSide,
         order_type: str,
     ) -> None:
         assert self.pool is not None
@@ -418,8 +422,8 @@ class Database:
                 version_timestamp = datetime.datetime.now().isoformat()
                 insert_query = """
                 INSERT INTO orders (
-                    order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                    order_id, hp_id, quantity, price, side, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                 """
                 await cur.execute(
                     insert_query,
@@ -428,6 +432,7 @@ class Database:
                         hp_id,
                         quantity,
                         price,
+                        side.value,
                         quantity_stable,
                         realized_quantity,
                         time_in_force,

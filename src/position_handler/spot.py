@@ -64,6 +64,7 @@ class PositionHandler:
                         status=order.status,
                         order_type=order.order_type,
                         order_id=order.order_id,
+                        side=self.state_info.side,
                         hp_id=str(self.config.hp_id),
                     )
                 )
@@ -118,6 +119,7 @@ class PositionHandler:
                 time_in_force=execution_report.time_in_force,
                 order_type=execution_report.order_type,
                 quantity_stable=self.orders[0].quantity_stable,
+                side=self.state_info.side,
             )
         )
 
@@ -166,5 +168,6 @@ class PositionHandler:
                 time_in_force=execution_report.time_in_force,
                 order_type=execution_report.order_type,
                 quantity_stable=self.orders[0].quantity_stable,
+                side=self.state_info.side,
             )
         )
