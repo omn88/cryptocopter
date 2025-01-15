@@ -325,7 +325,7 @@ class StrategyExecutor:
                                     side=bp.state_info.side,
                                 )
                             )
-
+                bp.state_info.state = State.CLOSED
                 bp.state_info.ui_state = UiState.CLOSED
                 bp.state_info.completeness = sum(
                     order.realized_quantity for order in bp.orders
@@ -352,6 +352,8 @@ class StrategyExecutor:
                         symbol=sp.config.symbol_info.symbol,
                         orders=sp.orders,
                     )
+                    # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
+                    # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
                     trading_system.strategy.state = bp.state_info.state
                     for order in sp.orders:
                         if order.status == ORDER_STATUS_CANCELED:

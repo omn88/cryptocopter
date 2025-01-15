@@ -271,48 +271,6 @@ class Database:
                     )
                 await conn.commit()
 
-    async def fetch_all_active_strategies(self) -> List[Dict]:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT * FROM strategies WHERE status = 'ACTIVE' AND is_current=TRUE"
-                )
-                result = await cur.fetchall()
-                return result
-
-    async def fetch_all_active_price_levels(self) -> List[Dict]:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                query = """
-                SELECT * FROM price_levels
-                WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
-                """
-                await cur.execute(query)
-                result = await cur.fetchall()
-                return result
-
-    async def fetch_hp_list(self) -> List[Dict]:
-        fetch_query = "SELECT * FROM hp_list"
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(fetch_query)
-                records = await cur.fetchall()
-                return list(records)
-
-    async def fetch_orders_for_price_level(self, hp_id: str) -> List[Dict]:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                await cur.execute(
-                    "SELECT * FROM orders WHERE hp_id=%s AND is_current=TRUE",
-                    hp_id,
-                )
-                result = await cur.fetchall()
-                return result
-
     async def upsert_price_level(
         self,
         config: HPConfig,
@@ -408,3 +366,45 @@ class Database:
                     ),
                 )
                 await conn.commit()
+
+    async def fetch_all_active_strategies(self) -> List[Dict]:
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM strategies WHERE status = 'ACTIVE' AND is_current=TRUE"
+                )
+                result = await cur.fetchall()
+                return result
+
+    async def fetch_all_active_price_levels(self) -> List[Dict]:
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                query = """
+                SELECT * FROM price_levels
+                WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
+                """
+                await cur.execute(query)
+                result = await cur.fetchall()
+                return result
+
+    async def fetch_hp_list(self) -> List[Dict]:
+        fetch_query = "SELECT * FROM hp_list"
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(fetch_query)
+                records = await cur.fetchall()
+                return list(records)
+
+    async def fetch_orders_for_price_level(self, hp_id: str) -> List[Dict]:
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(
+                    "SELECT * FROM orders WHERE hp_id=%s AND is_current=TRUE",
+                    hp_id,
+                )
+                result = await cur.fetchall()
+                return result
