@@ -77,7 +77,7 @@ class PositionHandler:
         self.state_info.ui_state = UiState.STAGNATED
 
         self.db.run_db_task(
-            self.db.update_price_level(config=self.config, state_info=self.state_info)
+            self.db.upsert_price_level(config=self.config, state_info=self.state_info)
         )
 
     async def handle_order_partially_filled(
@@ -103,10 +103,6 @@ class PositionHandler:
             2,
         )
         self.state_info.ui_state = UiState.OPEN
-
-        self.db.run_db_task(
-            self.db.update_price_level(config=self.config, state_info=self.state_info)
-        )
 
         self.db.run_db_task(
             self.db.upsert_order(
@@ -148,13 +144,7 @@ class PositionHandler:
         )
 
         self.state_info.completeness = completeness
-
         logger.info("Completeness: %s", completeness)
-
-        self.db.run_db_task(
-            self.db.update_price_level(config=self.config, state_info=self.state_info)
-        )
-
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
 
         self.db.run_db_task(

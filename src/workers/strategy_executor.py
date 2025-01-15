@@ -217,7 +217,7 @@ class StrategyExecutor:
         )
 
         self.db.run_db_task(
-            self.db.insert_buy_price_level(
+            self.db.upsert_price_level(
                 config=new_hp.config, state_info=new_hp.state_info
             )
         )
@@ -276,7 +276,7 @@ class StrategyExecutor:
                         )
 
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=bp.config,
                         state_info=bp.state_info,
                     )
@@ -340,7 +340,7 @@ class StrategyExecutor:
                     )
                 )
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=bp.config,
                         state_info=bp.state_info,
                     )
@@ -389,7 +389,7 @@ class StrategyExecutor:
                     )
                 )
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=sp.config,
                         state_info=sp.state_info,
                     )
