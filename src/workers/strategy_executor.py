@@ -217,7 +217,7 @@ class StrategyExecutor:
         )
 
         self.db.run_db_task(
-            self.db.insert_buy_price_level(
+            self.db.upsert_price_level(
                 config=new_hp.config, state_info=new_hp.state_info
             )
         )
@@ -253,6 +253,7 @@ class StrategyExecutor:
                 self.logger.info("Entered trading system removal!")
                 self.broker.unsubscribe(system_id=hp_id)
                 trading_system.strategy.state = State.CLOSED
+                bp.state_info.state = State.CLOSED
                 bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
                     symbol=bp.config.symbol_info.symbol,
                     orders=bp.orders,
@@ -260,7 +261,7 @@ class StrategyExecutor:
                 for order in bp.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.run_db_task(
-                            self.db.update_order(
+                            self.db.upsert_order(
                                 price=order.price,
                                 quantity=order.quantity,
                                 quantity_stable=order.quantity_stable,
@@ -269,12 +270,13 @@ class StrategyExecutor:
                                 status=order.status,
                                 order_type=order.order_type,
                                 order_id=order.order_id,
-                                hp_id=str(bp.config.hp_id),
+                                hp_id=bp.config.hp_id,
+                                side=bp.state_info.side,
                             )
                         )
 
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=bp.config,
                         state_info=bp.state_info,
                     )
@@ -306,11 +308,11 @@ class StrategyExecutor:
                         symbol=bp.config.symbol_info.symbol,
                         orders=bp.orders,
                     )
-                    trading_system.strategy.state = State.PARTIALLY_BOUGHT
+                    trading_system.strategy.state = bp.state_info.state
                     for order in bp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
-                                self.db.update_order(
+                                self.db.upsert_order(
                                     price=order.price,
                                     quantity=order.quantity,
                                     quantity_stable=order.quantity_stable,
@@ -320,9 +322,10 @@ class StrategyExecutor:
                                     order_type=order.order_type,
                                     order_id=order.order_id,
                                     hp_id=str(bp.config.hp_id),
+                                    side=bp.state_info.side,
                                 )
                             )
-
+                bp.state_info.state = State.CLOSED
                 bp.state_info.ui_state = UiState.CLOSED
                 bp.state_info.completeness = sum(
                     order.realized_quantity for order in bp.orders
@@ -337,7 +340,7 @@ class StrategyExecutor:
                     )
                 )
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=bp.config,
                         state_info=bp.state_info,
                     )
@@ -349,11 +352,13 @@ class StrategyExecutor:
                         symbol=sp.config.symbol_info.symbol,
                         orders=sp.orders,
                     )
+                    # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
+                    # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
                     trading_system.strategy.state = bp.state_info.state
                     for order in sp.orders:
                         if order.status == ORDER_STATUS_CANCELED:
                             self.db.run_db_task(
-                                self.db.update_order(
+                                self.db.upsert_order(
                                     price=order.price,
                                     quantity=order.quantity,
                                     quantity_stable=order.quantity_stable,
@@ -362,7 +367,8 @@ class StrategyExecutor:
                                     status=order.status,
                                     order_type=order.order_type,
                                     order_id=order.order_id,
-                                    hp_id=str(sp.config.hp_id),
+                                    hp_id=sp.config.hp_id,
+                                    side=sp.state_info.side,
                                 )
                             )
                 sp.config.price_low = 0.0
@@ -385,7 +391,7 @@ class StrategyExecutor:
                     )
                 )
                 self.db.run_db_task(
-                    self.db.update_price_level(
+                    self.db.upsert_price_level(
                         config=sp.config,
                         state_info=sp.state_info,
                     )

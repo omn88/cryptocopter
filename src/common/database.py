@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
+from src.common.identifiers.common import PositionSide
 from src.common.identifiers.spot import Order, StateInfo, HPConfig
 from src.gui.identifiers.spot import HPUpdate
 
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS price_levels (
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,
+    side VARCHAR(20) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS orders (
     hp_id INT NOT NULL,
     quantity FLOAT NOT NULL,
     price FLOAT NOT NULL,
+    side VARCHAR(20) NOT NULL,
     quantity_stable FLOAT NOT NULL,
     realized_quantity FLOAT NOT NULL,
     time_in_force VARCHAR(10) NOT NULL,
@@ -215,49 +217,6 @@ class Database:
                 logger.info("Inserted strategy with ID: %s", strategy_id)
                 return strategy_id
 
-    async def insert_order(self, hp_id: int, order: Order) -> None:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO orders (order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        order.order_id,
-                        str(hp_id),
-                        order.quantity,
-                        order.price,
-                        order.quantity_stable,
-                        order.realized_quantity,
-                        order.time_in_force,
-                        order.status,
-                        order.order_type,
-                    ),
-                )
-                await conn.commit()
-
-    async def insert_buy_price_level(
-        self, config: HPConfig, state_info: StateInfo
-    ) -> None:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "INSERT INTO price_levels (open_time, hp_id, symbol, side, price_low, price_high, order_trigger, budget, state, mode) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        state_info.open_time,
-                        config.hp_id,
-                        config.symbol_info.symbol,
-                        state_info.side.value,
-                        config.price_low,
-                        config.price_high,
-                        config.order_trigger,
-                        config.budget,
-                        state_info.state.value,
-                        config.mode.value,
-                    ),
-                )
-                await conn.commit()
-
     async def upsert_hp_record(self, hp_record: Dict):
         """
         Insert or update a record in the hp_list table.
@@ -312,6 +271,102 @@ class Database:
                     )
                 await conn.commit()
 
+    async def upsert_price_level(
+        self,
+        config: HPConfig,
+        state_info: StateInfo,
+    ) -> None:
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Check if a record with the same hp_id, side, and state already exists
+                await cur.execute(
+                    "SELECT 1 FROM price_levels WHERE hp_id=%s AND side=%s AND state=%s LIMIT 1",
+                    (config.hp_id, state_info.side.value, state_info.state.value),
+                )
+                existing_record = await cur.fetchone()
+
+                # If no such record exists, proceed with the update and insert
+                if not existing_record:
+                    # Mark the current record as not current
+                    await cur.execute(
+                        "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND side=%s AND is_current=TRUE",
+                        (config.hp_id, state_info.side.value),
+                    )
+
+                    # Insert a new record with the updated values
+                    version_timestamp = datetime.datetime.now().isoformat()
+                    insert_query = """
+                    INSERT INTO price_levels (
+                        open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    """
+                    await cur.execute(
+                        insert_query,
+                        (
+                            state_info.open_time,
+                            config.hp_id,
+                            config.symbol_info.symbol,
+                            state_info.side.value,
+                            config.mode.value,
+                            config.price_low,
+                            config.price_high,
+                            config.order_trigger,
+                            config.budget,
+                            state_info.state.value,
+                            version_timestamp,
+                            state_info.stagnation_counter,
+                            state_info.next_monitor_time,
+                        ),
+                    )
+                    await conn.commit()
+
+    async def upsert_order(
+        self,
+        order_id: int,
+        hp_id: str,
+        quantity: float,
+        price: float,
+        quantity_stable: float,
+        realized_quantity: float,
+        time_in_force: str,
+        status: str,
+        side: PositionSide,
+        order_type: str,
+    ) -> None:
+        assert self.pool is not None
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Mark the current order as not current
+                await cur.execute(
+                    "UPDATE orders SET is_current=FALSE WHERE order_id=%s AND is_current=TRUE",
+                    (order_id,),
+                )
+                # Insert a new record with the updated values
+                version_timestamp = datetime.datetime.now().isoformat()
+                insert_query = """
+                INSERT INTO orders (
+                    order_id, hp_id, quantity, price, side, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
+                """
+                await cur.execute(
+                    insert_query,
+                    (
+                        order_id,
+                        hp_id,
+                        quantity,
+                        price,
+                        side.value,
+                        quantity_stable,
+                        realized_quantity,
+                        time_in_force,
+                        status,
+                        order_type,
+                        version_timestamp,
+                    ),
+                )
+                await conn.commit()
+
     async def fetch_all_active_strategies(self) -> List[Dict]:
         assert self.pool is not None
         async with self.pool.acquire() as conn:
@@ -353,87 +408,3 @@ class Database:
                 )
                 result = await cur.fetchall()
                 return result
-
-    async def update_price_level(
-        self,
-        config: HPConfig,
-        state_info: StateInfo,
-    ) -> None:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                # Mark the current record as not current
-                await cur.execute(
-                    "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
-                    (config.hp_id,),
-                )
-                # Insert a new record with the updated values
-                version_timestamp = datetime.datetime.now().isoformat()
-                insert_query = """
-                INSERT INTO price_levels (
-                    open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state, is_current, version_timestamp, stagnation_counter, next_monitor_time
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
-                """
-                await cur.execute(
-                    insert_query,
-                    (
-                        state_info.open_time,
-                        config.hp_id,
-                        config.symbol_info.symbol,
-                        state_info.side.value,
-                        config.mode.value,
-                        config.price_low,
-                        config.price_high,
-                        config.order_trigger,
-                        config.budget,
-                        state_info.state.value,
-                        version_timestamp,
-                        state_info.stagnation_counter,
-                        state_info.next_monitor_time,
-                    ),
-                )
-                await conn.commit()
-
-    async def update_order(
-        self,
-        order_id: int,
-        hp_id: str,
-        quantity: float,
-        price: float,
-        quantity_stable: float,
-        realized_quantity: float,
-        time_in_force: str,
-        status: str,
-        order_type: str,
-    ) -> None:
-        assert self.pool is not None
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                # Mark the current order as not current
-                await cur.execute(
-                    "UPDATE orders SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE AND price=%s",
-                    (hp_id, price),
-                )
-                # Insert a new record with the updated values
-                version_timestamp = datetime.datetime.now().isoformat()
-                insert_query = """
-                INSERT INTO orders (
-                    order_id, hp_id, quantity, price, quantity_stable, realized_quantity, time_in_force, status, order_type, is_current, version_timestamp
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
-                """
-                await cur.execute(
-                    insert_query,
-                    (
-                        order_id,
-                        hp_id,
-                        quantity,
-                        price,
-                        quantity_stable,
-                        realized_quantity,
-                        time_in_force,
-                        status,
-                        order_type,
-                        version_timestamp,
-                    ),
-                )
-                await conn.commit()
