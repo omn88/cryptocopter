@@ -268,7 +268,11 @@ class HpManager(BoxLayout):
                         )
                         self.update_idle_position(data=data)
                     else:
-                        if data.state_info.ui_state in [UiState.NEW, None]:
+                        if data.state_info.ui_state in [
+                            UiState.NEW,
+                            UiState.STAGNATED,
+                            None,
+                        ]:
                             logger.info(
                                 "New position added to Idle, system id: %s",
                                 data.config.hp_id,
@@ -424,7 +428,7 @@ class HpManager(BoxLayout):
     ) -> None:
         record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
         self.config_queue.put_nowait(record)
-        logger.info("Remove record added to the queue.", record)
+        logger.info("Remove record added to the queue. %s", record)
 
     def save_config(self) -> None:
         file_name = self.file_name_input.text.strip()

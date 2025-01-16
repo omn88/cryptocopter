@@ -26,7 +26,9 @@ logger = logging.getLogger("portfolio")
 
 
 class PortfolioManager:
-    def __init__(self, broker: BrokerSpot, ui_queue: queue.Queue, balances: Dict[str, float]):
+    def __init__(
+        self, broker: BrokerSpot, ui_queue: queue.Queue, balances: Dict[str, float]
+    ):
         self.client: Optional[BinanceClient] = None
         self.broker = broker
         self.ui_queue = ui_queue

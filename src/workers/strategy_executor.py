@@ -81,7 +81,7 @@ class StrategyExecutor:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
 
-        self.initialize_positions_from_db()
+        await self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
@@ -278,8 +278,12 @@ class StrategyExecutor:
         self.logger.info(f"Removed trading system with {hp_id}.")
 
     async def remove_record(self, hp_id: str, side: str) -> None:
-        self.logger.info("Entering remove record")
+        self.logger.info(
+            "Entering remove record, id: %s to system: %s", hp_id, self.id_to_system
+        )
+
         if hp_id in self.id_to_system:
+            self.logger.info("HP: %s in id to system", hp_id)
             trading_system: TradingSystem = self.id_to_system[hp_id]
             self.logger.info(
                 "Found trading system with hp id: %s, side to remove: %s", hp_id, side
@@ -439,6 +443,8 @@ class StrategyExecutor:
                         state_info=sp.state_info,
                     )
                 )
+        else:
+            self.logger.info("HP %s NOT in ID to system", hp_id)
 
     async def initialize_positions_from_db(self) -> None:
         # 1. Fetch HP List IDs where state is != CLOSED
@@ -448,16 +454,14 @@ class StrategyExecutor:
         # 5. Update the orders if needed
         # 6. Start the strategy's worker.
 
-
-        Start with creating separate price levels for buy and sell
-
         logger.info("Initialize positions from the database first")
 
-        active_hps = self.db.run_db_task(self.db.fetch_active_hp_ids_and_states())
+        active_hps = self.db.run_db_task(self.db.fetch_active_hp_list())
 
-        logger.info("Fetched list of hp and its states: \n%s", active_hps)
+        logger.info("Fetched list of active HPs: \n%s", active_hps)
 
-        for hp_id, state in active_hps:
+        for hp in active_hps:
+            hp_id = hp["hp_id"]
             price_levels = self.db.run_db_task(
                 self.db.fetch_price_levels_for_hp(hp_id=hp_id)
             )
@@ -466,34 +470,49 @@ class StrategyExecutor:
             logger.info("Current active price levels: %s", price_levels)
 
             # Separate price levels by side (BUY/SELL)
-            buy_level = next((pl for pl in price_levels if pl["side"] == "BUY"), None)
-            sell_level = next((pl for pl in price_levels if pl["side"] == "SELL"), None)
+            buy_level = next(
+                (pl for pl in price_levels if pl["side"] == PositionSide.LONG.value),
+                None,
+            )
+            assert buy_level, f"Buy price level does not exist for active HP: {hp_id}"
+            sell_level = next(
+                (pl for pl in price_levels if pl["side"] == PositionSide.SHORT.value),
+                None,
+            )
 
             logger.info(
                 "HP: %s\nBuy plev: %s\nSell plev: %s", hp_id, buy_level, sell_level
             )
 
             # 3. Recover trading system with the BUY price level
-            if buy_level:
-                config = HPConfig(
-                    symbol_info=self.symbols_info[buy_level["symbol"]],
-                    hp_id=buy_level["hp_id"],
-                    price_high=buy_level["price_high"],
-                    price_low=buy_level["price_low"],
-                    order_trigger=buy_level["order_trigger"],
-                    budget=buy_level["budget"],
-                    mode=buy_level["mode"],
-                )
+            config = HPConfig(
+                symbol_info=self.symbols_info[buy_level["symbol"]],
+                hp_id=buy_level["hp_id"],
+                price_high=buy_level["price_high"],
+                price_low=buy_level["price_low"],
+                order_trigger=buy_level["order_trigger"],
+                budget=buy_level["budget"],
+                mode=Mode(buy_level["mode"]),
+            )
             trading_system: TradingSystem = await self.recover_trading_system(
                 hp_to_be_recovered=config
             )
 
             await trading_system.recover_strategy(
-                config=config,
+                buy_config=config,
                 usdt_balance=self.balances["USDT"],
-                state=state,
-                buy_plev_id=buy_level["id"],
-                sell_plev_id=sell_level["id"] if sell_level else None,
+                state=hp["state"],
+                sell_config=HPConfig(
+                    symbol_info=self.symbols_info[sell_level["symbol"]],
+                    hp_id=sell_level["hp_id"],
+                    price_high=sell_level["price_high"],
+                    price_low=sell_level["price_low"],
+                    order_trigger=sell_level["order_trigger"],
+                    budget=sell_level["budget"],
+                    mode=Mode(sell_level["mode"]),
+                )
+                if sell_level
+                else None,
             )
 
             asyncio.create_task(trading_system.worker())
