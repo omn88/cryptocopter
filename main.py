@@ -19,6 +19,7 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.common.identifiers.common import BinanceClient
+from src.common.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
@@ -74,8 +75,10 @@ async def main():
     )
 
     symbols_info = await fetch_symbol_info(client=client)
+    balances = await fetch_initial_balances(client=client)
 
-    app = AsyncApp(client=client, db=db, symbols_info=symbols_info)
+    app = AsyncApp(client=client, db=db, symbols_info=symbols_info, balances=balances)
+
     logger.info("Created %s", app)
 
     try:

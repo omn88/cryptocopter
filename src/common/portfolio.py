@@ -26,12 +26,12 @@ logger = logging.getLogger("portfolio")
 
 
 class PortfolioManager:
-    def __init__(self, broker: BrokerSpot, ui_queue: queue.Queue):
+    def __init__(self, broker: BrokerSpot, ui_queue: queue.Queue, balances: Dict[str, float]):
         self.client: Optional[BinanceClient] = None
         self.broker = broker
         self.ui_queue = ui_queue
         self.core_queue: queue.Queue = queue.Queue()
-        self.balances: Dict[str, float] = {}
+        self.balances = balances
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
         self.usdt_saldo = 0.0
@@ -54,10 +54,6 @@ class PortfolioManager:
         self.client = BinanceClient(
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
-
-        # Fetch initial balances from the exchange
-        await self.fetch_initial_balances()
-
         self.ui_queue.put_nowait(
             Event(name=EventName.BALANCES, content=Balances(msg=self.balances))
         )
@@ -72,7 +68,6 @@ class PortfolioManager:
                 queue=self.core_queue,
             ),
         )
-
         self.broker.subscribe(
             system_id="PORTFOLIO",
             subscription_info=SubscriptionInfo(
@@ -113,25 +108,6 @@ class PortfolioManager:
 
         logger.info("PortfolioManager stopped.")
 
-    async def fetch_initial_balances(self) -> None:
-        """Fetch the initial balances from the exchange on startup."""
-        logger.info("Fetching initial balances from the exchange.")
-        assert self.client
-        # Fetch account info using the Binance API
-        account_info = await self.client.get_account()  # Fetch all balances
-
-        # Iterate through balances and store them
-        for balance_info in account_info["balances"]:
-            asset = balance_info["asset"]
-            free = float(balance_info["free"])
-            locked = float(balance_info["locked"])
-            total_balance = free + locked
-
-            if total_balance > 0:  # Only store assets with a non-zero balance
-                self.balances[asset] = total_balance
-
-        logger.info("Initial balances fetched: %s", self.balances)
-
     async def handle_account_position(self, account_position: AccountPosition) -> None:
         """Handle account position updates (update balances)."""
         logger.info("Handling account position update.")
@@ -164,3 +140,24 @@ class PortfolioManager:
                 content=PriceUpdates(msg=self.price_updates),
             )
         )
+
+
+async def fetch_initial_balances(client: BinanceClient) -> Dict[str, float]:
+    """Fetch the initial balances from the exchange on startup."""
+    logger.info("Fetching initial balances from the exchange.")
+    balances = {}
+    # Fetch account info using the Binance API
+    account_info = await client.get_account()  # Fetch all balances
+
+    # Iterate through balances and store them
+    for balance_info in account_info["balances"]:
+        asset = balance_info["asset"]
+        free = float(balance_info["free"])
+        locked = float(balance_info["locked"])
+        total_balance = free + locked
+
+        if total_balance > 0:  # Only store assets with a non-zero balance
+            balances[asset] = total_balance
+
+    logger.info("Initial balances fetched: %s", balances)
+    return balances

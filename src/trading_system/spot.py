@@ -6,7 +6,7 @@ from typing import Optional
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.database import Database
-from src.common.identifiers.common import BinanceClient
+from src.common.identifiers.common import BinanceClient, PositionSide
 from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.common.identifiers.spot import (
@@ -15,6 +15,7 @@ from src.common.identifiers.spot import (
     Event,
     ExecutionReport,
     HPConfig,
+    Order,
     SignalUpdate,
     State,
     StateInfo,
@@ -106,6 +107,104 @@ class TradingSystem:
                 ),
             )
         )
+
+    async def recover_strategy(
+        self,
+        config: HPConfig,
+        usdt_balance: float,
+        state: str,
+    ) -> None:
+        logger.info("Entering strategy recovery.")
+        state_info = StateInfo(state=State(state))
+        self.strategy = HpManager(
+            client=self.client,
+            ui_queue=self.ui_queue,
+            logger=self.strategy_logger,
+            buy_config=self.config,
+            state_info=state_info,
+            balance=usdt_balance,
+            db=self.db,
+            core_queue=self.core_queue,
+            config_queue=self.config_queue,
+        )
+        self.strategy.state = state_info.state
+
+        # Trading State Machine initialization
+        self.state_machine = AsyncMachine(
+            model=self.strategy,
+            states=self.strategy.states,
+            transitions=self.strategy.transitions,
+            initial=self.strategy.state,
+            send_event=True,
+            queued=True,
+        )
+
+        orders = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(
+                hp_id=self.config.hp_id, side=PositionSide.LONG.value
+            )
+        )
+        order_list = []
+        for order in orders:
+            order_list.append(
+                Order(
+                    order_id=order["order_id"],
+                    quantity=order["quantity"],
+                    precision=self.config.symbol_info.precision,
+                    price_precision=self.config.symbol_info.price_precision,
+                    price=order["price"],
+                    quantity_stable=order["quantity_stable"],
+                    realized_quantity=order["realized_quantity"],
+                    status=order["status"],
+                )
+            )
+        self.strategy.buy_position.orders = order_list
+
+        logger.info("Updated buy orders: %s.", order_list)
+
+        if sell_plev_id:
+            orders = self.db.run_db_task(
+                self.db.fetch_orders_for_price_level(
+                    hp_id=self.config.hp_id, side=PositionSide.SHORT.value
+                )
+            )
+            order_list = []
+            for order in orders:
+                order_list.append(
+                    Order(
+                        order_id=order["order_id"],
+                        quantity=order["quantity"],
+                        precision=self.config.symbol_info.precision,
+                        price_precision=self.config.symbol_info.price_precision,
+                        price=order["price"],
+                        quantity_stable=order["quantity_stable"],
+                        realized_quantity=order["realized_quantity"],
+                        status=order["status"],
+                    )
+                )
+            self.strategy.sell_position.orders = order_list
+
+            logger.info("Updated sell orders: %s.", order_list)
+
+        self.strategy.buy_position.state_info.generate_next_monitor_time()
+        self.strategy.sell_position.state_info.generate_next_monitor_time()
+
+        pos_data = PositionData(
+            config=config,
+            state_info=state_info,
+            hp_update=HPUpdate(
+                hp_id=self.config.hp_id,
+                buy_price=self.config.price_high,
+                asset=self.config.symbol_info.symbol[:-4],
+                state=state_info.state,
+            ),
+        )
+
+        self.ui_queue.put_nowait(pos_data)
+
+        logger.info("PositionData send to UI: %s.", pos_data)
+
+        logger.info("Strategy buy and sell positions restored")
 
     async def worker(self):
         if self.state_machine:

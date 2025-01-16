@@ -77,6 +77,7 @@ class AsyncApp(App):
         client: BinanceClient,
         db: Database,
         symbols_info: Dict[str, SymbolInfo],
+        balances: Dict[str, float],
         **kwargs,
     ):
         """Initializes the `AsyncApp` instance.
@@ -90,12 +91,12 @@ class AsyncApp(App):
         self.client = client
         self.db = db
         self.symbols_info = symbols_info
+        self.balances = balances
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
-        asyncio.create_task(self.initialize())
 
     def __str__(self):
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -112,10 +113,10 @@ class AsyncApp(App):
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
-    async def initialize(self):
+    def on_start(self):
         self.setup_portfolio_manager()
-        await self.load_all_active_strategies()
-        await self.update_ui()
+        asyncio.create_task(self.load_all_active_strategies())
+        asyncio.create_task(self.update_ui())
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -138,6 +139,7 @@ class AsyncApp(App):
         self.portfolio = PortfolioManager(
             broker=self.broker,
             ui_queue=ui_queue,
+            balances=self.balances,
         )
 
         # Set up frontend UI for PortfolioManager
