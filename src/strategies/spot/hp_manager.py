@@ -37,7 +37,7 @@ class HpManager:
     def __init__(
         self,
         client: BinanceClient,
-        config: HPConfig,
+        buy_config: HPConfig,
         state_info: StateInfo,
         logger: StrategyLogger,
         balance: float,
@@ -55,7 +55,7 @@ class HpManager:
         self.buy_position = PositionHandler(
             client=client,
             strategy_logger=logger,
-            config=config,
+            config=buy_config,
             ui_queue=ui_queue,
             db=db,
             state_info=state_info,

@@ -81,9 +81,7 @@ class StrategyExecutor:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
 
-        # self.initialize_hp_list()
-
-        # self.initialize_positions_from_db()
+        await self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
@@ -225,6 +223,51 @@ class StrategyExecutor:
         asyncio.create_task(trading_system.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
+    async def recover_trading_system(
+        self,
+        hp_to_be_recovered: HPConfig,
+    ) -> TradingSystem:
+        self.logger.info(
+            "Recovering trading system with config: %s", hp_to_be_recovered
+        )
+        self.hp_configurations.append(hp_to_be_recovered)
+        assert self.client is not None
+        core_queue: queue.Queue = queue.Queue()
+
+        self.broker.subscribe(
+            system_id=str(hp_to_be_recovered.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=hp_to_be_recovered.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id=str(hp_to_be_recovered.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=hp_to_be_recovered.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=core_queue,
+            ),
+        )
+
+        trading_system = TradingSystem(
+            strategy_logger=self.logger,
+            client=self.client,
+            ui_queue=self.ui_queue,
+            core_queue=core_queue,
+            config=hp_to_be_recovered,
+            db=self.db,
+            config_queue=self.config_queue,
+        )
+        self.id_to_system[str(hp_to_be_recovered.hp_id)] = trading_system
+
+        logger.info("Trading system restored: %s", trading_system)
+
+        return trading_system
+
     async def terminate_trading_system(
         self,
         close_data: HpClose,
@@ -235,8 +278,12 @@ class StrategyExecutor:
         self.logger.info(f"Removed trading system with {hp_id}.")
 
     async def remove_record(self, hp_id: str, side: str) -> None:
-        self.logger.info("Entering remove record")
-        if hp_id in self.id_to_system:
+        self.logger.info(
+            "Entering remove record, id: %s to system: %s", hp_id, self.id_to_system
+        )
+
+        if str(hp_id) in self.id_to_system:
+            self.logger.info("HP: %s in id to system", hp_id)
             trading_system: TradingSystem = self.id_to_system[hp_id]
             self.logger.info(
                 "Found trading system with hp id: %s, side to remove: %s", hp_id, side
@@ -244,6 +291,13 @@ class StrategyExecutor:
             assert trading_system.strategy
             bp = trading_system.strategy.buy_position
             sp = trading_system.strategy.sell_position
+
+            self.logger.info(
+                "side: %s, sp state: %s, bp state: %s",
+                side,
+                sp.state_info.state,
+                bp.state_info.state,
+            )
 
             if (
                 side == "BUY"
@@ -254,26 +308,32 @@ class StrategyExecutor:
                 self.broker.unsubscribe(system_id=hp_id)
                 trading_system.strategy.state = State.CLOSED
                 bp.state_info.state = State.CLOSED
-                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
-                    symbol=bp.config.symbol_info.symbol,
-                    orders=bp.orders,
-                )
-                for order in bp.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        self.db.run_db_task(
-                            self.db.upsert_order(
-                                price=order.price,
-                                quantity=order.quantity,
-                                quantity_stable=order.quantity_stable,
-                                realized_quantity=order.realized_quantity,
-                                time_in_force=order.time_in_force,
-                                status=order.status,
-                                order_type=order.order_type,
-                                order_id=order.order_id,
-                                hp_id=bp.config.hp_id,
-                                side=bp.state_info.side,
+                if bp.orders:
+                    bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                        symbol=bp.config.symbol_info.symbol,
+                        orders=bp.orders,
+                    )
+                    for order in bp.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.upsert_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=bp.config.hp_id,
+                                    side=bp.state_info.side,
+                                )
                             )
-                        )
+                    bp.state_info.completeness = round(
+                        sum(order.realized_quantity for order in bp.orders)
+                        / sum(order.quantity for order in bp.orders),
+                        2,
+                    )
 
                 self.db.run_db_task(
                     self.db.upsert_price_level(
@@ -283,11 +343,6 @@ class StrategyExecutor:
                 )
 
                 bp.state_info.ui_state = UiState.CLOSED
-                bp.state_info.completeness = round(
-                    sum(order.realized_quantity for order in bp.orders)
-                    / sum(order.quantity for order in bp.orders),
-                    2,
-                )
 
                 self.ui_queue.put_nowait(
                     PositionData(
@@ -396,37 +451,81 @@ class StrategyExecutor:
                         state_info=sp.state_info,
                     )
                 )
+        else:
+            self.logger.info("HP %s NOT in ID to system", hp_id)
 
-    def initialize_positions_from_db(self):
-        active_price_levels = self.db.run_db_task(
-            self.db.fetch_all_active_price_levels()
-        )
-        if not active_price_levels:
-            logger.info("No active price levels found")
-            return
-        logger.info("Current active price levels: %s", active_price_levels)
+    async def initialize_positions_from_db(self) -> None:
+        # 1. Fetch HP List IDs where state is != CLOSED
+        # 2. Run one by one through the list, pull latest buy and sell price levels
+        # 3. Recover the trading system and add the position related data to it
+        # 4. Pull the orders associated with particular price level or hp
+        # 5. Update the orders if needed
+        # 6. Start the strategy's worker.
 
-        for price_level in active_price_levels:
-            self.config_queue.put_nowait(
-                HpNew(
-                    config=HPConfig(
-                        hp_id=price_level.get("hp_id"),
-                        symbol_info=self.symbols_info[price_level["symbol"]],
-                        price_low=float(price_level["price_low"]),
-                        price_high=float(price_level["price_high"]),
-                        budget=float(price_level["budget"]),
-                        order_trigger=float(price_level["order_trigger"]),
-                        mode=Mode.DCA
-                        if price_level.get("mode") == Mode.DCA.value
-                        else Mode.SINGLE,
-                    ),
-                    state_info=StateInfo(
-                        state=State[price_level["state"]],
-                        stagnation_counter=int(price_level["stagnation_counter"]),
-                        next_monitor_time=price_level["next_monitor_time"],
-                    ),
-                )
+        logger.info("Initialize positions from the database first")
+
+        active_hps = self.db.run_db_task(self.db.fetch_active_hp_list())
+
+        logger.info("Fetched list of active HPs: \n%s", active_hps)
+
+        for hp in active_hps:
+            hp_id = hp["hp_id"]
+            price_levels = self.db.run_db_task(
+                self.db.fetch_price_levels_for_hp(hp_id=hp_id)
             )
+
+            assert price_levels, f"No active price levels found for HP: {hp_id}"
+            logger.info("Current active price levels: %s", price_levels)
+
+            # Separate price levels by side (BUY/SELL)
+            buy_level = next(
+                (pl for pl in price_levels if pl["side"] == PositionSide.LONG.value),
+                None,
+            )
+            assert buy_level, f"Buy price level does not exist for active HP: {hp_id}"
+            sell_level = next(
+                (pl for pl in price_levels if pl["side"] == PositionSide.SHORT.value),
+                None,
+            )
+
+            logger.info(
+                "HP: %s\nBuy plev: %s\nSell plev: %s", hp_id, buy_level, sell_level
+            )
+
+            # 3. Recover trading system with the BUY price level
+            config = HPConfig(
+                symbol_info=self.symbols_info[buy_level["symbol"]],
+                hp_id=buy_level["hp_id"],
+                price_high=buy_level["price_high"],
+                price_low=buy_level["price_low"],
+                order_trigger=buy_level["order_trigger"],
+                budget=buy_level["budget"],
+                mode=Mode(buy_level["mode"]),
+            )
+            trading_system: TradingSystem = await self.recover_trading_system(
+                hp_to_be_recovered=config
+            )
+
+            await trading_system.recover_strategy(
+                buy_config=config,
+                usdt_balance=self.balances["USDT"],
+                state=State(hp["state"]),
+                buy_state=State(buy_level["state"]),
+                sell_config=HPConfig(
+                    symbol_info=self.symbols_info[sell_level["symbol"]],
+                    hp_id=sell_level["hp_id"],
+                    price_high=sell_level["price_high"],
+                    price_low=sell_level["price_low"],
+                    order_trigger=sell_level["order_trigger"],
+                    budget=sell_level["budget"],
+                    mode=Mode(sell_level["mode"]),
+                )
+                if sell_level
+                else None,
+            )
+
+            asyncio.create_task(trading_system.worker())
+            self.logger.info("HP %s restored.", config.hp_id)
 
     # async def save_config(self, file_name: str) -> None:
     #     """Handle saving the current configuration to a CSV file."""

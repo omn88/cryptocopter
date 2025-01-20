@@ -108,7 +108,7 @@ def trading_system_factory(mock_AsyncClient):
             client=mock_AsyncClient,
             balance=balance,
             config_queue=MagicMock(),
-            config=hp_config,
+            buy_config=hp_config,
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
@@ -180,7 +180,7 @@ def trading_system_factory_db(mock_AsyncClient, test_db):
         strategy = StrategyHP(
             client=mock_AsyncClient,
             balance=balance,
-            config=hp_config,
+            buy_config=hp_config,
             config_queue=MagicMock(),
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
