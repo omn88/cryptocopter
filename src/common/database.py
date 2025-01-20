@@ -376,7 +376,7 @@ class Database:
                 records = await cur.fetchall()
                 return list(records)
 
-    async def fetch_price_levels_for_hp(self, hp_id: int) -> List[Dict]:
+    async def fetch_price_levels_for_hp(self, hp_id: str) -> List[Dict]:
         """
         Fetch price levels for a given hp_id.
         """

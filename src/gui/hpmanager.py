@@ -169,7 +169,7 @@ class HpManager(BoxLayout):
             logger.info("HP is already in the list, time to update")
             for index, hp in enumerate(hp_list):
                 logger.info("Checking item %s, %s", index, hp)
-                if hp["hp_id"] == update.hp_id:
+                if str(hp["hp_id"]) == str(update.hp_id):
                     logger.info(
                         "Found a match with hp id: %s, quantity: %s",
                         update.hp_id,
@@ -250,21 +250,29 @@ class HpManager(BoxLayout):
                     self.hp_list_data = self.update_hp_list(
                         update=data.hp_update, hp_list=self.hp_list_data
                     )
+                    if self.active_records:
+                        logger.info(
+                            "record hp id: %s, type: %s, data hp id: %s, type: %s",
+                            self.active_records[0]["hp_id"],
+                            type(self.active_records[0]["hp_id"]),
+                            str(data.config.hp_id),
+                            type(data.config.hp_id),
+                        )
                     if any(
-                        record["hp_id"] == data.config.hp_id
+                        record["hp_id"] == str(data.config.hp_id)
                         for record in self.active_records
                     ):
                         logger.info(
-                            "Record %s found in active records", data.config.hp_id
+                            "Record %s found in active records", str(data.config.hp_id)
                         )
                         self.update_active_position(data=data)
 
                     elif any(
-                        record["hp_id"] == data.config.hp_id
+                        record["hp_id"] == str(data.config.hp_id)
                         for record in self.idle_records
                     ):
                         logger.info(
-                            "Record %s found in idle records", data.config.hp_id
+                            "Record %s found in idle records", str(data.config.hp_id)
                         )
                         self.update_idle_position(data=data)
                     else:
@@ -275,13 +283,13 @@ class HpManager(BoxLayout):
                         ]:
                             logger.info(
                                 "New position added to Idle, system id: %s",
-                                data.config.hp_id,
+                                str(data.config.hp_id),
                             )
                             self.add_new_position_to_idle(data=data)
                         if data.state_info.ui_state == UiState.OPEN:
                             logger.info(
                                 "New position added to Active, system id: %s",
-                                data.config.hp_id,
+                                str(data.config.hp_id),
                             )
                             self.add_new_position_to_active(data=data)
                             # if data.recovering:
@@ -728,7 +736,7 @@ class HpManager(BoxLayout):
     ) -> None:
         for position in self.active_records:
             if (
-                position["hp_id"] == data.config.hp_id
+                position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
@@ -744,7 +752,7 @@ class HpManager(BoxLayout):
                     archived_position = ArchivedPosition(
                         open_time=data.state_info.open_time,
                         close_time=data.state_info.close_time,
-                        hp_id=data.config.hp_id,
+                        hp_id=str(data.config.hp_id),
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -759,7 +767,7 @@ class HpManager(BoxLayout):
                     if data.state_info.completeness == 1.0:
                         self.config_queue.put_nowait(
                             RemoveRecord(
-                                hp_id=data.config.hp_id,
+                                hp_id=str(data.config.hp_id),
                                 symbol=data.config.symbol_info.symbol,
                                 side=data.state_info.side.value,
                             )
@@ -780,7 +788,7 @@ class HpManager(BoxLayout):
                     self.active_records.remove(position)
                     idle_position = IdlePosition(
                         open_time=data.state_info.open_time,
-                        hp_id=data.config.hp_id,
+                        hp_id=str(data.config.hp_id),
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -802,7 +810,7 @@ class HpManager(BoxLayout):
     ) -> None:
         for position in self.idle_records:
             if (
-                position["hp_id"] == data.config.hp_id
+                position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
@@ -823,7 +831,7 @@ class HpManager(BoxLayout):
                     )
                     active_position = ActivePosition(
                         open_time=data.state_info.open_time,
-                        hp_id=data.config.hp_id,
+                        hp_id=str(data.config.hp_id),
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
@@ -845,7 +853,7 @@ class HpManager(BoxLayout):
                     archived_position = ArchivedPosition(
                         open_time=data.state_info.open_time,
                         close_time=data.state_info.close_time,
-                        hp_id=data.config.hp_id,
+                        hp_id=str(data.config.hp_id),
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),

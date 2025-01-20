@@ -114,10 +114,11 @@ class TradingSystem:
         buy_config: HPConfig,
         sell_config: Optional[HPConfig],
         usdt_balance: float,
-        state: str,
+        state: State,
+        buy_state: State,
     ) -> None:
         logger.info("Entering strategy recovery.")
-        state_info = StateInfo(state=State(state))
+        state_info = StateInfo(state=state)
         self.strategy = HpManager(
             client=self.client,
             ui_queue=self.ui_queue,
@@ -130,7 +131,7 @@ class TradingSystem:
             config_queue=self.config_queue,
         )
         self.strategy.state = state_info.state
-
+        self.strategy.buy_position.state_info.state = buy_state
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
             model=self.strategy,

@@ -262,7 +262,7 @@ class StrategyExecutor:
             db=self.db,
             config_queue=self.config_queue,
         )
-        self.id_to_system[hp_to_be_recovered.hp_id] = trading_system
+        self.id_to_system[str(hp_to_be_recovered.hp_id)] = trading_system
 
         logger.info("Trading system restored: %s", trading_system)
 
@@ -282,7 +282,7 @@ class StrategyExecutor:
             "Entering remove record, id: %s to system: %s", hp_id, self.id_to_system
         )
 
-        if hp_id in self.id_to_system:
+        if str(hp_id) in self.id_to_system:
             self.logger.info("HP: %s in id to system", hp_id)
             trading_system: TradingSystem = self.id_to_system[hp_id]
             self.logger.info(
@@ -291,6 +291,13 @@ class StrategyExecutor:
             assert trading_system.strategy
             bp = trading_system.strategy.buy_position
             sp = trading_system.strategy.sell_position
+
+            self.logger.info(
+                "side: %s, sp state: %s, bp state: %s",
+                side,
+                sp.state_info.state,
+                bp.state_info.state,
+            )
 
             if (
                 side == "BUY"
@@ -301,26 +308,32 @@ class StrategyExecutor:
                 self.broker.unsubscribe(system_id=hp_id)
                 trading_system.strategy.state = State.CLOSED
                 bp.state_info.state = State.CLOSED
-                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
-                    symbol=bp.config.symbol_info.symbol,
-                    orders=bp.orders,
-                )
-                for order in bp.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        self.db.run_db_task(
-                            self.db.upsert_order(
-                                price=order.price,
-                                quantity=order.quantity,
-                                quantity_stable=order.quantity_stable,
-                                realized_quantity=order.realized_quantity,
-                                time_in_force=order.time_in_force,
-                                status=order.status,
-                                order_type=order.order_type,
-                                order_id=order.order_id,
-                                hp_id=bp.config.hp_id,
-                                side=bp.state_info.side,
+                if bp.orders:
+                    bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
+                        symbol=bp.config.symbol_info.symbol,
+                        orders=bp.orders,
+                    )
+                    for order in bp.orders:
+                        if order.status == ORDER_STATUS_CANCELED:
+                            self.db.run_db_task(
+                                self.db.upsert_order(
+                                    price=order.price,
+                                    quantity=order.quantity,
+                                    quantity_stable=order.quantity_stable,
+                                    realized_quantity=order.realized_quantity,
+                                    time_in_force=order.time_in_force,
+                                    status=order.status,
+                                    order_type=order.order_type,
+                                    order_id=order.order_id,
+                                    hp_id=bp.config.hp_id,
+                                    side=bp.state_info.side,
+                                )
                             )
-                        )
+                    bp.state_info.completeness = round(
+                        sum(order.realized_quantity for order in bp.orders)
+                        / sum(order.quantity for order in bp.orders),
+                        2,
+                    )
 
                 self.db.run_db_task(
                     self.db.upsert_price_level(
@@ -330,11 +343,6 @@ class StrategyExecutor:
                 )
 
                 bp.state_info.ui_state = UiState.CLOSED
-                bp.state_info.completeness = round(
-                    sum(order.realized_quantity for order in bp.orders)
-                    / sum(order.quantity for order in bp.orders),
-                    2,
-                )
 
                 self.ui_queue.put_nowait(
                     PositionData(
@@ -501,7 +509,8 @@ class StrategyExecutor:
             await trading_system.recover_strategy(
                 buy_config=config,
                 usdt_balance=self.balances["USDT"],
-                state=hp["state"],
+                state=State(hp["state"]),
+                buy_state=State(buy_level["state"]),
                 sell_config=HPConfig(
                     symbol_info=self.symbols_info[sell_level["symbol"]],
                     hp_id=sell_level["hp_id"],
