@@ -549,6 +549,8 @@ class HpManager(BoxLayout):
         logger.info("Cancel sell send to the config queue: %s", config)
 
         self.filter_records(tab="idle", symbol_filter="All")
+        self.filter_records(tab="active", symbol_filter="All")
+        self.filter_records(tab="archive", symbol_filter="All")
 
     def fetch_hp_info(self, hp_id):
         """
@@ -677,59 +679,6 @@ class HpManager(BoxLayout):
         )
         self.filter_records("archive", "All")
 
-    def recovery_to_active(self, data: PositionData) -> None:
-        cancel_price = data.config.symbol_info.adjust_price(
-            (
-                (1 + (2 * data.config.order_trigger / 100)) * data.config.price_high
-                if data.state_info.side.value == PositionSide.LONG.value
-                else (1 - (2 * data.config.order_trigger / 100)) * data.config.price_low
-            )
-        )
-
-        self.active_records.append(
-            ActivePosition(
-                open_time=data.state_info.open_time,
-                hp_id=str(data.config.hp_id),
-                symbol=data.config.symbol_info.symbol,
-                side=str(data.state_info.side.value),
-                mode=str(data.config.mode.value),
-                price_low=str(data.config.price_low),
-                price_high=str(data.config.price_high),
-                budget=str(data.config.budget),
-                order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                completeness=str(data.state_info.completeness),
-                state=str(data.state_info.ui_state),
-            ).to_dict()
-        )
-        self.filter_records("active", "All")
-
-    def recovery_to_idle(self, data: PositionData) -> None:
-        trigger_price = data.config.symbol_info.adjust_price(
-            (
-                (1 + (data.config.order_trigger / 100)) * data.config.price_high
-                if data.state_info.side.value == PositionSide.LONG.value
-                else (1 - (data.config.order_trigger / 100)) * data.config.price_low
-            )
-        )
-
-        self.idle_records.append(
-            IdlePosition(
-                open_time=data.state_info.open_time,
-                hp_id=str(data.config.hp_id),
-                symbol=data.config.symbol_info.symbol,
-                side=str(data.state_info.side.value),
-                mode=str(data.config.mode.value),
-                price_low=str(data.config.price_low),
-                price_high=str(data.config.price_high),
-                budget=str(data.config.budget),
-                order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.state_info.ui_state),
-                completeness=str(data.state_info.completeness),
-            ).to_dict()
-        )
-        self.filter_records("idle", "All")
-
     def update_active_position(
         self,
         data: PositionData,
@@ -773,7 +722,6 @@ class HpManager(BoxLayout):
                             )
                         )
 
-                        self.filter_records("archive", "All")
                 if data.state_info.ui_state == UiState.STAGNATED:
                     trigger_price = data.config.symbol_info.adjust_price(
                         (
@@ -801,8 +749,9 @@ class HpManager(BoxLayout):
                     )
                     self.idle_records.append(idle_position.to_dict())
                     logger.info("Price level stagnated: %s", idle_position)
-                    self.filter_records("idle", "All")
         self.filter_records("active", "All")
+        self.filter_records("idle", "All")
+        self.filter_records("archive", "All")
 
     def update_idle_position(
         self,
