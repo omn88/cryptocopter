@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import pprint
-from typing import List, Union
+from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -18,7 +18,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import HPConfig, Order
+from src.common.identifiers.spot import Event, EventName, HPConfig, Order
 from src.common.symbol_info import SymbolInfo
 
 
@@ -273,31 +273,3 @@ class OrderHandler:
                 logger.info("Cancelled new order with id: %s", order.order_id)
 
         return orders
-
-    async def update_order_status(self, order: Order, symbol: str) -> Order:
-        """Retrieve the latest status and update the Order object.
-
-        Args:
-            order: The Order object to be updated.
-            symbol: The symbol for the order (e.g., 'BTCUSDT').
-
-        Returns:
-            The updated Order object.
-        """
-        try:
-            resp = await self.client.get_order(symbol=symbol, orderId=order.order_id)
-            order.status = resp["status"]
-            order.realized_quantity = float(resp["executedQty"])
-            logger.info("Updated status for order %s: %s", order.order_id, order.status)
-        except (
-            BinanceAPIException,
-            BinanceOrderException,
-            BinanceRequestException,
-        ) as exception:
-            logger.error(
-                "Failed to update order status due to %s: %s",
-                type(exception).__name__,
-                exception,
-            )
-            raise exception
-        return order

@@ -2,6 +2,14 @@ import asyncio
 import datetime
 import logging
 import queue
+from binance.enums import (
+    TIME_IN_FORCE_GTC,
+    ORDER_STATUS_PARTIALLY_FILLED,
+    ORDER_STATUS_NEW,
+    ORDER_TYPE_LIMIT,
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_CANCELED,
+)
 from typing import Optional
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
@@ -134,6 +142,7 @@ class TradingSystem:
             queued=True,
         )
 
+        # Restore orders for buy position
         orders = self.db.run_db_task(
             self.db.fetch_orders_for_price_level(
                 hp_id=buy_config.hp_id, side=PositionSide.LONG.value
@@ -156,8 +165,48 @@ class TradingSystem:
         self.strategy.buy_position.orders = order_list
         logger.info("Updated buy orders: %s.", order_list)
 
-        # ToDO: CONFIRM WITH THE EXCHANGE!!!!
+        # Confirm buy position state with the exchange
 
+        for order in self.strategy.buy_position.orders:
+            if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+                # Retrieve the latest order information from the API
+                resp = await self.client.get_order(
+                    symbol=buy_config.symbol_info.symbol, orderId=order.order_id
+                )
+                latest_status = resp["status"]
+                latest_realized_quantity = float(resp["executedQty"])
+
+                # Check if status or realized quantity has changed
+                status_changed = latest_status != order.status
+                quantity_changed = latest_realized_quantity != order.realized_quantity
+
+                if status_changed or quantity_changed:
+                    # Send a message to the appropriate queue
+
+                    ex_report = ExecutionReport(
+                        symbol=buy_config.symbol_info.symbol,
+                        quantity=order.quantity,
+                        price=order.price,
+                        current_order_status=latest_status,
+                        order_id=order.order_id,
+                        cumulative_filled_quantity=latest_realized_quantity,
+                    )
+
+                    self.core_queue.put_nowait(
+                        Event(
+                            name=EventName.EXECUTION_REPORT,
+                            content=ex_report,
+                        )
+                    )
+                    logger.info(
+                        "Order %s has been modified, execution report send: %s",
+                        order.order_id,
+                        ex_report,
+                    )
+                else:
+                    logger.info("No changes detected for order %s.", order.order_id)
+
+        # Restore orders for sell position
         orders = self.db.run_db_task(
             self.db.fetch_orders_for_price_level(
                 hp_id=buy_config.hp_id, side=PositionSide.SHORT.value
@@ -178,8 +227,46 @@ class TradingSystem:
                 )
             )
         self.strategy.sell_position.orders = order_list
-
         logger.info("Updated sell orders: %s.", order_list)
+
+        for order in self.strategy.sell_position.orders:
+            if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+                # Retrieve the latest order information from the API
+                resp = await self.client.get_order(
+                    symbol=buy_config.symbol_info.symbol, orderId=order.order_id
+                )
+                latest_status = resp["status"]
+                latest_realized_quantity = float(resp["executedQty"])
+
+                # Check if status or realized quantity has changed
+                status_changed = latest_status != order.status
+                quantity_changed = latest_realized_quantity != order.realized_quantity
+
+                if status_changed or quantity_changed:
+                    # Send a message to the appropriate queue
+
+                    ex_report = ExecutionReport(
+                        symbol=buy_config.symbol_info.symbol,
+                        quantity=order.quantity,
+                        price=order.price,
+                        current_order_status=latest_status,
+                        order_id=order.order_id,
+                        cumulative_filled_quantity=latest_realized_quantity,
+                    )
+
+                    self.core_queue.put_nowait(
+                        Event(
+                            name=EventName.EXECUTION_REPORT,
+                            content=ex_report,
+                        )
+                    )
+                    logger.info(
+                        "Order %s has been modified, execution report send: %s",
+                        order.order_id,
+                        ex_report,
+                    )
+                else:
+                    logger.info("No changes detected for order %s.", order.order_id)
 
         self.strategy.buy_position.state_info.generate_next_monitor_time()
         self.strategy.sell_position.state_info.generate_next_monitor_time()
