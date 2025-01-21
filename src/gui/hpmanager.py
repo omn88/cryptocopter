@@ -250,14 +250,6 @@ class HpManager(BoxLayout):
                     self.hp_list_data = self.update_hp_list(
                         update=data.hp_update, hp_list=self.hp_list_data
                     )
-                    if self.active_records:
-                        logger.info(
-                            "record hp id: %s, type: %s, data hp id: %s, type: %s",
-                            self.active_records[0]["hp_id"],
-                            type(self.active_records[0]["hp_id"]),
-                            str(data.config.hp_id),
-                            type(data.config.hp_id),
-                        )
                     if any(
                         record["hp_id"] == str(data.config.hp_id)
                         for record in self.active_records

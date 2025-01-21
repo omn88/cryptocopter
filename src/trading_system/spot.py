@@ -75,14 +75,6 @@ class TradingSystem:
 
         self.strategy_logger.info("Config status: %s", state_info.state)
 
-        # if state_info.last_state is not None:
-        #     self.strategy_logger.debug(
-        #         "Old status is not None: %s, moving strategy state to recovering",
-        #         state_info.last_state,
-        #     )
-        #     self.strategy.state = State.RECOVERING
-        #     self.strategy.position_handler.last_state = state_info.last_state
-
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
             model=self.strategy,
@@ -162,7 +154,6 @@ class TradingSystem:
                 )
             )
         self.strategy.buy_position.orders = order_list
-
         logger.info("Updated buy orders: %s.", order_list)
 
         # ToDO: CONFIRM WITH THE EXCHANGE!!!!
@@ -194,7 +185,7 @@ class TradingSystem:
         self.strategy.sell_position.state_info.generate_next_monitor_time()
 
         # Send buy position data
-        if self.strategy.buy_position.state_info.state in [
+        if self.strategy.state in [
             State.BUYING,
             State.NEW,
             State.PARTIALLY_BOUGHT,
@@ -263,10 +254,7 @@ class TradingSystem:
                     if EventName.TICKER == event.name:
                         assert isinstance(event.content, TickerUpdate)
                         self.state_machine.model.ticker_update = event.content
-                        if self.state_machine.model.state == State.RECOVERING:
-                            await self.state_machine.model.process_recovery()
-                        else:
-                            await self.state_machine.model.process_ticker()
+                        await self.state_machine.model.process_ticker()  # type: ignore
 
                     elif EventName.EXECUTION_REPORT == event.name:
                         assert isinstance(event.content, ExecutionReport)
