@@ -285,6 +285,15 @@ class TradingSystem:
                 else UiState.STAGNATED
             )
 
+            state_info.completeness = round(
+                sum(
+                    order.realized_quantity
+                    for order in self.strategy.buy_position.orders
+                )
+                / sum(order.quantity for order in self.strategy.buy_position.orders),
+                2,
+            )
+
             buy_pos_data = PositionData(
                 config=buy_config,
                 state_info=state_info,
@@ -310,6 +319,16 @@ class TradingSystem:
                     UiState.OPEN
                     if self.strategy.state in [State.BUYING, State.SELLING]
                     else UiState.STAGNATED
+                )
+                state_info.completeness = round(
+                    sum(
+                        order.realized_quantity
+                        for order in self.strategy.sell_position.orders
+                    )
+                    / sum(
+                        order.quantity for order in self.strategy.sell_position.orders
+                    ),
+                    2,
                 )
 
                 sell_pos_data = PositionData(
