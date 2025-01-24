@@ -148,6 +148,7 @@ class TradingSystem:
                 hp_id=buy_config.hp_id, side=PositionSide.LONG.value
             )
         )
+        logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         order_list = []
         for order in orders:
             order_list.append(
@@ -205,6 +206,16 @@ class TradingSystem:
                     )
                 else:
                     logger.info("No changes detected for order %s.", order.order_id)
+
+        if not self.strategy.buy_position.orders:
+            self.strategy.buy_position.orders = (
+                self.strategy.buy_position.order_handler.prepare_buy_orders(
+                    config=buy_config
+                )
+            )
+            logger.info(
+                "No orders exist, prepared new: %s", self.strategy.buy_position.orders
+            )
 
         # Restore orders for sell position
         orders = self.db.run_db_task(
@@ -268,6 +279,16 @@ class TradingSystem:
                 else:
                     logger.info("No changes detected for order %s.", order.order_id)
 
+        # if not self.strategy.sell_position.orders:
+        #     self.strategy.sell_position.order_handler.prepare_sell_orders(
+        #         config=sell_config,
+        #         buy_orders=self.strategy.buy_position.orders,
+        #         sell_orders=[],
+        #     )
+        #     logger.info(
+        #         "No orders exist, prepared new: %s", self.strategy.sell_position.orders
+        #     )
+
         self.strategy.buy_position.state_info.generate_next_monitor_time()
         self.strategy.sell_position.state_info.generate_next_monitor_time()
 
@@ -285,6 +306,7 @@ class TradingSystem:
                 else UiState.STAGNATED
             )
 
+            logger.info("ORDERS: %s", self.strategy.buy_position.orders)
             state_info.completeness = round(
                 sum(
                     order.realized_quantity
