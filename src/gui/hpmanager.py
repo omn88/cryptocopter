@@ -676,10 +676,27 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
+            condition = (
+                str(position["hp_id"]) == str(data.config.hp_id)
+                and position["side"] == data.state_info.side.value
+            )
+            logger.info(
+                "pos hp_id: %s, data config hp_id: %s, pos side: %s, data state info side: %s, condition: %s",
+                position["hp_id"],
+                data.config.hp_id,
+                position["side"],
+                data.state_info.side.value,
+                condition,
+            )
             if (
-                position["hp_id"] == str(data.config.hp_id)
+                str(position["hp_id"]) == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
+                logger.info(
+                    "Going to update active position %s %s",
+                    position["hp_id"],
+                    position["side"],
+                )
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.state_info.completeness)
@@ -754,6 +771,11 @@ class HpManager(BoxLayout):
                 position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
+                logger.info(
+                    "Going to update idle position %s %s",
+                    position["hp_id"],
+                    position["side"],
+                )
                 position["stagnation_counter"] = str(data.state_info.stagnation_counter)
                 position["stagnation_limit"] = str(data.state_info.stagnation_limit)
                 position["completeness"] = str(data.state_info.completeness)

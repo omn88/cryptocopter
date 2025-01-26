@@ -1575,7 +1575,7 @@ class HpManager:
 
         return condition
 
-    async def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
+    def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
         assert self.sell_position
         self.sell_position.state_info.stagnation_counter += 1
 
