@@ -697,9 +697,7 @@ class HpManager(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                )
+                position["stagnation"] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -777,9 +775,7 @@ class HpManager(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                )
+                position["stagnation"] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 logger.info("Data state: %s", data.state_info.ui_state)
