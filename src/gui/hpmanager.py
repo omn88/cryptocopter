@@ -267,6 +267,14 @@ class HpManager(BoxLayout):
                             "Record %s found in idle records", str(data.config.hp_id)
                         )
                         self.update_idle_position(data=data)
+                    elif any(
+                        record["hp_id"] == str(data.config.hp_id)
+                        for record in self.archive_records
+                    ):
+                        logger.info(
+                            "Record %s already found in archived records",
+                            str(data.config.hp_id),
+                        )
                     else:
                         if data.state_info.ui_state in [
                             UiState.NEW,
@@ -284,17 +292,12 @@ class HpManager(BoxLayout):
                                 str(data.config.hp_id),
                             )
                             self.add_new_position_to_active(data=data)
-                            # if data.recovering:
-                    #     if data.ui_state == UiState.OPEN:
-                    #         logger.info(
-                    #             "Recovering position to active tab in GUI: %s", data
-                    #         )
-                    #         self.recovery_to_active(data=data)
-                    #     if data.ui_state == UiState.NEW:
-                    #         logger.info(
-                    #             "Recovering position to idle tab in GUI: %s", data
-                    #         )
-                    #         self.recovery_to_idle(data=data)
+                        if data.state_info.ui_state == UiState.CLOSED:
+                            logger.info(
+                                "New position added to Archive, system id: %s",
+                                str(data.config.hp_id),
+                            )
+                            self.add_position_to_archive(data=data)
                     logger.info(
                         "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
@@ -697,7 +700,9 @@ class HpManager(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position["stagnation"] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position[
+                    "stagnation"
+                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -775,7 +780,9 @@ class HpManager(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position["stagnation"] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position[
+                    "stagnation"
+                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 logger.info("Data state: %s", data.state_info.ui_state)

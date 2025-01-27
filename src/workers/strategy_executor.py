@@ -3,6 +3,7 @@ import csv
 from datetime import datetime
 import logging
 import os
+import pprint
 import queue
 import threading
 from typing import Dict, List, Optional
@@ -111,6 +112,13 @@ class StrategyExecutor:
                             buy_orders=trading_system.strategy.buy_position.orders,
                             sell_orders=trading_system.strategy.sell_position.orders,
                         )
+
+                        self.db.run_db_task(
+                            self.db.upsert_price_level(
+                                config=strategy_data.config,
+                                state_info=strategy_data.state_info,
+                            )
+                        )
                     else:
                         self.logger.info(
                             "Sell price set to 0, so cancelling current position"
@@ -126,6 +134,13 @@ class StrategyExecutor:
                         )
                         trading_system.strategy.state = (
                             trading_system.strategy.buy_position.state_info.state
+                        )
+
+                        self.db.run_db_task(
+                            self.db.upsert_price_level(
+                                config=strategy_data.config,
+                                state_info=strategy_data.state_info,
+                            )
                         )
 
                     self.ui_queue.put_nowait(

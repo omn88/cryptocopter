@@ -292,78 +292,62 @@ class TradingSystem:
         self.strategy.sell_position.state_info.generate_next_monitor_time()
 
         # Send buy position data
-        if self.strategy.state in [
-            State.BUYING,
-            State.NEW,
-            State.PARTIALLY_BOUGHT,
-            State.SOLD_PART_BOUGHT,
-            State.PART_SOLD_PART_BOUGHT,
-        ]:
-            buy_state.ui_state = (
+        buy_state.ui_state = (
+            UiState.OPEN
+            if self.strategy.state in [State.BUYING, State.SELLING]
+            else UiState.CLOSED
+            if self.strategy.state == State.BOUGHT
+            else UiState.STAGNATED
+        )
+
+        logger.info("ORDERS: %s", self.strategy.buy_position.orders)
+        buy_state.completeness = round(
+            sum(order.realized_quantity for order in self.strategy.buy_position.orders)
+            / sum(order.quantity for order in self.strategy.buy_position.orders),
+            2,
+        )
+
+        buy_pos_data = PositionData(
+            config=buy_config,
+            state_info=buy_state,
+            hp_update=HPUpdate(
+                hp_id=buy_config.hp_id,
+                buy_price=buy_config.price_high,
+                asset=buy_config.symbol_info.symbol[:-4],
+                state=strategy_state,
+            ),
+        )
+        self.ui_queue.put_nowait(buy_pos_data)
+        logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
+
+        if sell_config:
+            # Send sell position data
+            self.strategy.sell_position.state_info.ui_state = (
                 UiState.OPEN
                 if self.strategy.state in [State.BUYING, State.SELLING]
                 else UiState.STAGNATED
             )
-
-            logger.info("ORDERS: %s", self.strategy.buy_position.orders)
-            buy_state.completeness = round(
+            self.strategy.sell_position.state_info.completeness = round(
                 sum(
                     order.realized_quantity
-                    for order in self.strategy.buy_position.orders
+                    for order in self.strategy.sell_position.orders
                 )
-                / sum(order.quantity for order in self.strategy.buy_position.orders),
+                / sum(order.quantity for order in self.strategy.sell_position.orders),
                 2,
             )
 
-            buy_pos_data = PositionData(
-                config=buy_config,
-                state_info=buy_state,
+            sell_pos_data = PositionData(
+                config=sell_config,
+                state_info=self.strategy.sell_position.state_info,
                 hp_update=HPUpdate(
-                    hp_id=buy_config.hp_id,
-                    buy_price=buy_config.price_high,
-                    asset=buy_config.symbol_info.symbol[:-4],
+                    hp_id=sell_config.hp_id,
+                    buy_price=sell_config.price_high,
+                    asset=sell_config.symbol_info.symbol[:-4],
                     state=strategy_state,
                 ),
             )
-            self.ui_queue.put_nowait(buy_pos_data)
-            logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
-
-        if sell_config:
-            # Send sell position data
-            if self.strategy.sell_position.state_info.state in [
-                State.SELLING,
-                State.NEW,
-                State.PARTIALLY_SOLD,
-                State.PART_SOLD_PART_BOUGHT,
-            ]:
-                self.strategy.sell_position.state_info.ui_state = (
-                    UiState.OPEN
-                    if self.strategy.state in [State.BUYING, State.SELLING]
-                    else UiState.STAGNATED
-                )
-                self.strategy.sell_position.state_info.completeness = round(
-                    sum(
-                        order.realized_quantity
-                        for order in self.strategy.sell_position.orders
-                    )
-                    / sum(
-                        order.quantity for order in self.strategy.sell_position.orders
-                    ),
-                    2,
-                )
-
-                sell_pos_data = PositionData(
-                    config=sell_config,
-                    state_info=self.strategy.sell_position.state_info,
-                    hp_update=HPUpdate(
-                        hp_id=sell_config.hp_id,
-                        buy_price=sell_config.price_high,
-                        asset=sell_config.symbol_info.symbol[:-4],
-                        state=strategy_state,
-                    ),
-                )
-                self.ui_queue.put_nowait(sell_pos_data)
-                logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
+            self.ui_queue.put_nowait(sell_pos_data)
+            logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
 
         logger.info("Strategy position(s) restored")
 
