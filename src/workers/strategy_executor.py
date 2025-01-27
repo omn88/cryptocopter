@@ -509,8 +509,12 @@ class StrategyExecutor:
             await trading_system.recover_strategy(
                 buy_config=config,
                 usdt_balance=self.balances["USDT"],
-                state=State(hp["state"]),
-                buy_state=State(buy_level["state"]),
+                strategy_state=State(hp["state"]),
+                buy_state=StateInfo(
+                    state=buy_level["state"],
+                    stagnation_counter=buy_level["stagnation_counter"],
+                    open_time=buy_level["open_time"],
+                ),
                 sell_config=HPConfig(
                     symbol_info=self.symbols_info[sell_level["symbol"]],
                     hp_id=sell_level["hp_id"],

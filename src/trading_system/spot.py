@@ -114,24 +114,23 @@ class TradingSystem:
         buy_config: HPConfig,
         sell_config: Optional[HPConfig],
         usdt_balance: float,
-        state: State,
-        buy_state: State,
+        strategy_state: State,
+        buy_state: StateInfo,
     ) -> None:
         logger.info("Entering strategy recovery.")
-        state_info = StateInfo(state=state)
         self.strategy = HpManager(
             client=self.client,
             ui_queue=self.ui_queue,
             logger=self.strategy_logger,
             buy_config=buy_config,
-            state_info=state_info,
+            state_info=buy_state,
             balance=usdt_balance,
             db=self.db,
             core_queue=self.core_queue,
             config_queue=self.config_queue,
         )
-        self.strategy.state = state_info.state
-        self.strategy.buy_position.state_info.state = buy_state
+        self.strategy.state = strategy_state
+        self.strategy.buy_position.state_info = buy_state
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
             model=self.strategy,
@@ -300,14 +299,14 @@ class TradingSystem:
             State.SOLD_PART_BOUGHT,
             State.PART_SOLD_PART_BOUGHT,
         ]:
-            state_info.ui_state = (
+            buy_state.ui_state = (
                 UiState.OPEN
                 if self.strategy.state in [State.BUYING, State.SELLING]
                 else UiState.STAGNATED
             )
 
             logger.info("ORDERS: %s", self.strategy.buy_position.orders)
-            state_info.completeness = round(
+            buy_state.completeness = round(
                 sum(
                     order.realized_quantity
                     for order in self.strategy.buy_position.orders
@@ -318,12 +317,12 @@ class TradingSystem:
 
             buy_pos_data = PositionData(
                 config=buy_config,
-                state_info=state_info,
+                state_info=buy_state,
                 hp_update=HPUpdate(
                     hp_id=buy_config.hp_id,
                     buy_price=buy_config.price_high,
                     asset=buy_config.symbol_info.symbol[:-4],
-                    state=state_info.state,
+                    state=strategy_state,
                 ),
             )
             self.ui_queue.put_nowait(buy_pos_data)
@@ -337,12 +336,12 @@ class TradingSystem:
                 State.PARTIALLY_SOLD,
                 State.PART_SOLD_PART_BOUGHT,
             ]:
-                state_info.ui_state = (
+                self.strategy.sell_position.state_info.ui_state = (
                     UiState.OPEN
                     if self.strategy.state in [State.BUYING, State.SELLING]
                     else UiState.STAGNATED
                 )
-                state_info.completeness = round(
+                self.strategy.sell_position.state_info.completeness = round(
                     sum(
                         order.realized_quantity
                         for order in self.strategy.sell_position.orders
@@ -355,12 +354,12 @@ class TradingSystem:
 
                 sell_pos_data = PositionData(
                     config=sell_config,
-                    state_info=state_info,
+                    state_info=self.strategy.sell_position.state_info,
                     hp_update=HPUpdate(
                         hp_id=sell_config.hp_id,
                         buy_price=sell_config.price_high,
                         asset=sell_config.symbol_info.symbol[:-4],
-                        state=state_info.state,
+                        state=strategy_state,
                     ),
                 )
                 self.ui_queue.put_nowait(sell_pos_data)
