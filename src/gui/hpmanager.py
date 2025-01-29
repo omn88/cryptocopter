@@ -189,9 +189,7 @@ class HpManager(BoxLayout):
                     if update.expected_return is not None:
                         hp["expected_return"] = str(update.expected_return)
                     if update.state.value:
-                        hp["state"] = str(
-                            update.state.value
-                        )  # Include the state of the position
+                        hp["state"] = update.state.value
 
                     hp["quantity_usdt"] = str(
                         self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
@@ -267,6 +265,16 @@ class HpManager(BoxLayout):
                             "Record %s found in idle records", str(data.config.hp_id)
                         )
                         self.update_idle_position(data=data)
+                    elif any(
+                        record["hp_id"] == str(data.config.hp_id)
+                        and record["side"] == data.state_info.side.value
+                        and record["completeness"] == "1"
+                        for record in self.archive_records
+                    ):
+                        logger.info(
+                            "Record %s already found in archived records",
+                            str(data.config.hp_id),
+                        )
                     else:
                         if data.state_info.ui_state in [
                             UiState.NEW,
@@ -284,17 +292,12 @@ class HpManager(BoxLayout):
                                 str(data.config.hp_id),
                             )
                             self.add_new_position_to_active(data=data)
-                            # if data.recovering:
-                    #     if data.ui_state == UiState.OPEN:
-                    #         logger.info(
-                    #             "Recovering position to active tab in GUI: %s", data
-                    #         )
-                    #         self.recovery_to_active(data=data)
-                    #     if data.ui_state == UiState.NEW:
-                    #         logger.info(
-                    #             "Recovering position to idle tab in GUI: %s", data
-                    #         )
-                    #         self.recovery_to_idle(data=data)
+                        if data.state_info.ui_state == UiState.CLOSED:
+                            logger.info(
+                                "New position added to Archive, system id: %s",
+                                str(data.config.hp_id),
+                            )
+                            self.add_position_to_archive(data=data)
                     logger.info(
                         "Records active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
@@ -421,12 +424,12 @@ class HpManager(BoxLayout):
 
     def trigger_remove_record(
         self,
-        hp_id,
-        symbol,
-        side,
+        hp_id: str,
+        symbol: str,
+        side: str,
         *args,
     ) -> None:
-        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
+        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=PositionSide(side))
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
 
@@ -529,7 +532,9 @@ class HpManager(BoxLayout):
             order_trigger=1.0,
             mode=Mode.SINGLE,
         )
-        state_info = StateInfo(side=PositionSide.SHORT, ui_state=UiState.CLOSED)
+        state_info = StateInfo(
+            side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
+        )
 
         self.config_queue.put_nowait(
             SellConfig(
@@ -676,12 +681,30 @@ class HpManager(BoxLayout):
         data: PositionData,
     ) -> None:
         for position in self.active_records:
+            condition = (
+                str(position["hp_id"]) == str(data.config.hp_id)
+                and position["side"] == data.state_info.side.value
+            )
+            logger.info(
+                "pos hp_id: %s, data config hp_id: %s, pos side: %s, data state info side: %s, condition: %s",
+                position["hp_id"],
+                data.config.hp_id,
+                position["side"],
+                data.state_info.side.value,
+                condition,
+            )
             if (
-                position["hp_id"] == str(data.config.hp_id)
+                str(position["hp_id"]) == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
-                position["stagnation_counter"] = str(data.state_info.stagnation_counter)
-                position["stagnation_limit"] = str(data.state_info.stagnation_limit)
+                logger.info(
+                    "Going to update active position %s %s",
+                    position["hp_id"],
+                    position["side"],
+                )
+                position[
+                    "stagnation"
+                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -710,7 +733,7 @@ class HpManager(BoxLayout):
                             RemoveRecord(
                                 hp_id=str(data.config.hp_id),
                                 symbol=data.config.symbol_info.symbol,
-                                side=data.state_info.side.value,
+                                side=data.state_info.side,
                             )
                         )
 
@@ -754,8 +777,14 @@ class HpManager(BoxLayout):
                 position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
-                position["stagnation_counter"] = str(data.state_info.stagnation_counter)
-                position["stagnation_limit"] = str(data.state_info.stagnation_limit)
+                logger.info(
+                    "Going to update idle position %s %s",
+                    position["hp_id"],
+                    position["side"],
+                )
+                position[
+                    "stagnation"
+                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 logger.info("Data state: %s", data.state_info.ui_state)

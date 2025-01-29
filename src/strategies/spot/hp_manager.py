@@ -635,10 +635,12 @@ class HpManager:
             "Sending %s SELL", self.sell_position.config.symbol_info.symbol
         )
 
-        self.sell_position.order_handler.prepare_sell_orders(
-            config=self.buy_position.config,
-            buy_orders=self.buy_position.orders,
-            sell_orders=self.sell_position.orders,
+        self.sell_position.orders = (
+            self.sell_position.order_handler.prepare_sell_orders(
+                config=self.sell_position.config,
+                buy_orders=self.buy_position.orders,
+                sell_orders=self.sell_position.orders,
+            )
         )
 
         await self.sell_position.order_handler.create_orders(
@@ -790,6 +792,18 @@ class HpManager:
             and self.sell_position.config.price_low
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
+        )
+        self.logger.info(
+            "[Send sell orders] hp id: %s, %s, side: %s, state: %s, condition: %s, buy state: %s, sell price: %s, last price: %s, calculated price: %s",
+            self.sell_position.config.hp_id,
+            self.sell_position.config.symbol_info.symbol,
+            self.sell_position.state_info.side,
+            self.sell_position.state_info.state,
+            condition,
+            self.buy_position.state_info.state,
+            self.sell_position.config.price_low,
+            self.ticker_update.last_price,
+            self.calculate_trigger_send_orders_price_sell(),
         )
         if condition:
             self.logger.info(
@@ -1575,7 +1589,7 @@ class HpManager:
 
         return condition
 
-    async def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
+    def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
         assert self.sell_position
         self.sell_position.state_info.stagnation_counter += 1
 

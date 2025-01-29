@@ -228,7 +228,7 @@ def assert_default_buy_position_data(
     assert state_info.stagnation_counter == 0
     assert state_info.stagnation_limit == 8
     assert state_info.side == PositionSide.LONG
-    assert not state_info.next_monitor_time
+    assert state_info.next_monitor_time
 
     assert content.state_info.ui_state == UiState.NEW
     assert content.order_cancel == 2.0

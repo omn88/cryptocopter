@@ -3,6 +3,7 @@ import csv
 from datetime import datetime
 import logging
 import os
+import pprint
 import queue
 import threading
 from typing import Dict, List, Optional
@@ -92,57 +93,11 @@ class StrategyExecutor:
                         self.initialize_trading_system(new_hp=strategy_data)
                     )
                 if isinstance(strategy_data, SellConfig):
-                    trading_system: TradingSystem = self.id_to_system[
-                        strategy_data.config.hp_id
-                    ]
-                    assert trading_system.strategy
-                    if strategy_data.config.price_low:
-                        self.logger.info(
-                            "Sell price set: %s", strategy_data.config.price_low
-                        )
-                        trading_system.strategy.sell_position.config = (
-                            strategy_data.config
-                        )
-                        trading_system.strategy.sell_position.state_info = (
-                            strategy_data.state_info
-                        )
-                        trading_system.strategy.sell_position.orders = trading_system.strategy.sell_position.order_handler.prepare_sell_orders(
-                            config=strategy_data.config,
-                            buy_orders=trading_system.strategy.buy_position.orders,
-                            sell_orders=trading_system.strategy.sell_position.orders,
-                        )
-                    else:
-                        self.logger.info(
-                            "Sell price set to 0, so cancelling current position"
-                        )
-                        if trading_system.strategy.state == State.SELLING:
-                            await trading_system.strategy.sell_position.cancel_position()
-
-                        trading_system.strategy.sell_position.config.price_low = (
-                            strategy_data.config.price_low
-                        )
-                        trading_system.strategy.sell_position.state_info.ui_state = (
-                            UiState.CLOSED
-                        )
-                        trading_system.strategy.state = (
-                            trading_system.strategy.buy_position.state_info.state
-                        )
-
-                    self.ui_queue.put_nowait(
-                        PositionData(
-                            config=trading_system.strategy.sell_position.config,
-                            state_info=trading_system.strategy.sell_position.state_info,
-                            hp_update=HPUpdate(
-                                hp_id=trading_system.strategy.sell_position.config.hp_id,
-                                sell_price=trading_system.strategy.sell_position.config.price_low,
-                                state=trading_system.strategy.state,
-                            ),
-                        )
-                    )
+                    await self.manage_sell_position(strategy_data=strategy_data)
 
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
-                        hp_id=strategy_data.hp_id, side=strategy_data.side
+                        hp_id=strategy_data.hp_id, side=strategy_data.side.value
                     )
                 if isinstance(strategy_data, HpClose):
                     await self.terminate_trading_system(close_data=strategy_data)
@@ -267,6 +222,55 @@ class StrategyExecutor:
         logger.info("Trading system restored: %s", trading_system)
 
         return trading_system
+
+    async def manage_sell_position(self, strategy_data: SellConfig) -> None:
+        self.logger.info("Entered manage sell position")
+        trading_system: TradingSystem = self.id_to_system[strategy_data.config.hp_id]
+        strategy = trading_system.strategy
+        assert strategy
+        if strategy_data.state_info.state == State.NEW:
+            self.logger.info("Sell price set: %s", strategy_data.config.price_low)
+            strategy.sell_position.config = strategy_data.config
+            strategy.sell_position.state_info = strategy_data.state_info
+            strategy.sell_position.orders = (
+                strategy.sell_position.order_handler.prepare_sell_orders(
+                    config=strategy_data.config,
+                    buy_orders=strategy.buy_position.orders,
+                    sell_orders=strategy.sell_position.orders,
+                )
+            )
+            self.db.run_db_task(
+                self.db.upsert_price_level(
+                    config=strategy_data.config,
+                    state_info=strategy_data.state_info,
+                )
+            )
+        if strategy_data.state_info.state == State.CLOSED:
+            self.logger.info("Closing sell position")
+            if strategy.state == State.SELLING:
+                await strategy.sell_position.cancel_position()
+
+            strategy.sell_position.config.price_low = strategy_data.config.price_low
+            strategy.sell_position.state_info.ui_state = UiState.CLOSED
+
+            self.db.run_db_task(
+                self.db.upsert_price_level(
+                    config=strategy_data.config,
+                    state_info=strategy_data.state_info,
+                )
+            )
+
+        self.ui_queue.put_nowait(
+            PositionData(
+                config=strategy.sell_position.config,
+                state_info=strategy.sell_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=strategy.sell_position.config.hp_id,
+                    sell_price=strategy.sell_position.config.price_low,
+                    state=strategy.state,
+                ),
+            )
+        )
 
     async def terminate_trading_system(
         self,
@@ -509,8 +513,20 @@ class StrategyExecutor:
             await trading_system.recover_strategy(
                 buy_config=config,
                 usdt_balance=self.balances["USDT"],
-                state=State(hp["state"]),
-                buy_state=State(buy_level["state"]),
+                strategy_state=State(hp["state"]),
+                buy_state_info=StateInfo(
+                    state=State(buy_level["state"]),
+                    stagnation_counter=buy_level["stagnation_counter"],
+                    open_time=buy_level["open_time"],
+                ),
+                sell_state_info=StateInfo(
+                    state=State(sell_level["state"]),
+                    stagnation_counter=sell_level["stagnation_counter"],
+                    open_time=sell_level["open_time"],
+                    side=PositionSide(sell_level["side"]),
+                )
+                if sell_level
+                else None,
                 sell_config=HPConfig(
                     symbol_info=self.symbols_info[sell_level["symbol"]],
                     hp_id=sell_level["hp_id"],
