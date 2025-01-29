@@ -255,7 +255,9 @@ class StateInfo:
     state: State = State.NEW
     stagnation_counter: int = 0
     stagnation_limit: int = 8
-    next_monitor_time: str = ""
+    next_monitor_time: str = (
+        datetime.datetime.now() + datetime.timedelta(hours=1)
+    ).strftime("%Y-%m-%d %H:%M:%S")
     open_time: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
@@ -303,7 +305,7 @@ class SellConfig(NamedTuple):
 class RemoveRecord(NamedTuple):
     hp_id: str
     symbol: str
-    side: str
+    side: PositionSide
 
     def __str__(self):
         return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"

@@ -189,9 +189,7 @@ class HpManager(BoxLayout):
                     if update.expected_return is not None:
                         hp["expected_return"] = str(update.expected_return)
                     if update.state.value:
-                        hp["state"] = str(
-                            update.state.value
-                        )  # Include the state of the position
+                        hp["state"] = update.state.value
 
                     hp["quantity_usdt"] = str(
                         self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
@@ -269,6 +267,8 @@ class HpManager(BoxLayout):
                         self.update_idle_position(data=data)
                     elif any(
                         record["hp_id"] == str(data.config.hp_id)
+                        and record["side"] == data.state_info.side.value
+                        and record["completeness"] == "1"
                         for record in self.archive_records
                     ):
                         logger.info(
@@ -424,12 +424,12 @@ class HpManager(BoxLayout):
 
     def trigger_remove_record(
         self,
-        hp_id,
-        symbol,
-        side,
+        hp_id: str,
+        symbol: str,
+        side: str,
         *args,
     ) -> None:
-        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=side)
+        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=PositionSide(side))
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
 
@@ -532,7 +532,9 @@ class HpManager(BoxLayout):
             order_trigger=1.0,
             mode=Mode.SINGLE,
         )
-        state_info = StateInfo(side=PositionSide.SHORT, ui_state=UiState.CLOSED)
+        state_info = StateInfo(
+            side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
+        )
 
         self.config_queue.put_nowait(
             SellConfig(
@@ -731,7 +733,7 @@ class HpManager(BoxLayout):
                             RemoveRecord(
                                 hp_id=str(data.config.hp_id),
                                 symbol=data.config.symbol_info.symbol,
-                                side=data.state_info.side.value,
+                                side=data.state_info.side,
                             )
                         )
 

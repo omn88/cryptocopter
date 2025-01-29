@@ -89,7 +89,7 @@ class OrderHandler:
                         )
                     )
         logger.info(
-            "Orders prepared:\n%s\n for position: %s",
+            "Buy orders prepared:\n%s\n for position: %s",
             pprint.pformat(list(orders)),
             config.symbol_info.symbol,
         )
@@ -157,7 +157,7 @@ class OrderHandler:
                         )
                     )
         logger.info(
-            "Orders prepared:\n%s\n for position: %s",
+            "Sell orders prepared:\n%s\n for position: %s",
             pprint.pformat(list(orders)),
             config.symbol_info.symbol,
         )
