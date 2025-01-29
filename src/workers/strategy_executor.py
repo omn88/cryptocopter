@@ -111,10 +111,17 @@ class StrategyExecutor:
     def stop(self):
         logger.info("In the strategy executor stop method")
         self.stop_event.set()
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.client.close_connection())
+
+        if self.client:
+            try:
+                asyncio.run(
+                    self.client.close_connection()
+                )  # Ensure it's closed properly
+            except RuntimeError:
+                logger.warning("No running event loop, skipping async close.")
+
         logger.info("Strategy executor stop event SET")
-        self.thread.join()  # Wait for thread to finish
+        self.thread.join()
         logger.info("Strategy executor thread finished")
 
     async def initialize_trading_system(

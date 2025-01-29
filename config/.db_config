@@ -4,4 +4,4 @@ DB_USER="root"
 DB_PASSWORD="Str0ng_P@ssw0rd_2024!"
 DB_NAME="cryptocopter"
 
-DB_TEST_NAME="test"
+DB_TEST_NAME="e2e_test"

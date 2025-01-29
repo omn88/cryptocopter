@@ -107,15 +107,6 @@ class Database:
             logger.info("loop is none, sleep 0.1s")
             time.sleep(0.1)
         logger.info("loop is OK")
-        await asyncio.wrap_future(
-            asyncio.run_coroutine_threadsafe(
-                self.create_database_if_not_exists(), self.loop
-            )
-        )
-
-        await asyncio.wrap_future(
-            asyncio.run_coroutine_threadsafe(self.create_pool(), self.loop)
-        )
 
     def run_worker(self):
         """Sets up the event loop for this thread."""
@@ -148,6 +139,35 @@ class Database:
     async def close_pool(self):
         self.pool.close()
         await self.pool.wait_closed()
+
+    async def drop_database(self):
+        try:
+            logger.debug(
+                "Will setup pool with config: host %s, port %s, user %s, pass %s",
+                self.host,
+                self.port,
+                self.user,
+                self.password,
+            )
+            temp_pool = await aiomysql.create_pool(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                autocommit=True,
+            )
+            logger.debug("Pool created")
+            async with temp_pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(f"DROP DATABASE IF EXISTS `{self.name}`;")
+                    await cur.execute(
+                        f"GRANT ALL PRIVILEGES ON {self.name}.* TO '{self.user}'@'localhost';"
+                    )
+            temp_pool.close()
+            await temp_pool.wait_closed()
+            logger.info("Database %s checked/created successfully.", self.name)
+        except aiomysql.Error as err:
+            logger.error("Error creating database %s: %s", self.name, err)
 
     async def create_database_if_not_exists(self):
         try:
@@ -200,6 +220,8 @@ class Database:
                 await cur.execute("DROP TABLE IF EXISTS strategies")
                 await cur.execute("DROP TABLE IF EXISTS price_levels")
                 await cur.execute("DROP TABLE IF EXISTS orders")
+                await cur.execute("DROP TABLE IF EXISTS hp_list")
+
                 await conn.commit()
 
     async def insert_strategy(self, name, description, status="ACTIVE"):
