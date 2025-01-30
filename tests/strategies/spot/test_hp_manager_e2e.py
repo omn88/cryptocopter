@@ -1,20 +1,10 @@
 import asyncio
-import datetime
 import logging
-
-from binance.enums import (
-    ORDER_STATUS_NEW,
-    ORDER_STATUS_FILLED,
-    ORDER_STATUS_CANCELED,
-)
 import pytest
-
-from src.common.identifiers.common import PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
-from src.common.identifiers.spot import HPConfig, HpNew, State, StateInfo
+from src.common.identifiers.spot import HPConfig, HpNew, StateInfo
 from src.workers.strategy_executor import StrategyExecutor
-from tests.spot import get_cancel_order, get_new_orders
 
 
 logger = logging.getLogger("hp_e2e_test")
@@ -28,13 +18,15 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     logger.info("Front: %s, back: %s", front, back)
 
+    assert len(back.id_to_system) == 0
+
     hp = HpNew(
         HPConfig(
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
             price_low=1000,
             price_high=1400,
             order_trigger=1.0,
-            budget=10000,
+            budget=1000,
         ),
         state_info=StateInfo(),
     )
@@ -42,4 +34,6 @@ async def test_default_buy_scenario(frontend_backend_setup):
     front.config_queue.put_nowait(hp)
     logger.info("HP New added to the queue: %s", hp)
     await asyncio.sleep(1)
+    assert not back.config_queue.qsize()
+    assert len(back.id_to_system) == 1
     logger.info("DONE")
