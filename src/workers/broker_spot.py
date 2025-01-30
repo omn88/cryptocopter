@@ -36,7 +36,7 @@ else:
         "DB_USER": "test",
         "DB_PASSWORD": "test",
         "DB_PORT": "3306",
-        "DB_TEST_NAME": "test_db"
+        "DB_TEST_NAME": "test_db",
     }
 
 
