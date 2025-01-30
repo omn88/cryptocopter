@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 import queue
 import logging
@@ -25,7 +26,18 @@ logger = logging.getLogger("broker")
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
-config_env = Config(RepositoryEnv(DOTENV_FILE))
+
+if os.path.exists(DOTENV_FILE):
+    config_env = Config(RepositoryEnv(DOTENV_FILE))
+else:
+    print("⚠️  Warning: .env file not found! Using default values.")
+    config_env = {
+        "DB_HOST": "localhost",
+        "DB_USER": "test",
+        "DB_PASSWORD": "test",
+        "DB_PORT": "3306",
+        "DB_TEST_NAME": "test_db"
+    }
 
 
 class BrokerSpot:
