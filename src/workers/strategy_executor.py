@@ -193,7 +193,7 @@ class StrategyExecutor:
             )
         )
 
-        asyncio.create_task(trading_system.worker())
+        worker_task = asyncio.create_task(trading_system.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
     async def recover_trading_system(

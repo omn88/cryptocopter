@@ -3,15 +3,12 @@ import datetime
 import logging
 import queue
 import threading
+from typing import Optional
 from binance.enums import (
-    TIME_IN_FORCE_GTC,
-    ORDER_STATUS_PARTIALLY_FILLED,
-    ORDER_STATUS_NEW,
-    ORDER_TYPE_LIMIT,
     ORDER_STATUS_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from typing import Optional
+
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -383,34 +380,35 @@ class TradingSystem:
     async def worker(self):
         if self.state_machine:
             assert isinstance(self.state_machine.model, HpManager)
-            logger.info("Worker start now, state: %s.", self.state_machine.model.state)
+            strategy = self.state_machine.model
+            logger.info("Worker start now, state: %s.", strategy.state)
             while not self.stop_event.is_set():
                 try:
-                    event = self.state_machine.model.core_queue.get_nowait()
+                    event = strategy.core_queue.get_nowait()
                     assert isinstance(event, Event)
 
-                    # logger.info("New event: %s", event)
+                    logger.info("New event: %s", event)
 
                     if EventName.TICKER == event.name:
                         assert isinstance(event.content, TickerUpdate)
-                        self.state_machine.model.ticker_update = event.content
-                        await self.state_machine.model.process_ticker()  # type: ignore
+                        strategy.ticker_update = event.content
+                        await strategy.process_ticker()  # type: ignore
 
                     elif EventName.EXECUTION_REPORT == event.name:
                         assert isinstance(event.content, ExecutionReport)
-                        self.state_machine.model.execution_report = event.content
-                        await self.state_machine.model.process_order()  # type: ignore
+                        strategy.execution_report = event.content
+                        await strategy.process_order()  # type: ignore
 
                     elif EventName.ACCOUNT_POSITION == event.name:
                         assert isinstance(event.content, AccountPosition)
-                        self.state_machine.model.account_position = event.content
-                        await self.state_machine.model.process_account()  # type: ignore
+                        strategy.account_position = event.content
+                        await strategy.process_account()  # type: ignore
 
                     elif EventName.SIGNAL == event.name:
                         assert isinstance(event.content, SignalUpdate)
-                        self.state_machine.model.signal_update = event.content
-                        await self.state_machine.model.process_signal()  # type: ignore
+                        strategy.signal_update = event.content
+                        await strategy.process_signal()  # type: ignore
 
-                    self.state_machine.model.core_queue.task_done()
+                    strategy.core_queue.task_done()
                 except queue.Empty:
                     await asyncio.sleep(0.1)

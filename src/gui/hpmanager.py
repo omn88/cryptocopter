@@ -240,9 +240,6 @@ class HpManager(BoxLayout):
                         update=data, hp_list=self.hp_list_data
                     )
 
-                    # Refresh the RecycleView or ListView in the UI to reflect new data
-                    self.ids.hp_list.refresh_from_data()
-
                 if isinstance(data, PositionData):
                     logger.info("Received position data: %s", data)
                     self.hp_list_data = self.update_hp_list(
@@ -299,7 +296,7 @@ class HpManager(BoxLayout):
                             )
                             self.add_position_to_archive(data=data)
                     logger.info(
-                        "Records active:\n%s\nIdle\n%s\nArchive\n%s",
+                        "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
                         self.idle_records,
                         self.archive_records,
@@ -359,7 +356,6 @@ class HpManager(BoxLayout):
                                         )
                                         strategy["net"] = str(net)
                                         strategy["net_percent"] = str(net_percent)
-                                    self.ids.hp_list.refresh_from_data()
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
