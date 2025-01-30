@@ -48,6 +48,13 @@ config = Config(RepositoryEnv(DB_CONFIG_FILE))
 logger.info("DB CONFIG: %s", config)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def mock_env():
+    """Mock the environment variables to avoid missing .env issues."""
+    with patch("decouple.Config", return_value={"DUMMY_VAR": "test_value"}):
+        yield
+
+
 @pytest.fixture
 def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
     # Mock the AsyncClient.
