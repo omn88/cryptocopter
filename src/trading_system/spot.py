@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import queue
+import threading
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -44,6 +45,7 @@ class TradingSystem:
         strategy_logger: StrategyLogger,
         db: Database,
         config_queue: queue.Queue,
+        stop_event: threading.Event,
     ):
         self.client = client
         self.config = config
@@ -51,6 +53,7 @@ class TradingSystem:
         self.core_queue = core_queue
         self.strategy_logger = strategy_logger
         self.db = db
+        self.stop_event = stop_event
         self.config_queue = config_queue
         self.state_machine: Optional[AsyncMachine] = None
         self.strategy: Optional[HpManager] = None
@@ -381,7 +384,7 @@ class TradingSystem:
         if self.state_machine:
             assert isinstance(self.state_machine.model, HpManager)
             logger.info("Worker start now, state: %s.", self.state_machine.model.state)
-            while True:
+            while not self.stop_event.is_set():
                 try:
                     event = self.state_machine.model.core_queue.get_nowait()
                     assert isinstance(event, Event)

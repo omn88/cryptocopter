@@ -104,9 +104,9 @@ class Database:
         self.thread = threading.Thread(target=self.run_worker)
         self.thread.start()
         while self.loop is None:
-            logger.info("loop is none, sleep 0.1s")
+            logger.info("async loop is none, sleep 0.1s")
             time.sleep(0.1)
-        logger.info("loop is OK")
+        logger.info("async loop is OK")
 
     def run_worker(self):
         """Sets up the event loop for this thread."""
@@ -165,7 +165,7 @@ class Database:
                     )
             temp_pool.close()
             await temp_pool.wait_closed()
-            logger.info("Database %s checked/created successfully.", self.name)
+            logger.info("Database %s dropped successfully.", self.name)
         except aiomysql.Error as err:
             logger.error("Error creating database %s: %s", self.name, err)
 

@@ -109,7 +109,7 @@ class StrategyExecutor:
                 await asyncio.sleep(0.1)
 
     def stop(self):
-        logger.info("In the strategy executor stop method")
+        logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
 
         if self.client:
@@ -120,7 +120,7 @@ class StrategyExecutor:
             except RuntimeError:
                 logger.warning("No running event loop, skipping async close.")
 
-        logger.info("Strategy executor stop event SET")
+        logger.info("Client connection closed.")
         self.thread.join()
         logger.info("Strategy executor thread finished")
 
@@ -147,6 +147,7 @@ class StrategyExecutor:
             config=new_hp.config,
             db=self.db,
             config_queue=self.config_queue,
+            stop_event=self.stop_event,
         )
         await trading_system.initialize_strategy(
             config=new_hp.config,
@@ -223,6 +224,7 @@ class StrategyExecutor:
             config=hp_to_be_recovered,
             db=self.db,
             config_queue=self.config_queue,
+            stop_event=self.stop_event,
         )
         self.id_to_system[str(hp_to_be_recovered.hp_id)] = trading_system
 
@@ -478,6 +480,9 @@ class StrategyExecutor:
         active_hps = self.db.run_db_task(self.db.fetch_active_hp_list())
 
         logger.info("Fetched list of active HPs: \n%s", active_hps)
+
+        if not active_hps:
+            logger.info("No active positions in the database.")
 
         for hp in active_hps:
             hp_id = hp["hp_id"]

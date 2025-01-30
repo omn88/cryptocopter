@@ -97,8 +97,6 @@ async def test_db():
         # Drop the existing test database
         db.run_db_task(db.drop_database())
 
-        logger.info("Dropped")
-
         # Recreate and set up the database from scratch
         db.run_db_task(db.create_database_if_not_exists())
         db.run_db_task(db.create_pool())
