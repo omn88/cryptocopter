@@ -18,7 +18,7 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import Event, EventName, HPConfig, Order
+from src.common.identifiers.spot import HPConfig, Order
 from src.common.symbol_info import SymbolInfo
 
 

@@ -53,17 +53,23 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert isinstance(ts, TradingSystem)
 
     buy_pos = ts.strategy.buy_position
-    assert len(buy_pos.orders) == 3
+    assert len(ts.strategy.buy_position.orders) == 3
 
     ts.strategy.client.create_order.side_effect = get_new_orders(
         price_low=ts.strategy.buy_position.config.price_low,
         price_high=ts.strategy.buy_position.config.price_high,
+        number_of_orders=3
     )
 
     ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))
     ts.strategy.core_queue.put_nowait(ticker_event)
     logger.info("Put event to the worker: %s", ticker_event)
     await asyncio.sleep(1)
+
+    assert len(ts.strategy.buy_position.orders) == 3
+
+    assert ts.strategy.state == State.BUYING
+    assert ts.strategy.buy_position.state_info.state == State.NEW
 
     logger.info("DONE")
 
