@@ -41,13 +41,10 @@ DOTENV_FILE = "config/.env"
 if os.path.exists(DOTENV_FILE):
     config_env = Config(RepositoryEnv(DOTENV_FILE))
 else:
-    print("⚠️  Warning: .env file not found! Using default values.")
+    print("Warning: .env file not found! Using default values.")
     config_env = {
-        "DB_HOST": "localhost",
-        "DB_USER": "test",
-        "DB_PASSWORD": "test",
-        "DB_PORT": "3306",
-        "DB_TEST_NAME": "test_db",
+        "API_KEY": "key",
+        "API_SECRET": "secret",
     }
 
 
@@ -63,6 +60,7 @@ class StrategyExecutor:
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
         balances: Dict[str, float],
+        test_mode: bool = False,
     ):
         self.client: Optional[BinanceClient] = None
         self.logger = strategy_logger
@@ -74,6 +72,7 @@ class StrategyExecutor:
         self.symbols_info = symbols_info
         self.hp_configurations: List[HPConfig] = []
         self.balances = balances
+        self.test_mode = (test_mode,)  # Add a test_mode parameter
 
         self.loop = None
         self.stop_event = threading.Event()
@@ -88,9 +87,10 @@ class StrategyExecutor:
 
     async def run(self) -> None:
         self.logger.info("Strategy executor ready to retrieve the first config")
-        self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        )
+        if not self.test_mode:
+            self.client = BinanceClient(
+                api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+            )
 
         await self.initialize_positions_from_db()
 

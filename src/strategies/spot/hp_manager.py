@@ -385,10 +385,10 @@ class HpManager:
         self.logger.info("Sending %s BUY", self.buy_position.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
 
-        self.buy_position.order_handler.prepare_buy_orders(
+        self.buy_position.orders = self.buy_position.order_handler.prepare_buy_orders(
             config=self.buy_position.config
         )
-        await self.buy_position.order_handler.create_orders(
+        self.buy_position.orders = await self.buy_position.order_handler.create_orders(
             side=self.buy_position.state_info.side,
             symbol_info=self.buy_position.config.symbol_info,
             orders=self.buy_position.orders,
@@ -405,7 +405,7 @@ class HpManager:
 
         self.buy_position.state_info.ui_state = UiState.OPEN
 
-        self.logger.info("Will update orders: %s", self.buy_position.orders)
+        self.logger.info("Orders sent, updating DB: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
             self.db.run_db_task(
@@ -422,21 +422,23 @@ class HpManager:
                     side=self.buy_position.state_info.side,
                 )
             )
+
+        self.logger.info(
+            "Orders sent, updating DB with price level: %s",
+            self.buy_position.state_info,
+        )
         self.db.run_db_task(
             self.db.upsert_price_level(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
-
-        self.buy_position.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy_position.config,
-                state_info=self.buy_position.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy_position.config.hp_id, state=self.state
-                ),
-            )
+        pos_data = PositionData(
+            config=self.buy_position.config,
+            state_info=self.buy_position.state_info,
+            hp_update=HPUpdate(hp_id=self.buy_position.config.hp_id, state=self.state),
         )
+        self.logger.info("Orders sent, GUI with position data: %s", pos_data)
+        self.buy_position.ui_queue.put_nowait(pos_data)
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
         condition = (

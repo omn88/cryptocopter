@@ -30,13 +30,10 @@ DOTENV_FILE = "config/.env"
 if os.path.exists(DOTENV_FILE):
     config_env = Config(RepositoryEnv(DOTENV_FILE))
 else:
-    print("⚠️  Warning: .env file not found! Using default values.")
+    print("Warning: .env file not found! Using default values.")
     config_env = {
-        "DB_HOST": "localhost",
-        "DB_USER": "test",
-        "DB_PASSWORD": "test",
-        "DB_PORT": "3306",
-        "DB_TEST_NAME": "test_db",
+        "API_KEY": "key",
+        "API_SECRET": "secret",
     }
 
 

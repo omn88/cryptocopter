@@ -198,6 +198,7 @@ class OrderHandler:
                 continue
             else:
                 order.order_id = int(resp["orderId"])
+                # order.price = resp["price"]
                 order.status = resp["status"]
                 return order
 

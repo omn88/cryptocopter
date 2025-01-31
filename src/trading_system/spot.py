@@ -411,4 +411,5 @@ class TradingSystem:
 
                     strategy.core_queue.task_done()
                 except queue.Empty:
+                    logger.info("Queue empty, waiting 0.1s")
                     await asyncio.sleep(0.1)

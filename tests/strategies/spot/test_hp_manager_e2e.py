@@ -3,9 +3,18 @@ import logging
 import pytest
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpmanager import HpManager
-from src.common.identifiers.spot import HPConfig, HpNew, State, StateInfo
+from src.common.identifiers.spot import (
+    Event,
+    EventName,
+    HPConfig,
+    HpNew,
+    State,
+    StateInfo,
+    TickerUpdate,
+)
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
+from tests.spot import get_new_orders
 
 
 logger = logging.getLogger("hp_e2e_test")
@@ -31,9 +40,11 @@ async def test_default_buy_scenario(frontend_backend_setup):
         ),
         state_info=StateInfo(),
     )
+
     front.config_queue.put_nowait(hp)
     logger.info("HP New added to the queue: %s", hp)
-    await asyncio.sleep(1)
+
+    await asyncio.sleep(0.3)
 
     assert not back.config_queue.qsize()
     assert len(back.id_to_system) == 1
@@ -43,6 +54,18 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     buy_pos = ts.strategy.buy_position
     assert len(buy_pos.orders) == 3
+
+    ts.strategy.client.create_order.side_effect = get_new_orders(
+        price_low=ts.strategy.buy_position.config.price_low,
+        price_high=ts.strategy.buy_position.config.price_high,
+    )
+
+    ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))
+    ts.strategy.core_queue.put_nowait(ticker_event)
+    logger.info("Put event to the worker: %s", ticker_event)
+    await asyncio.sleep(1)
+
+    logger.info("DONE")
 
     # ui_task.cancel()
     # try:

@@ -78,6 +78,61 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
+def strategy_executor_fixture(mock_AsyncClient, test_db):
+    """
+    Fixture to create and run a StrategyExecutor instance.
+
+    - Starts the executor loop in a separate thread.
+    - Mocks necessary dependencies.
+    - Provides an initialized instance for testing.
+    """
+
+    # Mock dependencies
+    mock_broker = MagicMock(spec=BrokerSpot)
+    ui_queue = queue.Queue()
+    strategy_logger = StrategyLogger(name="test_strategy_executor")
+    balances = {"USDT": 10000}  # Mock balance
+    symbols_info = {
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+    }
+
+    # Create the StrategyExecutor instance
+    executor = StrategyExecutor(
+        strategy_logger=strategy_logger,
+        db=test_db,
+        broker=mock_broker,
+        ui_queue=ui_queue,
+        symbols_info=symbols_info,
+        balances=balances,
+        test_mode=True,
+    )
+    executor.client = mock_AsyncClient
+
+    yield executor  # Provide the instance for the test
+
+    # Cleanup: Ensure proper shutdown after the test
+    executor.stop()
+
+
+@pytest.fixture
+async def frontend_backend_setup(
+    hp_gui: HPGUI, strategy_executor_fixture: StrategyExecutor
+):
+    """
+    Fixture to set up an integrated frontend-backend system.
+
+    - Ensures frontend (HpManager) can send commands to backend (StrategyExecutor).
+    - Provides a test scenario where state updates and order handling can be asserted.
+    """
+
+    # Ensure frontend has the correct reference to the backend's queue
+    hp_gui.config_queue = strategy_executor_fixture.config_queue
+    yield hp_gui, strategy_executor_fixture  # Provide both components
+
+    # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
+
+
+@pytest.fixture
 async def test_db():
     """Drop the test database, recreate it, and set up tables before running tests."""
     db = Database(
@@ -108,60 +163,6 @@ async def test_db():
     finally:
         db.run_db_task(db.close_pool())
         db.stop_worker()
-
-
-@pytest.fixture
-def strategy_executor_fixture(test_db):
-    """
-    Fixture to create and run a StrategyExecutor instance.
-
-    - Starts the executor loop in a separate thread.
-    - Mocks necessary dependencies.
-    - Provides an initialized instance for testing.
-    """
-
-    # Mock dependencies
-    mock_broker = MagicMock(spec=BrokerSpot)
-    ui_queue = queue.Queue()
-    strategy_logger = StrategyLogger(name="test_strategy_executor")
-    balances = {"USDT": 10000}  # Mock balance
-    symbols_info = {
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-    }
-
-    # Create the StrategyExecutor instance
-    executor = StrategyExecutor(
-        strategy_logger=strategy_logger,
-        db=test_db,
-        broker=mock_broker,
-        ui_queue=ui_queue,
-        symbols_info=symbols_info,
-        balances=balances,
-    )
-
-    yield executor  # Provide the instance for the test
-
-    # Cleanup: Ensure proper shutdown after the test
-    executor.stop()
-
-
-@pytest.fixture
-async def frontend_backend_setup(
-    hp_gui: HPGUI, strategy_executor_fixture: StrategyExecutor
-):
-    """
-    Fixture to set up an integrated frontend-backend system.
-
-    - Ensures frontend (HpManager) can send commands to backend (StrategyExecutor).
-    - Provides a test scenario where state updates and order handling can be asserted.
-    """
-
-    # Ensure frontend has the correct reference to the backend's queue
-    hp_gui.config_queue = strategy_executor_fixture.config_queue
-
-    yield hp_gui, strategy_executor_fixture  # Provide both components
-
-    # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
 
 @pytest.fixture

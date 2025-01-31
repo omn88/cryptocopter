@@ -35,9 +35,9 @@ class PositionData:
 
     def __repr__(self) -> str:
         return (
-            f"PositionData(config={self.config}, "
+            f"PositionData(hp_update={self.hp_update}, "
             f"state_info={self.state_info}, "
-            f"hp_update={self.hp_update}, "
+            f"config={self.config}, "
             f"order_cancel={self.order_cancel}, "
             f"recovering={self.recovering})"
         )

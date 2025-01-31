@@ -6,8 +6,10 @@ from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
 logger = logging.getLogger("common_spot")
 
 
-def get_new_orders(price_low: float, price_high: float):
-    number_of_orders = 11
+def get_new_orders(price_low: float, price_high: float, number_of_orders: int = 11):
+    assert (
+        number_of_orders >= 3 and number_of_orders % 2 == 1
+    ), "Number of orders must be an odd number starting from 3"
     first_order_id = round(price_low * price_high / 3.14)
     order_list = []
     for item in range(number_of_orders):
