@@ -2,7 +2,7 @@ import asyncio
 import logging
 import pytest
 from src.common.symbol_info import SymbolInfo
-from src.gui.hpmanager import HpManager
+from src.gui.hpmanager import HpFront
 from src.common.identifiers.spot import (
     Event,
     EventName,
@@ -58,7 +58,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     ts.strategy.client.create_order.side_effect = get_new_orders(
         price_low=ts.strategy.buy_position.config.price_low,
         price_high=ts.strategy.buy_position.config.price_high,
-        number_of_orders=3
+        number_of_orders=3,
     )
 
     ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))

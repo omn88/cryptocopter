@@ -1,5 +1,6 @@
 import os
 
+from src.gui.hpmanager import HpFront
 from src.workers.broker_spot import BrokerSpot
 from src.workers.strategy_executor import StrategyExecutor
 
@@ -35,7 +36,6 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
-from src.gui.hpmanager import HpManager as HPGUI
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -116,7 +116,7 @@ def strategy_executor_fixture(mock_AsyncClient, test_db):
 
 @pytest.fixture
 async def frontend_backend_setup(
-    hp_gui: HPGUI, strategy_executor_fixture: StrategyExecutor
+    hp_gui: HpFront, strategy_executor_fixture: StrategyExecutor
 ):
     """
     Fixture to set up an integrated frontend-backend system.
@@ -223,7 +223,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         mock_config_queue = MagicMock()
         mock_ui_queue = MagicMock()
 
-        hp_manager = HPGUI(
+        hp_manager = HpFront(
             client=mock_AsyncClient,
             strategy_logger=MagicMock(),
             strategy_id="test_strategy",

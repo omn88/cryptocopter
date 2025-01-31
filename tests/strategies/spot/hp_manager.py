@@ -17,7 +17,7 @@ from src.common.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
-from src.gui.hpmanager import HpManager as HPGUI
+from src.gui.hpmanager import HpFront
 from src.common.identifiers.spot import (
     Event,
     EventName,
@@ -201,7 +201,7 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
 
 
 def assert_default_buy_position_data(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.buy_position.ui_queue.qsize() == 1
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -256,7 +256,7 @@ def assert_default_buy_position_data(
 
 
 async def move_to_buy_position_active(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict], trigger_price: float
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict], trigger_price: float
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
     strategy.ticker_update = TickerUpdate(last_price=trigger_price)
@@ -326,7 +326,7 @@ async def move_to_buy_position_active(
 
 
 async def simulate_partial_fill(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List
+    strategy: HpManager, hp_gui: HpFront, hp_list: List
 ) -> HpManager:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -381,7 +381,7 @@ async def simulate_partial_fill(
 
 
 async def simulate_first_buy_order_fill(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict], order_id: int
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict], order_id: int
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -439,7 +439,7 @@ async def simulate_first_buy_order_fill(
 
 async def simulate_second_buy_order_fill(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -501,7 +501,7 @@ async def simulate_second_buy_order_fill(
 
 async def simulate_third_buy_order_fill(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -615,7 +615,7 @@ async def simulate_third_buy_order_fill(
 
 async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -677,7 +677,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
 
 async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -791,7 +791,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
 
 async def simulate_second_buy_order_fill_after_selling_first_order(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -853,7 +853,7 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
 
 async def simulate_third_buy_order_fill_after_selling_first_order(
     strategy: HpManager,
-    hp_gui: HPGUI,
+    hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
@@ -966,7 +966,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
 
 async def resend_part_bought_first_order_filled(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
@@ -1027,7 +1027,7 @@ async def resend_part_bought_first_order_filled(
 
 
 async def resend_part_bought_first_order_filled_with_sell_price(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
@@ -1088,7 +1088,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
 
 
 async def simulate_second_buy_order_partial_fill(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     # Simulate partial order fill of order which is rebuy after first time two first orders were fillled and this is the last one.
     strategy.execution_report = ExecutionReport(
@@ -1148,7 +1148,7 @@ async def simulate_second_buy_order_partial_fill(
 
 
 async def cancel_partially_bought_position_first_order_filled_partially(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpManager:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
@@ -1216,7 +1216,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
 
 
 async def resend_part_bought_first_order_filled_partially(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpManager:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
     strategy.ticker_update = TickerUpdate(last_price=1414)
@@ -1274,7 +1274,7 @@ async def resend_part_bought_first_order_filled_partially(
 
 
 async def cancel_partially_bought_position_first_order_filled(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpManager:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
@@ -1342,7 +1342,7 @@ async def cancel_partially_bought_position_first_order_filled(
 
 
 async def send_sell_orders_for_partially_bought_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
@@ -1437,7 +1437,7 @@ async def send_sell_orders_for_partially_bought_position(
 
 
 async def sell_partially_partially_bought_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -1496,7 +1496,7 @@ async def sell_partially_partially_bought_position(
 
 
 async def cancel_unfilled_sell_orders_for_partially_bought_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
@@ -1607,7 +1607,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 
 
 async def simulate_cancel_sell_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
@@ -1671,7 +1671,7 @@ async def simulate_cancel_sell_position(
 
 
 async def simulate_resend_sell_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.PARTIALLY_SOLD
@@ -1727,7 +1727,7 @@ async def simulate_resend_sell_position(
 
 
 async def simulate_bought_position(
-    trading_system_factory, hp_gui: HPGUI, hp_list: List[Dict]
+    trading_system_factory, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     # Path 0: Default buy position
     trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
@@ -1762,7 +1762,7 @@ async def simulate_bought_position(
 
 
 async def send_sell_orders_for_bought_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
@@ -2030,7 +2030,7 @@ async def simulate_first_sell_order_fill(strategy: HpManager) -> HpManager:
 
 
 async def simulate_partial_fill_sell(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -2131,7 +2131,7 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
 
 
 async def cancel_sell_position_part_bought_part_sold(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
@@ -2197,7 +2197,7 @@ async def cancel_sell_position_part_bought_part_sold(
 
 
 async def reopen_buy_part_bought_part_sold(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
@@ -2252,7 +2252,7 @@ async def reopen_buy_part_bought_part_sold(
 
 
 async def reopen_buy_part_bought_sold(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
@@ -2305,7 +2305,7 @@ async def reopen_buy_part_bought_sold(
 
 
 async def cancel_untouched_buy_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpManager, List[Dict]]:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
@@ -2366,7 +2366,7 @@ async def cancel_untouched_buy_position(
 
 
 async def cancel_untouched_sell_position(
-    strategy: HpManager, hp_gui: HPGUI, hp_list: List[Dict]
+    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpManager:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit

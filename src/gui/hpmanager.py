@@ -42,7 +42,7 @@ from src.gui.searchable_drop_down import SearchableDropDown
 logger = logging.getLogger("HP_GUI")
 
 
-class HpManager(BoxLayout):
+class HpFront(BoxLayout):
     hp_list_data: List[Dict] = ListProperty([])
     active_records: List[Dict] = ListProperty([])
     idle_records: List[Dict] = ListProperty([])
