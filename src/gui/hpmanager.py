@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 import queue
 import logging
+import threading
 from typing import Dict, List
 from kivy.properties import (
     ListProperty,
@@ -96,10 +97,32 @@ class HpFront(BoxLayout):
         # Do not start async tasks in the constructor
         self.is_tasks_initialized = False
 
+        self.loop = None
+        self.stop_event = threading.Event()
+        self.thread = None  # Store the thread
+
+    def start_ui_loop(self):
+        """Starts the UI event loop in a separate thread."""
+        self.thread = threading.Thread(target=self.run_loop, daemon=True)
+        self.thread.start()
+
+    def run_loop(self):
+        """Runs an asyncio event loop for the UI updates."""
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_until_complete(self.update_ui())
+
+    def stop_ui_loop(self):
+        """Stops the UI event loop."""
+        self.stop_event.set()
+        if self.loop:
+            self.loop.stop()
+        if self.thread:
+            self.thread.join()
+
     def initialize_tasks(self):
         # Separate method to start async tasks
         if not self.is_tasks_initialized:
-            asyncio.create_task(self.update_ui())
             asyncio.create_task(self.refresh_ui())
             self.is_tasks_initialized = True
 
@@ -225,9 +248,11 @@ class HpFront(BoxLayout):
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
-        while True:
+        while not self.stop_event.is_set():
             try:
+                logger.info("ui queue: %s", self.ui_queue)
                 data = self.ui_queue.get_nowait()
+                logger.info("Received UI update: %s", data)
 
                 if isinstance(data, Event) and data.name == EventName.SENTINEL:
                     logger.info("Received sentinel event, exiting")
@@ -357,6 +382,7 @@ class HpFront(BoxLayout):
                                         strategy["net"] = str(net)
                                         strategy["net_percent"] = str(net_percent)
             except queue.Empty:
+                logger.info("Front queue empty, awaiting 0.1s")
                 await asyncio.sleep(0.1)
 
     def update_label(self, instance, value) -> None:

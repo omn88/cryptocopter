@@ -127,6 +127,7 @@ async def frontend_backend_setup(
 
     # Ensure frontend has the correct reference to the backend's queue
     hp_gui.config_queue = strategy_executor_fixture.config_queue
+    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
@@ -221,7 +222,6 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
-        mock_ui_queue = MagicMock()
 
         hp_manager = HpFront(
             client=mock_AsyncClient,
@@ -229,7 +229,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=MagicMock(),
-            ui_queue=mock_ui_queue,
+            ui_queue=queue.Queue(),
             symbols_info={
                 "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
             },

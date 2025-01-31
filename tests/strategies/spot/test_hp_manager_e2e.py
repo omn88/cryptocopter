@@ -23,10 +23,10 @@ logger = logging.getLogger("hp_e2e_test")
 @pytest.mark.database_integration
 async def test_default_buy_scenario(frontend_backend_setup):
     front, back = frontend_backend_setup
-    assert isinstance(front, HpManager)
+    assert isinstance(front, HpFront)
     assert isinstance(back, StrategyExecutor)
 
-    # ui_task = asyncio.create_task(front.update_ui())
+    front.start_ui_loop()
 
     assert len(back.id_to_system) == 0
 
@@ -71,7 +71,11 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert ts.strategy.state == State.BUYING
     assert ts.strategy.buy_position.state_info.state == State.NEW
 
+    logger.info("Active records: %s", front.active_records)
+
     logger.info("DONE")
+
+    front.stop_ui_loop()
 
     # ui_task.cancel()
     # try:
