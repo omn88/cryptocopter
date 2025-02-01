@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import queue
 import time
@@ -34,6 +35,32 @@ from tests.spot import get_new_orders
 
 
 logger = logging.getLogger("hp_db_gui")
+
+
+async def wait_for_condition(condition_func, timeout: float = 1.0, interval: float = 0.05):
+    """
+    Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
+
+    :param condition_func: A callable (sync or async) that returns True when the condition is met.
+    :param timeout: Maximum time to wait for the condition.
+    :param interval: Time between each condition check.
+    :raises AssertionError: If the condition is not met within the timeout.
+    """
+    logger.info("Enter wait for condition: %s", condition_func)
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if asyncio.iscoroutinefunction(condition_func):
+            result = await condition_func()
+        else:
+            result = condition_func()
+
+        if result:
+            logger.info("Condition MET!")
+            return  # Condition met, exit successfully
+        logger.info("Condition NOT MET, awaiting %s seconds", interval)
+        await asyncio.sleep(interval)  # Wait before rechecking
+
+    raise AssertionError(f"Condition not met within {timeout} seconds")
 
 
 async def assert_db_price_level_content(db: Database, config: HPConfig, state: State):
