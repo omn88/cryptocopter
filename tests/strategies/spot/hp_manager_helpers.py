@@ -34,7 +34,7 @@ from src.common.identifiers.spot import (
 from tests.spot import get_new_orders
 
 
-logger = logging.getLogger("hp_db_gui")
+logger = logging.getLogger("hp_helpers")
 
 
 async def wait_for_condition(
@@ -48,7 +48,6 @@ async def wait_for_condition(
     :param interval: Time between each condition check.
     :raises AssertionError: If the condition is not met within the timeout.
     """
-    logger.info("Enter wait for condition: %s", condition_func)
     start_time = time.time()
     while time.time() - start_time < timeout:
         if asyncio.iscoroutinefunction(condition_func):
@@ -57,9 +56,7 @@ async def wait_for_condition(
             result = condition_func()
 
         if result:
-            logger.info("Condition MET!")
             return  # Condition met, exit successfully
-        logger.info("Condition NOT MET, awaiting %s seconds", interval)
         await asyncio.sleep(interval)  # Wait before rechecking
 
     raise AssertionError(f"Condition not met within {timeout} seconds")
