@@ -85,8 +85,9 @@ class HpFront(BoxLayout):
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
+        self.test_mode = test_mode
         # Suppress GUI initialization when in test mode
-        if not test_mode:
+        if not self.test_mode:
             # Create the SearchableDropDown instance with the client
             self.symbol_input = SearchableDropDown(
                 client=self.client, options=self.symbols
@@ -250,7 +251,6 @@ class HpFront(BoxLayout):
         logger.info("Ready to receive UI updates")
         while not self.stop_event.is_set():
             try:
-                logger.info("ui queue: %s", self.ui_queue)
                 data = self.ui_queue.get_nowait()
                 logger.info("Received UI update: %s", data)
 
@@ -392,19 +392,22 @@ class HpFront(BoxLayout):
         symbols = {"All"}
         for record in self.active_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.active_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.active_filter_input.values = sorted(list(symbols))
 
     def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.idle_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.idle_filter_input.values = sorted(list(symbols))
 
     def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.archive_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def validate_sell_inputs(self) -> bool:
         hp_id = self.ids.hp_id_input.text
@@ -885,12 +888,13 @@ class HpFront(BoxLayout):
                 if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
 
-        self.ids.buy_active_records_list.refresh_from_data()
-        self.ids.sell_active_records_list.refresh_from_data()
-        self.ids.buy_idle_records_list.refresh_from_data()
-        self.ids.sell_idle_records_list.refresh_from_data()
-        self.ids.buy_archive_records_list.refresh_from_data()
-        self.ids.sell_archive_records_list.refresh_from_data()
+        if not self.test_mode:
+            self.ids.buy_active_records_list.refresh_from_data()
+            self.ids.sell_active_records_list.refresh_from_data()
+            self.ids.buy_idle_records_list.refresh_from_data()
+            self.ids.sell_idle_records_list.refresh_from_data()
+            self.ids.buy_archive_records_list.refresh_from_data()
+            self.ids.sell_archive_records_list.refresh_from_data()
 
     def _validate_buy_inputs(self) -> bool:
         symbol = self.symbol_input.selected_value

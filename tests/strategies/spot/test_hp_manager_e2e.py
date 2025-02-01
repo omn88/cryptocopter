@@ -64,7 +64,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))
     ts.strategy.core_queue.put_nowait(ticker_event)
     logger.info("Put event to the worker: %s", ticker_event)
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.2)
 
     assert len(ts.strategy.buy_position.orders) == 3
 
@@ -72,10 +72,13 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert ts.strategy.buy_position.state_info.state == State.NEW
 
     logger.info("Active records: %s", front.active_records)
+    logger.info("Idle records: %s", front.idle_records)
+
+    await asyncio.sleep(0.2)
+
+    # front.stop_ui_loop()
 
     logger.info("DONE")
-
-    front.stop_ui_loop()
 
     # ui_task.cancel()
     # try:
