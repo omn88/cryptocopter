@@ -25,7 +25,7 @@ from src.common.identifiers.spot import (
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
 from src.gui.hpmanager import HpFront
-from tests.strategies.spot.hp_manager import (
+from tests.strategies.spot.hp_manager_helpers import (
     assert_default_buy_position_data,
     buy_fully_last_order,
     cancel_partially_bought_position_first_order_filled,

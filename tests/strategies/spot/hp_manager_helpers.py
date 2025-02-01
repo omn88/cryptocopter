@@ -37,7 +37,9 @@ from tests.spot import get_new_orders
 logger = logging.getLogger("hp_db_gui")
 
 
-async def wait_for_condition(condition_func, timeout: float = 1.0, interval: float = 0.05):
+async def wait_for_condition(
+    condition_func, timeout: float = 1.0, interval: float = 0.05
+):
     """
     Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
 

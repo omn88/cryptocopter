@@ -15,6 +15,7 @@ from src.common.identifiers.spot import (
 from src.trading_system.spot import TradingSystem
 from src.workers.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
+from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 
 logger = logging.getLogger("hp_e2e_test")
@@ -44,7 +45,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     front.config_queue.put_nowait(hp)
     logger.info("HP New added to the queue: %s", hp)
 
-    await asyncio.sleep(0.3)
+    await wait_for_condition(condition_func=lambda: len(back.id_to_system) == 1)
 
     assert not back.config_queue.qsize()
     assert len(back.id_to_system) == 1
@@ -64,7 +65,8 @@ async def test_default_buy_scenario(frontend_backend_setup):
     ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))
     ts.strategy.core_queue.put_nowait(ticker_event)
     logger.info("Put event to the worker: %s", ticker_event)
-    await asyncio.sleep(0.2)
+
+    await wait_for_condition(condition_func=lambda: ts.strategy.state == State.BUYING)
 
     assert len(ts.strategy.buy_position.orders) == 3
 
@@ -74,8 +76,6 @@ async def test_default_buy_scenario(frontend_backend_setup):
     logger.info("Active records: %s", front.active_records)
     logger.info("Idle records: %s", front.idle_records)
 
-    await asyncio.sleep(0.2)
-
-    # front.stop_ui_loop()
+    await wait_for_condition(condition_func=lambda: front.active_records)
 
     logger.info("DONE")

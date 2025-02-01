@@ -112,6 +112,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db):
 
     # Cleanup: Ensure proper shutdown after the test
     executor.stop()
+    for handler in logging.root.handlers[:]:
+        handler.close()
+        logging.root.removeHandler(handler)
 
 
 @pytest.fixture
@@ -223,7 +226,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
 
-        hp_manager = HpFront(
+        gui = HpFront(
             client=mock_AsyncClient,
             strategy_logger=MagicMock(),
             strategy_id="test_strategy",
@@ -236,7 +239,8 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             test_mode=True,
         )
 
-        yield hp_manager
+        yield gui
+    gui.stop_ui_loop()
 
 
 @pytest.fixture

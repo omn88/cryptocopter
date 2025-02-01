@@ -4,6 +4,7 @@ import os
 import queue
 import logging
 import threading
+import time
 from typing import Dict, List
 from kivy.properties import (
     ListProperty,
@@ -115,8 +116,10 @@ class HpFront(BoxLayout):
 
     def stop_ui_loop(self):
         """Stops the UI event loop."""
-
         self.stop_event.set()
+
+        # Sleep to allow for update_ui method to finish gracefully I think.
+        time.sleep(0.1)
         if self.loop:
             self.loop.stop()
         if self.thread:
@@ -382,7 +385,7 @@ class HpFront(BoxLayout):
                                         strategy["net"] = str(net)
                                         strategy["net_percent"] = str(net_percent)
             except queue.Empty:
-                logger.info("Front queue empty, awaiting 0.1s")
+                # logger.info("Front queue empty, awaiting 0.1s")
                 await asyncio.sleep(0.1)
 
     def update_label(self, instance, value) -> None:
