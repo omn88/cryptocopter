@@ -24,7 +24,7 @@ from src.common.identifiers.spot import (
 )
 from src.gui.identifiers.spot import PositionData
 from src.strategies.spot.hp_manager import HpManager
-from src.gui.hpmanager import HpManager as HPGUI
+from src.gui.hpmanager import HpFront
 from tests.strategies.spot.hp_manager import (
     assert_default_buy_position_data,
     buy_fully_last_order,
@@ -65,7 +65,7 @@ from tests.strategies.spot.hp_manager import (
 logger = logging.getLogger("test_hp_manager")
 
 
-async def test_default_position(hp_gui: HPGUI, trading_system_factory) -> None:
+async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None:
     """
     This test purpose is to instantiate basic buy position and assert on
     the default values
@@ -83,7 +83,7 @@ async def test_default_position(hp_gui: HPGUI, trading_system_factory) -> None:
 
 
 async def test_default_position_send_orders(
-    hp_gui: HPGUI, trading_system_factory
+    hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
     Path 1
@@ -107,7 +107,7 @@ async def test_default_position_send_orders(
 
 
 async def test_cancel_default_position_untouched(
-    hp_gui: HPGUI, trading_system_factory
+    hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
     This test purpose is to instantiate basic buy position then trigger
@@ -138,7 +138,7 @@ async def test_cancel_default_position_untouched(
 
 
 async def test_cancel_default_position_untouched_then_resend_orders(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     """
     This test purpose is to instantiate basic buy position then trigger
@@ -174,7 +174,7 @@ async def test_cancel_default_position_untouched_then_resend_orders(
 
 
 async def test_default_position_first_order_filled_partially(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -199,7 +199,7 @@ async def test_default_position_first_order_filled_partially(
 
 
 async def test_default_position_first_order_filled_partially_then_cancel(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -229,7 +229,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 
 
 async def test_default_position_first_order_filled(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -254,7 +254,7 @@ async def test_default_position_first_order_filled(
 
 
 async def test_default_position_first_order_filled_then_cancel(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -284,7 +284,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
 
 async def test_default_position_all_buy_orders_filled(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -316,7 +316,7 @@ async def test_default_position_all_buy_orders_filled(
 
 
 async def test_conditions_for_new_buy_order_confirmation(
-    hp_gui: HPGUI, trading_system_factory
+    hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
     Path 1
@@ -347,7 +347,7 @@ async def test_conditions_for_new_buy_order_confirmation(
 
 
 async def test_conditions_for_buy_order_cancellation(
-    hp_gui: HPGUI, trading_system_factory
+    hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
     Path 1
@@ -378,7 +378,7 @@ async def test_conditions_for_buy_order_cancellation(
 
 
 async def test_conditions_for_buy_order_expiration(
-    hp_gui: HPGUI, trading_system_factory
+    hp_gui: HpFront, trading_system_factory
 ) -> None:
     """
     Path 1
@@ -406,7 +406,7 @@ async def test_conditions_for_buy_order_expiration(
 
 
 async def test_stagnation_counter_increase_buy(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     """
     This test purpose is to instantiate basic buy position then trigger
@@ -486,7 +486,7 @@ async def test_stagnation_counter_increase_buy(
 
 
 async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -521,7 +521,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
 
 async def test_default_position_first_order_filled_then_cancel_then_resend(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -556,7 +556,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
 
 async def test_send_sell_orders_for_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -570,7 +570,7 @@ async def test_send_sell_orders_for_bought_position(
 
 
 async def test_sell_orders_stagnation_increase(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -642,7 +642,7 @@ async def test_sell_orders_stagnation_increase(
 
 
 async def test_cancel_unfilled_sell_orders(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -660,7 +660,7 @@ async def test_cancel_unfilled_sell_orders(
 
 
 async def test_resend_unfilled_sell_orders(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -728,7 +728,7 @@ async def test_resend_unfilled_sell_orders(
 
 
 async def test_sell_position_first_order_filled_partially(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -746,7 +746,7 @@ async def test_sell_position_first_order_filled_partially(
 
 
 async def test_sell_position_first_order_filled(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -859,7 +859,7 @@ async def test_sell_position_first_order_filled(
 
 
 async def test_cancel_sell_position_first_order_filled_partially(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -881,7 +881,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
 
 
 async def test_resend_sell_position_first_order_filled_partially(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -907,7 +907,7 @@ async def test_resend_sell_position_first_order_filled_partially(
 
 
 async def test_conditions_for_new_sell_order_confirmation(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -928,7 +928,7 @@ async def test_conditions_for_new_sell_order_confirmation(
 
 
 async def test_conditions_for_sell_order_cancellation(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -949,7 +949,7 @@ async def test_conditions_for_sell_order_cancellation(
 
 
 async def test_conditions_for_sell_order_expiration(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     hp_list: List[Dict] = []
     strategy, hp_list = await simulate_bought_position(
@@ -968,7 +968,7 @@ async def test_conditions_for_sell_order_expiration(
 
 
 async def test_send_sell_orders_for_partially_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1002,7 +1002,7 @@ async def test_send_sell_orders_for_partially_bought_position(
 
 
 async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1040,7 +1040,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
 
 
 async def test_fill_orders_for_previously_partially_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1099,7 +1099,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
 
 
 async def test_sell_partially_partially_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1136,7 +1136,7 @@ async def test_sell_partially_partially_bought_position(
 
 
 async def test_buy_partially_partially_sold_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1189,7 +1189,7 @@ async def test_buy_partially_partially_sold_position(
 
 
 async def test_cancel_buy_to_part_sold_part_bought(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1349,7 +1349,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
 
 
 async def test_buy_fully_partially_sold_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1470,7 +1470,7 @@ async def test_buy_fully_partially_sold_position(
 
 
 async def test_sell_fully_partially_bought_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
@@ -1617,7 +1617,7 @@ async def test_sell_fully_partially_bought_position(
 
 
 async def test_buy_fully_partially_bought_position_when_sold_position(
-    trading_system_factory, hp_gui: HPGUI
+    trading_system_factory, hp_gui: HpFront
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []

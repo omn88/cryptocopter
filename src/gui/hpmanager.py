@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 import queue
 import logging
+import threading
 from typing import Dict, List
 from kivy.properties import (
     ListProperty,
@@ -42,7 +43,7 @@ from src.gui.searchable_drop_down import SearchableDropDown
 logger = logging.getLogger("HP_GUI")
 
 
-class HpManager(BoxLayout):
+class HpFront(BoxLayout):
     hp_list_data: List[Dict] = ListProperty([])
     active_records: List[Dict] = ListProperty([])
     idle_records: List[Dict] = ListProperty([])
@@ -84,8 +85,9 @@ class HpManager(BoxLayout):
         self.bind(idle_records=self.update_idle_symbols)
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
+        self.test_mode = test_mode
         # Suppress GUI initialization when in test mode
-        if not test_mode:
+        if not self.test_mode:
             # Create the SearchableDropDown instance with the client
             self.symbol_input = SearchableDropDown(
                 client=self.client, options=self.symbols
@@ -96,10 +98,33 @@ class HpManager(BoxLayout):
         # Do not start async tasks in the constructor
         self.is_tasks_initialized = False
 
+        self.loop = None
+        self.stop_event = threading.Event()
+        self.thread = None  # Store the thread
+
+    def start_ui_loop(self):
+        """Starts the UI event loop in a separate thread."""
+        self.thread = threading.Thread(target=self.run_loop, daemon=True)
+        self.thread.start()
+
+    def run_loop(self):
+        """Runs an asyncio event loop for the UI updates."""
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_until_complete(self.update_ui())
+
+    def stop_ui_loop(self):
+        """Stops the UI event loop."""
+
+        self.stop_event.set()
+        if self.loop:
+            self.loop.stop()
+        if self.thread:
+            self.thread.join()
+
     def initialize_tasks(self):
         # Separate method to start async tasks
         if not self.is_tasks_initialized:
-            asyncio.create_task(self.update_ui())
             asyncio.create_task(self.refresh_ui())
             self.is_tasks_initialized = True
 
@@ -225,7 +250,7 @@ class HpManager(BoxLayout):
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive UI updates")
-        while True:
+        while not self.stop_event.is_set():
             try:
                 data = self.ui_queue.get_nowait()
 
@@ -240,11 +265,8 @@ class HpManager(BoxLayout):
                         update=data, hp_list=self.hp_list_data
                     )
 
-                    # Refresh the RecycleView or ListView in the UI to reflect new data
-                    self.ids.hp_list.refresh_from_data()
-
                 if isinstance(data, PositionData):
-                    logger.info("Received position data: %s", data)
+                    logger.info("UI received position data: %s", data)
                     self.hp_list_data = self.update_hp_list(
                         update=data.hp_update, hp_list=self.hp_list_data
                     )
@@ -299,7 +321,7 @@ class HpManager(BoxLayout):
                             )
                             self.add_position_to_archive(data=data)
                     logger.info(
-                        "Records active:\n%s\nIdle\n%s\nArchive\n%s",
+                        "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
                         self.active_records,
                         self.idle_records,
                         self.archive_records,
@@ -359,8 +381,8 @@ class HpManager(BoxLayout):
                                         )
                                         strategy["net"] = str(net)
                                         strategy["net_percent"] = str(net_percent)
-                                    self.ids.hp_list.refresh_from_data()
             except queue.Empty:
+                logger.info("Front queue empty, awaiting 0.1s")
                 await asyncio.sleep(0.1)
 
     def update_label(self, instance, value) -> None:
@@ -370,19 +392,22 @@ class HpManager(BoxLayout):
         symbols = {"All"}
         for record in self.active_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.active_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.active_filter_input.values = sorted(list(symbols))
 
     def update_idle_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.idle_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.idle_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.idle_filter_input.values = sorted(list(symbols))
 
     def update_archive_symbols(self, *args) -> None:
         symbols = {"All"}
         for record in self.archive_records:
             symbols.add(record.get("symbol", ""))
-        self.ids.archive_filter_input.values = sorted(list(symbols))
+        if not self.test_mode:
+            self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def validate_sell_inputs(self) -> bool:
         hp_id = self.ids.hp_id_input.text
@@ -863,12 +888,13 @@ class HpManager(BoxLayout):
                 if symbol_filter == "All" or record["symbol"] == symbol_filter
             ]
 
-        self.ids.buy_active_records_list.refresh_from_data()
-        self.ids.sell_active_records_list.refresh_from_data()
-        self.ids.buy_idle_records_list.refresh_from_data()
-        self.ids.sell_idle_records_list.refresh_from_data()
-        self.ids.buy_archive_records_list.refresh_from_data()
-        self.ids.sell_archive_records_list.refresh_from_data()
+        if not self.test_mode:
+            self.ids.buy_active_records_list.refresh_from_data()
+            self.ids.sell_active_records_list.refresh_from_data()
+            self.ids.buy_idle_records_list.refresh_from_data()
+            self.ids.sell_idle_records_list.refresh_from_data()
+            self.ids.buy_archive_records_list.refresh_from_data()
+            self.ids.sell_archive_records_list.refresh_from_data()
 
     def _validate_buy_inputs(self) -> bool:
         symbol = self.symbol_input.selected_value

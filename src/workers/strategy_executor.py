@@ -38,7 +38,14 @@ from src.workers.broker_spot import BrokerSpot
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
-config_env = Config(RepositoryEnv(DOTENV_FILE))
+if os.path.exists(DOTENV_FILE):
+    config_env = Config(RepositoryEnv(DOTENV_FILE))
+else:
+    print("Warning: .env file not found! Using default values.")
+    config_env = {
+        "API_KEY": "key",
+        "API_SECRET": "secret",
+    }
 
 
 logger = logging.getLogger("strategy_executor")
@@ -53,6 +60,7 @@ class StrategyExecutor:
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
         balances: Dict[str, float],
+        test_mode: bool = False,
     ):
         self.client: Optional[BinanceClient] = None
         self.logger = strategy_logger
@@ -64,6 +72,7 @@ class StrategyExecutor:
         self.symbols_info = symbols_info
         self.hp_configurations: List[HPConfig] = []
         self.balances = balances
+        self.test_mode = (test_mode,)  # Add a test_mode parameter
 
         self.loop = None
         self.stop_event = threading.Event()
@@ -78,9 +87,10 @@ class StrategyExecutor:
 
     async def run(self) -> None:
         self.logger.info("Strategy executor ready to retrieve the first config")
-        self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        )
+        if not self.test_mode:
+            self.client = BinanceClient(
+                api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+            )
 
         await self.initialize_positions_from_db()
 
@@ -109,12 +119,19 @@ class StrategyExecutor:
                 await asyncio.sleep(0.1)
 
     def stop(self):
-        logger.info("In the strategy executor stop method")
+        logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.client.close_connection())
-        logger.info("Strategy executor stop event SET")
-        self.thread.join()  # Wait for thread to finish
+
+        if self.client:
+            try:
+                asyncio.run(
+                    self.client.close_connection()
+                )  # Ensure it's closed properly
+            except RuntimeError:
+                logger.warning("No running event loop, skipping async close.")
+
+        logger.info("Client connection closed.")
+        self.thread.join()
         logger.info("Strategy executor thread finished")
 
     async def initialize_trading_system(
@@ -140,6 +157,7 @@ class StrategyExecutor:
             config=new_hp.config,
             db=self.db,
             config_queue=self.config_queue,
+            stop_event=self.stop_event,
         )
         await trading_system.initialize_strategy(
             config=new_hp.config,
@@ -216,6 +234,7 @@ class StrategyExecutor:
             config=hp_to_be_recovered,
             db=self.db,
             config_queue=self.config_queue,
+            stop_event=self.stop_event,
         )
         self.id_to_system[str(hp_to_be_recovered.hp_id)] = trading_system
 
@@ -471,6 +490,9 @@ class StrategyExecutor:
         active_hps = self.db.run_db_task(self.db.fetch_active_hp_list())
 
         logger.info("Fetched list of active HPs: \n%s", active_hps)
+
+        if not active_hps:
+            logger.info("No active positions in the database.")
 
         for hp in active_hps:
             hp_id = hp["hp_id"]

@@ -20,7 +20,7 @@ def generate_hp_id(hp_list: List[HPConfig]) -> str:
     hp_ids = [int(entry.hp_id) for entry in hp_list if entry.hp_id != "0"]
 
     if not hp_ids:
-        logger.info("Returning 1000")
+        logger.info("Next HP ID generated: 1000")
         return "1000"  # Start from 1000 if no valid entries are present
 
     # Get the highest HP ID and increment it

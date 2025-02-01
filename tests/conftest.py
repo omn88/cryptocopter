@@ -1,5 +1,9 @@
 import os
 
+from src.gui.hpmanager import HpFront
+from src.workers.broker_spot import BrokerSpot
+from src.workers.strategy_executor import StrategyExecutor
+
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
@@ -32,7 +36,6 @@ from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.spot.hp_manager import HpManager as StrategyHP
-from src.gui.hpmanager import HpManager as HPGUI
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -75,7 +78,64 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
+def strategy_executor_fixture(mock_AsyncClient, test_db):
+    """
+    Fixture to create and run a StrategyExecutor instance.
+
+    - Starts the executor loop in a separate thread.
+    - Mocks necessary dependencies.
+    - Provides an initialized instance for testing.
+    """
+
+    # Mock dependencies
+    mock_broker = MagicMock(spec=BrokerSpot)
+    ui_queue = queue.Queue()
+    strategy_logger = StrategyLogger(name="test_strategy_executor")
+    balances = {"USDT": 10000}  # Mock balance
+    symbols_info = {
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+    }
+
+    # Create the StrategyExecutor instance
+    executor = StrategyExecutor(
+        strategy_logger=strategy_logger,
+        db=test_db,
+        broker=mock_broker,
+        ui_queue=ui_queue,
+        symbols_info=symbols_info,
+        balances=balances,
+        test_mode=True,
+    )
+    executor.client = mock_AsyncClient
+
+    yield executor  # Provide the instance for the test
+
+    # Cleanup: Ensure proper shutdown after the test
+    executor.stop()
+
+
+@pytest.fixture
+async def frontend_backend_setup(
+    hp_gui: HpFront, strategy_executor_fixture: StrategyExecutor
+):
+    """
+    Fixture to set up an integrated frontend-backend system.
+
+    - Ensures frontend (HpManager) can send commands to backend (StrategyExecutor).
+    - Provides a test scenario where state updates and order handling can be asserted.
+    """
+
+    # Ensure frontend has the correct reference to the backend's queue
+    hp_gui.config_queue = strategy_executor_fixture.config_queue
+    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
+    yield hp_gui, strategy_executor_fixture  # Provide both components
+
+    # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
+
+
+@pytest.fixture
 async def test_db():
+    """Drop the test database, recreate it, and set up tables before running tests."""
     db = Database(
         host=config("DB_HOST"),
         port=int(config("DB_PORT")),
@@ -84,16 +144,23 @@ async def test_db():
         name=config("DB_TEST_NAME"),
     )
     await db.initialize()
-    try:
-        db.run_db_task(db.create_database_if_not_exists())
-        # db.run_db_task(db.create_pool())
-        db.run_db_task(db.drop_tables())
-        db.run_db_task(db.setup_tables())
 
-        yield db
-    except Exception as err:
-        logger.error("Error setting up the database: %s", err)
-        raise err
+    try:
+        logger.info(
+            "Dropping and recreating the test database: %s", config("DB_TEST_NAME")
+        )
+
+        # Drop the existing test database
+        db.run_db_task(db.drop_database())
+
+        # Recreate and set up the database from scratch
+        db.run_db_task(db.create_database_if_not_exists())
+        db.run_db_task(db.create_pool())
+        db.run_db_task(db.setup_tables())
+        db.run_db_task(db.create_hp_list_table())
+
+        yield db  # Provide the database instance for the test
+
     finally:
         db.run_db_task(db.close_pool())
         db.stop_worker()
@@ -155,15 +222,14 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
-        mock_ui_queue = MagicMock()
 
-        hp_manager = HPGUI(
+        hp_manager = HpFront(
             client=mock_AsyncClient,
             strategy_logger=MagicMock(),
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=MagicMock(),
-            ui_queue=mock_ui_queue,
+            ui_queue=queue.Queue(),
             symbols_info={
                 "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
             },
