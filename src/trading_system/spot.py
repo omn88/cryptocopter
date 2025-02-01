@@ -81,8 +81,6 @@ class TradingSystem:
         )
         self.strategy.buy_position.state_info.generate_next_monitor_time()
 
-        self.strategy_logger.info("Config status: %s", state_info.state)
-
         # Trading State Machine initialization
         self.state_machine = AsyncMachine(
             model=self.strategy,

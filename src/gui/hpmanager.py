@@ -115,6 +115,7 @@ class HpFront(BoxLayout):
 
     def stop_ui_loop(self):
         """Stops the UI event loop."""
+
         self.stop_event.set()
         if self.loop:
             self.loop.stop()
@@ -252,7 +253,6 @@ class HpFront(BoxLayout):
         while not self.stop_event.is_set():
             try:
                 data = self.ui_queue.get_nowait()
-                logger.info("Received UI update: %s", data)
 
                 if isinstance(data, Event) and data.name == EventName.SENTINEL:
                     logger.info("Received sentinel event, exiting")
@@ -266,7 +266,7 @@ class HpFront(BoxLayout):
                     )
 
                 if isinstance(data, PositionData):
-                    logger.info("Received position data: %s", data)
+                    logger.info("UI received position data: %s", data)
                     self.hp_list_data = self.update_hp_list(
                         update=data.hp_update, hp_list=self.hp_list_data
                     )
