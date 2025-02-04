@@ -18,7 +18,7 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HPConfig,
-    HpNew,
+    HpNewPosition,
     AllTickers,
     Event,
     EventName,
@@ -71,7 +71,7 @@ class HpFront(BoxLayout):
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
         db: Database,
-        test_mode=False,  # Add a test_mode parameter
+        test_mode=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -90,10 +90,12 @@ class HpFront(BoxLayout):
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             # Create the SearchableDropDown instance with the client
+
             self.symbol_input = SearchableDropDown(
                 client=self.client, options=self.symbols
             )
             # Add it to the layout where needed
+            logger.info("Created symbol input: %s", self.symbol_input)
             self.ids.symbol_container.add_widget(self.symbol_input)
 
         # Do not start async tasks in the constructor
@@ -129,13 +131,14 @@ class HpFront(BoxLayout):
         # Separate method to start async tasks
         if not self.is_tasks_initialized:
             asyncio.create_task(self.refresh_ui())
+            self.start_ui_loop()
             self.is_tasks_initialized = True
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
             return
 
-        new_hp = HpNew(
+        new_hp = HpNewPosition(
             config=HPConfig(
                 symbol_info=self.symbols_info[self.symbol_input.selected_value],
                 price_low=float(self.symbol_input.price_low_input.text),
