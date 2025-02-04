@@ -277,13 +277,16 @@ class StateInfo:
             datetime.datetime.now() + datetime.timedelta(hours=1)
         ).strftime("%Y-%m-%d %H:%M:%S")
 
+    def generate_open_time(self):
+        self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-class HpNew(NamedTuple):
+
+class HpNewPosition(NamedTuple):
     config: HPConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HpNew(config={self.config}, state_info={self.state_info})"
+        return f"HpNewPosition(config={self.config}, state_info={self.state_info})"
 
 
 class HpClose(NamedTuple):

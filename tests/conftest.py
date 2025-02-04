@@ -1,6 +1,6 @@
 import os
 
-from src.gui.hpmanager import HpFront
+from src.gui.hpfront import HpFront
 from src.workers.broker_spot import BrokerSpot
 from src.workers.strategy_executor import StrategyExecutor
 
@@ -35,7 +35,7 @@ from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.strategies.spot.hp_manager import HpStrategy
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -174,7 +174,7 @@ def trading_system_factory(mock_AsyncClient):
     def create_trading_system(hp_config: HPConfig, balance: float = 10000):
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
-        strategy = StrategyHP(
+        strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
             config_queue=MagicMock(),

@@ -31,7 +31,7 @@ from src.common.identifiers.spot import (
 )
 from src.common.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
-from src.gui.hpmanager import HpFront
+from src.gui.hpfront import HpFront
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.portfolio import PortfolioUI
@@ -167,7 +167,7 @@ class AsyncApp(App):
                 )
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
-        Builder.load_file("src/gui/hpmanager.kv")
+        Builder.load_file("src/gui/hpfront.kv")
         strategy_logger = StrategyLogger(name="HPManager")
         ui_queue: queue.Queue = queue.Queue()
 

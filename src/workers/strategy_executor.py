@@ -1,14 +1,11 @@
 import asyncio
-import csv
-from datetime import datetime
 import logging
 import os
-import pprint
 import queue
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, Optional
+from transitions.extensions.asyncio import AsyncMachine
 from decouple import Config, RepositoryEnv
-from binance.exceptions import BinanceAPIException, BinanceRequestException
 from binance.enums import ORDER_STATUS_CANCELED
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
@@ -16,9 +13,9 @@ from src.common.database import Database
 from src.common.identifiers.common import BinanceClient, Mode, PositionSide
 from src.common.identifiers.spot import (
     HpClose,
-    HpNew,
     CsvConfig,
     HPConfig,
+    HpNewPosition,
     LoadConfig,
     RemoveRecord,
     SaveConfig,
@@ -32,6 +29,7 @@ from src.common.identifiers.spot import (
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPUpdate, PositionData
+from src.strategies.spot.hp_manager import HpStrategy
 from src.trading_system.spot import TradingSystem
 from src.workers.broker_spot import BrokerSpot
 
@@ -70,9 +68,8 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.id_to_system: Dict[str, TradingSystem] = {}
         self.symbols_info = symbols_info
-        self.hp_configurations: List[HPConfig] = []
         self.balances = balances
-        self.test_mode = (test_mode,)  # Add a test_mode parameter
+        self.test_mode = test_mode  # Add a test_mode parameter
 
         self.loop = None
         self.stop_event = threading.Event()
@@ -98,10 +95,8 @@ class StrategyExecutor:
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, HpNew):
-                    asyncio.create_task(
-                        self.initialize_trading_system(new_hp=strategy_data)
-                    )
+                if isinstance(strategy_data, HpNewPosition):
+                    asyncio.create_task(self.setup_new_position(new_hp=strategy_data))
                 if isinstance(strategy_data, SellConfig):
                     await self.manage_sell_position(strategy_data=strategy_data)
 
@@ -134,39 +129,63 @@ class StrategyExecutor:
         self.thread.join()
         logger.info("Strategy executor thread finished")
 
-    async def initialize_trading_system(
+    async def setup_new_position(
         self,
-        new_hp: HpNew,
+        new_hp: HpNewPosition,
     ) -> None:
-        self.logger.info(
-            "Initializing new trading system with config: %s", new_hp.config
-        )
+        self.logger.info("Setting up new position with config: %s", new_hp.config)
 
-        self.hp_configurations.append(new_hp.config)
-        new_hp.config.hp_id = generate_hp_id(hp_list=self.hp_configurations)
-        new_hp.state_info.open_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_hp.config.hp_id = generate_hp_id(hp_list=list(self.id_to_system.keys()))
+        new_hp.state_info.generate_open_time()
 
         assert self.client is not None
         core_queue: queue.Queue = queue.Queue()
+        stop_event = asyncio.Event()
 
-        trading_system = TradingSystem(
-            strategy_logger=self.logger,
+        strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            core_queue=core_queue,
-            config=new_hp.config,
-            db=self.db,
-            config_queue=self.config_queue,
-            stop_event=self.stop_event,
-        )
-        await trading_system.initialize_strategy(
-            config=new_hp.config,
+            logger=self.logger,
+            buy_config=new_hp.config,
             state_info=new_hp.state_info,
-            usdt_balance=self.balances["USDT"],
+            balance=self.balances["USDT"],
+            db=self.db,
+            core_queue=core_queue,
+            config_queue=self.config_queue,
+            stop_event=stop_event,
         )
-        assert trading_system.strategy is not None
-        assert new_hp.config.hp_id, "HP ID is zero after strategy init"
-        self.id_to_system[new_hp.config.hp_id] = trading_system
+
+        strategy.buy_position.orders = (
+            strategy.buy_position.order_handler.prepare_buy_orders(config=new_hp.config)
+        )
+        strategy.buy_position.state_info.generate_open_time()
+
+        # Trading State Machine initialization
+        state_machine = AsyncMachine(
+            model=strategy,
+            states=strategy.states,
+            transitions=strategy.transitions,
+            initial=strategy.state,
+            send_event=True,
+            queued=True,
+        )
+        self.id_to_system[new_hp.config.hp_id] = state_machine
+
+        assert new_hp.config.symbol_info.symbol.endswith(
+            "USDT"
+        ), "Symbol must end with 'USDT'"
+        self.ui_queue.put_nowait(
+            PositionData(
+                config=new_hp.config,
+                state_info=new_hp.state_info,
+                hp_update=HPUpdate(
+                    hp_id=new_hp.config.hp_id,
+                    buy_price=new_hp.config.price_high,
+                    asset=new_hp.config.symbol_info.symbol[:-4],
+                    state=State.NEW,
+                ),
+            )
+        )
 
         self.broker.subscribe(
             system_id=str(new_hp.config.hp_id),
@@ -193,54 +212,8 @@ class StrategyExecutor:
             )
         )
 
-        asyncio.create_task(trading_system.worker())
+        asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
-
-    async def recover_trading_system(
-        self,
-        hp_to_be_recovered: HPConfig,
-    ) -> TradingSystem:
-        self.logger.info(
-            "Recovering trading system with config: %s", hp_to_be_recovered
-        )
-        self.hp_configurations.append(hp_to_be_recovered)
-        assert self.client is not None
-        core_queue: queue.Queue = queue.Queue()
-
-        self.broker.subscribe(
-            system_id=str(hp_to_be_recovered.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=hp_to_be_recovered.symbol_info.symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=core_queue,
-            ),
-        )
-        self.broker.subscribe(
-            system_id=str(hp_to_be_recovered.hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=hp_to_be_recovered.symbol_info.symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=core_queue,
-            ),
-        )
-
-        trading_system = TradingSystem(
-            strategy_logger=self.logger,
-            client=self.client,
-            ui_queue=self.ui_queue,
-            core_queue=core_queue,
-            config=hp_to_be_recovered,
-            db=self.db,
-            config_queue=self.config_queue,
-            stop_event=self.stop_event,
-        )
-        self.id_to_system[str(hp_to_be_recovered.hp_id)] = trading_system
-
-        logger.info("Trading system restored: %s", trading_system)
-
-        return trading_system
 
     async def manage_sell_position(self, strategy_data: SellConfig) -> None:
         self.logger.info("Entered manage sell position")
@@ -297,6 +270,7 @@ class StrategyExecutor:
     ) -> None:
         self.logger.info("Entered trading system removal!")
         hp_id = close_data.config.hp_id
+        self.stop_event.set()
         self.broker.unsubscribe(system_id=hp_id)
         self.logger.info(f"Removed trading system with {hp_id}.")
 
@@ -528,11 +502,46 @@ class StrategyExecutor:
                 budget=buy_level["budget"],
                 mode=Mode(buy_level["mode"]),
             )
-            trading_system: TradingSystem = await self.recover_trading_system(
-                hp_to_be_recovered=config
+
+            core_queue: queue.Queue = queue.Queue()
+
+            self.broker.subscribe(
+                system_id=str(config.hp_id),
+                subscription_info=SubscriptionInfo(
+                    data_type=SubscriptionType.USER,
+                    symbol=config.symbol_info.symbol,
+                    target=SubscriptionTarget.BACKEND,
+                    queue=core_queue,
+                ),
+            )
+            self.broker.subscribe(
+                system_id=str(config.hp_id),
+                subscription_info=SubscriptionInfo(
+                    data_type=SubscriptionType.PRICE,
+                    symbol=config.symbol_info.symbol,
+                    target=SubscriptionTarget.BACKEND,
+                    queue=core_queue,
+                ),
             )
 
-            await trading_system.recover_strategy(
+            strategy = HpStrategy(
+                client=self.client,
+                ui_queue=self.buy_position.ui_queue,
+                logger=self.logger,
+                buy_config=buy_config,
+                state_info=buy_state_info,
+                balance=usdt_balance,
+                db=self.db,
+                core_queue=self.core_queue,
+                config_queue=self.config_queue,
+                stop_event=stop_event,
+            )
+
+            self.id_to_system[str(config.hp_id)] = strategy
+
+            logger.info("Strategy restored: %s", strategy)
+
+            await strategy.recover_strategy(
                 buy_config=config,
                 usdt_balance=self.balances["USDT"],
                 strategy_state=State(hp["state"]),

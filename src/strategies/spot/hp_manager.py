@@ -1,5 +1,8 @@
+import asyncio
 from datetime import datetime
 import queue
+from transitions.extensions.asyncio import AsyncMachine
+from typing import Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -18,6 +21,7 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
     HpClose,
+    Order,
     Signal,
     SignalUpdate,
     State,
@@ -33,7 +37,7 @@ from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.position_handler.spot import PositionHandler
 
 
-class HpManager:
+class HpStrategy:
     def __init__(
         self,
         client: BinanceClient,
@@ -45,11 +49,13 @@ class HpManager:
         core_queue: queue.Queue,
         config_queue: queue.Queue,
         db: Database,
+        stop_event: asyncio.Event,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
         self.db = db
+        self.stop_event = stop_event
         self.core_queue = core_queue
         self.config_queue = config_queue
         self.buy_position = PositionHandler(
@@ -1770,3 +1776,293 @@ class HpManager:
             "Ticker update from allow messages method: %s",
             self.ticker_update.last_price,
         )
+
+    async def worker(self):
+        self.logger.info("Worker start now, state: %s.", self.state)
+        while not self.stop_event.is_set():
+            try:
+                event = self.core_queue.get_nowait()
+                assert isinstance(event, Event)
+
+                self.logger.info("New event: %s", event)
+
+                if EventName.TICKER == event.name:
+                    assert isinstance(event.content, TickerUpdate)
+                    self.ticker_update = event.content
+                    await self.process_ticker()  # type: ignore
+
+                elif EventName.EXECUTION_REPORT == event.name:
+                    assert isinstance(event.content, ExecutionReport)
+                    self.execution_report = event.content
+                    await self.process_order()  # type: ignore
+
+                elif EventName.ACCOUNT_POSITION == event.name:
+                    assert isinstance(event.content, AccountPosition)
+                    self.account_position = event.content
+                    await self.process_account()  # type: ignore
+
+                elif EventName.SIGNAL == event.name:
+                    assert isinstance(event.content, SignalUpdate)
+                    self.signal_update = event.content
+                    await self.process_signal()  # type: ignore
+
+                self.core_queue.task_done()
+            except queue.Empty:
+                # logger.info("Queue empty, waiting 0.1s")
+                await asyncio.sleep(0.1)
+
+    async def recover_strategy(
+        self,
+        buy_config: HPConfig,
+        sell_config: Optional[HPConfig],
+        usdt_balance: float,
+        strategy_state: State,
+        buy_state_info: StateInfo,
+        sell_state_info: Optional[StateInfo],
+    ) -> AsyncMachine:
+        self.logger.info("Entering strategy recovery.")
+        stop_event = asyncio.Event()
+
+        self.state = strategy_state
+        self.buy_position.state_info = buy_state_info
+
+        if sell_config:
+            self.sell_position.config = sell_config
+        if sell_state_info:
+            self.sell_position.state_info = sell_state_info
+
+        # Trading State Machine initialization
+        state_machine = AsyncMachine(
+            model=strategy,
+            states=self.states,
+            transitions=self.transitions,
+            initial=self.state,
+            send_event=True,
+            queued=True,
+        )
+
+        # Restore orders for buy position
+        orders = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(
+                hp_id=buy_config.hp_id, side=PositionSide.LONG.value
+            )
+        )
+        self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
+        order_list = []
+        for order in orders:
+            order_list.append(
+                Order(
+                    order_id=order["order_id"],
+                    quantity=order["quantity"],
+                    precision=buy_config.symbol_info.precision,
+                    price_precision=buy_config.symbol_info.price_precision,
+                    price=order["price"],
+                    quantity_stable=order["quantity_stable"],
+                    realized_quantity=order["realized_quantity"],
+                    status=order["status"],
+                )
+            )
+        self.buy_position.orders = order_list
+        self.logger.info("Buy orders restored from DB: %s.", order_list)
+
+        # Confirm buy position state with the exchange
+
+        for order in self.buy_position.orders:
+            if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+                # Retrieve the latest order information from the API
+                resp = await self.client.get_order(
+                    symbol=buy_config.symbol_info.symbol, orderId=order.order_id
+                )
+                latest_status = resp["status"]
+                latest_realized_quantity = float(resp["executedQty"])
+
+                # Check if status or realized quantity has changed
+                status_changed = latest_status != order.status
+                quantity_changed = latest_realized_quantity != order.realized_quantity
+
+                if status_changed or quantity_changed:
+                    # Send a message to the appropriate queue
+
+                    ex_report = ExecutionReport(
+                        symbol=buy_config.symbol_info.symbol,
+                        quantity=order.quantity,
+                        price=order.price,
+                        current_order_status=latest_status,
+                        order_id=order.order_id,
+                        cumulative_filled_quantity=latest_realized_quantity,
+                    )
+
+                    self.core_queue.put_nowait(
+                        Event(
+                            name=EventName.EXECUTION_REPORT,
+                            content=ex_report,
+                        )
+                    )
+                    self.logger.info(
+                        "Order %s has been modified, execution report send: %s",
+                        order.order_id,
+                        ex_report,
+                    )
+                else:
+                    self.logger.info(
+                        "No changes detected for order %s.", order.order_id
+                    )
+
+        if not self.buy_position.orders:
+            self.buy_position.orders = (
+                self.buy_position.order_handler.prepare_buy_orders(config=buy_config)
+            )
+            self.logger.info(
+                "No orders found in DB, prepared new: %s",
+                self.buy_position.orders,
+            )
+
+        # Restore orders for sell position
+        orders = self.db.run_db_task(
+            self.db.fetch_orders_for_price_level(
+                hp_id=buy_config.hp_id, side=PositionSide.SHORT.value
+            )
+        )
+        order_list = []
+        if orders:
+            for order in orders:
+                order_list.append(
+                    Order(
+                        order_id=order["order_id"],
+                        quantity=order["quantity"],
+                        precision=buy_config.symbol_info.precision,
+                        price_precision=buy_config.symbol_info.price_precision,
+                        price=order["price"],
+                        quantity_stable=order["quantity_stable"],
+                        realized_quantity=order["realized_quantity"],
+                        status=order["status"],
+                    )
+                )
+            self.sell_position.orders = order_list
+            self.logger.info("Sell orders restored from DB: %s.", order_list)
+
+            for order in self.sell_position.orders:
+                if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+                    # Retrieve the latest order information from the API
+                    resp = await self.client.get_order(
+                        symbol=buy_config.symbol_info.symbol, orderId=order.order_id
+                    )
+                    latest_status = resp["status"]
+                    latest_realized_quantity = float(resp["executedQty"])
+
+                    # Check if status or realized quantity has changed
+                    status_changed = latest_status != order.status
+                    quantity_changed = (
+                        latest_realized_quantity != order.realized_quantity
+                    )
+
+                    if status_changed or quantity_changed:
+                        # Send a message to the appropriate queue
+
+                        ex_report = ExecutionReport(
+                            symbol=buy_config.symbol_info.symbol,
+                            quantity=order.quantity,
+                            price=order.price,
+                            current_order_status=latest_status,
+                            order_id=order.order_id,
+                            cumulative_filled_quantity=latest_realized_quantity,
+                        )
+
+                        self.core_queue.put_nowait(
+                            Event(
+                                name=EventName.EXECUTION_REPORT,
+                                content=ex_report,
+                            )
+                        )
+                        self.logger.info(
+                            "Order %s has been modified, execution report send: %s",
+                            order.order_id,
+                            ex_report,
+                        )
+                    else:
+                        self.logger.info(
+                            "No changes detected for order %s.", order.order_id
+                        )
+
+        else:
+            self.logger.info("No sell orders found in DB")
+
+        self.buy_position.state_info.generate_next_monitor_time()
+        self.sell_position.state_info.generate_next_monitor_time()
+
+        # Send buy position data
+        buy_state_info.ui_state = (
+            UiState.OPEN
+            if self.state in [State.BUYING, State.SELLING]
+            else UiState.CLOSED
+            if self.state == State.BOUGHT
+            else UiState.STAGNATED
+        )
+
+        self.logger.info(
+            "Buy orders before counting completeness: %s",
+            self.buy_position.orders,
+        )
+        buy_state_info.completeness = round(
+            sum(order.realized_quantity for order in self.buy_position.orders)
+            / sum(order.quantity for order in self.buy_position.orders),
+            2,
+        )
+
+        avg_realized_total = sum_realized_quant = 0
+
+        for order in self.buy_position.orders:
+            avg_realized_total += order.realized_quantity * order.price
+            sum_realized_quant += order.realized_quantity
+
+        buy_price = self.buy_position.config.symbol_info.adjust_price(
+            avg_realized_total / sum_realized_quant
+        )
+
+        buy_pos_data = PositionData(
+            config=buy_config,
+            state_info=buy_state_info,
+            hp_update=HPUpdate(
+                hp_id=buy_config.hp_id,
+                buy_price=buy_price,
+                asset=buy_config.symbol_info.symbol[:-4],
+                state=strategy_state,
+            ),
+        )
+        self.buy_position.ui_queue.put_nowait(buy_pos_data)
+        self.logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
+
+        if sell_config:
+            # Send sell position data
+            self.sell_position.state_info.ui_state = (
+                UiState.OPEN
+                if self.state in [State.BUYING, State.SELLING]
+                else UiState.STAGNATED
+            )
+            self.logger.info(
+                "Sell orders before counting completeness: %s",
+                self.sell_position.orders,
+            )
+            if self.sell_position.orders:
+                self.sell_position.state_info.completeness = round(
+                    sum(order.realized_quantity for order in self.sell_position.orders)
+                    / sum(order.quantity for order in self.sell_position.orders),
+                    2,
+                )
+            else:
+                self.sell_position.state_info.completeness = 0
+
+            sell_pos_data = PositionData(
+                config=sell_config,
+                state_info=self.sell_position.state_info,
+                hp_update=HPUpdate(
+                    hp_id=sell_config.hp_id,
+                    sell_price=sell_config.price_high,
+                    asset=sell_config.symbol_info.symbol[:-4],
+                    state=strategy_state,
+                ),
+            )
+            self.sell_position.ui_queue.put_nowait(sell_pos_data)
+            self.logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
+
+        self.logger.info("Strategy position(s) restored")
