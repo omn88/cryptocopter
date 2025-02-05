@@ -233,6 +233,8 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             test_mode=True,
         )
 
+        gui.initialize()
+
         yield gui
 
 

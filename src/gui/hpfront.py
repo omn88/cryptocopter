@@ -9,8 +9,6 @@ from kivy.properties import (
     ObjectProperty,
     StringProperty,
 )
-from kivy.clock import Clock
-from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
 from src.common.database import Database
@@ -97,8 +95,10 @@ class HpFront(BoxLayout):
             logger.info("Created symbol input: %s", self.symbol_input)
             self.ids.symbol_container.add_widget(self.symbol_input)
 
-        Clock.schedule_interval(self.process_ui_queue, 0.1)
-        Clock.schedule_interval(self.refresh_ui, 1.0)
+    def initialize(self):
+        if not self.test_mode:
+            asyncio.create_task(self.refresh_ui())
+        asyncio.create_task(self.process_ui_queue())
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
@@ -221,139 +221,143 @@ class HpFront(BoxLayout):
         return hp_list
 
     async def process_ui_queue(self) -> None:
-        try:
-            while True:
-                data = self.ui_queue.get_nowait()
+        logger.info("Ready to process UI queue")
+        while True:
+            try:
+                while True:
+                    data = self.ui_queue.get_nowait()
 
-                if isinstance(data, Event) and data.name == EventName.SENTINEL:
-                    logger.info("Received sentinel event, exiting")
-                    return
+                    if isinstance(data, Event) and data.name == EventName.SENTINEL:
+                        logger.info("Received sentinel event, exiting")
+                        return
 
-                if isinstance(data, HPUpdate):
-                    logger.info("Received HP Update: %s", data)
+                    if isinstance(data, HPUpdate):
+                        logger.info("Received HP Update: %s", data)
 
-                    self.hp_list_data = self.update_hp_list(
-                        update=data, hp_list=self.hp_list_data
-                    )
-
-                if isinstance(data, PositionData):
-                    logger.info("UI received position data: %s", data)
-                    self.hp_list_data = self.update_hp_list(
-                        update=data.hp_update, hp_list=self.hp_list_data
-                    )
-                    if any(
-                        record["hp_id"] == str(data.config.hp_id)
-                        for record in self.active_records
-                    ):
-                        logger.info(
-                            "Record %s found in active records", str(data.config.hp_id)
+                        self.hp_list_data = self.update_hp_list(
+                            update=data, hp_list=self.hp_list_data
                         )
-                        self.update_active_position(data=data)
 
-                    elif any(
-                        record["hp_id"] == str(data.config.hp_id)
-                        for record in self.idle_records
-                    ):
-                        logger.info(
-                            "Record %s found in idle records", str(data.config.hp_id)
+                    if isinstance(data, PositionData):
+                        logger.info("UI received position data: %s", data)
+                        self.hp_list_data = self.update_hp_list(
+                            update=data.hp_update, hp_list=self.hp_list_data
                         )
-                        self.update_idle_position(data=data)
-                    elif any(
-                        record["hp_id"] == str(data.config.hp_id)
-                        and record["side"] == data.state_info.side.value
-                        and record["completeness"] == "1"
-                        for record in self.archive_records
-                    ):
-                        logger.info(
-                            "Record %s already found in archived records",
-                            str(data.config.hp_id),
-                        )
-                    else:
-                        if data.state_info.ui_state in [
-                            UiState.NEW,
-                            UiState.STAGNATED,
-                            None,
-                        ]:
+                        if any(
+                            record["hp_id"] == str(data.config.hp_id)
+                            for record in self.active_records
+                        ):
                             logger.info(
-                                "New position added to Idle, system id: %s",
+                                "Record %s found in active records",
                                 str(data.config.hp_id),
                             )
-                            self.add_new_position_to_idle(data=data)
-                        if data.state_info.ui_state == UiState.OPEN:
-                            logger.info(
-                                "New position added to Active, system id: %s",
-                                str(data.config.hp_id),
-                            )
-                            self.add_new_position_to_active(data=data)
-                        if data.state_info.ui_state == UiState.CLOSED:
-                            logger.info(
-                                "New position added to Archive, system id: %s",
-                                str(data.config.hp_id),
-                            )
-                            self.add_position_to_archive(data=data)
-                    logger.info(
-                        "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
-                        self.active_records,
-                        self.idle_records,
-                        self.archive_records,
-                    )
-                    logger.info("HP LIST: %s", self.hp_list_data)
+                            self.update_active_position(data=data)
 
-                if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                    for strategy in self.active_records:
-                        assert isinstance(data.content, AllTickers)
-                        for ticker in data.content.msg:
-                            symbol = ticker.get("s")
-                            if symbol == strategy["symbol"]:
-                                strategy["current_price"] = str(
-                                    self.symbols_info[symbol].adjust_price(
-                                        price=float(ticker["c"])
-                                    )
+                        elif any(
+                            record["hp_id"] == str(data.config.hp_id)
+                            for record in self.idle_records
+                        ):
+                            logger.info(
+                                "Record %s found in idle records",
+                                str(data.config.hp_id),
+                            )
+                            self.update_idle_position(data=data)
+                        elif any(
+                            record["hp_id"] == str(data.config.hp_id)
+                            and record["side"] == data.state_info.side.value
+                            and record["completeness"] == "1"
+                            for record in self.archive_records
+                        ):
+                            logger.info(
+                                "Record %s already found in archived records",
+                                str(data.config.hp_id),
+                            )
+                        else:
+                            if data.state_info.ui_state in [
+                                UiState.NEW,
+                                UiState.STAGNATED,
+                                None,
+                            ]:
+                                logger.info(
+                                    "New position added to Idle, system id: %s",
+                                    str(data.config.hp_id),
                                 )
-
-                    for strategy in self.idle_records:
-                        assert isinstance(data.content, AllTickers)
-                        for ticker in data.content.msg:
-                            symbol = ticker.get("s")
-                            if symbol == strategy["symbol"]:
-                                strategy["current_price"] = str(
-                                    self.symbols_info[symbol].adjust_price(
-                                        price=float(ticker["c"])
-                                    )
+                                self.add_new_position_to_idle(data=data)
+                            if data.state_info.ui_state == UiState.OPEN:
+                                logger.info(
+                                    "New position added to Active, system id: %s",
+                                    str(data.config.hp_id),
                                 )
+                                self.add_new_position_to_active(data=data)
+                            if data.state_info.ui_state == UiState.CLOSED:
+                                logger.info(
+                                    "New position added to Archive, system id: %s",
+                                    str(data.config.hp_id),
+                                )
+                                self.add_position_to_archive(data=data)
+                        logger.info(
+                            "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
+                            self.active_records,
+                            self.idle_records,
+                            self.archive_records,
+                        )
+                        logger.info("HP LIST: %s", self.hp_list_data)
 
-                    for strategy in self.hp_list_data:
-                        assert isinstance(data.content, AllTickers)
-                        for ticker in data.content.msg:
-                            symbol = ticker.get("s")
-                            if strategy["state"] not in ["CLOSED", "SOLD"]:
-                                if symbol == f"{strategy['asset']}USDT":
-                                    current_price = self.symbols_info[
-                                        symbol
-                                    ].adjust_price(price=float(ticker["c"]))
-                                    strategy["current_price"] = str(current_price)
+                    if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
+                        for strategy in self.active_records:
+                            assert isinstance(data.content, AllTickers)
+                            for ticker in data.content.msg:
+                                symbol = ticker.get("s")
+                                if symbol == strategy["symbol"]:
+                                    strategy["current_price"] = str(
+                                        self.symbols_info[symbol].adjust_price(
+                                            price=float(ticker["c"])
+                                        )
+                                    )
 
-                                    if float(strategy["buy_price"]):
-                                        net_percent = round(
-                                            100
-                                            * (
-                                                current_price
-                                                / float(strategy["buy_price"])
-                                                - 1
-                                            ),
-                                            2,
+                        for strategy in self.idle_records:
+                            assert isinstance(data.content, AllTickers)
+                            for ticker in data.content.msg:
+                                symbol = ticker.get("s")
+                                if symbol == strategy["symbol"]:
+                                    strategy["current_price"] = str(
+                                        self.symbols_info[symbol].adjust_price(
+                                            price=float(ticker["c"])
                                         )
-                                        strategy["quantity_usdt"]
-                                        net = round(
-                                            1
-                                            + (net_percent / 100)
-                                            * float(strategy["quantity_usdt"]),
-                                            2,
-                                        )
-                                        strategy["net"] = str(net)
-                                        strategy["net_percent"] = str(net_percent)
-        except queue.Empty:
-            pass
+                                    )
+
+                        for strategy in self.hp_list_data:
+                            assert isinstance(data.content, AllTickers)
+                            for ticker in data.content.msg:
+                                symbol = ticker.get("s")
+                                if strategy["state"] not in ["CLOSED", "SOLD"]:
+                                    if symbol == f"{strategy['asset']}USDT":
+                                        current_price = self.symbols_info[
+                                            symbol
+                                        ].adjust_price(price=float(ticker["c"]))
+                                        strategy["current_price"] = str(current_price)
+
+                                        if float(strategy["buy_price"]):
+                                            net_percent = round(
+                                                100
+                                                * (
+                                                    current_price
+                                                    / float(strategy["buy_price"])
+                                                    - 1
+                                                ),
+                                                2,
+                                            )
+                                            strategy["quantity_usdt"]
+                                            net = round(
+                                                1
+                                                + (net_percent / 100)
+                                                * float(strategy["quantity_usdt"]),
+                                                2,
+                                            )
+                                            strategy["net"] = str(net)
+                                            strategy["net_percent"] = str(net_percent)
+            except queue.Empty:
+                await asyncio.sleep(0.1)
 
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
@@ -588,14 +592,16 @@ class HpFront(BoxLayout):
             self.ids.total_usdt_value_label.text = ""
 
     async def refresh_ui(self):
-        # Reassign the data to trigger the UI update
-        self.ids.buy_active_records_list.refresh_from_data()
-        self.ids.sell_active_records_list.refresh_from_data()
-        self.ids.buy_idle_records_list.refresh_from_data()
-        self.ids.sell_idle_records_list.refresh_from_data()
-        self.ids.buy_archive_records_list.refresh_from_data()
-        self.ids.sell_archive_records_list.refresh_from_data()
-        self.ids.hp_list.refresh_from_data()
+        while True:
+            # Reassign the data to trigger the UI update
+            self.ids.buy_active_records_list.refresh_from_data()
+            self.ids.sell_active_records_list.refresh_from_data()
+            self.ids.buy_idle_records_list.refresh_from_data()
+            self.ids.sell_idle_records_list.refresh_from_data()
+            self.ids.buy_archive_records_list.refresh_from_data()
+            self.ids.sell_archive_records_list.refresh_from_data()
+            self.ids.hp_list.refresh_from_data()
+            await asyncio.sleep(0.1)
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
         trigger_price = data.config.symbol_info.adjust_price(

@@ -203,7 +203,7 @@ class AsyncApp(App):
             ui_queue=ui_queue,
         )
 
-        front_end.initialize_tasks()
+        front_end.initialize()
 
         tab = TabbedPanelItem(
             text="HPManager",

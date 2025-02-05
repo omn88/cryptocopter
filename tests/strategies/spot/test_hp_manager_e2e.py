@@ -28,8 +28,6 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert isinstance(front, HpFront)
     assert isinstance(back, StrategyExecutor)
 
-    front.start_ui_loop()
-
     assert len(back.id_to_system) == 0
 
     hp = HpNewPosition(
@@ -50,10 +48,8 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     assert not back.config_queue.qsize()
     assert len(back.id_to_system) == 1
-    ts = back.id_to_system["1000"]
+    strategy = back.id_to_system["1000"]
 
-    assert isinstance(ts, AsyncMachine)
-    strategy = ts.model
     assert isinstance(strategy, HpStrategy)
     assert strategy.state == State.NEW
 
@@ -81,7 +77,5 @@ async def test_default_buy_scenario(frontend_backend_setup):
     logger.info("Idle records: %s", front.idle_records)
 
     await wait_for_condition(condition_func=lambda: front.active_records)
-
-    front.stop_event.set()
 
     logger.info("DONE")
