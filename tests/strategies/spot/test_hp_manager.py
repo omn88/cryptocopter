@@ -235,7 +235,7 @@ async def test_default_position_first_order_filled(
     )
 
     # Simulate full order fill
-    strategy = await simulate_first_buy_order_fill(
+    strategy, hp_list = await simulate_first_buy_order_fill(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
     )
 
@@ -521,7 +521,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
     # Resend buy orders after 1st order was filled
-    strategy = await resend_part_bought_first_order_filled(
+    strategy, hp_list = await resend_part_bought_first_order_filled(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 

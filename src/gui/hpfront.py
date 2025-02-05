@@ -3,14 +3,13 @@ from datetime import datetime
 import os
 import queue
 import logging
-import threading
-import time
 from typing import Dict, List
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
     StringProperty,
 )
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
@@ -98,41 +97,8 @@ class HpFront(BoxLayout):
             logger.info("Created symbol input: %s", self.symbol_input)
             self.ids.symbol_container.add_widget(self.symbol_input)
 
-        # Do not start async tasks in the constructor
-        self.is_tasks_initialized = False
-
-        self.loop = None
-        self.stop_event = threading.Event()
-        self.thread = None  # Store the thread
-
-    def start_ui_loop(self):
-        """Starts the UI event loop in a separate thread."""
-        self.thread = threading.Thread(target=self.run_loop, daemon=True)
-        self.thread.start()
-
-    def run_loop(self):
-        """Runs an asyncio event loop for the UI updates."""
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.update_ui())
-
-    def stop_ui_loop(self):
-        """Stops the UI event loop."""
-        self.stop_event.set()
-
-        # Sleep to allow for update_ui method to finish gracefully I think.
-        time.sleep(0.1)
-        if self.loop:
-            self.loop.stop()
-        if self.thread:
-            self.thread.join()
-
-    def initialize_tasks(self):
-        # Separate method to start async tasks
-        if not self.is_tasks_initialized:
-            asyncio.create_task(self.refresh_ui())
-            self.start_ui_loop()
-            self.is_tasks_initialized = True
+        Clock.schedule_interval(self.process_ui_queue, 0.1)
+        Clock.schedule_interval(self.refresh_ui, 1.0)
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
@@ -254,10 +220,9 @@ class HpFront(BoxLayout):
 
         return hp_list
 
-    async def update_ui(self) -> None:
-        logger.info("Ready to receive UI updates")
-        while not self.stop_event.is_set():
-            try:
+    async def process_ui_queue(self) -> None:
+        try:
+            while True:
                 data = self.ui_queue.get_nowait()
 
                 if isinstance(data, Event) and data.name == EventName.SENTINEL:
@@ -387,9 +352,8 @@ class HpFront(BoxLayout):
                                         )
                                         strategy["net"] = str(net)
                                         strategy["net_percent"] = str(net_percent)
-            except queue.Empty:
-                # logger.info("Front queue empty, awaiting 0.1s")
-                await asyncio.sleep(0.1)
+        except queue.Empty:
+            pass
 
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
@@ -624,16 +588,14 @@ class HpFront(BoxLayout):
             self.ids.total_usdt_value_label.text = ""
 
     async def refresh_ui(self):
-        while True:
-            # Reassign the data to trigger the UI update
-            self.ids.buy_active_records_list.refresh_from_data()
-            self.ids.sell_active_records_list.refresh_from_data()
-            self.ids.buy_idle_records_list.refresh_from_data()
-            self.ids.sell_idle_records_list.refresh_from_data()
-            self.ids.buy_archive_records_list.refresh_from_data()
-            self.ids.sell_archive_records_list.refresh_from_data()
-            self.ids.hp_list.refresh_from_data()
-            await asyncio.sleep(1)
+        # Reassign the data to trigger the UI update
+        self.ids.buy_active_records_list.refresh_from_data()
+        self.ids.sell_active_records_list.refresh_from_data()
+        self.ids.buy_idle_records_list.refresh_from_data()
+        self.ids.sell_idle_records_list.refresh_from_data()
+        self.ids.buy_archive_records_list.refresh_from_data()
+        self.ids.sell_archive_records_list.refresh_from_data()
+        self.ids.hp_list.refresh_from_data()
 
     def add_new_position_to_idle(self, data: PositionData) -> None:
         trigger_price = data.config.symbol_info.adjust_price(

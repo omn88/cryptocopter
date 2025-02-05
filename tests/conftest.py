@@ -171,7 +171,9 @@ async def test_db():
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
-    def create_trading_system(hp_config: HPConfig, balance: float = 10000) -> HpStrategy:
+    def create_trading_system(
+        hp_config: HPConfig, balance: float = 10000
+    ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
         strategy = HpStrategy(
@@ -232,7 +234,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         )
 
         yield gui
-    gui.stop_ui_loop()
+
 
 @pytest.fixture
 async def base(mock_AsyncClient):
