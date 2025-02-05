@@ -67,7 +67,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     )
 
     ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=1410))
-    strategy.core_queue.put_nowait(ticker_event)
+    strategy.worker_queue.put_nowait(ticker_event)
     logger.info("Put event to the worker: %s", ticker_event)
 
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)

@@ -6,25 +6,22 @@ from typing import List
 import pytz
 from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.futures import Signal, State
-from src.common.identifiers.spot import HPConfig
 
 logger = logging.getLogger("common")
 
 
-def generate_hp_id(hp_list: List[HPConfig]) -> str:
+def generate_hp_id(hp_list: List[str]) -> str:
     """
     Generate the next HP ID starting from 1000.
     It checks the list of HP entries to find the highest existing ID.
     """
-    # Extract all the existing HP IDs, ignoring any with value '0'
-    hp_ids = [int(entry.hp_id) for entry in hp_list if entry.hp_id != "0"]
 
-    if not hp_ids:
+    if not hp_list:
         logger.info("Next HP ID generated: 1000")
         return "1000"  # Start from 1000 if no valid entries are present
 
     # Get the highest HP ID and increment it
-    next_id = str(max(hp_ids) + 1)
+    next_id = str(max(int(hp) for hp in hp_list) + 1)
     logger.info("Next HP ID generated: %s", next_id)
 
     return next_id

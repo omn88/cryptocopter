@@ -32,7 +32,7 @@ class PortfolioManager:
         self.client: Optional[BinanceClient] = None
         self.broker = broker
         self.ui_queue = ui_queue
-        self.core_queue: queue.Queue = queue.Queue()
+        self.worker_queue: queue.Queue = queue.Queue()
         self.balances = balances
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
@@ -67,7 +67,7 @@ class PortfolioManager:
                 data_type=SubscriptionType.USER,
                 symbol="ALL",  # Subscribing to all symbols for user account positions
                 target=SubscriptionTarget.PORTFOLIO,
-                queue=self.core_queue,
+                queue=self.worker_queue,
             ),
         )
         self.broker.subscribe(
@@ -76,13 +76,13 @@ class PortfolioManager:
                 data_type=SubscriptionType.PRICE,
                 symbol="ALL",  # Subscribing to all symbols for price updates
                 target=SubscriptionTarget.PORTFOLIO,
-                queue=self.core_queue,
+                queue=self.worker_queue,
             ),
         )
 
         while not self.stop_event.is_set():
             try:
-                event = self.core_queue.get_nowait()
+                event = self.worker_queue.get_nowait()
                 # logger.info("Portfolio go new event: %s", event)
                 if event.name == EventName.ACCOUNT_POSITION:
                     await self.handle_account_position(event.content)

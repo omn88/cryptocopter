@@ -73,8 +73,7 @@ async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None
     Path 0
     """
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
     assert isinstance(strategy, HpStrategy)
 
     strategy, hp_list = assert_default_buy_position_data(
@@ -91,9 +90,7 @@ async def test_default_position_send_orders(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -118,9 +115,7 @@ async def test_cancel_default_position_untouched(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -148,9 +143,7 @@ async def test_cancel_default_position_untouched_then_resend_orders(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -178,9 +171,7 @@ async def test_default_position_first_order_filled_partially(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -203,9 +194,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -233,9 +222,7 @@ async def test_default_position_first_order_filled(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -258,9 +245,7 @@ async def test_default_position_first_order_filled_then_cancel(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -288,9 +273,7 @@ async def test_default_position_all_buy_orders_filled(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -324,9 +307,7 @@ async def test_conditions_for_new_buy_order_confirmation(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -355,9 +336,7 @@ async def test_conditions_for_buy_order_cancellation(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -386,9 +365,7 @@ async def test_conditions_for_buy_order_expiration(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -416,9 +393,7 @@ async def test_stagnation_counter_increase_buy(
 
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -490,9 +465,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -525,9 +498,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -810,8 +781,8 @@ async def test_sell_position_first_order_filled(
 
     logger.info("HP List after the update: %s", hp_list)
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -972,9 +943,7 @@ async def test_send_sell_orders_for_partially_bought_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1006,9 +975,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1044,9 +1011,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1103,9 +1068,7 @@ async def test_sell_partially_partially_bought_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1140,9 +1103,7 @@ async def test_buy_partially_partially_sold_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1193,9 +1154,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1353,9 +1312,7 @@ async def test_buy_fully_partially_sold_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1474,9 +1431,7 @@ async def test_sell_fully_partially_bought_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1559,8 +1514,8 @@ async def test_sell_fully_partially_bought_position(
 
     assert strategy.buy_position.ui_queue.qsize() == 0
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -1621,8 +1576,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 ) -> None:
     # Path 0: Default buy position
     hp_list: List[Dict] = []
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
     assert isinstance(strategy, HpStrategy)
 
     strategy, hp_list = assert_default_buy_position_data(
@@ -1706,8 +1660,8 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     assert strategy.buy_position.ui_queue.qsize() == 0
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL

@@ -1,7 +1,7 @@
 """Main module for managing trading strategies.
 
 This module contains the `AsyncApp` class, which is responsible for creating and managing instances
-of `TradingSystem` and `StrategyTab` for each trading strategy. It also sets up a logging handler
+of `StrategyTab` for each trading strategy. It also sets up a logging handler
 for each strategy.
 """
 

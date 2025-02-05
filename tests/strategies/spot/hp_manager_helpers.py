@@ -167,8 +167,8 @@ async def db_and_gui_assertions(
     )
 
 
-def get_default_buy_position(trading_system_factory) -> AsyncMachine:
-    trading_system = trading_system_factory(
+def get_default_buy_position(trading_system_factory) -> HpStrategy:
+    strategy = trading_system_factory(
         hp_config=HPConfig(
             hp_id="0",
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
@@ -179,7 +179,6 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
         ),
     )
 
-    strategy = trading_system.model
     assert isinstance(strategy, HpStrategy)
     strategy.client.create_order.side_effect = get_new_orders(
         price_low=strategy.buy_position.config.price_low,
@@ -223,7 +222,7 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
     assert strategy.state == State.NEW
     assert len(strategy.sell_position.orders) == 0
 
-    return trading_system
+    return strategy
 
 
 def assert_default_buy_position_data(
@@ -549,8 +548,8 @@ async def simulate_third_buy_order_fill(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -563,7 +562,7 @@ async def simulate_third_buy_order_fill(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.BOUGHT
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -725,8 +724,8 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -739,7 +738,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -901,8 +900,8 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -915,7 +914,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -1756,9 +1755,7 @@ async def simulate_bought_position(
     trading_system_factory, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Path 0: Default buy position
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpStrategy)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
