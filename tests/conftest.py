@@ -3,6 +3,7 @@ import os
 from src.gui.hpfront import HpFront
 from src.workers.broker_spot import BrokerSpot
 from src.workers.strategy_executor import StrategyExecutor
+from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
@@ -235,6 +236,13 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         gui.initialize()
 
         yield gui
+
+        for handler in logging.root.handlers[:]:
+            handler.close()
+            logging.root.removeHandler(handler)
+
+        gui.stop_event.set()
+        await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
 
 
 @pytest.fixture

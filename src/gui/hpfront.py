@@ -84,6 +84,8 @@ class HpFront(BoxLayout):
         self.bind(archive_records=self.update_archive_symbols)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
         self.test_mode = test_mode
+        self.stop_event: asyncio.Event = asyncio.Event()
+        self.ui_queue_closed = False
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             # Create the SearchableDropDown instance with the client
@@ -222,7 +224,7 @@ class HpFront(BoxLayout):
 
     async def process_ui_queue(self) -> None:
         logger.info("Ready to process UI queue")
-        while True:
+        while not self.stop_event.is_set():
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
@@ -358,7 +360,7 @@ class HpFront(BoxLayout):
                                             strategy["net_percent"] = str(net_percent)
             except queue.Empty:
                 await asyncio.sleep(0.1)
-
+        self.ui_queue_closed = True
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
 

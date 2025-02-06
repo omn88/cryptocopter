@@ -78,4 +78,6 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     await wait_for_condition(condition_func=lambda: front.active_records)
 
+    strategy.stop_event.set()
+
     logger.info("DONE")
