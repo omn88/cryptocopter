@@ -49,13 +49,12 @@ class HpStrategy:
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
         db: Database,
-        stop_event: asyncio.Event,
     ):
         self.client = client
         self.logger = logger
         self.balance = balance
         self.db = db
-        self.stop_event = stop_event
+        self.stop_event: asyncio.Event = asyncio.Event()
         self.worker_queue = worker_queue
         self.config_queue = config_queue
         self.buy_position = PositionHandler(
@@ -393,16 +392,6 @@ class HpStrategy:
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
             )
-        # self.logger.info(
-        #         "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-        #         self.buy_position.config.symbol_info.symbol,
-        #         self.buy_position.state_info.side,
-        #         self.state,
-        #         self.buy_position.config.budget,
-        #         self.balance,
-        #         trigger_send_orders_price,
-        #         self.ticker_update.last_price,
-        #     )
 
         return condition
 

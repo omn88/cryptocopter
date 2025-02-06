@@ -109,7 +109,7 @@ class StrategyExecutor:
                         hp_id=strategy_data.hp_id, side=strategy_data.side.value
                     )
                 if isinstance(strategy_data, HpClose):
-                    await self.terminate_trading_system(close_data=strategy_data)
+                    await self.terminate_position(close_data=strategy_data)
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -144,7 +144,6 @@ class StrategyExecutor:
 
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
-        stop_event = asyncio.Event()
 
         strategy = HpStrategy(
             client=self.client,
@@ -156,7 +155,6 @@ class StrategyExecutor:
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
-            stop_event=stop_event,
         )
 
         strategy.buy_position.orders = (
@@ -257,15 +255,17 @@ class StrategyExecutor:
             )
         )
 
-    async def terminate_trading_system(
+    async def terminate_position(
         self,
         close_data: HpClose,
     ) -> None:
-        self.logger.info("Entered trading system removal!")
         hp_id = close_data.config.hp_id
-        self.stop_event.set()
+        self.logger.info("Entered strategy %s removal!", hp_id)
+
+        strategy = self.id_to_system[hp_id]
+        strategy.stop_event.set()
         self.broker.unsubscribe(system_id=hp_id)
-        self.logger.info(f"Removed trading system with {hp_id}.")
+        self.logger.info("Removed strategy with %s.", hp_id)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info(
@@ -707,7 +707,6 @@ class StrategyExecutor:
                 db=self.db,
                 worker_queue=worker_queue,
                 config_queue=self.config_queue,
-                stop_event=asyncio.Event(),
             )
             self.id_to_system[buy_config.hp_id] = strategy
 

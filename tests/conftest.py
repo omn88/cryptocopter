@@ -186,7 +186,6 @@ def trading_system_factory(mock_AsyncClient):
             db=test_db,
             worker_queue=queue.Queue(),
             state_info=StateInfo(),
-            stop_event=asyncio.Event(),
         )
         strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy_position.orders = (
