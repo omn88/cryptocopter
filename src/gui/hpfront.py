@@ -361,6 +361,7 @@ class HpFront(BoxLayout):
             except queue.Empty:
                 await asyncio.sleep(0.1)
         self.ui_queue_closed = True
+
     def update_label(self, instance, value) -> None:
         self.selected_label.text = value
 

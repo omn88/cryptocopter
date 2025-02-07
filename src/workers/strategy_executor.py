@@ -109,7 +109,7 @@ class StrategyExecutor:
                         hp_id=strategy_data.hp_id, side=strategy_data.side.value
                     )
                 if isinstance(strategy_data, HpClose):
-                    await self.terminate_position(close_data=strategy_data)
+                    await self.close_sold_position(close_data=strategy_data)
                 # if isinstance(strategy_data, SaveConfig):
                 #     await self.save_config(strategy_data.file_name)
                 # if isinstance(strategy_data, LoadConfig):
@@ -255,7 +255,7 @@ class StrategyExecutor:
             )
         )
 
-    async def terminate_position(
+    async def close_sold_position(
         self,
         close_data: HpClose,
     ) -> None:
