@@ -70,7 +70,7 @@ class StrategyExecutor:
         self.broker = broker
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
-        self.id_to_system: Dict[str, HpStrategy] = {}
+        self.strategies: Dict[str, HpStrategy] = {}
         self.symbols_info = symbols_info
         self.balances = balances
         self.test_mode = test_mode  # Add a test_mode parameter
@@ -139,7 +139,7 @@ class StrategyExecutor:
     ) -> None:
         self.logger.info("Setting up new position with config: %s", new_hp.config)
 
-        new_hp.config.hp_id = generate_hp_id(hp_list=list(self.id_to_system.keys()))
+        new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         new_hp.state_info.generate_open_time()
 
         assert self.client is not None
@@ -162,7 +162,7 @@ class StrategyExecutor:
         )
         strategy.buy_position.state_info.generate_open_time()
 
-        self.id_to_system[new_hp.config.hp_id] = strategy
+        self.strategies[new_hp.config.hp_id] = strategy
 
         assert new_hp.config.symbol_info.symbol.endswith(
             "USDT"
@@ -210,7 +210,7 @@ class StrategyExecutor:
 
     async def manage_sell_position(self, strategy_data: SellConfig) -> None:
         self.logger.info("Entered manage sell position")
-        strategy: HpStrategy = self.id_to_system[strategy_data.config.hp_id]
+        strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
         if strategy_data.state_info.state == State.NEW:
             self.logger.info("Sell price set: %s", strategy_data.config.price_low)
             strategy.sell_position.config = strategy_data.config
@@ -262,22 +262,22 @@ class StrategyExecutor:
         hp_id = close_data.config.hp_id
         self.logger.info("Entered strategy %s removal!", hp_id)
 
-        strategy = self.id_to_system[hp_id]
+        strategy = self.strategies[hp_id]
         strategy.stop_event.set()
         self.broker.unsubscribe(system_id=hp_id)
         self.logger.info("Removed strategy with %s.", hp_id)
 
     async def remove_record(self, hp_id: str, side: str) -> None:
         self.logger.info(
-            "Entering remove record, id: %s to system: %s", hp_id, self.id_to_system
+            "Entering remove record, id: %s to system: %s", hp_id, self.strategies
         )
 
-        if hp_id not in self.id_to_system:
+        if hp_id not in self.strategies:
             self.logger.info("HP %s NOT in ID to system", hp_id)
             return
 
         self.logger.info("HP: %s in id to system", hp_id)
-        strategy: HpStrategy = self.id_to_system[hp_id]
+        strategy: HpStrategy = self.strategies[hp_id]
         self.logger.info(
             "Found strategy with hp id: %s, side to remove: %s", hp_id, side
         )
@@ -292,7 +292,7 @@ class StrategyExecutor:
         )
 
         if (
-            side == "BUY"
+            side == PositionSide.LONG
             and sp.state_info.state == State.NEW
             and bp.state_info.state == State.NEW
         ):
@@ -709,7 +709,7 @@ class StrategyExecutor:
                 worker_queue=worker_queue,
                 config_queue=self.config_queue,
             )
-            self.id_to_system[buy_config.hp_id] = strategy
+            self.strategies[buy_config.hp_id] = strategy
 
             self.logger.info("Entering strategy recovery.")
 
@@ -869,7 +869,7 @@ class StrategyExecutor:
     # def get_current_configuration(self) -> List[CsvConfig]:
     #     """Collect the current configurations."""
     #     hp_config = []
-    #     for system_id, system in self.id_to_system.items():
+    #     for system_id, system in self.strategies.items():
     #         logger.info("System id: %s, system: %s", system_id, system)
     #         assert isinstance(system, TradingSystem)
     #         hp_config.append(

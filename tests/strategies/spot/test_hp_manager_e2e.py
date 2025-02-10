@@ -28,7 +28,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert isinstance(front, HpFront)
     assert isinstance(back, StrategyExecutor)
 
-    assert len(back.id_to_system) == 0
+    assert len(back.strategies) == 0
 
     hp = HpNewPosition(
         HPConfig(
@@ -44,11 +44,11 @@ async def test_default_buy_scenario(frontend_backend_setup):
     front.config_queue.put_nowait(hp)
     logger.info("HP New added to the queue: %s", hp)
 
-    await wait_for_condition(condition_func=lambda: len(back.id_to_system) == 1)
+    await wait_for_condition(condition_func=lambda: len(back.strategies) == 1)
 
     assert not back.config_queue.qsize()
-    assert len(back.id_to_system) == 1
-    strategy = back.id_to_system["1000"]
+    assert len(back.strategies) == 1
+    strategy = back.strategies["1000"]
 
     assert isinstance(strategy, HpStrategy)
     assert strategy.state == State.NEW
