@@ -139,78 +139,39 @@ class HpFront(BoxLayout):
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-
                     if isinstance(data, PositionData):
-                        logger.info("UI received position data: %s", data)
-                        self.hp_list_data = self.update_hp_list(
-                            update=data.hp_update, hp_list=self.hp_list_data
-                        )
-                        if any(
-                            record["hp_id"] == str(data.config.hp_id)
-                            for record in self.active_records
-                        ):
-                            logger.info(
-                                "Record %s found in active records",
-                                str(data.config.hp_id),
-                            )
-                            self.update_active_position(data=data)
-
-                        elif any(
-                            record["hp_id"] == str(data.config.hp_id)
-                            for record in self.idle_records
-                        ):
-                            logger.info(
-                                "Record %s found in idle records",
-                                str(data.config.hp_id),
-                            )
-                            self.update_idle_position(data=data)
-                        elif any(
-                            record["hp_id"] == str(data.config.hp_id)
-                            and record["side"] == data.state_info.side.value
-                            and record["completeness"] == "1"
-                            for record in self.archive_records
-                        ):
-                            logger.info(
-                                "Record %s already found in archived records",
-                                str(data.config.hp_id),
-                            )
-                        else:
-                            if data.state_info.ui_state in [
-                                UiState.NEW,
-                                UiState.STAGNATED,
-                                None,
-                            ]:
-                                logger.info(
-                                    "New position added to Idle, system id: %s",
-                                    str(data.config.hp_id),
-                                )
-                                self.add_new_position_to_idle(data=data)
-                            if data.state_info.ui_state == UiState.OPEN:
-                                logger.info(
-                                    "New position added to Active, system id: %s",
-                                    str(data.config.hp_id),
-                                )
-                                self.add_new_position_to_active(data=data)
-                            if data.state_info.ui_state == UiState.CLOSED:
-                                logger.info(
-                                    "New position added to Archive, system id: %s",
-                                    str(data.config.hp_id),
-                                )
-                                self.add_position_to_archive(data=data)
-                        logger.info(
-                            "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
-                            self.active_records,
-                            self.idle_records,
-                            self.archive_records,
-                        )
-                        logger.info("HP LIST: %s", self.hp_list_data)
-
-                    if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
+                        await self._process_position_data(data)
+                    elif isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                         assert isinstance(data.content, AllTickers)
-                        self.price_updates(tickers=data.content)
+                        self._process_all_tickers(data.content)
             except queue.Empty:
                 await asyncio.sleep(0.1)
         self.ui_queue_closed = True
+
+    async def _process_position_data(self, data: PositionData) -> None:
+        logger.info("UI received position data: %s", data)
+
+        # Update the HP list and DB
+        self.hp_list_data = self.update_hp_list(
+            update=data.hp_update, hp_list=self.hp_list_data
+        )
+
+        hp_id = str(data.config.hp_id)
+        side = data.state_info.side.value
+
+        # Try to update the record in one of the lists
+        if self._record_exists(self.active_records, hp_id):
+            logger.info("Record %s found in active records", hp_id)
+            self.update_active_position(data=data)
+        elif self._record_exists(self.idle_records, hp_id):
+            logger.info("Record %s found in idle records", hp_id)
+            self.update_idle_position(data=data)
+        elif self._archived_record_exists(self.archive_records, data):
+            logger.info("Record %s already found in archived records", hp_id)
+        else:
+            self._add_new_record(data)
+
+        self._log_all_records()
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
@@ -312,95 +273,11 @@ class HpFront(BoxLayout):
 
         return hp_list
 
-    def add_new_position_to_idle(self, data: PositionData) -> None:
-        trigger_price = data.config.symbol_info.adjust_price(
-            (
-                (1 + (data.config.order_trigger / 100)) * data.config.price_high
-                if data.state_info.side.value == PositionSide.LONG.value
-                else (1 - (data.config.order_trigger / 100)) * data.config.price_low
-            )
-        )
-
-        self.idle_records.append(
-            IdlePosition(
-                open_time=data.state_info.open_time,
-                hp_id=str(data.config.hp_id),
-                symbol=data.config.symbol_info.symbol,
-                side=str(data.state_info.side.value),
-                mode=str(data.config.mode.value),
-                price_low=str(data.config.price_low),
-                price_high=str(data.config.price_high),
-                budget=str(data.config.budget),
-                order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                state=str(data.state_info.ui_state),
-                completeness=str(data.state_info.completeness),
-            ).to_dict()
-        )
-        self.filter_records("idle", "All")
-
-    def add_new_position_to_active(self, data: PositionData) -> None:
-        cancel_price = data.config.symbol_info.adjust_price(
-            (
-                (1 + (2 * data.config.order_trigger / 100)) * data.config.price_high
-                if data.state_info.side.value == PositionSide.LONG.value
-                else (1 - (2 * data.config.order_trigger / 100)) * data.config.price_low
-            )
-        )
-
-        self.active_records.append(
-            ActivePosition(
-                open_time=data.state_info.open_time,
-                hp_id=str(data.config.hp_id),
-                symbol=data.config.symbol_info.symbol,
-                side=str(data.state_info.side.value),
-                mode=str(data.config.mode.value),
-                price_low=str(data.config.price_low),
-                price_high=str(data.config.price_high),
-                budget=str(data.config.budget),
-                order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
-                completeness=str(data.state_info.completeness),
-                state=str(data.state_info.ui_state),
-            ).to_dict()
-        )
-        self.filter_records("active", "All")
-
-    def add_position_to_archive(self, data: PositionData) -> None:
-        data.state_info.close_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.archive_records.append(
-            ArchivedPosition(
-                open_time=data.state_info.open_time,
-                close_time=data.state_info.close_time,
-                hp_id=str(data.config.hp_id),
-                symbol=data.config.symbol_info.symbol,
-                side=str(data.state_info.side.value),
-                mode=str(data.config.mode.value),
-                price_low=str(data.config.price_low),
-                price_high=str(data.config.price_high),
-                budget=str(data.config.budget),
-                order_trigger=str(data.config.order_trigger),
-                completeness=str(data.state_info.completeness),
-            ).to_dict()
-        )
-        self.filter_records("archive", "All")
-
     def update_active_position(
         self,
         data: PositionData,
     ) -> None:
         for position in self.active_records:
-            condition = (
-                str(position["hp_id"]) == str(data.config.hp_id)
-                and position["side"] == data.state_info.side.value
-            )
-            logger.info(
-                "pos hp_id: %s, data config hp_id: %s, pos side: %s, data state info side: %s, condition: %s",
-                position["hp_id"],
-                data.config.hp_id,
-                position["side"],
-                data.state_info.side.value,
-                condition,
-            )
             if (
                 str(position["hp_id"]) == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
@@ -548,7 +425,7 @@ class HpFront(BoxLayout):
         self.filter_records("active", "All")
         self.filter_records("archive", "All")
 
-    def price_updates(self, tickers: AllTickers) -> None:
+    def _process_all_tickers(self, tickers: AllTickers) -> None:
         for strategy in self.active_records + self.idle_records:
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
@@ -772,27 +649,106 @@ class HpFront(BoxLayout):
             self.ids.expected_gain_label.text = "---"
             self.ids.expected_gain_percent_label.text = "---"
 
-    # def save_config(self) -> None:
-    #     file_name = self.file_name_input.text.strip()
-    #     if not file_name:
-    #         # Provide feedback to the user if the file name is empty
-    #         print("Please enter a file name.")
-    #         return
+    def _calculate_trigger_price(self, data: PositionData) -> float:
+        # For idle positions
+        if data.state_info.side.value == PositionSide.LONG.value:
+            base = data.config.price_high
+            factor = 1 + (data.config.order_trigger / 100)
+        else:
+            base = data.config.price_low
+            factor = 1 - (data.config.order_trigger / 100)
+        return data.config.symbol_info.adjust_price(base * factor)
 
-    #     # Put the SaveConfig NamedTuple into the config_queue
-    #     self.config_queue.put(SaveConfig(file_name=file_name))
-    #     logger.info("Saving configuration request for %s sent to backend.", file_name)
+    def _calculate_cancel_price(self, data: PositionData) -> float:
+        # For active positions; note the 2*order_trigger
+        if data.state_info.side.value == PositionSide.LONG.value:
+            base = data.config.price_high
+            factor = 1 + (2 * data.config.order_trigger / 100)
+        else:
+            base = data.config.price_low
+            factor = 1 - (2 * data.config.order_trigger / 100)
+        return data.config.symbol_info.adjust_price(base * factor)
 
-    # def load_config(self) -> None:
-    #     file_name = self.file_name_input.text.strip()
-    #     if not file_name:
-    #         # Provide feedback to the user if the file name is empty
-    #         print("Please enter a file name.")
-    #         return
+    def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
+        return any(record["hp_id"] == hp_id for record in records)
 
-    #     # Put the LoadConfig NamedTuple into the config_queue
-    #     self.config_queue.put(LoadConfig(file_name=file_name))
-    #     logger.info("Loading configuration request for %s sent to backend.", file_name)
+    def _archived_record_exists(self, records: List[Dict], data: PositionData) -> bool:
+        hp_id = str(data.config.hp_id)
+        side = data.state_info.side.value
+        return any(
+            record["hp_id"] == hp_id
+            and record["side"] == side
+            and record["completeness"] == "1"
+            for record in records
+        )
+
+    def _add_new_record(self, data: PositionData) -> None:
+        hp_id = str(data.config.hp_id)
+        if data.state_info.ui_state in [UiState.NEW, UiState.STAGNATED]:
+            logger.info("New position added to Idle, system id: %s", hp_id)
+            self.idle_records.append(
+                IdlePosition(
+                    open_time=data.state_info.open_time,
+                    hp_id=str(data.config.hp_id),
+                    symbol=data.config.symbol_info.symbol,
+                    side=str(data.state_info.side.value),
+                    mode=str(data.config.mode.value),
+                    price_low=str(data.config.price_low),
+                    price_high=str(data.config.price_high),
+                    budget=str(data.config.budget),
+                    order_trigger=f"{data.config.order_trigger},({self._calculate_trigger_price(data=data)})",
+                    state=str(data.state_info.ui_state),
+                    completeness=str(data.state_info.completeness),
+                ).to_dict()
+            )
+            self.filter_records("idle", "All")
+        if data.state_info.ui_state == UiState.OPEN:
+            logger.info("New position added to Active, system id: %s", hp_id)
+            self.active_records.append(
+                ActivePosition(
+                    open_time=data.state_info.open_time,
+                    hp_id=str(data.config.hp_id),
+                    symbol=data.config.symbol_info.symbol,
+                    side=str(data.state_info.side.value),
+                    mode=str(data.config.mode.value),
+                    price_low=str(data.config.price_low),
+                    price_high=str(data.config.price_high),
+                    budget=str(data.config.budget),
+                    order_cancel=f"{2 * data.config.order_trigger},({self._calculate_cancel_price(data=data)})",
+                    stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
+                    completeness=str(data.state_info.completeness),
+                    state=str(data.state_info.ui_state),
+                ).to_dict()
+            )
+            self.filter_records("active", "All")
+        if data.state_info.ui_state == UiState.CLOSED:
+            logger.info("New position added to Archive, system id: %s", hp_id)
+            data.state_info.close_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.archive_records.append(
+                ArchivedPosition(
+                    open_time=data.state_info.open_time,
+                    close_time=data.state_info.close_time,
+                    hp_id=str(data.config.hp_id),
+                    symbol=data.config.symbol_info.symbol,
+                    side=str(data.state_info.side.value),
+                    mode=str(data.config.mode.value),
+                    price_low=str(data.config.price_low),
+                    price_high=str(data.config.price_high),
+                    budget=str(data.config.budget),
+                    order_trigger=str(data.config.order_trigger),
+                    completeness=str(data.state_info.completeness),
+                ).to_dict()
+            )
+            self.filter_records("archive", "All")
+
+    def _log_all_records(self) -> None:
+        logger.info(
+            "\nRecords active:\n%s\nIdle\n%s\nArchive\n%s",
+            self.active_records,
+            self.idle_records,
+            self.archive_records,
+        )
+        logger.info("HP LIST: %s", self.hp_list_data)
 
     async def _refresh_ui(self):
         while True:
@@ -869,3 +825,25 @@ class HpFront(BoxLayout):
         self.ids.sell_validation_label.text = validation_message
 
         return not validation_message
+
+    # def save_config(self) -> None:
+    #     file_name = self.file_name_input.text.strip()
+    #     if not file_name:
+    #         # Provide feedback to the user if the file name is empty
+    #         print("Please enter a file name.")
+    #         return
+
+    #     # Put the SaveConfig NamedTuple into the config_queue
+    #     self.config_queue.put(SaveConfig(file_name=file_name))
+    #     logger.info("Saving configuration request for %s sent to backend.", file_name)
+
+    # def load_config(self) -> None:
+    #     file_name = self.file_name_input.text.strip()
+    #     if not file_name:
+    #         # Provide feedback to the user if the file name is empty
+    #         print("Please enter a file name.")
+    #         return
+
+    #     # Put the LoadConfig NamedTuple into the config_queue
+    #     self.config_queue.put(LoadConfig(file_name=file_name))
+    #     logger.info("Loading configuration request for %s sent to backend.", file_name)

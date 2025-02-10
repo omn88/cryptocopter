@@ -392,6 +392,16 @@ class HpStrategy:
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
             )
+        self.logger.info(
+            "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+            self.buy_position.config.symbol_info.symbol,
+            self.buy_position.state_info.side,
+            self.state,
+            self.buy_position.config.budget,
+            self.balance,
+            trigger_send_orders_price,
+            self.ticker_update.last_price,
+        )
 
         return condition
 
@@ -643,6 +653,14 @@ class HpStrategy:
                 self.sell_position.state_info.state,
                 self.sell_position.config.budget,
             )
+        self.logger.info(
+            "[Send sell orders for partially bought position] hp id: %s, %s, side: %s, state: %s, budget: %s",
+            self.sell_position.config.hp_id,
+            self.sell_position.config.symbol_info.symbol,
+            self.sell_position.state_info.side,
+            self.sell_position.state_info.state,
+            self.sell_position.config.budget,
+        )
 
         return condition
 
