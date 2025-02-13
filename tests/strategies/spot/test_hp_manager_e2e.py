@@ -1,4 +1,4 @@
-import asyncio
+
 import logging
 import pytest
 from transitions.extensions.asyncio import AsyncMachine
