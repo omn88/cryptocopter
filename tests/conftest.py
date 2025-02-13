@@ -150,9 +150,7 @@ async def test_db():
     await db.initialize()
 
     # try:
-    logger.info(
-        "Dropping and recreating the test database: %s", config("DB_TEST_NAME")
-    )
+    logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
 
     # Drop the existing test database
     db.drop_database()
@@ -166,8 +164,8 @@ async def test_db():
     yield db  # Provide the database instance for the test
     db.stop_worker()
     # finally:
-        # db.close_pool()
-        # db.stop_worker()
+    # db.close_pool()
+    # db.stop_worker()
 
 
 @pytest.fixture

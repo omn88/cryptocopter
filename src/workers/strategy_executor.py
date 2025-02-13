@@ -295,14 +295,21 @@ class StrategyExecutor:
                 )
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(order=order, position=HpPositionData(config=buy.config, state_info=buy.state_info))
+                        self.db.upsert_order(
+                            order=order,
+                            position=HpPositionData(
+                                config=buy.config, state_info=buy.state_info
+                            ),
+                        )
                 buy.state_info.completeness = round(
                     sum(order.realized_quantity for order in buy.orders)
                     / sum(order.quantity for order in buy.orders),
                     2,
                 )
 
-            self.db.upsert_price_level(position=HpPositionData(config=buy.config, state_info=buy.state_info))
+            self.db.upsert_price_level(
+                position=HpPositionData(config=buy.config, state_info=buy.state_info)
+            )
 
             buy.state_info.ui_state = UiState.CLOSED
 
@@ -326,7 +333,12 @@ class StrategyExecutor:
                 strategy.state = buy.state_info.state
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(order=order, position=HpPositionData(config=buy.config, state_info=buy.state_info))
+                        self.db.upsert_order(
+                            order=order,
+                            position=HpPositionData(
+                                config=buy.config, state_info=buy.state_info
+                            ),
+                        )
             buy.state_info.state = State.CLOSED
             buy.state_info.ui_state = UiState.CLOSED
             buy.state_info.completeness = sum(
@@ -340,7 +352,9 @@ class StrategyExecutor:
                 )
             )
 
-            self.db.upsert_price_level(position=HpPositionData(config=buy.config, state_info=buy.state_info))
+            self.db.upsert_price_level(
+                position=HpPositionData(config=buy.config, state_info=buy.state_info)
+            )
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
@@ -353,7 +367,12 @@ class StrategyExecutor:
                 strategy.state = buy.state_info.state
                 for order in sell.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(order=order, position=HpPositionData(config=sell.config, state_info=sell.state_info))
+                        self.db.upsert_order(
+                            order=order,
+                            position=HpPositionData(
+                                config=sell.config, state_info=sell.state_info
+                            ),
+                        )
             sell.config.price_low = 0.0
             sell.state_info.ui_state = UiState.CLOSED
             sell.state_info.completeness = (
@@ -373,7 +392,9 @@ class StrategyExecutor:
                     ),
                 )
             )
-            self.db.upsert_price_level(position=HpPositionData(config=sell.config, state_info=sell.state_info))
+            self.db.upsert_price_level(
+                position=HpPositionData(config=sell.config, state_info=sell.state_info)
+            )
 
     def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
         price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
@@ -576,9 +597,13 @@ class StrategyExecutor:
             avg_realized_total += order.realized_quantity * order.price
             sum_realized_quant += order.realized_quantity
 
-        buy_price = buy_position.config.symbol_info.adjust_price(
-            avg_realized_total / sum_realized_quant
-        ) if sum_realized_quant else 0
+        buy_price = (
+            buy_position.config.symbol_info.adjust_price(
+                avg_realized_total / sum_realized_quant
+            )
+            if sum_realized_quant
+            else 0
+        )
 
         buy_pos_data = PositionData(
             config=buy_position.config,
