@@ -154,7 +154,7 @@ class AsyncApp(App):
         self.root.add_widget(tab)
 
     async def load_all_active_strategies(self):
-        active_strategies = self.db.run_db_task(self.db.fetch_all_active_strategies())
+        active_strategies = self.db.fetch_all_active_strategies()
         if not active_strategies:
             logger.info("No active strategy found")
             return
@@ -310,8 +310,8 @@ class AsyncApp(App):
                     len(self.trading_systems),
                 )
 
-                strategy_id = self.db.run_db_task(
-                    self.db.insert_strategy(name=config.name, description=str(config))
+                strategy_id = self.db.insert_strategy(
+                    name=config.name, description=str(config)
                 )
 
                 await trading_system.start_trading()
@@ -319,7 +319,7 @@ class AsyncApp(App):
                 logger.info("App: Please select a symbol.")
 
         if strategy_name == "HP Manager":
-            self.db.run_db_task(self.db.create_hp_list_table())
+            self.db.create_hp_list_table()
             for strategy in self.active_strategies:
                 if strategy["name"] == config.name:
                     logger.info(
@@ -332,9 +332,10 @@ class AsyncApp(App):
             self.active_strategies.append(strat)
             logger.info("Starting HP manager strategy")
 
-            strategy_id = self.db.run_db_task(
-                self.db.insert_strategy(name="HPManager", description="HPManager")
+            strategy_id = self.db.insert_strategy(
+                name="HPManager", description="HPManager"
             )
+
             self.setup_hp_manager(
                 strategy_id=strategy_id, symbols_info=self.symbols_info
             )

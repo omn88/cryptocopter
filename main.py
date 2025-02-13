@@ -66,9 +66,6 @@ async def main():
         name=config_db("DB_NAME"),
     )
     await db.initialize()
-    db.run_db_task(db.create_database_if_not_exists())
-    db.run_db_task(db.create_pool())
-    db.run_db_task(db.setup_tables())
 
     client = BinanceClient(
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
@@ -85,7 +82,7 @@ async def main():
         await app.async_run()
     finally:
         await client.close_connection()
-        await db.close_pool()
+        db.close_pool()
         logger.info("FINITO")
 
 

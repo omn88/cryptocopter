@@ -19,6 +19,7 @@ from src.common.identifiers.spot import (
     CsvConfig,
     HPConfig,
     HpNewPosition,
+    HpPositionData,
     LoadConfig,
     Order,
     RemoveRecord,
@@ -106,7 +107,7 @@ class StrategyExecutor:
 
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
-                        hp_id=strategy_data.hp_id, side=strategy_data.side.value
+                        hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
                 if isinstance(strategy_data, HpClose):
                     await self.close_sold_position(close_data=strategy_data)
@@ -199,9 +200,10 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=new_hp.config, state_info=new_hp.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=strategy.buy_position.config,
+                state_info=strategy.buy_position.state_info,
             )
         )
 
@@ -222,12 +224,6 @@ class StrategyExecutor:
                     sell_orders=strategy.sell_position.orders,
                 )
             )
-            self.db.run_db_task(
-                self.db.upsert_price_level(
-                    config=strategy_data.config,
-                    state_info=strategy_data.state_info,
-                )
-            )
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -236,12 +232,12 @@ class StrategyExecutor:
             strategy.sell_position.config.price_low = strategy_data.config.price_low
             strategy.sell_position.state_info.ui_state = UiState.CLOSED
 
-            self.db.run_db_task(
-                self.db.upsert_price_level(
-                    config=strategy_data.config,
-                    state_info=strategy_data.state_info,
-                )
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=strategy.sell_position.config,
+                state_info=strategy.sell_position.state_info,
             )
+        )
 
         self.ui_queue.put_nowait(
             PositionData(
@@ -267,183 +263,120 @@ class StrategyExecutor:
         self.broker.unsubscribe(system_id=hp_id)
         self.logger.info("Removed strategy with %s.", hp_id)
 
-    async def remove_record(self, hp_id: str, side: str) -> None:
+    async def remove_record(self, hp_id: str, side: PositionSide) -> None:
         self.logger.info(
             "Entering remove record, id: %s to system: %s", hp_id, self.strategies
         )
 
         if hp_id not in self.strategies:
-            self.logger.info("HP %s NOT in ID to system", hp_id)
+            self.logger.info("HP %s NOT in running strategies", hp_id)
             return
 
-        self.logger.info("HP: %s in id to system", hp_id)
         strategy: HpStrategy = self.strategies[hp_id]
         self.logger.info(
             "Found strategy with hp id: %s, side to remove: %s", hp_id, side
         )
-        bp = strategy.buy_position
-        sp = strategy.sell_position
-
-        self.logger.info(
-            "side: %s, sp state: %s, bp state: %s",
-            side,
-            sp.state_info.state,
-            bp.state_info.state,
-        )
+        buy = strategy.buy_position
+        sell = strategy.sell_position
 
         if (
             side == PositionSide.LONG
-            and sp.state_info.state == State.NEW
-            and bp.state_info.state == State.NEW
+            and sell.state_info.state == State.NEW
+            and buy.state_info.state == State.NEW
         ):
             self.logger.info("Entered trading system removal!")
             self.broker.unsubscribe(system_id=hp_id)
             strategy.state = State.CLOSED
-            bp.state_info.state = State.CLOSED
-            if bp.orders:
-                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
-                    symbol=bp.config.symbol_info.symbol,
-                    orders=bp.orders,
+            buy.state_info.state = State.CLOSED
+            if buy.orders:
+                buy.orders = await buy.order_handler.cancel_remaining_limit_orders(
+                    symbol=buy.config.symbol_info.symbol,
+                    orders=buy.orders,
                 )
-                for order in bp.orders:
+                for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.run_db_task(
-                            self.db.upsert_order(
-                                price=order.price,
-                                quantity=order.quantity,
-                                quantity_stable=order.quantity_stable,
-                                realized_quantity=order.realized_quantity,
-                                time_in_force=order.time_in_force,
-                                status=order.status,
-                                order_type=order.order_type,
-                                order_id=order.order_id,
-                                hp_id=bp.config.hp_id,
-                                side=bp.state_info.side,
-                            )
-                        )
-                bp.state_info.completeness = round(
-                    sum(order.realized_quantity for order in bp.orders)
-                    / sum(order.quantity for order in bp.orders),
+                        self.db.upsert_order(order=order, position=HpPositionData(config=buy.config, state_info=buy.state_info))
+                buy.state_info.completeness = round(
+                    sum(order.realized_quantity for order in buy.orders)
+                    / sum(order.quantity for order in buy.orders),
                     2,
                 )
 
-            self.db.run_db_task(
-                self.db.upsert_price_level(
-                    config=bp.config,
-                    state_info=bp.state_info,
-                )
-            )
+            self.db.upsert_price_level(position=HpPositionData(config=buy.config, state_info=buy.state_info))
 
-            bp.state_info.ui_state = UiState.CLOSED
+            buy.state_info.ui_state = UiState.CLOSED
 
             self.ui_queue.put_nowait(
                 PositionData(
-                    config=bp.config,
-                    state_info=bp.state_info,
-                    hp_update=HPUpdate(hp_id=bp.config.hp_id, state=strategy.state),
+                    config=buy.config,
+                    state_info=buy.state_info,
+                    hp_update=HPUpdate(hp_id=buy.config.hp_id, state=strategy.state),
                 )
             )
 
             self.logger.info(f"Removed strategy {hp_id}.")
             return
 
-        if side == "BUY" and bp.state_info.state == State.PARTIALLY_BOUGHT:
+        if side == PositionSide.LONG and buy.state_info.state == State.PARTIALLY_BOUGHT:
             if strategy.state == State.BUYING:
-                bp.orders = await bp.order_handler.cancel_remaining_limit_orders(
-                    symbol=bp.config.symbol_info.symbol,
-                    orders=bp.orders,
+                buy.orders = await buy.order_handler.cancel_remaining_limit_orders(
+                    symbol=buy.config.symbol_info.symbol,
+                    orders=buy.orders,
                 )
-                strategy.state = bp.state_info.state
-                for order in bp.orders:
+                strategy.state = buy.state_info.state
+                for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.run_db_task(
-                            self.db.upsert_order(
-                                price=order.price,
-                                quantity=order.quantity,
-                                quantity_stable=order.quantity_stable,
-                                realized_quantity=order.realized_quantity,
-                                time_in_force=order.time_in_force,
-                                status=order.status,
-                                order_type=order.order_type,
-                                order_id=order.order_id,
-                                hp_id=str(bp.config.hp_id),
-                                side=bp.state_info.side,
-                            )
-                        )
-            bp.state_info.state = State.CLOSED
-            bp.state_info.ui_state = UiState.CLOSED
-            bp.state_info.completeness = sum(
-                order.realized_quantity for order in bp.orders
-            ) / sum(order.quantity for order in bp.orders)
+                        self.db.upsert_order(order=order, position=HpPositionData(config=buy.config, state_info=buy.state_info))
+            buy.state_info.state = State.CLOSED
+            buy.state_info.ui_state = UiState.CLOSED
+            buy.state_info.completeness = sum(
+                order.realized_quantity for order in buy.orders
+            ) / sum(order.quantity for order in buy.orders)
             self.ui_queue.put_nowait(
                 PositionData(
-                    config=bp.config,
-                    state_info=bp.state_info,
-                    hp_update=HPUpdate(hp_id=bp.config.hp_id, state=strategy.state),
-                )
-            )
-            self.db.run_db_task(
-                self.db.upsert_price_level(
-                    config=bp.config,
-                    state_info=bp.state_info,
+                    config=buy.config,
+                    state_info=buy.state_info,
+                    hp_update=HPUpdate(hp_id=buy.config.hp_id, state=strategy.state),
                 )
             )
 
-        if side == "SELL":
+            self.db.upsert_price_level(position=HpPositionData(config=buy.config, state_info=buy.state_info))
+
+        if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
-                sp.orders = await sp.order_handler.cancel_remaining_limit_orders(
-                    symbol=sp.config.symbol_info.symbol,
-                    orders=sp.orders,
+                sell.orders = await sell.order_handler.cancel_remaining_limit_orders(
+                    symbol=sell.config.symbol_info.symbol,
+                    orders=sell.orders,
                 )
                 # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
                 # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
-                strategy.state = bp.state_info.state
-                for order in sp.orders:
+                strategy.state = buy.state_info.state
+                for order in sell.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.run_db_task(
-                            self.db.upsert_order(
-                                price=order.price,
-                                quantity=order.quantity,
-                                quantity_stable=order.quantity_stable,
-                                realized_quantity=order.realized_quantity,
-                                time_in_force=order.time_in_force,
-                                status=order.status,
-                                order_type=order.order_type,
-                                order_id=order.order_id,
-                                hp_id=sp.config.hp_id,
-                                side=sp.state_info.side,
-                            )
-                        )
-            sp.config.price_low = 0.0
-            sp.state_info.ui_state = UiState.CLOSED
-            sp.state_info.completeness = (
-                sum(order.realized_quantity for order in sp.orders)
-                / sum(order.quantity for order in sp.orders)
-                if sp.orders
+                        self.db.upsert_order(order=order, position=HpPositionData(config=sell.config, state_info=sell.state_info))
+            sell.config.price_low = 0.0
+            sell.state_info.ui_state = UiState.CLOSED
+            sell.state_info.completeness = (
+                sum(order.realized_quantity for order in sell.orders)
+                / sum(order.quantity for order in sell.orders)
+                if sell.orders
                 else 0
             )
             self.ui_queue.put_nowait(
                 PositionData(
-                    config=sp.config,
-                    state_info=sp.state_info,
+                    config=sell.config,
+                    state_info=sell.state_info,
                     hp_update=HPUpdate(
-                        hp_id=bp.config.hp_id,
+                        hp_id=sell.config.hp_id,
                         state=strategy.state,
                         sell_price=0.0,
                     ),
                 )
             )
-            self.db.run_db_task(
-                self.db.upsert_price_level(
-                    config=sp.config,
-                    state_info=sp.state_info,
-                )
-            )
+            self.db.upsert_price_level(position=HpPositionData(config=sell.config, state_info=sell.state_info))
 
     def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
-        price_levels = self.db.run_db_task(
-            self.db.fetch_price_levels_for_hp(hp_id=hp_id)
-        )
+        price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
         logger.info("Current active price levels: %s", price_levels)
 
         buy_level = next(
@@ -491,10 +424,8 @@ class StrategyExecutor:
         assert self.client
         buy_config = buy_position.config
         # Restore orders for buy position
-        orders = self.db.run_db_task(
-            self.db.fetch_orders_for_price_level(
-                hp_id=buy_config.hp_id, side=PositionSide.LONG.value
-            )
+        orders = self.db.fetch_orders_for_price_level(
+            hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
         self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
@@ -570,11 +501,9 @@ class StrategyExecutor:
     ) -> List[Order]:
         assert self.client
         # Restore orders for sell position
-        orders = self.db.run_db_task(
-            self.db.fetch_orders_for_price_level(
-                hp_id=sell_config.hp_id,
-                side=PositionSide.SHORT.value,
-            )
+        orders = self.db.fetch_orders_for_price_level(
+            hp_id=sell_config.hp_id,
+            side=PositionSide.SHORT.value,
         )
         if not orders:
             self.logger.info("No sell orders found in DB")
@@ -635,7 +564,7 @@ class StrategyExecutor:
                     self.logger.info(
                         "No changes detected for order %s.", order.order_id
                     )
-        return orders
+        return order_list
 
     def send_buy_position_data_to_ui(
         self, buy_position: PositionHandler, strategy_state: State
@@ -649,7 +578,7 @@ class StrategyExecutor:
 
         buy_price = buy_position.config.symbol_info.adjust_price(
             avg_realized_total / sum_realized_quant
-        )
+        ) if sum_realized_quant else 0
 
         buy_pos_data = PositionData(
             config=buy_position.config,
@@ -667,8 +596,7 @@ class StrategyExecutor:
     async def initialize_positions_from_db(self) -> None:
         logger.info("Initialize positions from the database first")
 
-        active_hps = self.db.run_db_task(self.db.fetch_active_hp_list())
-
+        active_hps = self.db.fetch_active_hp_list()
         logger.info("Fetched list of active HPs: \n%s", active_hps)
 
         if not active_hps:

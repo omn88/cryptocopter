@@ -268,7 +268,7 @@ class HpFront(BoxLayout):
             (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
         )
         if updated_hp:
-            self.db.run_db_task(coro=self.db.upsert_hp_record(updated_hp))
+            self.db.upsert_hp_record(updated_hp)
             logger.info("Sent updated HP record to DB: %s", updated_hp)
 
         return hp_list

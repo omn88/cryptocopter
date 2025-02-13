@@ -8,6 +8,7 @@ from src.common.identifiers.common import BinanceClient
 from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
+    HpPositionData,
     StateInfo,
     Order,
     UiState,
@@ -54,19 +55,11 @@ class PositionHandler:
         )
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
-                self.db.run_db_task(
-                    self.db.upsert_order(
-                        price=order.price,
-                        quantity=order.quantity,
-                        quantity_stable=order.quantity_stable,
-                        realized_quantity=order.realized_quantity,
-                        time_in_force=order.time_in_force,
-                        status=order.status,
-                        order_type=order.order_type,
-                        order_id=order.order_id,
-                        side=self.state_info.side,
-                        hp_id=str(self.config.hp_id),
-                    )
+                self.db.upsert_order(
+                    order=order,
+                    position=HpPositionData(
+                        config=self.config, state_info=self.state_info
+                    ),
                 )
 
         self.state_info.completeness = round(
@@ -76,8 +69,8 @@ class PositionHandler:
         )
         self.state_info.ui_state = UiState.STAGNATED
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(config=self.config, state_info=self.state_info)
+        self.db.upsert_price_level(
+            position=HpPositionData(config=self.config, state_info=self.state_info)
         )
 
     async def handle_order_partially_filled(
@@ -92,6 +85,13 @@ class PositionHandler:
                     * execution_report.last_executed_quantity
                 )
                 order.price = execution_report.last_executed_price
+
+                self.db.upsert_order(
+                    order=order,
+                    position=HpPositionData(
+                        config=self.config, state_info=self.state_info
+                    ),
+                )
                 logger.info("Order: %s partially filled", order.order_id)
 
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
@@ -103,21 +103,6 @@ class PositionHandler:
             2,
         )
         self.state_info.ui_state = UiState.OPEN
-
-        self.db.run_db_task(
-            self.db.upsert_order(
-                order_id=execution_report.order_id,
-                hp_id=str(self.config.hp_id),
-                quantity=execution_report.quantity,
-                realized_quantity=execution_report.cumulative_filled_quantity,
-                status=execution_report.current_order_status,
-                price=execution_report.last_executed_price,
-                time_in_force=execution_report.time_in_force,
-                order_type=execution_report.order_type,
-                quantity_stable=self.orders[0].quantity_stable,
-                side=self.state_info.side,
-            )
-        )
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
@@ -133,6 +118,13 @@ class PositionHandler:
                     order.status,
                 )
 
+                self.db.upsert_order(
+                    order=order,
+                    position=HpPositionData(
+                        config=self.config, state_info=self.state_info
+                    ),
+                )
+
         self.state_info.ui_state = UiState.OPEN
         self.state_info.stagnation_counter = 0
         self.state_info.generate_next_monitor_time()
@@ -146,18 +138,3 @@ class PositionHandler:
         self.state_info.completeness = completeness
         logger.info("Completeness: %s", completeness)
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-
-        self.db.run_db_task(
-            self.db.upsert_order(
-                order_id=execution_report.order_id,
-                hp_id=str(self.config.hp_id),
-                quantity=execution_report.quantity,
-                realized_quantity=execution_report.cumulative_filled_quantity,
-                status=execution_report.current_order_status,
-                price=execution_report.last_executed_price,
-                time_in_force=execution_report.time_in_force,
-                order_type=execution_report.order_type,
-                quantity_stable=self.orders[0].quantity_stable,
-                side=self.state_info.side,
-            )
-        )

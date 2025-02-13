@@ -79,7 +79,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(mock_AsyncClient, test_db):
+def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -149,25 +149,25 @@ async def test_db():
     )
     await db.initialize()
 
-    try:
-        logger.info(
-            "Dropping and recreating the test database: %s", config("DB_TEST_NAME")
-        )
+    # try:
+    logger.info(
+        "Dropping and recreating the test database: %s", config("DB_TEST_NAME")
+    )
 
-        # Drop the existing test database
-        db.run_db_task(db.drop_database())
+    # Drop the existing test database
+    db.drop_database()
 
-        # Recreate and set up the database from scratch
-        db.run_db_task(db.create_database_if_not_exists())
-        db.run_db_task(db.create_pool())
-        db.run_db_task(db.setup_tables())
-        db.run_db_task(db.create_hp_list_table())
+    # Recreate and set up the database from scratch
+    db.create_database_if_not_exists()
+    db.create_pool()
+    db.setup_tables()
+    db.create_hp_list_table()
 
-        yield db  # Provide the database instance for the test
-
-    finally:
-        db.run_db_task(db.close_pool())
-        db.stop_worker()
+    yield db  # Provide the database instance for the test
+    db.stop_worker()
+    # finally:
+        # db.close_pool()
+        # db.stop_worker()
 
 
 @pytest.fixture

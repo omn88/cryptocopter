@@ -21,6 +21,7 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
     HpClose,
+    HpPositionData,
     Order,
     Signal,
     SignalUpdate,
@@ -422,27 +423,20 @@ class HpStrategy:
         self.logger.info("Orders sent, updating DB: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.buy_position.config.hp_id),
-                    side=self.buy_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
 
         self.logger.info(
             "Orders sent, updating DB with price level: %s",
             self.buy_position.state_info,
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -589,22 +583,15 @@ class HpStrategy:
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.buy_position.config.hp_id),
-                    side=self.buy_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -681,22 +668,15 @@ class HpStrategy:
         self.sell_position.state_info.ui_state = UiState.OPEN
 
         for order in self.sell_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.sell_position.config.hp_id),
-                    side=self.sell_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -754,8 +734,8 @@ class HpStrategy:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -901,22 +881,15 @@ class HpStrategy:
         self.logger.info("Will update orders: %s", self.sell_position.orders)
 
         for order in self.sell_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.sell_position.config.hp_id),
-                    side=self.sell_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.sell_position.config,
+                    state_info=self.sell_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
             )
@@ -1021,9 +994,10 @@ class HpStrategy:
                 ),
             )
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 
@@ -1209,9 +1183,10 @@ class HpStrategy:
                 ),
             )
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 
@@ -1286,11 +1261,12 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
+
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
         remaining_sell_quantity = (
             0
@@ -1367,10 +1343,8 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
-            )
+        self.db.upsert_price_level(
+            config=self.buy_position.config, state_info=self.buy_position.state_info
         )
 
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
@@ -1440,8 +1414,8 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
             )
@@ -1499,12 +1473,7 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.sell_position.config,
-                state_info=self.sell_position.state_info,
-            )
-        )
+        self.db.upsert_price_level(position=self.sell_position)
 
         self.sell_position.ui_queue.put_nowait(
             PositionData(
@@ -1577,8 +1546,8 @@ class HpStrategy:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -1646,9 +1615,10 @@ class HpStrategy:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 

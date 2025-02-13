@@ -62,27 +62,6 @@ async def wait_for_condition(
     raise AssertionError(f"Condition not met within {timeout} seconds")
 
 
-async def assert_db_price_level_content(db: Database, config: HPConfig, state: State):
-    assert db.pool is not None
-    async with db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (config.system_id,),
-            )
-            result = await cur.fetchone()
-
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == config.symbol_info.symbol
-            assert result.get("side") == config.side.value
-            assert result.get("price_low") == config.price_low
-            assert result.get("price_high") == config.price_high
-            assert result.get("state") == state.value
-            assert result.get("budget") == config.budget
-            assert result.get("order_trigger") == config.order_trigger
-
-
 def assert_gui_position_data_content(
     ui_queue: queue.Queue,
     config: HPConfig,
@@ -152,12 +131,9 @@ async def db_and_gui_assertions(
     completeness: float,
 ):
     db = strategy.buy_position.db
-    db.run_db_task(
-        assert_db_price_level_content(
-            db=strategy.buy_position.db,
-            config=strategy.buy_position.config,
-            state=strategy.state,
-        )
+    db.assert_db_price_level_content(
+        config=strategy.buy_position.config,
+        state=strategy.state,
     )
     assert_gui_position_data_content(
         ui_queue=strategy.buy_position.ui_queue,
