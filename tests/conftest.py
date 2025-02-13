@@ -90,9 +90,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
 
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
-    ui_queue = queue.Queue()
+    ui_queue: queue.Queue = queue.Queue()
     strategy_logger = StrategyLogger(name="test_strategy_executor")
-    balances = {"USDT": 10000}  # Mock balance
+    balances = {"USDT": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
     }
