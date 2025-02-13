@@ -14,7 +14,7 @@ from src.common.initialize_trading_environment import (
     futures_prepare_producers,
 )
 from src.df_handler.futures import DfHandler
-from src.gui.hpmanager import HpFront
+from src.gui.hpfront import HpFront
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import AccountData
 from src.strategies.futures.base import BaseFuturesStrategy

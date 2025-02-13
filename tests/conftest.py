@@ -1,15 +1,16 @@
 import os
 
-from src.gui.hpmanager import HpFront
+from src.gui.hpfront import HpFront
 from src.workers.broker_spot import BrokerSpot
 from src.workers.strategy_executor import StrategyExecutor
+from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
 import logging
 import queue
-from typing import AsyncGenerator, Dict, List
+from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
 import pytest
@@ -35,7 +36,7 @@ from src.strategies.futures.base import BaseFuturesStrategy
 from src.strategies.futures.rsi_basic import RsiBasic
 from src.strategies.futures.rsi_extended import RsiExtended
 from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpManager as StrategyHP
+from src.strategies.spot.hp_manager import HpStrategy
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -78,7 +79,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(mock_AsyncClient, test_db):
+def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -89,9 +90,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db):
 
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
-    ui_queue = queue.Queue()
+    ui_queue: queue.Queue = queue.Queue()
     strategy_logger = StrategyLogger(name="test_strategy_executor")
-    balances = {"USDT": 10000}  # Mock balance
+    balances = {"USDT": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
     }
@@ -112,6 +113,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db):
 
     # Cleanup: Ensure proper shutdown after the test
     executor.stop()
+    for handler in logging.root.handlers[:]:
+        handler.close()
+        logging.root.removeHandler(handler)
 
 
 @pytest.fixture
@@ -145,33 +149,33 @@ async def test_db():
     )
     await db.initialize()
 
-    try:
-        logger.info(
-            "Dropping and recreating the test database: %s", config("DB_TEST_NAME")
-        )
+    # try:
+    logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
 
-        # Drop the existing test database
-        db.run_db_task(db.drop_database())
+    # Drop the existing test database
+    db.drop_database()
 
-        # Recreate and set up the database from scratch
-        db.run_db_task(db.create_database_if_not_exists())
-        db.run_db_task(db.create_pool())
-        db.run_db_task(db.setup_tables())
-        db.run_db_task(db.create_hp_list_table())
+    # Recreate and set up the database from scratch
+    db.create_database_if_not_exists()
+    db.create_pool()
+    db.setup_tables()
+    db.create_hp_list_table()
 
-        yield db  # Provide the database instance for the test
-
-    finally:
-        db.run_db_task(db.close_pool())
-        db.stop_worker()
+    yield db  # Provide the database instance for the test
+    db.stop_worker()
+    # finally:
+    # db.close_pool()
+    # db.stop_worker()
 
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
-    def create_trading_system(hp_config: HPConfig, balance: float = 10000):
+    def create_trading_system(
+        hp_config: HPConfig, balance: float = 10000
+    ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
         test_db = MagicMock()
-        strategy = StrategyHP(
+        strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
             config_queue=MagicMock(),
@@ -179,25 +183,16 @@ def trading_system_factory(mock_AsyncClient):
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
             db=test_db,
-            core_queue=queue.Queue(),
+            worker_queue=queue.Queue(),
             state_info=StateInfo(),
         )
-        strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[hp_config])
+        strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy_position.orders = (
             strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
         )
         strategy.client.create_order.side_effect = get_new_orders(
             price_low=strategy.buy_position.config.price_low,
             price_high=strategy.buy_position.config.price_high,
-        )
-
-        state_machine = AsyncMachine(
-            model=strategy,
-            states=strategy.states,
-            transitions=strategy.transitions,
-            initial=strategy.state,
-            send_event=True,
-            queued=True,
         )
 
         ui_queue.put_nowait(
@@ -212,7 +207,7 @@ def trading_system_factory(mock_AsyncClient):
             )
         )
 
-        return state_machine
+        return strategy
 
     return create_trading_system
 
@@ -223,7 +218,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
 
-        hp_manager = HpFront(
+        gui = HpFront(
             client=mock_AsyncClient,
             strategy_logger=MagicMock(),
             strategy_id="test_strategy",
@@ -236,36 +231,16 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             test_mode=True,
         )
 
-        yield hp_manager
+        gui.initialize()
 
+        yield gui
 
-@pytest.fixture
-def trading_system_factory_db(mock_AsyncClient, test_db):
-    def create_trading_system(hp_config: HPConfig, balance: float = 10000):
-        ui_queue: queue.Queue = queue.Queue()
-        strategy = StrategyHP(
-            client=mock_AsyncClient,
-            balance=balance,
-            buy_config=hp_config,
-            config_queue=MagicMock(),
-            ui_queue=ui_queue,
-            logger=StrategyLogger(name="test"),
-            db=test_db,
-            core_queue=queue.Queue(),
-            state_info=StateInfo(),
-        )
-        # Trading State Machine initialization
-        state_machine = AsyncMachine(
-            model=strategy,
-            states=strategy.states,
-            transitions=strategy.transitions,
-            initial=strategy.state,
-            send_event=True,
-            queued=True,
-        )
-        return state_machine
+        for handler in logging.root.handlers[:]:
+            handler.close()
+            logging.root.removeHandler(handler)
 
-    return create_trading_system
+        gui.stop_event.set()
+        await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
 
 
 @pytest.fixture

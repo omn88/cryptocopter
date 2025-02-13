@@ -1,4 +1,4 @@
-<HpManager>:
+<HpFront>:
     file_name_input: file_name_input
     orientation: 'vertical'
 
@@ -432,7 +432,7 @@
                             text: 'Set Sell Price'
                             size_hint_y: 0.25
                             height: '40dp'
-                            on_release: root.set_sell_price(hp_id_input.text, sell_price_input.text)
+                            on_release: root.trigger_sell_position(hp_id_input.text, sell_price_input.text)
 
                         Label:
                             id: sell_validation_label

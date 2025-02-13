@@ -1,5 +1,8 @@
+import asyncio
 from datetime import datetime
 import queue
+from transitions.extensions.asyncio import AsyncMachine
+from typing import Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -18,6 +21,8 @@ from src.common.identifiers.spot import (
     ExecutionReport,
     HPConfig,
     HpClose,
+    HpPositionData,
+    Order,
     Signal,
     SignalUpdate,
     State,
@@ -33,7 +38,7 @@ from src.gui.identifiers.spot import HPUpdate, PositionData
 from src.position_handler.spot import PositionHandler
 
 
-class HpManager:
+class HpStrategy:
     def __init__(
         self,
         client: BinanceClient,
@@ -42,7 +47,7 @@ class HpManager:
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
-        core_queue: queue.Queue,
+        worker_queue: queue.Queue,
         config_queue: queue.Queue,
         db: Database,
     ):
@@ -50,7 +55,8 @@ class HpManager:
         self.logger = logger
         self.balance = balance
         self.db = db
-        self.core_queue = core_queue
+        self.stop_event: asyncio.Event = asyncio.Event()
+        self.worker_queue = worker_queue
         self.config_queue = config_queue
         self.buy_position = PositionHandler(
             client=client,
@@ -94,6 +100,15 @@ class HpManager:
         self.account_position: AccountPosition = AccountPosition()
 
         self.transitions = self.get_transitions()
+
+        self.state_machine = AsyncMachine(
+            model=self,
+            states=self.states,
+            transitions=self.transitions,
+            initial=self.state,
+            send_event=True,
+            queued=True,
+        )
 
     def get_transitions(self):
         return [
@@ -378,16 +393,6 @@ class HpManager:
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
             )
-        # self.logger.info(
-        #         "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-        #         self.buy_position.config.symbol_info.symbol,
-        #         self.buy_position.state_info.side,
-        #         self.state,
-        #         self.buy_position.config.budget,
-        #         self.balance,
-        #         trigger_send_orders_price,
-        #         self.ticker_update.last_price,
-        #     )
 
         return condition
 
@@ -418,27 +423,20 @@ class HpManager:
         self.logger.info("Orders sent, updating DB: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.buy_position.config.hp_id),
-                    side=self.buy_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
 
         self.logger.info(
             "Orders sent, updating DB with price level: %s",
             self.buy_position.state_info,
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -585,22 +583,15 @@ class HpManager:
         self.logger.info("Will update orders: %s", self.buy_position.orders)
 
         for order in self.buy_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.buy_position.config.hp_id),
-                    side=self.buy_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -677,22 +668,15 @@ class HpManager:
         self.sell_position.state_info.ui_state = UiState.OPEN
 
         for order in self.sell_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.sell_position.config.hp_id),
-                    side=self.sell_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.buy_position.config,
+                    state_info=self.buy_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -750,8 +734,8 @@ class HpManager:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -897,22 +881,15 @@ class HpManager:
         self.logger.info("Will update orders: %s", self.sell_position.orders)
 
         for order in self.sell_position.orders:
-            self.db.run_db_task(
-                self.db.upsert_order(
-                    price=order.price,
-                    quantity=order.quantity,
-                    quantity_stable=order.quantity_stable,
-                    realized_quantity=order.realized_quantity,
-                    time_in_force=order.time_in_force,
-                    status=order.status,
-                    order_type=order.order_type,
-                    order_id=order.order_id,
-                    hp_id=str(self.sell_position.config.hp_id),
-                    side=self.sell_position.state_info.side,
-                )
+            self.db.upsert_order(
+                order=order,
+                position=HpPositionData(
+                    config=self.sell_position.config,
+                    state_info=self.sell_position.state_info,
+                ),
             )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
             )
@@ -1017,9 +994,10 @@ class HpManager:
                 ),
             )
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 
@@ -1205,9 +1183,10 @@ class HpManager:
                 ),
             )
         )
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 
@@ -1282,11 +1261,12 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
+
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
         remaining_sell_quantity = (
             0
@@ -1333,7 +1313,7 @@ class HpManager:
         ):
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All BUY orders filled, sending: %s", signal)
-            self.core_queue.put(
+            self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
@@ -1363,10 +1343,8 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
-            )
+        self.db.upsert_price_level(
+            config=self.buy_position.config, state_info=self.buy_position.state_info
         )
 
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
@@ -1436,8 +1414,8 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.sell_position.config,
                 state_info=self.sell_position.state_info,
             )
@@ -1465,7 +1443,7 @@ class HpManager:
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All SELL orders filled, sending: %s", signal)
-            self.core_queue.put(
+            self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
 
@@ -1495,12 +1473,7 @@ class HpManager:
             execution_report=self.execution_report
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.sell_position.config,
-                state_info=self.sell_position.state_info,
-            )
-        )
+        self.db.upsert_price_level(position=self.sell_position)
 
         self.sell_position.ui_queue.put_nowait(
             PositionData(
@@ -1573,8 +1546,8 @@ class HpManager:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
+        self.db.upsert_price_level(
+            position=HpPositionData(
                 config=self.buy_position.config, state_info=self.buy_position.state_info
             )
         )
@@ -1642,9 +1615,10 @@ class HpManager:
             )
         )
 
-        self.db.run_db_task(
-            self.db.upsert_price_level(
-                config=self.buy_position.config, state_info=self.buy_position.state_info
+        self.db.upsert_price_level(
+            position=HpPositionData(
+                config=self.sell_position.config,
+                state_info=self.sell_position.state_info,
             )
         )
 
@@ -1770,3 +1744,37 @@ class HpManager:
             "Ticker update from allow messages method: %s",
             self.ticker_update.last_price,
         )
+
+    async def worker(self):
+        self.logger.info("Worker start now, state: %s.", self.state)
+        while not self.stop_event.is_set():
+            try:
+                event = self.worker_queue.get_nowait()
+                assert isinstance(event, Event)
+
+                self.logger.info("New event: %s", event)
+
+                if EventName.TICKER == event.name:
+                    assert isinstance(event.content, TickerUpdate)
+                    self.ticker_update = event.content
+                    await self.process_ticker()  # type: ignore
+
+                elif EventName.EXECUTION_REPORT == event.name:
+                    assert isinstance(event.content, ExecutionReport)
+                    self.execution_report = event.content
+                    await self.process_order()  # type: ignore
+
+                elif EventName.ACCOUNT_POSITION == event.name:
+                    assert isinstance(event.content, AccountPosition)
+                    self.account_position = event.content
+                    await self.process_account()  # type: ignore
+
+                elif EventName.SIGNAL == event.name:
+                    assert isinstance(event.content, SignalUpdate)
+                    self.signal_update = event.content
+                    await self.process_signal()  # type: ignore
+
+                self.worker_queue.task_done()
+            except queue.Empty:
+                # logger.info("Queue empty, waiting 0.1s")
+                await asyncio.sleep(0.1)

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import queue
 import time
@@ -16,8 +17,8 @@ from src.common.database import Database
 from src.common.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
-from src.strategies.spot.hp_manager import HpManager
-from src.gui.hpmanager import HpFront
+from src.strategies.spot.hp_manager import HpStrategy
+from src.gui.hpfront import HpFront
 from src.common.identifiers.spot import (
     Event,
     EventName,
@@ -33,28 +34,32 @@ from src.common.identifiers.spot import (
 from tests.spot import get_new_orders
 
 
-logger = logging.getLogger("hp_db_gui")
+logger = logging.getLogger("hp_helpers")
 
 
-async def assert_db_price_level_content(db: Database, config: HPConfig, state: State):
-    assert db.pool is not None
-    async with db.pool.acquire() as conn:
-        async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
-            await cur.execute(
-                "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
-                (config.system_id,),
-            )
-            result = await cur.fetchone()
+async def wait_for_condition(
+    condition_func, timeout: float = 1.0, interval: float = 0.05
+):
+    """
+    Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
 
-            logger.info("Result: %s", result)
-            assert result is not None, "Price level not found in the database"
-            assert result.get("symbol") == config.symbol_info.symbol
-            assert result.get("side") == config.side.value
-            assert result.get("price_low") == config.price_low
-            assert result.get("price_high") == config.price_high
-            assert result.get("state") == state.value
-            assert result.get("budget") == config.budget
-            assert result.get("order_trigger") == config.order_trigger
+    :param condition_func: A callable (sync or async) that returns True when the condition is met.
+    :param timeout: Maximum time to wait for the condition.
+    :param interval: Time between each condition check.
+    :raises AssertionError: If the condition is not met within the timeout.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if asyncio.iscoroutinefunction(condition_func):
+            result = await condition_func()
+        else:
+            result = condition_func()
+
+        if result:
+            return  # Condition met, exit successfully
+        await asyncio.sleep(interval)  # Wait before rechecking
+
+    raise AssertionError(f"Condition not met within {timeout} seconds")
 
 
 def assert_gui_position_data_content(
@@ -86,14 +91,14 @@ def assert_gui_position_data_content(
         time.sleep(0.1)
 
 
-async def process_ticker(strategy: HpManager, last_price: float):
+async def process_ticker(strategy: HpStrategy, last_price: float):
     logger.info("Processing ticker with last price: %s", last_price)
     strategy.ticker_update = TickerUpdate(last_price=last_price)
 
     await strategy.process_ticker()  # type: ignore[attr-defined]  # type: ignore
 
 
-async def simulate_order_filled(strategy: HpManager, order: Order):
+async def simulate_order_filled(strategy: HpStrategy, order: Order):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
@@ -107,7 +112,7 @@ async def simulate_order_filled(strategy: HpManager, order: Order):
 
 
 async def simulate_order_partially_filled(
-    strategy: HpManager, order: Order, last_realized_quantity: float
+    strategy: HpStrategy, order: Order, last_realized_quantity: float
 ):
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -122,16 +127,13 @@ async def simulate_order_partially_filled(
 
 
 async def db_and_gui_assertions(
-    strategy: HpManager,
+    strategy: HpStrategy,
     completeness: float,
 ):
     db = strategy.buy_position.db
-    db.run_db_task(
-        assert_db_price_level_content(
-            db=strategy.buy_position.db,
-            config=strategy.buy_position.config,
-            state=strategy.state,
-        )
+    db.assert_db_price_level_content(
+        config=strategy.buy_position.config,
+        state=strategy.state,
     )
     assert_gui_position_data_content(
         ui_queue=strategy.buy_position.ui_queue,
@@ -141,8 +143,8 @@ async def db_and_gui_assertions(
     )
 
 
-def get_default_buy_position(trading_system_factory) -> AsyncMachine:
-    trading_system = trading_system_factory(
+def get_default_buy_position(trading_system_factory) -> HpStrategy:
+    strategy = trading_system_factory(
         hp_config=HPConfig(
             hp_id="0",
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
@@ -153,8 +155,7 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
         ),
     )
 
-    strategy = trading_system.model
-    assert isinstance(strategy, HpManager)
+    assert isinstance(strategy, HpStrategy)
     strategy.client.create_order.side_effect = get_new_orders(
         price_low=strategy.buy_position.config.price_low,
         price_high=strategy.buy_position.config.price_high,
@@ -197,12 +198,12 @@ def get_default_buy_position(trading_system_factory) -> AsyncMachine:
     assert strategy.state == State.NEW
     assert len(strategy.sell_position.orders) == 0
 
-    return trading_system
+    return strategy
 
 
 def assert_default_buy_position_data(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.buy_position.ui_queue.qsize() == 1
     content = strategy.buy_position.ui_queue.get_nowait()
     logger.info("Content: %s", content)
@@ -256,8 +257,8 @@ def assert_default_buy_position_data(
 
 
 async def move_to_buy_position_active(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict], trigger_price: float
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict], trigger_price: float
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
     strategy.ticker_update = TickerUpdate(last_price=trigger_price)
 
@@ -326,8 +327,8 @@ async def move_to_buy_position_active(
 
 
 async def simulate_partial_fill(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List
-) -> HpManager:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List
+) -> HpStrategy:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
@@ -381,8 +382,8 @@ async def simulate_partial_fill(
 
 
 async def simulate_first_buy_order_fill(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict], order_id: int
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict], order_id: int
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
@@ -438,12 +439,12 @@ async def simulate_first_buy_order_fill(
 
 
 async def simulate_second_buy_order_fill(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -500,12 +501,12 @@ async def simulate_second_buy_order_fill(
 
 
 async def simulate_third_buy_order_fill(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -523,8 +524,8 @@ async def simulate_third_buy_order_fill(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -537,7 +538,7 @@ async def simulate_third_buy_order_fill(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.BOUGHT
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -614,12 +615,12 @@ async def simulate_third_buy_order_fill(
 
 
 async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -676,12 +677,12 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
 
 
 async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -699,8 +700,8 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -713,7 +714,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -790,12 +791,12 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
 
 
 async def simulate_second_buy_order_fill_after_selling_first_order(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -852,12 +853,12 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
 
 
 async def simulate_third_buy_order_fill_after_selling_first_order(
-    strategy: HpManager,
+    strategy: HpStrategy,
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
     sell_price: str = "0.0",
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -875,8 +876,8 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert strategy.buy_position.orders[1].status == ORDER_STATUS_FILLED
     assert strategy.buy_position.orders[2].status == ORDER_STATUS_FILLED
 
-    assert strategy.core_queue.qsize() == 1
-    event = strategy.core_queue.get_nowait()
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
 
     assert isinstance(event, Event)
     assert event.name == EventName.SIGNAL
@@ -889,7 +890,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert strategy.buy_position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
-    assert strategy.core_queue.qsize() == 0
+    assert strategy.worker_queue.qsize() == 0
 
     assert strategy.buy_position.ui_queue.qsize() == 2
     content = strategy.buy_position.ui_queue.get_nowait()
@@ -966,8 +967,8 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
 
 async def resend_part_bought_first_order_filled(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1027,8 +1028,8 @@ async def resend_part_bought_first_order_filled(
 
 
 async def resend_part_bought_first_order_filled_with_sell_price(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1088,8 +1089,8 @@ async def resend_part_bought_first_order_filled_with_sell_price(
 
 
 async def simulate_second_buy_order_partial_fill(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate partial order fill of order which is rebuy after first time two first orders were fillled and this is the last one.
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
@@ -1148,8 +1149,8 @@ async def simulate_second_buy_order_partial_fill(
 
 
 async def cancel_partially_bought_position_first_order_filled_partially(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> HpManager:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> HpStrategy:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
@@ -1216,8 +1217,8 @@ async def cancel_partially_bought_position_first_order_filled_partially(
 
 
 async def resend_part_bought_first_order_filled_partially(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> HpManager:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> HpStrategy:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
     strategy.ticker_update = TickerUpdate(last_price=1414)
 
@@ -1274,8 +1275,8 @@ async def resend_part_bought_first_order_filled_partially(
 
 
 async def cancel_partially_bought_position_first_order_filled(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> HpManager:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> HpStrategy:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
@@ -1342,8 +1343,8 @@ async def cancel_partially_bought_position_first_order_filled(
 
 
 async def send_sell_orders_for_partially_bought_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
         symbol_info=strategy.buy_position.config.symbol_info,
@@ -1437,8 +1438,8 @@ async def send_sell_orders_for_partially_bought_position(
 
 
 async def sell_partially_partially_bought_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
@@ -1496,8 +1497,8 @@ async def sell_partially_partially_bought_position(
 
 
 async def cancel_unfilled_sell_orders_for_partially_bought_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -1560,7 +1561,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     return strategy, hp_list
 
 
-# async def simulate_cancel_sell_position(strategy: HpManager) -> HpManager:
+# async def simulate_cancel_sell_position(strategy: HpStrategy) -> HpStrategy:
 #     assert strategy.state == State.SELLING
 #     strategy.sell_position.state_info.stagnation_counter = (
 #         strategy.sell_position.state_info.stagnation_limit
@@ -1607,8 +1608,8 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 
 
 async def simulate_cancel_sell_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -1671,8 +1672,8 @@ async def simulate_cancel_sell_position(
 
 
 async def simulate_resend_sell_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.PARTIALLY_SOLD
     assert strategy.sell_position.state_info.state == State.PARTIALLY_SOLD
@@ -1728,11 +1729,9 @@ async def simulate_resend_sell_position(
 
 async def simulate_bought_position(
     trading_system_factory, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+) -> Tuple[HpStrategy, List[Dict]]:
     # Path 0: Default buy position
-    trading_system: AsyncMachine = get_default_buy_position(trading_system_factory)
-    strategy = trading_system.model
-    assert isinstance(strategy, HpManager)
+    strategy: HpStrategy = get_default_buy_position(trading_system_factory)
 
     strategy, hp_list = assert_default_buy_position_data(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
@@ -1762,8 +1761,8 @@ async def simulate_bought_position(
 
 
 async def send_sell_orders_for_bought_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
         symbol_info=strategy.buy_position.config.symbol_info,
@@ -1859,8 +1858,8 @@ async def send_sell_orders_for_bought_position(
 
 
 async def simulate_move_to_sell_from_partially_bought_position(
-    strategy: HpManager,
-) -> HpManager:
+    strategy: HpStrategy,
+) -> HpStrategy:
     assert strategy.state == State.PARTIALLY_BOUGHT
 
     strategy.sell_position.config = HPConfig(
@@ -1937,7 +1936,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
     return strategy
 
 
-async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
+async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     strategy.sell_position.config = HPConfig(
         hp_id=strategy.buy_position.config.hp_id,
         symbol_info=strategy.buy_position.config.symbol_info,
@@ -2012,7 +2011,7 @@ async def move_to_sell_position_active(strategy: HpManager) -> HpManager:
     return strategy
 
 
-async def simulate_first_sell_order_fill(strategy: HpManager) -> HpManager:
+async def simulate_first_sell_order_fill(strategy: HpStrategy) -> HpStrategy:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
@@ -2030,8 +2029,8 @@ async def simulate_first_sell_order_fill(strategy: HpManager) -> HpManager:
 
 
 async def simulate_partial_fill_sell(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
@@ -2086,7 +2085,7 @@ async def simulate_partial_fill_sell(
     return strategy, hp_list
 
 
-async def move_to_partially_sold(strategy: HpManager) -> HpManager:
+async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -2131,8 +2130,8 @@ async def move_to_partially_sold(strategy: HpManager) -> HpManager:
 
 
 async def cancel_sell_position_part_bought_part_sold(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -2197,8 +2196,8 @@ async def cancel_sell_position_part_bought_part_sold(
 
 
 async def reopen_buy_part_bought_part_sold(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
 
@@ -2252,8 +2251,8 @@ async def reopen_buy_part_bought_part_sold(
 
 
 async def reopen_buy_part_bought_sold(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
 
@@ -2305,8 +2304,8 @@ async def reopen_buy_part_bought_sold(
 
 
 async def cancel_untouched_buy_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> Tuple[HpManager, List[Dict]]:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> Tuple[HpStrategy, List[Dict]]:
     strategy.buy_position.state_info.stagnation_counter = (
         strategy.buy_position.state_info.stagnation_limit
     )
@@ -2366,8 +2365,8 @@ async def cancel_untouched_buy_position(
 
 
 async def cancel_untouched_sell_position(
-    strategy: HpManager, hp_gui: HpFront, hp_list: List[Dict]
-) -> HpManager:
+    strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
+) -> HpStrategy:
     strategy.sell_position.state_info.stagnation_counter = (
         strategy.sell_position.state_info.stagnation_limit
     )
@@ -2428,7 +2427,7 @@ async def cancel_untouched_sell_position(
     return strategy
 
 
-async def buy_fully_last_order(strategy: HpManager) -> HpManager:
+async def buy_fully_last_order(strategy: HpStrategy) -> HpStrategy:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
