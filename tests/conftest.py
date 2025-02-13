@@ -186,22 +186,20 @@ def trading_system_factory(mock_AsyncClient):
             worker_queue=queue.Queue(),
             state_info=StateInfo(),
         )
-        strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[])
-        strategy.buy_position.orders = (
-            strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
-        )
+        strategy.buy.config.hp_id = generate_hp_id(hp_list=[])
+        strategy.buy.orders = strategy.buy.prepare_buy_orders(config=hp_config)
         strategy.client.create_order.side_effect = get_new_orders(
-            price_low=strategy.buy_position.config.price_low,
-            price_high=strategy.buy_position.config.price_high,
+            price_low=strategy.buy.config.price_low,
+            price_high=strategy.buy.config.price_high,
         )
 
         ui_queue.put_nowait(
             PositionData(
                 config=hp_config,
-                state_info=strategy.buy_position.state_info,
+                state_info=strategy.buy.state_info,
                 hp_update=HPUpdate(
-                    hp_id=strategy.buy_position.config.hp_id,
-                    asset=strategy.buy_position.config.symbol_info.symbol[:-4],
+                    hp_id=strategy.buy.config.hp_id,
+                    asset=strategy.buy.config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),
             )
