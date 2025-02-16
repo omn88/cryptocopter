@@ -3,7 +3,7 @@ import pytest
 from transitions.extensions.asyncio import AsyncMachine
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.common.identifiers.spot import (
+from src.identifiers.spot import (
     Event,
     EventName,
     HPConfig,
@@ -12,8 +12,8 @@ from src.common.identifiers.spot import (
     StateInfo,
     TickerUpdate,
 )
-from src.strategies.spot.hp_manager import HpStrategy
-from src.workers.strategy_executor import StrategyExecutor
+from src.strategies.hp_manager import HpStrategy
+from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 

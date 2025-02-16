@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import logging
 from typing import Dict, List
@@ -10,13 +9,11 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
-from transitions.extensions.asyncio import AsyncMachine
-from src.common.identifiers.common import Mode, PositionSide
-from src.common.identifiers.spot import (
+from src.identifiers.common import PositionSide
+from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
-    HPConfig,
     SignalUpdate,
     State,
     StateInfo,
@@ -24,7 +21,7 @@ from src.common.identifiers.spot import (
     UiState,
 )
 from src.gui.identifiers.spot import PositionData
-from src.strategies.spot.hp_manager import HpStrategy
+from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
 from tests.strategies.spot.hp_manager_helpers import (
     assert_default_buy_position_data,

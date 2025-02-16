@@ -4,8 +4,8 @@ import queue
 import threading
 from typing import Dict, Optional
 from decouple import Config, RepositoryEnv
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import (
+from src.identifiers.common import BinanceClient
+from src.identifiers.spot import (
     AccountPosition,
     AllTickers,
     Balances,
@@ -16,7 +16,7 @@ from src.common.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
 )
-from src.workers.broker_spot import BrokerSpot
+from src.broker import BrokerSpot
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"

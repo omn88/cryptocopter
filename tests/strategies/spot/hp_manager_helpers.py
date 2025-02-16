@@ -4,7 +4,6 @@ import queue
 import time
 from typing import Dict, List, Tuple
 
-import aiomysql
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_FILLED,
@@ -12,14 +11,12 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from transitions.extensions.asyncio import AsyncMachine
-from src.common.database import Database
-from src.common.identifiers.common import Mode, PositionSide
+from src.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import PositionData
-from src.strategies.spot.hp_manager import HpStrategy
+from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
-from src.common.identifiers.spot import (
+from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,

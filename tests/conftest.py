@@ -1,8 +1,8 @@
 import os
 
 from src.gui.hpfront import HpFront
-from src.workers.broker_spot import BrokerSpot
-from src.workers.strategy_executor import StrategyExecutor
+from src.broker import BrokerSpot
+from src.strategy_executor import StrategyExecutor
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 # Use dummy window for Kivy in headless testing
@@ -21,22 +21,22 @@ from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.common.database import Database
-from src.common.identifiers.futures import (
+from src.database import Database
+from src.identifiers.futures import (
     Event,
     EventName,
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.spot import HPConfig, SellConfig, State, StateInfo
-from src.common.identifiers.futures import StrategyConfig as ConfigFutures
-from src.df_handler.futures import DfHandler as DfHandlerFutures
+from src.identifiers.spot import HPConfig, State, StateInfo
+from src.identifiers.futures import StrategyConfig as ConfigFutures
+from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.strategies.futures.base import BaseFuturesStrategy
-from src.strategies.futures.rsi_basic import RsiBasic
-from src.strategies.futures.rsi_extended import RsiExtended
-from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpStrategy
+from src.futures.strategies.futures.base import BaseFuturesStrategy
+from src.futures.strategies.futures.rsi_basic import RsiBasic
+from src.futures.strategies.futures.rsi_extended import RsiExtended
+from src.futures.strategies.futures.rsi_special import RsiSpecial
+from src.strategies.hp_manager import HpStrategy
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders

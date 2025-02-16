@@ -12,8 +12,8 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
-from src.common.database import Database
-from src.common.identifiers.spot import (
+from src.database import Database
+from src.identifiers.spot import (
     AccountPosition,
     Event,
     EventName,
@@ -28,12 +28,12 @@ from src.common.identifiers.spot import (
     TickerUpdate,
     UiState,
 )
-from src.common.identifiers.common import (
+from src.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
 from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.position_handler.spot import PositionHandler
+from src.position_handler import PositionHandler
 
 
 class HpStrategy:

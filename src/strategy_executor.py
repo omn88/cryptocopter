@@ -4,14 +4,13 @@ import os
 import queue
 import threading
 from typing import Dict, List, Optional, Tuple
-from transitions.extensions.asyncio import AsyncMachine
 from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
-from src.common.database import Database
-from src.common.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.identifiers.spot import (
+from src.database import Database
+from src.identifiers.common import BinanceClient, Mode, PositionSide
+from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
@@ -34,9 +33,9 @@ from src.common.identifiers.spot import (
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.position_handler.spot import PositionHandler
-from src.strategies.spot.hp_manager import HpStrategy
-from src.workers.broker_spot import BrokerSpot
+from src.position_handler import PositionHandler
+from src.strategies.hp_manager import HpStrategy
+from src.broker import BrokerSpot
 
 
 # Specify the path to the .env file

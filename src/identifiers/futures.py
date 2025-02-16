@@ -6,10 +6,8 @@ from enum import Enum
 from typing import NamedTuple, List, Union, Dict
 
 from binance.enums import ORDER_STATUS_NEW, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
-from src.common.identifiers.common import (
-    PositionSide,
-    SentinelUpdate,
-)
+
+from src.identifiers.common import PositionSide
 
 
 class PositionStatus(Enum):
@@ -160,7 +158,6 @@ class Event(NamedTuple):
         KlineUpdate,
         AccountUpdate,
         SignalUpdate,
-        SentinelUpdate,
     ]
 
     def __repr__(self) -> str:

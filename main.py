@@ -18,15 +18,15 @@ import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
-from src.common.identifiers.common import BinanceClient
-from src.common.portfolio import fetch_initial_balances
+from src.identifiers.common import BinanceClient
+from src.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 
 from kivy.core.window import Window
 from src.gui.asyncapp import AsyncApp
-from src.common.database import Database
+from src.database import Database
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
