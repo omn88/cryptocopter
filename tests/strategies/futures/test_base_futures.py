@@ -1,4 +1,4 @@
-from src.common.identifiers.futures import Signal, State
+from src.identifiers.futures import Signal, State
 from tests.futures import (
     assert_dca_long_opened,
     assert_dca_short_opened,

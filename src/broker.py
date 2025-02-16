@@ -8,8 +8,8 @@ from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 
 from binance import BinanceSocketManager
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.spot import (
+from src.identifiers.common import BinanceClient
+from src.identifiers.spot import (
     AccountPosition,
     AllTickers,
     Balance,

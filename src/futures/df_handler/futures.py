@@ -6,8 +6,8 @@ import btalib
 import pandas
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.futures import (
+from src.identifiers.common import BinanceClient
+from src.identifiers.futures import (
     Event,
     EventName,
     Signal,

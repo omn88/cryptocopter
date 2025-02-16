@@ -1,6 +1,5 @@
 import logging
 import pytest
-from transitions.extensions.asyncio import AsyncMachine
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
 from src.identifiers.spot import (

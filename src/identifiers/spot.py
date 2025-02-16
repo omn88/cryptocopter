@@ -4,7 +4,7 @@ from enum import Enum, auto
 import queue
 from typing import Dict, List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
-from src.common.identifiers.common import (
+from src.identifiers.common import (
     Mode,
     PositionSide,
     SentinelUpdate,
