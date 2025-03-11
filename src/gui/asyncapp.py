@@ -18,29 +18,29 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from logging_config import StrategyLogger, setup_logging_handler
-from src.common.identifiers.futures import (
+from src.identifiers.futures import (
     Event,
     EventName,
     Position,
     StrategyConfig,
 )
-from src.common.identifiers.spot import (
+from src.identifiers.spot import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
 )
-from src.common.portfolio import PortfolioManager
+from src.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
 from src.gui.portfolio import PortfolioUI
 from src.gui.strategytab import StrategyTab
-from src.trading_system.futures import TradingSystem
-from src.common.identifiers.common import BinanceClient
-from src.common.database import Database
-from src.workers.broker_spot import BrokerSpot
-from src.workers.strategy_executor import StrategyExecutor
+from src.futures.trading_system.futures import TradingSystem
+from src.identifiers.common import BinanceClient
+from src.database import Database
+from src.broker import BrokerSpot
+from src.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
 

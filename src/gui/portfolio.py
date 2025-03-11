@@ -5,7 +5,7 @@ from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 
-from src.common.identifiers.spot import (
+from src.identifiers.spot import (
     AccountPosition,
     AllTickers,
     Balances,

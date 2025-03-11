@@ -1,6 +1,6 @@
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import (
+from src.identifiers.futures import (
     KlineUpdate,
     SignalUpdate,
     Event,
@@ -8,7 +8,7 @@ from src.common.identifiers.futures import (
     AccountUpdate,
     OrderUpdate,
 )
-from src.strategies.futures.base import BaseFuturesStrategy
+from src.futures.strategies.futures.base import BaseFuturesStrategy
 
 
 async def worker(state_machine: AsyncMachine, logger: StrategyLogger):

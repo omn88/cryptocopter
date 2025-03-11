@@ -9,8 +9,8 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 
-from src.common.identifiers.futures import Signal, State, Order, OrderUpdate
-from src.strategies.futures.base import BaseFuturesStrategy
+from src.identifiers.futures import Signal, State, Order, OrderUpdate
+from src.futures.strategies.futures.base import BaseFuturesStrategy
 from tests.futures import (
     start_long,
     first_order_filled,

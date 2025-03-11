@@ -4,8 +4,8 @@ import os
 from datetime import datetime, timezone
 from typing import List
 import pytz
-from src.common.identifiers.common import BinanceClient
-from src.common.identifiers.futures import Signal, State
+from src.identifiers.common import BinanceClient
+from src.identifiers.futures import Signal, State
 
 logger = logging.getLogger("common")
 

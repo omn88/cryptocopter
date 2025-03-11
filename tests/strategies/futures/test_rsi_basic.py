@@ -2,8 +2,8 @@ import logging
 
 import pandas
 from transitions.extensions.asyncio import AsyncMachine
-from src.common.identifiers.futures import State, KlineUpdate, Signal
-from src.strategies.futures.rsi_basic import RsiBasic
+from src.identifiers.futures import State, KlineUpdate, Signal
+from src.futures.strategies.futures.rsi_basic import RsiBasic
 from tests.futures import get_cancel_order, get_orders_long
 
 logger = logging.getLogger("test_rsi_basic")

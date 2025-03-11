@@ -14,7 +14,7 @@ from kivy.properties import (
 )
 from kivy.uix.boxlayout import BoxLayout
 from logging_config import StrategyLogger
-from src.common.identifiers.futures import EventName, Event
+from src.identifiers.futures import EventName, Event
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import (
     AccountData,
@@ -24,7 +24,7 @@ from src.gui.identifiers.futures import (
     PositionStatus,
 )
 
-from src.trading_system.futures import TradingSystem
+from src.futures.trading_system.futures import TradingSystem
 
 
 class StrategyTab(BoxLayout):

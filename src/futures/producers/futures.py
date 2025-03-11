@@ -4,7 +4,7 @@ from typing import Dict
 from binance import BinanceSocketManager
 import pandas
 import numpy
-from src.common.identifiers.futures import (
+from src.identifiers.futures import (
     Event,
     EventName,
     KlineUpdate,

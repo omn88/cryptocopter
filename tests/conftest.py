@@ -1,8 +1,8 @@
 import os
 
 from src.gui.hpfront import HpFront
-from src.workers.broker_spot import BrokerSpot
-from src.workers.strategy_executor import StrategyExecutor
+from src.broker import BrokerSpot
+from src.strategy_executor import StrategyExecutor
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 # Use dummy window for Kivy in headless testing
@@ -21,22 +21,22 @@ from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.common.database import Database
-from src.common.identifiers.futures import (
+from src.database import Database
+from src.identifiers.futures import (
     Event,
     EventName,
     Signal,
     SignalUpdate,
 )
-from src.common.identifiers.spot import HPConfig, SellConfig, State, StateInfo
-from src.common.identifiers.futures import StrategyConfig as ConfigFutures
-from src.df_handler.futures import DfHandler as DfHandlerFutures
+from src.identifiers.spot import HPConfig, State, StateInfo
+from src.identifiers.futures import StrategyConfig as ConfigFutures
+from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.strategies.futures.base import BaseFuturesStrategy
-from src.strategies.futures.rsi_basic import RsiBasic
-from src.strategies.futures.rsi_extended import RsiExtended
-from src.strategies.futures.rsi_special import RsiSpecial
-from src.strategies.spot.hp_manager import HpStrategy
+from src.futures.strategies.futures.base import BaseFuturesStrategy
+from src.futures.strategies.futures.rsi_basic import RsiBasic
+from src.futures.strategies.futures.rsi_extended import RsiExtended
+from src.futures.strategies.futures.rsi_special import RsiSpecial
+from src.strategies.hp_manager import HpStrategy
 
 from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
@@ -186,22 +186,20 @@ def trading_system_factory(mock_AsyncClient):
             worker_queue=queue.Queue(),
             state_info=StateInfo(),
         )
-        strategy.buy_position.config.hp_id = generate_hp_id(hp_list=[])
-        strategy.buy_position.orders = (
-            strategy.buy_position.order_handler.prepare_buy_orders(config=hp_config)
-        )
+        strategy.buy.config.hp_id = generate_hp_id(hp_list=[])
+        strategy.buy.orders = strategy.buy.prepare_buy_orders(config=hp_config)
         strategy.client.create_order.side_effect = get_new_orders(
-            price_low=strategy.buy_position.config.price_low,
-            price_high=strategy.buy_position.config.price_high,
+            price_low=strategy.buy.config.price_low,
+            price_high=strategy.buy.config.price_high,
         )
 
         ui_queue.put_nowait(
             PositionData(
                 config=hp_config,
-                state_info=strategy.buy_position.state_info,
+                state_info=strategy.buy.state_info,
                 hp_update=HPUpdate(
-                    hp_id=strategy.buy_position.config.hp_id,
-                    asset=strategy.buy_position.config.symbol_info.symbol[:-4],
+                    hp_id=strategy.buy.config.hp_id,
+                    asset=strategy.buy.config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),
             )

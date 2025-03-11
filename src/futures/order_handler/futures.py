@@ -15,12 +15,12 @@ from binance.exceptions import (
 
 from logging_config import StrategyLogger
 from src.common.common import convert_time
-from src.common.identifiers.futures import (
+from src.identifiers.futures import (
     Position,
     PositionMode,
 )
 from src.gui.gui_handler.futures import GuiHandler, Order
-from src.common.identifiers.common import BinanceClient, PositionSide
+from src.identifiers.common import BinanceClient, PositionSide
 
 
 class OrderHandler:

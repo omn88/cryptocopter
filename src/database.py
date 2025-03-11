@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.common.identifiers.spot import HpPositionData, Order, State, HPConfig
+from src.identifiers.spot import HpPositionData, Order, State, HPConfig
 
 logger = logging.getLogger("database")
 

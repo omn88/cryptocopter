@@ -1,8 +1,8 @@
 import logging
 import pandas
 from transitions.extensions.asyncio import AsyncMachine
-from src.common.identifiers.futures import State, KlineUpdate, Signal
-from src.strategies.futures.rsi_extended import RsiExtended
+from src.identifiers.futures import State, KlineUpdate, Signal
+from src.futures.strategies.futures.rsi_extended import RsiExtended
 from tests.futures import (
     generate_signal,
     assert_dca_long_opened,

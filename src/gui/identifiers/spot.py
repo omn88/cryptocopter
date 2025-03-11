@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.common.identifiers.spot import HPConfig, State, StateInfo
+from src.identifiers.spot import HPConfig, State, StateInfo
 
 
 @dataclass

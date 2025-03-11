@@ -3,11 +3,11 @@ import uuid
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import signal_to_state
-from src.common.identifiers.common import (
+from src.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
-from src.common.identifiers.futures import (
+from src.identifiers.futures import (
     OrderUpdate,
     Position,
     PositionMode,
@@ -17,7 +17,7 @@ from src.common.identifiers.futures import (
     Order,
 )
 from src.gui.gui_handler.futures import GuiHandler
-from src.order_handler.futures import OrderHandler
+from src.futures.order_handler.futures import OrderHandler
 
 
 class PositionHandler:

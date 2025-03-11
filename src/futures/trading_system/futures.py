@@ -4,24 +4,21 @@ from binance import BinanceSocketManager
 from transitions.extensions.asyncio import AsyncMachine
 from logging_config import StrategyLogger
 from src.common.common import futures_get_balance
-from src.common.identifiers.common import (
-    BinanceClient,
-    SentinelUpdate,
-)
-from src.common.identifiers.futures import Event, EventName, StrategyConfig
+from src.identifiers.common import BinanceClient
+from src.identifiers.futures import Event, EventName, StrategyConfig
 from src.common.initialize_trading_environment import (
     change_margin_type,
     futures_prepare_producers,
 )
-from src.df_handler.futures import DfHandler
+from src.futures.df_handler.futures import DfHandler
 from src.gui.hpfront import HpFront
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import AccountData
-from src.strategies.futures.base import BaseFuturesStrategy
-from src.strategies.futures.rsi_basic import RsiBasic
-from src.workers import worker_futures
-from src.strategies.futures.rsi_extended import RsiExtended
-from src.strategies.futures.rsi_special import RsiSpecial
+from src.futures.strategies.futures.base import BaseFuturesStrategy
+from src.futures.strategies.futures.rsi_basic import RsiBasic
+from src.futures import worker_futures
+from src.futures.strategies.futures.rsi_extended import RsiExtended
+from src.futures.strategies.futures.rsi_special import RsiSpecial
 
 # logger = logging.getLogger("trading_system")
 

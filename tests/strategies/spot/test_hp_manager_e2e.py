@@ -1,10 +1,8 @@
-import asyncio
 import logging
 import pytest
-from transitions.extensions.asyncio import AsyncMachine
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.common.identifiers.spot import (
+from src.identifiers.spot import (
     Event,
     EventName,
     HPConfig,
@@ -13,8 +11,8 @@ from src.common.identifiers.spot import (
     StateInfo,
     TickerUpdate,
 )
-from src.strategies.spot.hp_manager import HpStrategy
-from src.workers.strategy_executor import StrategyExecutor
+from src.strategies.hp_manager import HpStrategy
+from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
@@ -53,7 +51,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert isinstance(strategy, HpStrategy)
     assert strategy.state == State.NEW
 
-    buy_pos = strategy.buy_position
+    buy_pos = strategy.buy
     assert len(buy_pos.orders) == 3
 
     strategy.client.create_order.side_effect = get_new_orders(
@@ -68,7 +66,7 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
 
-    assert len(strategy.buy_position.orders) == 3
+    assert len(strategy.buy.orders) == 3
 
     assert strategy.state == State.BUYING
     assert buy_pos.state_info.state == State.NEW
