@@ -321,7 +321,6 @@
                                 size_hint_y: None
                                 height: max(self.minimum_height, self.parent.height)
 
-        # The Sell tab layout
         TabbedPanelItem:
             text: 'Sell'
             id: hp_sell_tab
@@ -331,116 +330,40 @@
 
                 BoxLayout:
                     orientation: 'horizontal'
-                    size_hint_y: 0.35
+                    size_hint_y: 0.07
+                    padding: [16, 0, 0, 0]
 
-                    BoxLayout:  # HP ID, quantity, asset, buy price display
-                        orientation: 'vertical'
-                        size_hint_x: 1
-                        padding: [16, 0, 0, 0]
+                    Label:
+                        text: 'HP ID Mode:'
+                        size_hint_x: 0.1
+                    ToggleButton:
+                        id: hp_mode_existing
+                        text: 'Existing HP'
+                        group: 'hp_mode'
+                        state: 'down'  # Default to 'Existing HP' active
+                        allow_no_selection: False  # Prevents both from being deselected
+                        size_hint_x: 0.2
+                        on_release:
+                            if self.state == 'normal': self.state = 'down'  # Prevent toggling off
+                            hp_mode_new.state = 'normal'  # Force the other button to 'normal'
+                            root.update_hp_mode("existing")
 
-                        BoxLayout:  # First line: HP ID and quantity display
-                            orientation: 'horizontal'
-                            size_hint_y: 0.25
-                            height: '50dp'
-                            spacing: 5
-                            Label:
-                                text: 'HP ID: '
-                                size_hint_x: 0.2
-                            TextInput:
-                                id: hp_id_input
-                                default: 0
-                                hint_text: 'Enter HP ID'
-                                multiline: False
-                                size_hint_x: 0.4
-                                on_text: root.fetch_hp_info(self.text)
-                            Label:
-                                text: 'Quantity: '
-                                size_hint_x: 0.15
-                            Label:
-                                id: quantity_label
-                                text: '---'
-                                size_hint_x: 0.15  # Adjusted for space
-                            Label:
-                                text: 'Quantity in USDT: '
-                                size_hint_x: 0.15
-                            Label:
-                                id: quantity_usdt_label
-                                text: '---'
-                                size_hint_x: 0.15
-                        BoxLayout:
-                            orientation: 'horizontal'
-                            size_hint_y: 0.25
-                            height: '50dp'
-                            spacing: 5
-                            Label:
-                                text: 'Asset:'
-                                size_hint_x: 0.2
-                            Label:
-                                id: asset_label
-                                text: '---'
-                                size_hint_x: 0.4
-                            Label:
-                                text: 'Buy Price:'
-                                size_hint_x: 0.15
-                            Label:
-                                id: buy_price_label
-                                text: '---'
-                                size_hint_x: 0.25
-
-                        BoxLayout:
-                            orientation: 'horizontal'
-                            size_hint_y: 0.25
-                            height: '50dp'
-                            spacing: 5
-                            Label:
-                                text: 'Sell Price:'
-                                size_hint_x: 0.2
-                            TextInput:
-                                id: sell_price_input
-                                multiline: False
-                                size_hint_x: 0.4
-                                on_text: root.calculate_expected_gain(self.text)
-
-                        # Add total USDT value to Expected Gain section
-                        BoxLayout:  # Third line: Expected Gain and Gain %
-                            orientation: 'horizontal'
-                            size_hint_y: 0.25
-                            height: '50dp'
-                            spacing: 5
-                            Label:
-                                text: 'Expected Gain: '
-                                size_hint_x: 0.2
-                            Label:
-                                id: expected_gain_label
-                                text: '---'
-                                size_hint_x: 0.2
-                            Label:
-                                text: 'Expected Gain %: '
-                                size_hint_x: 0.2
-                            Label:
-                                id: expected_gain_percent_label
-                                text: '---'
-                                size_hint_x: 0.2
-                            Label:
-                                text: 'Total USDT Value: '
-                                size_hint_x: 0.2
-                            Label:
-                                id: total_usdt_value_label
-                                size_hint_x: 0.2
-
-                        Button:
-                            text: 'Set Sell Price'
-                            size_hint_y: 0.25
-                            height: '40dp'
-                            on_release: root.trigger_sell_position(hp_id_input.text, sell_price_input.text)
-
-                        Label:
-                            id: sell_validation_label
-                            text: ''
-                            color: 1, 0, 0, 1  # Red color for validation messages
-                            size_hint_y: None
-                            height: '30dp'
-
+                    ToggleButton:
+                        id: hp_mode_new
+                        text: 'New HP'
+                        group: 'hp_mode'
+                        allow_no_selection: False  # Prevents both from being deselected
+                        size_hint_x: 0.2
+                        on_release:
+                            if self.state == 'normal': self.state = 'down'  # Prevent toggling off
+                            hp_mode_existing.state = 'normal'  # Force the other button to 'normal'
+                            root.update_hp_mode("new")
+                    BoxLayout:
+                        size_hint_x: 0.7
+                BoxLayout:
+                    id: dynamic_sell_container
+                    orientation: 'vertical'
+                    size_hint_y: 0.28
 
 
                 # Bottom section with tabbed panels for records

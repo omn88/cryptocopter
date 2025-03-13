@@ -10,6 +10,10 @@ from kivy.properties import (
     StringProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.spinner import Spinner
+from kivy.uix.widget import Widget
 from logging_config import StrategyLogger
 from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
@@ -459,6 +463,135 @@ class HpFront(BoxLayout):
                                 )
                             )
                             strategy["net_percent"] = str(net_percent)
+
+    def on_sell_tab_open(self):
+        """Ensure the dynamic UI container is populated when Sell tab is opened."""
+        if not self.ids.dynamic_sell_container.children:
+            # If container is empty, load the default 'Existing HP' layout
+            self._create_existing_hp_ui()
+
+    def on_tab_switch(self, tab_name):
+        """Detects when the Sell tab is opened and ensures UI loads."""
+        if tab_name == "Sell":
+            self.on_sell_tab_open()
+
+    def update_hp_mode(self, state):
+        """Dynamically update UI based on HP mode selection."""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        if state == "down" and self.ids.hp_mode_toggle.text == "Existing HP":
+            self._create_existing_hp_ui()
+        else:
+            self._create_new_hp_ui()
+
+    def _create_existing_hp_ui(self):
+        """Creates UI for existing HP mode"""
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("HP ID:", "hp_id_input")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_label_row("Asset:", "asset_label")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_label_row("Buy Price:", "buy_price_label")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_label_row("Quantity:", "quantity_label")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("Sell Price:", "sell_price_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_label_row("End Currency:", "end_currency_label")
+        )
+
+    def _create_new_hp_ui(self):
+        """Creates UI for new HP mode"""
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("HP ID:", "hp_id_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("Asset:", "asset_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("Buy Price:", "buy_price_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("Quantity:", "quantity_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input("Sell Price:", "sell_price_input", editable=True)
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_spinner(
+                "End Currency:", "end_currency_spinner", ["USDT", "BTC", "ETH"]
+            )
+        )
+
+    def _create_labeled_input(self, label_text, input_name, editable=False):
+        """Creates a compact label with a left-aligned TextInput"""
+        box = BoxLayout(
+            orientation="horizontal", spacing=3, size_hint_y=None, height="25dp"
+        )
+
+        # Adjust label width for alignment
+        box.add_widget(Label(text=label_text, size_hint_x=0.2, height="25dp"))
+
+        # Reduce input field width
+        input_widget = TextInput(
+            size_hint_x=0.4, height="25dp", multiline=False, disabled=not editable
+        )
+        self.ids[input_name] = input_widget
+        box.add_widget(input_widget)
+
+        # Spacer to maintain alignment
+        box.add_widget(Widget(size_hint_x=0.4))
+
+        return box
+
+    def _create_label_row(self, label_text, widget_name):
+        """Creates a compact label with a left-aligned placeholder label"""
+        box = BoxLayout(
+            orientation="horizontal", spacing=3, size_hint_y=None, height="25dp"
+        )
+
+        # Adjust label width for alignment
+        box.add_widget(Label(text=label_text, size_hint_x=0.2, height="25dp"))
+
+        # Reduce text width
+        label_widget = Label(text="---", size_hint_x=0.4, height="25dp")
+        self.ids[widget_name] = label_widget
+        box.add_widget(label_widget)
+
+        # Spacer to maintain alignment
+        box.add_widget(Widget(size_hint_x=0.4))
+
+        return box
+
+    def _create_spinner(self, label_text, spinner_name, options):
+        """Creates a compact label with a left-aligned dropdown spinner"""
+        box = BoxLayout(
+            orientation="horizontal", spacing=3, size_hint_y=None, height="25dp"
+        )
+
+        # Adjust label width for alignment
+        box.add_widget(Label(text=label_text, size_hint_x=0.2, height="25dp"))
+
+        # Reduce spinner width
+        spinner = Spinner(values=options, size_hint_x=0.4, height="25dp")
+        self.ids[spinner_name] = spinner
+        box.add_widget(spinner)
+
+        # Spacer to maintain alignment
+        box.add_widget(Widget(size_hint_x=0.4))
+
+        return box
+
+    # def get_portfolio_assets(self, *args):
+    #     return []
+
+    # def set_end_currency(self, currency, *args):
+    #     logger.info("End currency retrieved: %s", currency)
 
     def trigger_sell_position(self, *args) -> None:
         if not self._validate_sell_inputs():
