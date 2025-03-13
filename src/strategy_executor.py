@@ -151,7 +151,7 @@ class StrategyExecutor:
             logger=self.logger,
             buy_config=new_hp.config,
             state_info=new_hp.state_info,
-            balance=self.balances["USDT"],
+            balance=self.balances["USDC"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -163,8 +163,8 @@ class StrategyExecutor:
         self.strategies[new_hp.config.hp_id] = strategy
 
         assert new_hp.config.symbol_info.symbol.endswith(
-            "USDT"
-        ), "Symbol must end with 'USDT'"
+            "USDC"
+        ), "Symbol must end with 'USDC'"
         self.ui_queue.put_nowait(
             PositionData(
                 config=new_hp.config,

@@ -471,10 +471,10 @@ class HpFront(BoxLayout):
         sell_config = SellConfig(
             config=HPConfig(
                 hp_id=self.ids.hp_id_input.text,
-                symbol_info=self.symbols_info[f"{self.ids.asset_label.text}USDT"],
+                symbol_info=self.symbols_info[f"{self.ids.asset_input.text}USDT"],
                 price_low=float(self.ids.sell_price_input.text),
                 price_high=float(self.ids.sell_price_input.text),
-                budget=float(self.ids.quantity_label.text),
+                budget=float(self.ids.quantity_input.text),
                 order_trigger=1.0,
                 mode=Mode.SINGLE,
             ),
@@ -501,12 +501,12 @@ class HpFront(BoxLayout):
 
         # Populate the fields in the Sell tab
         self.ids.hp_id_input.text = str(hp_id)
-        self.ids.asset_label.text = str(asset)
-        self.ids.quantity_label.text = str(quantity)
-        self.ids.quantity_usdt_label.text = str(
-            round(float(quantity) * float(buy_price), 2)
-        )
-        self.ids.buy_price_label.text = str(buy_price)
+        self.ids.asset_input.text = str(asset)
+        self.ids.quantity_input.text = str(quantity)
+        # self.ids.quantity_usdt_label.text = str(
+        #     round(float(quantity) * float(buy_price), 2)
+        # )
+        self.ids.buy_price_input.text = str(buy_price)
 
         # Clear or reset the sell price field
         self.ids.sell_price_input.text = ""
@@ -561,12 +561,13 @@ class HpFront(BoxLayout):
                 if int(item["hp_id"]) == int(hp_id):
                     # Populate the fields in the Sell tab
                     self.ids.hp_id_input.text = str(hp_id)
-                    self.ids.asset_label.text = item["asset"]
-                    self.ids.quantity_label.text = item["quantity"]
-                    self.ids.quantity_usdt_label.text = str(
-                        round(float(item["quantity"]) * float(item["buy_price"]), 2)
-                    )
-                    self.ids.buy_price_label.text = item["buy_price"]
+                    self.ids.asset_input.text = item["asset"]
+                    self.ids.quantity_input.text = item["quantity"]
+                    self.ids.buy_price_input.text = item["buy_price"]
+
+                    # self.ids.quantity_usdt_label.text = str(
+                    #     round(float(item["quantity"]) * float(item["buy_price"]), 2)
+                    # )
 
                     # Clear or reset the sell price field
                     self.ids.sell_price_input.text = ""  # Clear any previous sell price
@@ -582,14 +583,14 @@ class HpFront(BoxLayout):
         except ValueError:
             # Reset all fields to '---' if HP ID is not found or any error occurs
             logger.error(f"HP ID {hp_id} not found in hp_list_data, resetting fields.")
-            self.ids.asset_label.text = "---"
-            self.ids.quantity_label.text = "---"
-            self.ids.quantity_usdt_label.text = "---"
-            self.ids.buy_price_label.text = "---"
+            self.ids.asset_input.text = "---"
+            self.ids.quantity_input.text = "---"
+            self.ids.buy_price_input.text = "---"
             self.ids.sell_price_input.text = ""  # Optional: Clear any sell price input
-            self.ids.expected_gain_label.text = "---"
-            self.ids.expected_gain_percent_label.text = "---"
-            self.ids.total_usdt_value_label.text = ""
+            # self.ids.quantity_usdt_label.text = "---"
+            # self.ids.expected_gain_label.text = "---"
+            # self.ids.expected_gain_percent_label.text = "---"
+            # self.ids.total_usdt_value_label.text = ""
 
     def filter_records(self, tab, symbol_filter) -> None:
         if tab == "active":
@@ -622,36 +623,36 @@ class HpFront(BoxLayout):
             self.ids.buy_archive_records_list.refresh_from_data()
             self.ids.sell_archive_records_list.refresh_from_data()
 
-    def calculate_expected_gain(self, sell_price):
-        """
-        Calculate the expected gain and gain percentage based on the sell price.
+    # def calculate_expected_gain(self, sell_price):
+    #     """
+    #     Calculate the expected gain and gain percentage based on the sell price.
 
-        Args:
-        - sell_price: The entered sell price.
-        """
-        try:
-            sell_price_float = float(sell_price)
-            quantity_float = float(self.ids.quantity_label.text)
-            quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
-            buy_price_float = float(self.ids.buy_price_label.text)
+    #     Args:
+    #     - sell_price: The entered sell price.
+    #     """
+    #     try:
+    #         sell_price_float = float(sell_price)
+    #         quantity_float = float(self.ids.quantity_label.text)
+    #         quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
+    #         buy_price_float = float(self.ids.buy_price_label.text)
 
-            # Total USDT value calculation
-            total_usdt_value = sell_price_float * quantity_float
+    #         # Total USDT value calculation
+    #         total_usdt_value = sell_price_float * quantity_float
 
-            # Expected gain calculations
-            expected_gain_usdt = total_usdt_value - quantity_usdt_float
-            expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
+    #         # Expected gain calculations
+    #         expected_gain_usdt = total_usdt_value - quantity_usdt_float
+    #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
 
-            # Update labels
-            self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
-            self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
-            self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
+    #         # Update labels
+    #         self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
+    #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
+    #         self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
 
-        except ValueError:
-            # Handle potential conversion errors (e.g., if the inputs are not valid floats)
-            logger.error("Error in calculating expected gain. Invalid input detected.")
-            self.ids.expected_gain_label.text = "---"
-            self.ids.expected_gain_percent_label.text = "---"
+    #     except ValueError:
+    #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
+    #         logger.error("Error in calculating expected gain. Invalid input detected.")
+    #         self.ids.expected_gain_label.text = "---"
+    #         self.ids.expected_gain_percent_label.text = "---"
 
     def _calculate_trigger_price(self, data: PositionData) -> float:
         # For idle positions
@@ -816,15 +817,15 @@ class HpFront(BoxLayout):
     def _validate_sell_inputs(self) -> bool:
         hp_id = self.ids.hp_id_input.text
         sell_price = self.ids.sell_price_input.text
-        total_usdt = self.ids.total_usdt_value_label.text
+        # total_usdt = self.ids.total_usdt_value_label.text
 
         validation_message = ""
         if not hp_id:
             validation_message += "HP ID is required. "
         if not sell_price:
             validation_message += "Sell price is required. "
-        if not total_usdt:
-            validation_message += "Total USDT price is required. "
+        # if not total_usdt:
+        #     validation_message += "Total USDT price is required. "
 
         self.ids.sell_validation_label.text = validation_message
 
@@ -848,6 +849,11 @@ class HpFront(BoxLayout):
         if tab_name == "Sell":
             self.on_sell_tab_open()
 
+    def _on_hp_id_text_change(self, instance, value):
+        """Triggers fetch_hp_info when the HP ID input changes."""
+        if value.strip():  # Only fetch when there's actual input
+            self.fetch_hp_info(value)
+
     def update_hp_mode(self, state):
         """Dynamically update UI based on HP mode selection."""
         self.ids.dynamic_sell_container.clear_widgets()
@@ -855,9 +861,13 @@ class HpFront(BoxLayout):
         if state == "existing":
             logger.info("Changing to exitign HP GUI")
             self._create_existing_hp_ui()
+            # Bind fetch_hp_info to hp_id_input.text
+            self.ids.hp_id_input.bind(text=self._on_hp_id_text_change)
         else:
             logger.info("Changing to new HP GUI")
             self._create_new_hp_ui()
+            # Unbind fetch_hp_info to prevent unnecessary calls
+            self.ids.hp_id_input.unbind(text=self._on_hp_id_text_change)
 
     def _create_existing_hp_ui(self):
         """Creates UI for existing HP mode"""
