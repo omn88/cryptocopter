@@ -650,7 +650,7 @@ class StrategyExecutor:
                     stagnation_counter=buy_level["stagnation_counter"],
                     open_time=buy_level["open_time"],
                 ),
-                balance=self.balances["USDT"],
+                balance=self.balances["USDC"],
                 db=self.db,
                 worker_queue=worker_queue,
                 config_queue=self.config_queue,

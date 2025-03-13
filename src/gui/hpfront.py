@@ -815,15 +815,21 @@ class HpFront(BoxLayout):
             self.ids.archive_filter_input.values = sorted(list(symbols))
 
     def _validate_sell_inputs(self) -> bool:
-        hp_id = self.ids.hp_id_input.text
+        asset = self.ids.asset_input.text
+        buy_price = self.ids.buy_price_input.text
         sell_price = self.ids.sell_price_input.text
+        quantity = self.ids.quantity_input.text
         # total_usdt = self.ids.total_usdt_value_label.text
 
         validation_message = ""
-        if not hp_id:
-            validation_message += "HP ID is required. "
+        if not asset:
+            validation_message += "Asset is required. "
+        if not buy_price:
+            validation_message += "Buy price is required. "
         if not sell_price:
             validation_message += "Sell price is required. "
+        if not quantity:
+            validation_message += "Quantity is required. "
         # if not total_usdt:
         #     validation_message += "Total USDT price is required. "
 

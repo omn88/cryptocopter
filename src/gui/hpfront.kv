@@ -365,7 +365,7 @@
                 BoxLayout:
                     id: dynamic_sell_container
                     orientation: 'vertical'
-                    size_hint_y: 0.38
+                    size_hint_y: 0.36
 
                 BoxLayout:
                     size_hint_y: 0.07
@@ -373,18 +373,21 @@
                     pos_hint: {'center_x': 0.5}
 
                     Button:
-                        text: 'Set Sell Price'
-                        size_hint_x: 0.3
+                        text: 'Sell Position'
+                        size_hint_x: 0.7
                         height: '40dp'
-                        on_release: root.trigger_set_sell_price()
+                        on_release: root.trigger_sell_position()
 
                     Label:
                         id: sell_validation_label
                         text: ''
+                        size_hint_x: 0.3
                         color: 1, 0, 0, 1  # Red color for validation messages
                         size_hint_y: None
                         height: '30dp'
 
+                BoxLayout:
+                    size_hint_y: 0.02
 
                 # Bottom section with tabbed panels for records
                 TabbedPanel:
