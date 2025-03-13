@@ -863,36 +863,64 @@ class HpFront(BoxLayout):
         """Creates UI for existing HP mode"""
         self.ids.dynamic_sell_container.clear_widgets()
 
-        # HP ID
-        self.ids.dynamic_sell_container.add_widget(
+        # Main container with padding
+        main_layout = BoxLayout(
+            orientation="vertical",
+            spacing=10,  # Ensure spacing within the main layout
+            size_hint_y=1,
+            padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
+        )
+
+        # **Row 1: HP ID, Asset, Quantity**
+        row1 = BoxLayout(
+            orientation="horizontal",
+            spacing=25,
+            size_hint_y=0.3,
+            height="50dp",
+            padding=[10, 0, 10, 0],
+        )
+        row1.add_widget(
             self._create_labeled_input_with_hint("HP ID:", "hp_id_input", "")
         )
-
-        # Asset (text input)
-        self.ids.dynamic_sell_container.add_widget(
+        row1.add_widget(
             self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
         )
-
-        # Quantity, Buy Price, Sell Price
-        self.ids.dynamic_sell_container.add_widget(
+        row1.add_widget(
             self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
         )
-        self.ids.dynamic_sell_container.add_widget(
+
+        # **Row 2: Buy Price, Sell Price, End Currency**
+        row2 = BoxLayout(
+            orientation="horizontal",
+            spacing=25,
+            size_hint_y=0.3,
+            height="50dp",
+            padding=[10, 0, 10, 0],
+        )
+        row2.add_widget(
             self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
         )
-        self.ids.dynamic_sell_container.add_widget(
+        row2.add_widget(
             self._create_labeled_input_with_hint(
                 "Sell Price:", "sell_price_input", "0.0"
             )
         )
-
-        # End Currency dropdown
-        self.ids.dynamic_sell_container.add_widget(
+        row2.add_widget(
             self._create_spinner(
                 "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
             )
         )
 
+        # **Lower spacer to push content upward slightly**
+        lower_spacer = Widget(size_hint_y=0.4)
+
+        # Add everything to the dynamic container
+        # main_layout.add_widget(spacer_row)  # Adds spacing above inputs
+        main_layout.add_widget(row1)
+        main_layout.add_widget(row2)
+        main_layout.add_widget(lower_spacer)  # Ensures inputs don’t stick to bottom
+
+        self.ids.dynamic_sell_container.add_widget(main_layout)
         self.ids.dynamic_sell_container.do_layout()
 
     def _create_new_hp_ui(self):
@@ -906,9 +934,6 @@ class HpFront(BoxLayout):
             size_hint_y=1,
             padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
         )
-
-        # # **Spacer row to separate toggles from input fields**
-        # spacer_row = Widget(size_hint_y=0.05)  # Ensures empty space before inputs
 
         # **Row 1: HP ID, Asset, Quantity**
         row1 = BoxLayout(
