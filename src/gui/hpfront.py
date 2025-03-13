@@ -896,107 +896,114 @@ class HpFront(BoxLayout):
         self.ids.dynamic_sell_container.do_layout()
 
     def _create_new_hp_ui(self):
-        """Creates UI for New HP mode with proper alignment and spacing."""
+        """Creates UI for New HP mode with proper spacing using a dedicated spacer."""
         self.ids.dynamic_sell_container.clear_widgets()
 
-        # HP ID (disabled)
-        self.ids.dynamic_sell_container.add_widget(
+        # Main container with padding
+        main_layout = BoxLayout(
+            orientation="vertical",
+            spacing=10,  # Ensure spacing within the main layout
+            size_hint_y=1,
+            padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
+        )
+
+        # # **Spacer row to separate toggles from input fields**
+        # spacer_row = Widget(size_hint_y=0.05)  # Ensures empty space before inputs
+
+        # **Row 1: HP ID, Asset, Quantity**
+        row1 = BoxLayout(
+            orientation="horizontal",
+            spacing=25,
+            size_hint_y=0.3,
+            height="50dp",
+            padding=[10, 0, 10, 0],
+        )
+        row1.add_widget(
             self._create_labeled_input_with_hint(
                 "HP ID:", "hp_id_input", "", editable=False
             )
         )
-
-        # Asset (text input)
-        self.ids.dynamic_sell_container.add_widget(
+        row1.add_widget(
             self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
         )
-
-        # Quantity, Buy Price, Sell Price
-        self.ids.dynamic_sell_container.add_widget(
+        row1.add_widget(
             self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
         )
-        self.ids.dynamic_sell_container.add_widget(
+
+        # **Row 2: Buy Price, Sell Price, End Currency**
+        row2 = BoxLayout(
+            orientation="horizontal",
+            spacing=25,
+            size_hint_y=0.3,
+            height="50dp",
+            padding=[10, 0, 10, 0],
+        )
+        row2.add_widget(
             self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
         )
-        self.ids.dynamic_sell_container.add_widget(
+        row2.add_widget(
             self._create_labeled_input_with_hint(
                 "Sell Price:", "sell_price_input", "0.0"
             )
         )
-
-        # End Currency dropdown
-        self.ids.dynamic_sell_container.add_widget(
+        row2.add_widget(
             self._create_spinner(
                 "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
             )
         )
 
+        # **Lower spacer to push content upward slightly**
+        lower_spacer = Widget(size_hint_y=0.4)
+
+        # Add everything to the dynamic container
+        # main_layout.add_widget(spacer_row)  # Adds spacing above inputs
+        main_layout.add_widget(row1)
+        main_layout.add_widget(row2)
+        main_layout.add_widget(lower_spacer)  # Ensures inputs don’t stick to bottom
+
+        self.ids.dynamic_sell_container.add_widget(main_layout)
         self.ids.dynamic_sell_container.do_layout()
 
     def _create_labeled_input_with_hint(
         self, label_text, input_name, hint_text, editable=True
     ):
-        """Creates a label with a TextInput that has a greyed-out hint text."""
-        box = BoxLayout(
-            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
-        )
+        """Creates a label with a TextInput that stays aligned towards the top."""
+        box = BoxLayout(orientation="vertical", spacing=4, size_hint_x=0.33)
 
-        label = Label(
-            text=label_text,
-            size_hint_x=0.1,  # Ensures left alignment
-            halign="left",
-            valign="middle",
-        )
+        label = Label(text=label_text, size_hint_y=0.4, halign="left", valign="middle")
         label.bind(size=label.setter("text_size"))
 
         input_widget = TextInput(
-            size_hint_x=0.3,  # Controlled width for consistency
-            height="35dp",
+            size_hint_y=0.6,
             multiline=False,
-            hint_text=hint_text,  # Greyed-out default text
-            foreground_color=(1, 1, 1, 1),  # White text
-            hint_text_color=(0.6, 0.6, 0.6, 1),  # Light grey hint
-            padding=[8, 5, 8, 5],  # Add padding inside the box
+            hint_text=hint_text,
+            foreground_color=(0, 0, 0, 1),  # **Black font color**
+            hint_text_color=(0.6, 0.6, 0.6, 1),
+            padding=[8, 5, 8, 5],
             disabled=not editable,
         )
-
-        # Spacer to ensure the remaining 0.45 of space is filled
-        spacer = Widget(size_hint_x=0.6)
 
         self.ids[input_name] = input_widget
         box.add_widget(label)
         box.add_widget(input_widget)
-        box.add_widget(spacer)  # Ensures proper spacing
 
         return box
 
     def _create_spinner(self, label_text, spinner_name, options):
-        """Creates a label with a dropdown spinner for selection."""
-        box = BoxLayout(
-            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
-        )
+        """Creates a label and a dropdown spinner for selection, aligned to the top."""
+        box = BoxLayout(orientation="vertical", spacing=4, size_hint_x=0.33)
 
-        label = Label(
-            text=label_text,
-            size_hint_x=0.1,  # Ensures left alignment
-            halign="left",
-            valign="middle",
-        )
+        label = Label(text=label_text, size_hint_y=0.4, halign="left", valign="middle")
         label.bind(size=label.setter("text_size"))
 
         spinner = Spinner(
-            text=options[0],  # Default selection: USDC
+            text=options[0],
             values=options,
-            size_hint_x=0.3,  # Controlled width
-            height="35dp",
+            size_hint_y=0.6,
         )
-
-        # Spacer for proper alignment
-        spacer = Widget(size_hint_x=0.6)
 
         self.ids[spinner_name] = spinner
         box.add_widget(label)
         box.add_widget(spinner)
-        box.add_widget(spacer)
 
         return box
