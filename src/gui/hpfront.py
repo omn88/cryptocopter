@@ -464,185 +464,6 @@ class HpFront(BoxLayout):
                             )
                             strategy["net_percent"] = str(net_percent)
 
-    def on_sell_tab_open(self):
-        """Ensure the correct UI is displayed immediately when Sell tab is opened."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        # Ensure "New HP" is default when opening the tab
-        self.ids.hp_mode_new.state = "down"
-        self.ids.hp_mode_existing.state = "normal"
-
-        self._create_new_hp_ui()  # Load the default "New HP" UI
-
-        # Force UI refresh
-        self.ids.dynamic_sell_container.do_layout()
-
-    def on_tab_switch(self, tab_name):
-        """Ensures the Sell tab always loads the correct UI layout when opened."""
-        if tab_name == "Sell":
-            self.on_sell_tab_open()
-
-    def update_hp_mode(self, state):
-        """Dynamically update UI based on HP mode selection."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        if state == "down" and self.ids.hp_mode_toggle.text == "Existing HP":
-            self._create_existing_hp_ui()
-        else:
-            self._create_new_hp_ui()
-
-    def _create_existing_hp_ui(self):
-        """Creates UI for existing HP mode"""
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("HP ID:", "hp_id_input")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_label_row("Asset:", "asset_label")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_label_row("Buy Price:", "buy_price_label")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_label_row("Quantity:", "quantity_label")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("Sell Price:", "sell_price_input", editable=True)
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_label_row("End Currency:", "end_currency_label")
-        )
-
-    def _create_new_hp_ui(self):
-        """Creates UI for New HP mode with proper alignment and spacing."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        # HP ID (disabled)
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input_with_hint(
-                "HP ID:", "hp_id_input", "", editable=False
-            )
-        )
-
-        # Asset (text input)
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
-        )
-
-        # Quantity, Buy Price, Sell Price
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input_with_hint(
-                "Sell Price:", "sell_price_input", "0.0"
-            )
-        )
-
-        # End Currency dropdown
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_spinner(
-                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
-            )
-        )
-
-        self.ids.dynamic_sell_container.do_layout()
-
-    def _create_labeled_input_with_hint(
-        self, label_text, input_name, hint_text, editable=True
-    ):
-        """Creates a label with a TextInput that has a greyed-out hint text."""
-        box = BoxLayout(
-            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
-        )
-
-        label = Label(
-            text=label_text,
-            size_hint_x=0.1,  # Ensures left alignment
-            halign="left",
-            valign="middle",
-        )
-        label.bind(size=label.setter("text_size"))
-
-        input_widget = TextInput(
-            size_hint_x=0.2,  # Controlled width for consistency
-            height="35dp",
-            multiline=False,
-            hint_text=hint_text,  # Greyed-out default text
-            foreground_color=(1, 1, 1, 1),  # White text
-            hint_text_color=(0.6, 0.6, 0.6, 1),  # Light grey hint
-            padding=[8, 5, 8, 5],  # Add padding inside the box
-            disabled=not editable,
-        )
-
-        # Spacer to ensure the remaining 0.45 of space is filled
-        spacer = Widget(size_hint_x=0.7)
-
-        self.ids[input_name] = input_widget
-        box.add_widget(label)
-        box.add_widget(input_widget)
-        box.add_widget(spacer)  # Ensures proper spacing
-
-        return box
-
-    def _create_label_row(self, label_text, widget_name):
-        """Creates a compact label with a left-aligned placeholder label"""
-        box = BoxLayout(
-            orientation="horizontal", spacing=3, size_hint_y=None, height="25dp"
-        )
-
-        # Adjust label width for alignment
-        box.add_widget(Label(text=label_text, size_hint_x=0.2, height="25dp"))
-
-        # Reduce text width
-        label_widget = Label(text="---", size_hint_x=0.4, height="25dp")
-        self.ids[widget_name] = label_widget
-        box.add_widget(label_widget)
-
-        # Spacer to maintain alignment
-        box.add_widget(Widget(size_hint_x=0.4))
-
-        return box
-
-    def _create_spinner(self, label_text, spinner_name, options):
-        """Creates a label with a dropdown spinner for selection."""
-        box = BoxLayout(
-            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
-        )
-
-        label = Label(
-            text=label_text,
-            size_hint_x=0.1,  # Ensures left alignment
-            halign="left",
-            valign="middle",
-        )
-        label.bind(size=label.setter("text_size"))
-
-        spinner = Spinner(
-            text=options[0],  # Default selection: USDC
-            values=options,
-            size_hint_x=0.2,  # Controlled width
-            height="35dp",
-        )
-
-        # Spacer for proper alignment
-        spacer = Widget(size_hint_x=0.7)
-
-        self.ids[spinner_name] = spinner
-        box.add_widget(label)
-        box.add_widget(spinner)
-        box.add_widget(spacer)
-
-        return box
-
-    # def get_portfolio_assets(self, *args):
-    #     return []
-
-    # def set_end_currency(self, currency, *args):
-    #     logger.info("End currency retrieved: %s", currency)
-
     def trigger_sell_position(self, *args) -> None:
         if not self._validate_sell_inputs():
             return
@@ -1009,24 +830,173 @@ class HpFront(BoxLayout):
 
         return not validation_message
 
-    # def save_config(self) -> None:
-    #     file_name = self.file_name_input.text.strip()
-    #     if not file_name:
-    #         # Provide feedback to the user if the file name is empty
-    #         print("Please enter a file name.")
-    #         return
+    def on_sell_tab_open(self):
+        """Ensure the correct UI is displayed immediately when Sell tab is opened."""
+        self.ids.dynamic_sell_container.clear_widgets()
 
-    #     # Put the SaveConfig NamedTuple into the config_queue
-    #     self.config_queue.put(SaveConfig(file_name=file_name))
-    #     logger.info("Saving configuration request for %s sent to backend.", file_name)
+        # Ensure "New HP" is default when opening the tab
+        self.ids.hp_mode_new.state = "down"
+        self.ids.hp_mode_existing.state = "normal"
 
-    # def load_config(self) -> None:
-    #     file_name = self.file_name_input.text.strip()
-    #     if not file_name:
-    #         # Provide feedback to the user if the file name is empty
-    #         print("Please enter a file name.")
-    #         return
+        self._create_new_hp_ui()  # Load the default "New HP" UI
 
-    #     # Put the LoadConfig NamedTuple into the config_queue
-    #     self.config_queue.put(LoadConfig(file_name=file_name))
-    #     logger.info("Loading configuration request for %s sent to backend.", file_name)
+        # Force UI refresh
+        self.ids.dynamic_sell_container.do_layout()
+
+    def on_tab_switch(self, tab_name):
+        """Ensures the Sell tab always loads the correct UI layout when opened."""
+        if tab_name == "Sell":
+            self.on_sell_tab_open()
+
+    def update_hp_mode(self, state):
+        """Dynamically update UI based on HP mode selection."""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        if state == "existing":
+            logger.info("Changing to exitign HP GUI")
+            self._create_existing_hp_ui()
+        else:
+            logger.info("Changing to new HP GUI")
+            self._create_new_hp_ui()
+
+    def _create_existing_hp_ui(self):
+        """Creates UI for existing HP mode"""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        # HP ID
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("HP ID:", "hp_id_input", "")
+        )
+
+        # Asset (text input)
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
+        )
+
+        # Quantity, Buy Price, Sell Price
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint(
+                "Sell Price:", "sell_price_input", "0.0"
+            )
+        )
+
+        # End Currency dropdown
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_spinner(
+                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
+            )
+        )
+
+        self.ids.dynamic_sell_container.do_layout()
+
+    def _create_new_hp_ui(self):
+        """Creates UI for New HP mode with proper alignment and spacing."""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        # HP ID (disabled)
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint(
+                "HP ID:", "hp_id_input", "", editable=False
+            )
+        )
+
+        # Asset (text input)
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
+        )
+
+        # Quantity, Buy Price, Sell Price
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
+        )
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_labeled_input_with_hint(
+                "Sell Price:", "sell_price_input", "0.0"
+            )
+        )
+
+        # End Currency dropdown
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_spinner(
+                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
+            )
+        )
+
+        self.ids.dynamic_sell_container.do_layout()
+
+    def _create_labeled_input_with_hint(
+        self, label_text, input_name, hint_text, editable=True
+    ):
+        """Creates a label with a TextInput that has a greyed-out hint text."""
+        box = BoxLayout(
+            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
+        )
+
+        label = Label(
+            text=label_text,
+            size_hint_x=0.1,  # Ensures left alignment
+            halign="left",
+            valign="middle",
+        )
+        label.bind(size=label.setter("text_size"))
+
+        input_widget = TextInput(
+            size_hint_x=0.3,  # Controlled width for consistency
+            height="35dp",
+            multiline=False,
+            hint_text=hint_text,  # Greyed-out default text
+            foreground_color=(1, 1, 1, 1),  # White text
+            hint_text_color=(0.6, 0.6, 0.6, 1),  # Light grey hint
+            padding=[8, 5, 8, 5],  # Add padding inside the box
+            disabled=not editable,
+        )
+
+        # Spacer to ensure the remaining 0.45 of space is filled
+        spacer = Widget(size_hint_x=0.6)
+
+        self.ids[input_name] = input_widget
+        box.add_widget(label)
+        box.add_widget(input_widget)
+        box.add_widget(spacer)  # Ensures proper spacing
+
+        return box
+
+    def _create_spinner(self, label_text, spinner_name, options):
+        """Creates a label with a dropdown spinner for selection."""
+        box = BoxLayout(
+            orientation="horizontal", spacing=5, size_hint_y=None, height="35dp"
+        )
+
+        label = Label(
+            text=label_text,
+            size_hint_x=0.1,  # Ensures left alignment
+            halign="left",
+            valign="middle",
+        )
+        label.bind(size=label.setter("text_size"))
+
+        spinner = Spinner(
+            text=options[0],  # Default selection: USDC
+            values=options,
+            size_hint_x=0.3,  # Controlled width
+            height="35dp",
+        )
+
+        # Spacer for proper alignment
+        spacer = Widget(size_hint_x=0.6)
+
+        self.ids[spinner_name] = spinner
+        box.add_widget(label)
+        box.add_widget(spinner)
+        box.add_widget(spacer)
+
+        return box
