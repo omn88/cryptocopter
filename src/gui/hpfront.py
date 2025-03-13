@@ -465,13 +465,20 @@ class HpFront(BoxLayout):
                             strategy["net_percent"] = str(net_percent)
 
     def on_sell_tab_open(self):
-        """Ensure the dynamic UI container is populated when Sell tab is opened."""
-        if not self.ids.dynamic_sell_container.children:
-            # If container is empty, load the default 'Existing HP' layout
-            self._create_existing_hp_ui()
+        """Ensure the correct UI is displayed immediately when Sell tab is opened."""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        # Ensure "New HP" is default when opening the tab
+        self.ids.hp_mode_new.state = "down"
+        self.ids.hp_mode_existing.state = "normal"
+
+        self._create_new_hp_ui()  # Load the default "New HP" UI
+
+        # Force UI refresh
+        self.ids.dynamic_sell_container.do_layout()
 
     def on_tab_switch(self, tab_name):
-        """Detects when the Sell tab is opened and ensures UI loads."""
+        """Ensures the Sell tab always loads the correct UI layout when opened."""
         if tab_name == "Sell":
             self.on_sell_tab_open()
 
@@ -506,27 +513,49 @@ class HpFront(BoxLayout):
         )
 
     def _create_new_hp_ui(self):
-        """Creates UI for new HP mode"""
+        """Creates UI for New HP mode with better readability."""
+        self.ids.dynamic_sell_container.clear_widgets()
+
+        # HP ID (disabled, since it's generated later)
         self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("HP ID:", "hp_id_input", editable=True)
+            self._create_labeled_input("HP ID:", "hp_id_input", editable=False)
         )
+
+        # Spacer for readability
+        self.ids.dynamic_sell_container.add_widget(Widget(size_hint_y=0.05))
+
+        # Asset (text input)
         self.ids.dynamic_sell_container.add_widget(
             self._create_labeled_input("Asset:", "asset_input", editable=True)
         )
+
+        # More spacing
+        self.ids.dynamic_sell_container.add_widget(Widget(size_hint_y=0.05))
+
+        # Quantity, Buy Price, Sell Price
         self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("Buy Price:", "buy_price_input", editable=True)
+            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
         )
         self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("Quantity:", "quantity_input", editable=True)
+            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
         )
         self.ids.dynamic_sell_container.add_widget(
-            self._create_labeled_input("Sell Price:", "sell_price_input", editable=True)
-        )
-        self.ids.dynamic_sell_container.add_widget(
-            self._create_spinner(
-                "End Currency:", "end_currency_spinner", ["USDT", "BTC", "ETH"]
+            self._create_labeled_input_with_hint(
+                "Sell Price:", "sell_price_input", "0.0"
             )
         )
+
+        # More spacing
+        self.ids.dynamic_sell_container.add_widget(Widget(size_hint_y=0.05))
+
+        # End Currency dropdown
+        self.ids.dynamic_sell_container.add_widget(
+            self._create_spinner(
+                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
+            )
+        )
+
+        self.ids.dynamic_sell_container.do_layout()
 
     def _create_labeled_input(self, label_text, input_name, editable=False):
         """Creates a compact label with a left-aligned TextInput"""
@@ -549,6 +578,37 @@ class HpFront(BoxLayout):
 
         return box
 
+    def _create_labeled_input_with_hint(self, label_text, input_name, hint_text):
+        """Creates a label with a TextInput that has a greyed-out hint text."""
+        box = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height="35dp"
+        )
+
+        label = Label(
+            text=label_text,
+            size_hint_x=0.25,
+            halign="right",  # Align text to the right
+            valign="middle",
+        )
+        label.bind(size=label.setter("text_size"))  # Ensure text wraps correctly
+
+        input_widget = TextInput(
+            size_hint_x=0.5,  # Reduce width slightly
+            height="35dp",
+            multiline=False,
+            hint_text=hint_text,  # Greyed-out placeholder
+            foreground_color=(1, 1, 1, 1),  # White text
+            hint_text_color=(0.6, 0.6, 0.6, 1),  # Slightly darker grey for hint
+            padding=[10, 5, 10, 5],  # Add padding inside the box
+        )
+
+        self.ids[input_name] = input_widget
+        box.add_widget(label)
+        box.add_widget(input_widget)
+
+        box.add_widget(Widget(size_hint_x=0.25))  # Add right spacer for balance
+        return box
+
     def _create_label_row(self, label_text, widget_name):
         """Creates a compact label with a left-aligned placeholder label"""
         box = BoxLayout(
@@ -569,22 +629,28 @@ class HpFront(BoxLayout):
         return box
 
     def _create_spinner(self, label_text, spinner_name, options):
-        """Creates a compact label with a left-aligned dropdown spinner"""
+        """Creates a label with a dropdown spinner for selection."""
         box = BoxLayout(
-            orientation="horizontal", spacing=3, size_hint_y=None, height="25dp"
+            orientation="horizontal", spacing=10, size_hint_y=None, height="35dp"
         )
 
-        # Adjust label width for alignment
-        box.add_widget(Label(text=label_text, size_hint_x=0.2, height="25dp"))
+        label = Label(
+            text=label_text, size_hint_x=0.25, halign="right", valign="middle"
+        )
+        label.bind(size=label.setter("text_size"))
 
-        # Reduce spinner width
-        spinner = Spinner(values=options, size_hint_x=0.4, height="25dp")
+        spinner = Spinner(
+            text=options[0],  # Default selection: USDC
+            values=options,
+            size_hint_x=0.5,  # Match other input widths
+            height="35dp",
+        )
+
         self.ids[spinner_name] = spinner
+        box.add_widget(label)
         box.add_widget(spinner)
 
-        # Spacer to maintain alignment
-        box.add_widget(Widget(size_hint_x=0.4))
-
+        box.add_widget(Widget(size_hint_x=0.25))  # Right spacer
         return box
 
     # def get_portfolio_assets(self, *args):
