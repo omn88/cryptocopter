@@ -19,6 +19,7 @@ from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
 from src.identifiers.spot import (
     HPConfig,
+    HPSellConfig,
     HpNewPosition,
     AllTickers,
     Event,
@@ -469,14 +470,13 @@ class HpFront(BoxLayout):
             return
 
         sell_config = SellConfig(
-            config=HPConfig(
+            config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
-                symbol_info=self.symbols_info[f"{self.ids.asset_input.text}USDT"],
-                price_low=float(self.ids.sell_price_input.text),
-                price_high=float(self.ids.sell_price_input.text),
-                budget=float(self.ids.quantity_input.text),
-                order_trigger=1.0,
-                mode=Mode.SINGLE,
+                asset=self.ids.asset_input.text,
+                buy_price=float(self.ids.buy_price_input.text),
+                sell_price=float(self.ids.sell_price_input.text),
+                quantity=float(self.ids.quantity_input.text),
+                end_currency=self.ids.end_currency_spinner.text,
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )

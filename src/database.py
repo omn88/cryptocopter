@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.identifiers.spot import HpPositionData, Order, State, HPConfig
+from src.identifiers.spot import Order, State
 
 logger = logging.getLogger("database")
 
@@ -26,13 +26,12 @@ CREATE TABLE IF NOT EXISTS strategies (
 );
 """
 
-CREATE_PRICE_LEVELS_TABLE = """
+CREATE_BUY_PRICE_LEVELS_TABLE = """
 CREATE TABLE IF NOT EXISTS price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(20) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
@@ -41,6 +40,22 @@ CREATE TABLE IF NOT EXISTS price_levels (
     mode VARCHAR(10) NOT NULL,
     stagnation_counter INT NOT NULL DEFAULT 0,
     next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+"""
+
+CREATE_SELL_PRICE_LEVELS_TABLE = """
+CREATE TABLE IF NOT EXISTS price_levels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
+    open_time VARCHAR(20) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    sell_price FLOAT NOT NULL,
+    quantity FLOAT NOT NULL,
+    state VARCHAR(20) NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -491,15 +506,3 @@ class Database:
                     assert result.get("order_trigger") == config.order_trigger
 
         return self.run_task(_assert_db_price_level_content(config=config, state=state))
-
-    # async def fetch_all_active_price_levels(self) -> List[Dict]:
-    #     assert self.pool is not None
-    #     async with self.pool.acquire() as conn:
-    #         async with conn.cursor(aiomysql.DictCursor) as cur:
-    #             query = """
-    #             SELECT * FROM price_levels
-    #             WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
-    #             """
-    #             await cur.execute(query)
-    #             result = await cur.fetchall()
-    #             return result
