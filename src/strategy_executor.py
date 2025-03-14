@@ -152,6 +152,8 @@ class StrategyExecutor:
             config_queue=self.config_queue,
         )
 
+        assert isinstance(strategy.buy.position.config, HPBuyConfig)
+
         strategy.buy.orders = strategy.buy.prepare_buy_orders(config=new_hp.config)
         strategy.buy.position.state_info.generate_open_time()
 
@@ -227,7 +229,7 @@ class StrategyExecutor:
                 state_info=strategy.sell.position.state_info,
                 hp_update=HPUpdate(
                     hp_id=strategy.sell.position.config.hp_id,
-                    sell_price=strategy.sell.position.config.price_low,
+                    sell_price=strategy.sell.position.config.sell_price,
                     state=strategy.state,
                 ),
             )
@@ -247,7 +249,8 @@ class StrategyExecutor:
             ui_queue=self.ui_queue,
             logger=self.logger,
             buy_position=HPBuyPosition(
-                config=HPBuyConfig(symbol_info=strategy_data.config.symbol_info)
+                config=HPBuyConfig(symbol_info=strategy_data.config.symbol_info),
+                state_info=StateInfo(side=PositionSide.SHORT),
             ),
             balance=self.balances["USDC"],
             db=self.db,
@@ -426,7 +429,7 @@ class StrategyExecutor:
                 for order in sell.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.upsert_order(order=order, hp_id=hp_id, side=side)
-            sell.position.config.price_low = 0.0
+            sell.position.config.sell_price = 0.0
             sell.position.state_info.ui_state = UiState.CLOSED
             sell.position.state_info.completeness = (
                 sum(order.realized_quantity for order in sell.orders)
@@ -445,7 +448,7 @@ class StrategyExecutor:
                     ),
                 )
             )
-            self.db.upsert_sell_price_level(position=sell)
+            self.db.upsert_sell_price_level(position=sell.position)
 
     def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
         price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)

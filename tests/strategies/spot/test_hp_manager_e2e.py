@@ -5,8 +5,6 @@ from src.gui.hpfront import HpFront
 from src.identifiers.spot import (
     Event,
     EventName,
-    HPConfig,
-    HpNewPosition,
     State,
     StateInfo,
     TickerUpdate,

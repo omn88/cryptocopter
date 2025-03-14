@@ -8,7 +8,13 @@ import uuid
 import aiomysql
 
 from src.identifiers.common import PositionSide
-from src.identifiers.spot import HPBuyPosition, HPSellPosition, Order, State
+from src.identifiers.spot import (
+    HPBuyConfig,
+    HPBuyPosition,
+    HPSellPosition,
+    Order,
+    State,
+)
 
 logger = logging.getLogger("database")
 
@@ -531,10 +537,10 @@ class Database:
 
         return self.run_task(_fetch_all_active_strategies())
 
-    def assert_db_price_level_content(
-        self, config: HPConfig, state: State
+    def assert_db_buy_price_level_content(
+        self, config: HPBuyConfig, state: State
     ) -> List[Dict]:
-        async def _assert_db_price_level_content(config: HPConfig, state: State):
+        async def _assert_db_price_level_content(config: HPBuyConfig, state: State):
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.cursors.DictCursor) as cur:

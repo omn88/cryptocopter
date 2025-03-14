@@ -112,7 +112,7 @@ class PositionHandler:
         )
         self.position.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_buy_price_level(position=self.position)
+        self.db.upsert_sell_price_level(position=self.position)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
@@ -134,15 +134,17 @@ class PositionHandler:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
-        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
-        self.state_info.stagnation_counter = 0
-        self.state_info.generate_next_monitor_time()
-        self.state_info.completeness = round(
+        logger.info(
+            "Stagnation counter reset for system: %s", self.position.config.hp_id
+        )
+        self.position.state_info.stagnation_counter = 0
+        self.position.state_info.generate_next_monitor_time()
+        self.position.state_info.completeness = round(
             sum(order.realized_quantity for order in self.orders)
             / sum(order.quantity for order in self.orders),
             2,
         )
-        self.state_info.ui_state = UiState.OPEN
+        self.position.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
         for order in self.orders:
@@ -164,9 +166,9 @@ class PositionHandler:
                     side=self.position.state_info.side,
                 )
 
-        self.state_info.ui_state = UiState.OPEN
-        self.state_info.stagnation_counter = 0
-        self.state_info.generate_next_monitor_time()
+        self.position.state_info.ui_state = UiState.OPEN
+        self.position.state_info.stagnation_counter = 0
+        self.position.state_info.generate_next_monitor_time()
 
         completeness = round(
             sum(order.realized_quantity for order in self.orders)
@@ -174,9 +176,11 @@ class PositionHandler:
             2,
         )
 
-        self.state_info.completeness = completeness
+        self.position.state_info.completeness = completeness
         logger.info("Completeness: %s", completeness)
-        logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
+        logger.info(
+            "Stagnation counter reset for system: %s", self.position.config.hp_id
+        )
 
     def prepare_buy_orders(self, config: HPBuyConfig) -> List[Order]:
         def prepare_single_buy_order():
@@ -245,60 +249,17 @@ class PositionHandler:
     ) -> List[Order]:
         orders = []
         quantity = buy_realized_quantity - sell_realized_quantity
-        quantity_stable = round(quantity * config.price_low, 2)
+        quantity_stable = round(quantity * config.sell_price, 2)
 
-        if config.mode == Mode.SINGLE:
-            orders.append(
-                Order(
-                    quantity=config.symbol_info.adjust_quantity(quantity),
-                    price=config.symbol_info.adjust_price(config.price_low),
-                    quantity_stable=quantity_stable,
-                    precision=config.symbol_info.precision,
-                    price_precision=config.symbol_info.price_precision,
-                )
+        orders.append(
+            Order(
+                quantity=config.symbol_info.adjust_quantity(quantity),
+                price=config.symbol_info.adjust_price(config.sell_price),
+                quantity_stable=quantity_stable,
+                precision=config.symbol_info.precision,
+                price_precision=config.symbol_info.price_precision,
             )
-
-        if config.mode == Mode.DCA:
-            num_orders = 3
-
-            min_budget_for_max_orders = num_orders * config.symbol_info.min_notional
-
-            if quantity_stable >= min_budget_for_max_orders:
-                order_quantity_stable = quantity_stable / num_orders
-            else:
-                order_quantity_stable = config.symbol_info.min_notional
-                num_orders = int(quantity_stable / config.symbol_info.min_notional)
-                num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
-
-            if num_orders == 1:
-                orders.append(
-                    Order(
-                        quantity=config.symbol_info.adjust_quantity(quantity),
-                        price=config.symbol_info.adjust_price(config.price_low),
-                        quantity_stable=quantity_stable,
-                        precision=config.symbol_info.precision,
-                        price_precision=config.symbol_info.price_precision,
-                    )
-                )
-            else:
-                price_increment = (config.price_high - config.price_low) / (
-                    num_orders - 1
-                )
-
-                for i in range(num_orders):
-                    order_price = config.price_low + i * price_increment
-
-                    orders.append(
-                        Order(
-                            quantity=config.symbol_info.adjust_quantity(
-                                order_quantity_stable / order_price
-                            ),
-                            price=config.symbol_info.adjust_price(order_price),
-                            quantity_stable=round(order_quantity_stable, 2),
-                            precision=config.symbol_info.precision,
-                            price_precision=config.symbol_info.price_precision,
-                        )
-                    )
+        )
         logger.info(
             "Sell orders prepared:\n%s\n for position: %s",
             pprint.pformat(list(orders)),

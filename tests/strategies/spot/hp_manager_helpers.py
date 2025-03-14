@@ -20,7 +20,9 @@ from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
+    HPBuyConfig,
     HPConfig,
+    HPSellConfig,
     SignalUpdate,
     StateInfo,
     TickerUpdate,
@@ -28,7 +30,7 @@ from src.identifiers.spot import (
     Order,
     UiState,
 )
-from tests.spot import get_new_orders
+from tests.spot import get_new_orders, get_sell_order
 
 
 logger = logging.getLogger("hp_helpers")
@@ -128,21 +130,21 @@ async def db_and_gui_assertions(
     completeness: float,
 ):
     db = strategy.buy.db
-    db.assert_db_price_level_content(
-        config=strategy.buy.config,
+    db.assert_db_buy_price_level_content(
+        config=strategy.buy.position.config,
         state=strategy.state,
     )
     assert_gui_position_data_content(
         ui_queue=strategy.buy.ui_queue,
-        config=strategy.buy.config,
-        state_info=strategy.buy.state_info,
+        config=strategy.buy.position.config,
+        state_info=strategy.buy.position.state_info,
         completeness=completeness,
     )
 
 
 def get_default_buy_position(trading_system_factory) -> HpStrategy:
     strategy = trading_system_factory(
-        hp_config=HPConfig(
+        hp_config=HPBuyConfig(
             hp_id="0",
             symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             price_low=1000,
@@ -153,24 +155,26 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     )
 
     assert isinstance(strategy, HpStrategy)
+    buy_cfg = strategy.buy.position.config
+    assert isinstance(buy_cfg, HPBuyConfig)
     strategy.client.create_order.side_effect = get_new_orders(
-        price_low=strategy.buy.config.price_low,
-        price_high=strategy.buy.config.price_high,
+        price_low=buy_cfg.price_low,
+        price_high=buy_cfg.price_high,
     )
-    assert strategy.buy.config.hp_id == "1000"
-    assert strategy.buy.config.price_low == 1000
-    assert strategy.buy.config.price_high == 1400
-    assert strategy.buy.config.order_trigger == 1
-    assert strategy.buy.config.budget == 1000
-    assert strategy.buy.config.mode == Mode.DCA
-    assert strategy.buy.config.symbol_info.symbol == "BTCUSDT"
+    assert buy_cfg.hp_id == "1000"
+    assert buy_cfg.price_low == 1000
+    assert buy_cfg.price_high == 1400
+    assert buy_cfg.order_trigger == 1
+    assert buy_cfg.budget == 1000
+    assert buy_cfg.mode == Mode.DCA
+    assert buy_cfg.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.buy.state_info.side == PositionSide.LONG
-    assert strategy.buy.state_info.state == State.NEW
-    assert strategy.buy.state_info.stagnation_counter == 0
-    assert strategy.buy.state_info.stagnation_limit == 8
-    assert strategy.buy.state_info.completeness == 0
-    assert strategy.buy.state_info.ui_state == UiState.NEW
+    assert strategy.buy.position.state_info.side == PositionSide.LONG
+    assert strategy.buy.position.state_info.state == State.NEW
+    assert strategy.buy.position.state_info.stagnation_counter == 0
+    assert strategy.buy.position.state_info.stagnation_limit == 8
+    assert strategy.buy.position.state_info.completeness == 0
+    assert strategy.buy.position.state_info.ui_state == UiState.NEW
 
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
 
@@ -179,19 +183,15 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert strategy.buy.orders[1].quantity == 0.27778
     assert strategy.buy.orders[2].quantity == 0.33333
 
-    assert strategy.sell.config.hp_id == "0"
-    assert strategy.sell.config.price_low == 0
-    assert strategy.sell.config.price_high == 0
-    assert strategy.sell.config.order_trigger == 0
-    assert strategy.sell.config.budget == 0
-    assert strategy.sell.config.mode == Mode.DCA
-    assert strategy.sell.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.position.config.hp_id == "0"
+    assert strategy.sell.position.config.sell_price == 0
+    assert strategy.sell.position.config.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.sell.state_info.side == PositionSide.SHORT
+    assert strategy.sell.position.state_info.side == PositionSide.SHORT
 
-    assert strategy.sell.state_info.stagnation_counter == 0
-    assert strategy.sell.state_info.stagnation_limit == 8
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.stagnation_counter == 0
+    assert strategy.sell.position.state_info.stagnation_limit == 8
+    assert strategy.sell.position.state_info.state == State.NEW
     assert strategy.state == State.NEW
     assert len(strategy.sell.orders) == 0
 
@@ -267,7 +267,7 @@ async def move_to_buy_position_active(
     assert strategy.state == State.BUYING
     assert len(strategy.buy.orders) == 3
 
-    assert strategy.buy.state_info.state == State.NEW
+    assert strategy.buy.position.state_info.state == State.NEW
     assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
     assert strategy.buy.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -530,7 +530,7 @@ async def simulate_third_buy_order_fill(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.state_info.state == State.BOUGHT
+    assert strategy.buy.position.state_info.state == State.BOUGHT
     assert strategy.state == State.BOUGHT
 
     assert strategy.worker_queue.qsize() == 0
@@ -706,7 +706,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.state_info.state == State.BOUGHT
+    assert strategy.buy.position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
     assert strategy.worker_queue.qsize() == 0
@@ -882,7 +882,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.state_info.state == State.BOUGHT
+    assert strategy.buy.position.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
 
     assert strategy.worker_queue.qsize() == 0
@@ -968,7 +968,7 @@ async def resend_part_bought_first_order_filled(
     strategy.ticker_update = TickerUpdate(last_price=1212)
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
     assert len(strategy.buy.orders) == 3
 
@@ -1029,7 +1029,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     strategy.ticker_update = TickerUpdate(last_price=1212)
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.BUYING
     assert len(strategy.buy.orders) == 3
 
@@ -1146,11 +1146,11 @@ async def simulate_second_buy_order_partial_fill(
 async def cancel_partially_bought_position_first_order_filled_partially(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-    strategy.buy.state_info.stagnation_counter = (
-        strategy.buy.state_info.stagnation_limit
+    strategy.buy.position.state_info.stagnation_counter = (
+        strategy.buy.position.state_info.stagnation_limit
     )
 
-    assert strategy.buy.state_info.next_monitor_time
+    assert strategy.buy.position.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -1170,7 +1170,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     assert strategy.buy.orders[1].realized_quantity == 0.0
     assert strategy.buy.orders[2].realized_quantity == 0.0
 
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
@@ -1272,11 +1272,11 @@ async def resend_part_bought_first_order_filled_partially(
 async def cancel_partially_bought_position_first_order_filled(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-    strategy.buy.state_info.stagnation_counter = (
-        strategy.buy.state_info.stagnation_limit
+    strategy.buy.position.state_info.stagnation_counter = (
+        strategy.buy.position.state_info.stagnation_limit
     )
 
-    assert strategy.buy.state_info.next_monitor_time
+    assert strategy.buy.position.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -1296,7 +1296,7 @@ async def cancel_partially_bought_position_first_order_filled(
     assert strategy.buy.orders[1].realized_quantity == 0.0
     assert strategy.buy.orders[2].realized_quantity == 0.0
 
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
@@ -1340,34 +1340,30 @@ async def cancel_partially_bought_position_first_order_filled(
 async def send_sell_orders_for_partially_bought_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.sell.config = HPConfig(
-        hp_id=strategy.buy.config.hp_id,
-        symbol_info=strategy.buy.config.symbol_info,
+    strategy.sell.position.config = HPConfig(
+        hp_id=strategy.buy.position.config.hp_id,
+        symbol_info=strategy.buy.position.config.symbol_info,
         price_low=4200,
         price_high=4200,
         order_trigger=1.0,
         budget=round(sum(order.realized_quantity for order in strategy.buy.orders), 2),
         mode=Mode.SINGLE,
     )
-    strategy.sell.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell.orders = strategy.sell.prepare_sell_orders(
-        config=strategy.sell.config,
+        config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
     )
 
-    assert strategy.sell.config.hp_id == "1000"
-    assert strategy.sell.config.price_low == 4200
-    assert strategy.sell.config.price_high == 4200
-    assert strategy.sell.config.order_trigger == 1
-    assert strategy.sell.config.budget == 0.24
-    assert strategy.sell.config.mode == Mode.SINGLE
-    assert strategy.sell.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.position.config.hp_id == "1000"
+    assert strategy.sell.position.config.sell_price == 4200
+    assert strategy.sell.position.config.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.sell.state_info.side == PositionSide.SHORT
-    assert strategy.sell.state_info.state == State.NEW
-    assert strategy.sell.state_info.stagnation_counter == 0
-    assert strategy.sell.state_info.stagnation_limit == 8
+    assert strategy.sell.position.state_info.side == PositionSide.SHORT
+    assert strategy.sell.position.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.stagnation_counter == 0
+    assert strategy.sell.position.state_info.stagnation_limit == 8
 
     assert len(strategy.sell.orders) == 1
     assert strategy.sell.orders[0].quantity == 0.24
@@ -1382,7 +1378,7 @@ async def send_sell_orders_for_partially_bought_position(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
 
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.0
@@ -1446,7 +1442,7 @@ async def sell_partially_partially_bought_position(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.12
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -1490,11 +1486,11 @@ async def sell_partially_partially_bought_position(
 async def cancel_unfilled_sell_orders_for_partially_bought_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.sell.state_info.stagnation_counter = (
-        strategy.sell.state_info.stagnation_limit
+    strategy.sell.position.state_info.stagnation_counter = (
+        strategy.sell.position.state_info.stagnation_limit
     )
 
-    strategy.sell.state_info.generate_next_monitor_time()
+    strategy.sell.position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -1508,7 +1504,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 
     logger.info("Orders: %s", strategy.sell.orders)
     assert all(order.status == ORDER_STATUS_CANCELED for order in strategy.sell.orders)
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
     assert strategy.state == State.PARTIALLY_BOUGHT
 
     assert strategy.sell.ui_queue.qsize() == 1
@@ -1552,11 +1548,11 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 
 # async def simulate_cancel_sell_position(strategy: HpStrategy) -> HpStrategy:
 #     assert strategy.state == State.SELLING
-#     strategy.sell.state_info.stagnation_counter = (
-#         strategy.sell.state_info.stagnation_limit
+#     strategy.sell.position.state_info.stagnation_counter = (
+#         strategy.sell.position.state_info.stagnation_limit
 #     )
 
-#     strategy.sell.state_info.generate_next_monitor_time()
+#     strategy.sell.position.state_info.generate_next_monitor_time()
 
 #     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
 #     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -1572,7 +1568,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 #     assert all(
 #         order.status == ORDER_STATUS_CANCELED for order in strategy.sell.orders
 #     )
-#     assert strategy.sell.state_info.state == State.NEW
+#     assert strategy.sell.position.state_info.state == State.NEW
 #     assert strategy.state == State.PARTIALLY_BOUGHT
 
 #     assert strategy.sell.ui_queue.qsize() == 1
@@ -1599,11 +1595,11 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 async def simulate_cancel_sell_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.sell.state_info.stagnation_counter = (
-        strategy.sell.state_info.stagnation_limit
+    strategy.sell.position.state_info.stagnation_counter = (
+        strategy.sell.position.state_info.stagnation_limit
     )
 
-    strategy.sell.state_info.generate_next_monitor_time()
+    strategy.sell.position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -1615,7 +1611,7 @@ async def simulate_cancel_sell_position(
 
     logger.info("Orders: %s", strategy.sell.orders)
     assert all(order.status == ORDER_STATUS_CANCELED for order in strategy.sell.orders)
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
@@ -1663,7 +1659,7 @@ async def simulate_resend_sell_position(
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.PARTIALLY_SOLD
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     strategy.ticker_update = TickerUpdate(last_price=4158.0)
     assert not strategy.conditions_for_sending_sell_orders()
@@ -1672,7 +1668,7 @@ async def simulate_resend_sell_position(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
 
@@ -1750,34 +1746,30 @@ async def simulate_bought_position(
 async def send_sell_orders_for_bought_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.sell.config = HPConfig(
-        hp_id=strategy.buy.config.hp_id,
-        symbol_info=strategy.buy.config.symbol_info,
+    strategy.sell.position.config = HPSellConfig(
+        hp_id=strategy.buy.position.config.hp_id,
+        symbol_info=strategy.buy.position.config.symbol_info,
         price_low=4200.0,
         price_high=4200.0,
         order_trigger=1.0,
         budget=round(sum(order.realized_quantity for order in strategy.buy.orders), 2),
         mode=Mode.SINGLE,
     )
-    strategy.sell.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell.orders = strategy.sell.prepare_sell_orders(
-        config=strategy.sell.config,
+        config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
     )
 
-    assert strategy.sell.config.hp_id == "1000"
-    assert strategy.sell.config.price_low == 4200.0
-    assert strategy.sell.config.price_high == 4200.0
-    assert strategy.sell.config.order_trigger == 1
-    assert strategy.sell.config.budget == 0.85
-    assert strategy.sell.config.mode == Mode.SINGLE
-    assert strategy.sell.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.position.config.hp_id == "1000"
+    assert strategy.sell.position.config.sell_price == 4200.0
+    assert strategy.sell.position.config.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.sell.state_info.side == PositionSide.SHORT
-    assert strategy.sell.state_info.state == State.NEW
-    assert strategy.sell.state_info.stagnation_counter == 0
-    assert strategy.sell.state_info.stagnation_limit == 8
+    assert strategy.sell.position.state_info.side == PositionSide.SHORT
+    assert strategy.sell.position.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.stagnation_counter == 0
+    assert strategy.sell.position.state_info.stagnation_limit == 8
 
     assert len(strategy.sell.orders) == 1
     assert strategy.sell.orders[0].quantity == 0.85
@@ -1792,7 +1784,7 @@ async def send_sell_orders_for_bought_position(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
 
     assert strategy.sell.orders[0].quantity == 0.85
     assert strategy.sell.orders[0].realized_quantity == 0.0
@@ -1845,34 +1837,30 @@ async def simulate_move_to_sell_from_partially_bought_position(
 ) -> HpStrategy:
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    strategy.sell.config = HPConfig(
-        hp_id=strategy.buy.config.hp_id,
-        symbol_info=strategy.buy.config.symbol_info,
+    strategy.sell.position.config = HPConfig(
+        hp_id=strategy.buy.position.config.hp_id,
+        symbol_info=strategy.buy.position.config.symbol_info,
         price_low=4200,
         price_high=4200,
         order_trigger=1.0,
         budget=round(sum(order.realized_quantity for order in strategy.buy.orders), 2),
         mode=Mode.SINGLE,
     )
-    strategy.sell.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell.orders = strategy.sell.prepare_sell_orders(
-        config=strategy.sell.config,
+        config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
     )
 
-    assert strategy.sell.config.hp_id == "1000"
-    assert strategy.sell.config.price_low == 4200
-    assert strategy.sell.config.price_high == 4200
-    assert strategy.sell.config.order_trigger == 1
-    assert strategy.sell.config.budget == 0.52
-    assert strategy.sell.config.mode == Mode.SINGLE
-    assert strategy.sell.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.position.config.hp_id == "1000"
+    assert strategy.sell.position.config.sell_price == 4200
+    assert strategy.sell.position.config.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.sell.state_info.side == PositionSide.SHORT
-    assert strategy.sell.state_info.state == State.NEW
-    assert strategy.sell.state_info.stagnation_counter == 0
-    assert strategy.sell.state_info.stagnation_limit == 8
+    assert strategy.sell.position.state_info.side == PositionSide.SHORT
+    assert strategy.sell.position.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.stagnation_counter == 0
+    assert strategy.sell.position.state_info.stagnation_limit == 8
 
     assert len(strategy.sell.orders) == 1
     assert strategy.sell.orders[0].quantity == 0.52
@@ -1887,7 +1875,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
 
     assert strategy.sell.orders[0].quantity == 0.52
     assert strategy.sell.orders[0].realized_quantity == 0.0
@@ -1916,38 +1904,29 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
 
 async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
-    strategy.sell.config = HPConfig(
-        hp_id=strategy.buy.config.hp_id,
-        symbol_info=strategy.buy.config.symbol_info,
-        price_low=4200,
-        price_high=4200,
-        order_trigger=1.0,
-        budget=round(sum(order.realized_quantity for order in strategy.buy.orders), 2),
-        mode=Mode.SINGLE,
+    strategy.sell.position.config = HPSellConfig(
+        hp_id=strategy.buy.position.config.hp_id,
+        symbol_info=strategy.buy.position.config.symbol_info,
+        sell_price=4200,
     )
-    strategy.client.create_order.side_effect = get_new_orders(
-        price_low=strategy.sell.config.price_low,
-        price_high=strategy.sell.config.price_high,
+    strategy.client.create_order.side_effect = get_sell_order(
+        sell_price=strategy.sell.position.config.sell_price
     )
-    strategy.sell.state_info = StateInfo(side=PositionSide.SHORT)
+    strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell.orders = strategy.sell.prepare_sell_orders(
-        config=strategy.sell.config,
-        buy_orders=strategy.buy.orders,
-        sell_orders=strategy.sell.orders,
+        config=strategy.sell.position.config,
+        buy_realized_quantity=strategy.buy.orders,
+        sell_realized_quantity=strategy.sell.orders,
     )
 
-    assert strategy.sell.config.hp_id == "1000"
-    assert strategy.sell.config.price_low == 4200
-    assert strategy.sell.config.price_high == 4200
-    assert strategy.sell.config.order_trigger == 1
-    assert strategy.sell.config.budget == 0.85
-    assert strategy.sell.config.mode == Mode.SINGLE
-    assert strategy.sell.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.position.config.hp_id == "1000"
+    assert strategy.sell.position.config.sell_price == 4200
+    assert strategy.sell.position.config.symbol_info.symbol == "BTCUSDT"
 
-    assert strategy.sell.state_info.side == PositionSide.SHORT
-    assert strategy.sell.state_info.state == State.NEW
-    assert strategy.sell.state_info.stagnation_counter == 0
-    assert strategy.sell.state_info.stagnation_limit == 8
+    assert strategy.sell.position.state_info.side == PositionSide.SHORT
+    assert strategy.sell.position.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.stagnation_counter == 0
+    assert strategy.sell.position.state_info.stagnation_limit == 8
 
     assert len(strategy.sell.orders) == 1
     assert strategy.sell.orders[0].quantity == 0.85
@@ -1961,7 +1940,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -2019,7 +1998,7 @@ async def simulate_partial_fill_sell(
     logger.info("Orders: %s", strategy.sell.orders)
     assert strategy.sell.orders[0].status == ORDER_STATUS_PARTIALLY_FILLED
     assert strategy.state == State.SELLING
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -2061,11 +2040,11 @@ async def simulate_partial_fill_sell(
 
 
 async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
-    strategy.sell.state_info.stagnation_counter = (
-        strategy.sell.state_info.stagnation_limit
+    strategy.sell.position.state_info.stagnation_counter = (
+        strategy.sell.position.state_info.stagnation_limit
     )
 
-    strategy.sell.state_info.generate_next_monitor_time()
+    strategy.sell.position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -2077,7 +2056,7 @@ async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
 
     logger.info("Orders: %s", strategy.sell.orders)
     assert all(order.status == ORDER_STATUS_CANCELED for order in strategy.sell.orders)
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
@@ -2105,25 +2084,25 @@ async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
 async def cancel_sell_position_part_bought_part_sold(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.sell.state_info.stagnation_counter = (
-        strategy.sell.state_info.stagnation_limit
+    strategy.sell.position.state_info.stagnation_counter = (
+        strategy.sell.position.state_info.stagnation_limit
     )
-    strategy.sell.state_info.generate_next_monitor_time()
+    strategy.sell.position.state_info.generate_next_monitor_time()
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_sell_position()
     )
     assert not strategy.conditions_for_cancelling_partially_sold_orders()
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
     assert strategy.state == State.SELLING
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     logger.info("There is %s events in the queue", strategy.sell.ui_queue.qsize())
 
@@ -2179,8 +2158,8 @@ async def reopen_buy_part_bought_part_sold(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -2232,8 +2211,8 @@ async def reopen_buy_part_bought_sold(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.BUYING
-    assert strategy.buy.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.state_info.state == State.SOLD
+    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.position.state_info.state == State.SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -2277,11 +2256,11 @@ async def reopen_buy_part_bought_sold(
 async def cancel_untouched_buy_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.buy.state_info.stagnation_counter = (
-        strategy.buy.state_info.stagnation_limit
+    strategy.buy.position.state_info.stagnation_counter = (
+        strategy.buy.position.state_info.stagnation_limit
     )
 
-    strategy.buy.state_info.generate_next_monitor_time()
+    strategy.buy.position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -2291,7 +2270,7 @@ async def cancel_untouched_buy_position(
 
     assert len(strategy.buy.orders) == 3
     assert all(order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders)
-    assert strategy.buy.state_info.state == State.NEW
+    assert strategy.buy.position.state_info.state == State.NEW
     assert strategy.state == State.NEW
 
     assert strategy.buy.ui_queue.qsize() == 1
@@ -2336,11 +2315,11 @@ async def cancel_untouched_buy_position(
 async def cancel_untouched_sell_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-    strategy.sell.state_info.stagnation_counter = (
-        strategy.sell.state_info.stagnation_limit
+    strategy.sell.position.state_info.stagnation_counter = (
+        strategy.sell.position.state_info.stagnation_limit
     )
 
-    strategy.sell.state_info.generate_next_monitor_time()
+    strategy.sell.position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0)
@@ -2352,7 +2331,7 @@ async def cancel_untouched_sell_position(
 
     logger.info("Orders: %s", strategy.sell.orders)
     assert all(order.status == ORDER_STATUS_CANCELED for order in strategy.sell.orders)
-    assert strategy.sell.state_info.state == State.NEW
+    assert strategy.sell.position.state_info.state == State.NEW
     assert strategy.state == State.BOUGHT
 
     assert strategy.sell.ui_queue.qsize() == 1

@@ -28,6 +28,20 @@ def get_new_orders(price_low: float, price_high: float, number_of_orders: int = 
     return order_list
 
 
+def get_sell_order(sell_price: float):
+    order_list = []
+    order_list.append(
+        {
+            "orderId": round(sell_price * sell_price / 3.14),
+            "price": sell_price,
+            "quantity": 0.1,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        }
+    )
+    return order_list
+
+
 def get_cancel_order():
     return [
         {

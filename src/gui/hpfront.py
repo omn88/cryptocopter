@@ -18,16 +18,14 @@ from logging_config import StrategyLogger
 from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
 from src.identifiers.spot import (
-    HPConfig,
+    HPBuyConfig,
+    HPBuyPosition,
     HPSellConfig,
-    HpNewPosition,
     AllTickers,
     Event,
     EventName,
-    LoadConfig,
+    HPSellPosition,
     RemoveRecord,
-    SaveConfig,
-    SellConfig,
     State,
     StateInfo,
     UiState,
@@ -111,8 +109,8 @@ class HpFront(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        new_hp = HpNewPosition(
-            config=HPConfig(
+        new_hp = HPBuyPosition(
+            config=HPBuyConfig(
                 symbol_info=self.symbols_info[self.symbol_input.selected_value],
                 price_low=float(self.symbol_input.price_low_input.text),
                 price_high=float(self.symbol_input.price_high_input.text),
@@ -469,7 +467,7 @@ class HpFront(BoxLayout):
         if not self._validate_sell_inputs():
             return
 
-        sell_config = SellConfig(
+        sell_config = HPSellPosition(
             config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
                 asset=self.ids.asset_input.text,
@@ -477,6 +475,7 @@ class HpFront(BoxLayout):
                 sell_price=float(self.ids.sell_price_input.text),
                 quantity=float(self.ids.quantity_input.text),
                 end_currency=self.ids.end_currency_spinner.text,
+                symbol_info=self.symbols_info[self.ids.sell_symbol_input.text],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
