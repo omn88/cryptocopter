@@ -18,6 +18,7 @@ from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
+    HPBuyConfig,
     HPBuyPosition,
     HPConfig,
     HPSellConfig,
@@ -43,8 +44,7 @@ class HpStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        buy_config: HPConfig,
-        state_info: StateInfo,
+        buy_position: HPBuyPosition,
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
@@ -62,7 +62,7 @@ class HpStrategy:
         self.buy = PositionHandler(
             client=client,
             strategy_logger=logger,
-            position=HPBuyPosition(config=buy_config, state_info=state_info),
+            position=buy_position,
             ui_queue=ui_queue,
             db=db,
         )
@@ -70,7 +70,7 @@ class HpStrategy:
             client=client,
             strategy_logger=logger,
             position=HPSellPosition(
-                config=HPSellConfig(hp_id=self.buy.config.hp_id),
+                config=HPSellConfig(hp_id=self.buy.position.config.hp_id),
                 state_info=StateInfo(side=PositionSide.SHORT),
             ),
             ui_queue=ui_queue,
@@ -627,9 +627,13 @@ class HpStrategy:
         self.logger.info("Sending %s SELL", self.sell.config.symbol_info.symbol)
 
         self.sell.orders = self.sell.prepare_sell_orders(
-            config=self.sell.config,
-            buy_orders=self.buy.orders,
-            sell_orders=self.sell.orders,
+            config=self.sell.position.config,
+            buy_realized_quantity=sum(
+                order.realized_quantity for order in self.buy.orders
+            ),
+            sell_realized_quantity=sum(
+                order.realized_quantity for order in self.sell.orders
+            ),
         )
 
         await self.sell.create_orders(

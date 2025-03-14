@@ -273,13 +273,13 @@ class HPBuyPosition(NamedTuple):
 
 @dataclass
 class HPSellConfig:
-    hp_id: str
-    asset: str
+    hp_id: str = ""
+    asset: str = ""
     symbol_info: SymbolInfo
-    quantity: float
-    buy_price: float
-    sell_price: float
-    end_currency: str
+    quantity: float = 0.0
+    buy_price: float = 0.0
+    sell_price: float = 0.0
+    end_currency: str = "USDC"
 
     def __str__(self):
         return (

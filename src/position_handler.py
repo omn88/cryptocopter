@@ -238,12 +238,13 @@ class PositionHandler:
         return orders
 
     def prepare_sell_orders(
-        self, config: HPSellConfig, buy_orders: List[Order], sell_orders: List[Order]
+        self,
+        config: HPSellConfig,
+        buy_realized_quantity: float,
+        sell_realized_quantity: float,
     ) -> List[Order]:
         orders = []
-        quantity = sum(order.realized_quantity for order in buy_orders) - sum(
-            order.realized_quantity for order in sell_orders
-        )
+        quantity = buy_realized_quantity - sell_realized_quantity
         quantity_stable = round(quantity * config.price_low, 2)
 
         if config.mode == Mode.SINGLE:
