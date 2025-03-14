@@ -215,7 +215,7 @@ class StrategyExecutor:
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
             if strategy.state == State.SELLING:
-                await strategy.sell.cancel_position()
+                await strategy.sell.cancel_sell_position()
 
             strategy.sell.config.sell_price = strategy_data.config.sell_price
             strategy.sell.state_info.ui_state = UiState.CLOSED
@@ -241,6 +241,7 @@ class StrategyExecutor:
     async def setup_sell_position_with_new_hp(
         self, strategy_data: HPSellPosition
     ) -> None:
+        # ToDo: To be implemented.
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
         if strategy_data.state_info.state == State.NEW:
             self.logger.info("Sell price set: %s", strategy_data.config.sell_price)
@@ -254,7 +255,7 @@ class StrategyExecutor:
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
             if strategy.state == State.SELLING:
-                await strategy.sell.cancel_position()
+                await strategy.sell.cancel_sell_position()
 
             strategy.sell.config.price_low = strategy_data.config.price_low
             strategy.sell.state_info.ui_state = UiState.CLOSED
@@ -323,9 +324,8 @@ class StrategyExecutor:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.upsert_order(
                             order=order,
-                            position=HpPositionData(
-                                config=buy.config, state_info=buy.state_info
-                            ),
+                            hp_id=self.buy.config.hp_id,
+                            side=self.buy.state_info.side,
                         )
                 buy.state_info.completeness = round(
                     sum(order.realized_quantity for order in buy.orders)

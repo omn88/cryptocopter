@@ -18,7 +18,10 @@ from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
+    HPBuyPosition,
     HPConfig,
+    HPSellConfig,
+    HPSellPosition,
     HpClose,
     HpPositionData,
     Signal,
@@ -59,21 +62,19 @@ class HpStrategy:
         self.buy = PositionHandler(
             client=client,
             strategy_logger=logger,
-            config=buy_config,
+            position=HPBuyPosition(config=buy_config, state_info=state_info),
             ui_queue=ui_queue,
             db=db,
-            state_info=state_info,
         )
         self.sell: PositionHandler = PositionHandler(
             client=client,
             strategy_logger=logger,
-            config=HPConfig(
-                symbol_info=self.buy.config.symbol_info,
-                hp_id=self.buy.config.hp_id,
+            position=HPSellPosition(
+                config=HPSellConfig(hp_id=self.buy.config.hp_id),
+                state_info=StateInfo(side=PositionSide.SHORT),
             ),
             ui_queue=ui_queue,
             db=db,
-            state_info=StateInfo(side=PositionSide.SHORT),
         )
         self.state = State.NEW
 
@@ -473,7 +474,7 @@ class HpStrategy:
         self.logger.info("Cancelling %s", self.buy.state_info.side.value)
         self.logger.info("Orders: %s", self.buy.orders)
         self.balance += self.get_remaining_quantity_buy()
-        await self.buy.cancel_position()
+        await self.buy.cancel_buy_position()
         self.buy.state_info.state = State.NEW
 
         self.buy.ui_queue.put_nowait(
@@ -515,7 +516,7 @@ class HpStrategy:
         self.logger.info("Orders: %s", self.buy.orders)
         self.buy.state_info.state = State.PARTIALLY_BOUGHT
         self.balance += self.get_remaining_quantity_buy()
-        await self.buy.cancel_position()
+        await self.buy.cancel_buy_position()
 
         self.buy.ui_queue.put_nowait(
             PositionData(
@@ -748,7 +749,7 @@ class HpStrategy:
 
     async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell.state_info.side.value)
-        await self.sell.cancel_position()
+        await self.sell.cancel_sell_position()
 
         self.sell.ui_queue.put_nowait(
             PositionData(
@@ -906,7 +907,7 @@ class HpStrategy:
 
     async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell.state_info.side.value)
-        await self.sell.cancel_position()
+        await self.sell.cancel_sell_position()
         self.sell.state_info.state = State.PARTIALLY_SOLD
 
         self.sell.ui_queue.put_nowait(
@@ -1004,7 +1005,7 @@ class HpStrategy:
 
     async def cancel_sell_part_sold_part_bought(self, *args, **kwargs) -> None:
         self.logger.info("Cancelling %s", self.sell.state_info.side.value)
-        await self.sell.cancel_position()
+        await self.sell.cancel_sell_position()
         self.state = State.PARTIALLY_SOLD
         self.sell.state_info = StateInfo(
             side=PositionSide.SHORT, state=State.PARTIALLY_SOLD

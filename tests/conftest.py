@@ -159,7 +159,6 @@ async def test_db():
     db.create_database_if_not_exists()
     db.create_pool()
     db.setup_tables()
-    db.create_hp_list_table()
 
     yield db  # Provide the database instance for the test
     db.stop_worker()

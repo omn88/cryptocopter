@@ -7,7 +7,8 @@ from typing import Dict, List, Optional
 import uuid
 import aiomysql
 
-from src.identifiers.spot import Order, State
+from src.identifiers.common import PositionSide
+from src.identifiers.spot import HPBuyPosition, HPSellPosition, Order, State
 
 logger = logging.getLogger("database")
 
@@ -27,7 +28,7 @@ CREATE TABLE IF NOT EXISTS strategies (
 """
 
 CREATE_BUY_PRICE_LEVELS_TABLE = """
-CREATE TABLE IF NOT EXISTS price_levels (
+CREATE TABLE IF NOT EXISTS buy_price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS price_levels (
 """
 
 CREATE_SELL_PRICE_LEVELS_TABLE = """
-CREATE TABLE IF NOT EXISTS price_levels (
+CREATE TABLE IF NOT EXISTS sell_price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
@@ -227,21 +228,14 @@ class Database:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(CREATE_STRATEGIES_TABLE)
-                    await cur.execute(CREATE_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_BUY_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_SELL_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_HPLIST_TABLE)
                     await cur.execute(CREATE_ORDERS_TABLE)
 
                     await conn.commit()
 
         return self.run_task(_setup_tables())
-
-    def create_hp_list_table(self) -> None:
-        async def _create_hp_list_table():
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(CREATE_HPLIST_TABLE)
-                    await conn.commit()
-
-        return self.run_task(_create_hp_list_table())
 
     def drop_tables(self) -> None:
         async def _drop_tables():
@@ -249,7 +243,8 @@ class Database:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute("DROP TABLE IF EXISTS strategies")
-                    await cur.execute("DROP TABLE IF EXISTS price_levels")
+                    await cur.execute("DROP TABLE IF EXISTS buy_price_levels")
+                    await cur.execute("DROP TABLE IF EXISTS buy_price_levels")
                     await cur.execute("DROP TABLE IF EXISTS orders")
                     await cur.execute("DROP TABLE IF EXISTS hp_list")
 
@@ -333,9 +328,9 @@ class Database:
 
         return self.run_task(_upsert_hp_record(hp_record=hp_record))
 
-    def upsert_price_level(self, position: HpPositionData) -> None:
+    def upsert_buy_price_level(self, position: HPBuyPosition) -> None:
         async def _upsert_price_level(
-            position: HpPositionData,
+            position: HPBuyPosition,
         ) -> None:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
@@ -387,8 +382,62 @@ class Database:
 
         return self.run_task(_upsert_price_level(position=position))
 
-    def upsert_order(self, order: Order, position: HpPositionData) -> None:
-        async def _upsert_order(order: Order, position: HpPositionData) -> None:
+    def upsert_sell_price_level(self, position: HPSellPosition) -> None:
+        async def _upsert_price_level(
+            position: HPSellPosition,
+        ) -> None:
+            assert self.pool is not None
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    config = position.config
+                    # state_info = position.state_info
+                    # # Check if a record with the same hp_id, side, and state already exists
+                    # await cur.execute(
+                    #     "SELECT 1 FROM price_levels WHERE hp_id=%s AND side=%s LIMIT 1",
+                    #     (config.hp_id, state_info.side.value),
+                    # )
+                    # existing_record = await cur.fetchone()
+
+                    # # If no such record exists, proceed with the update and insert
+                    # if existing_record:
+                    #     # Mark the current record as not current
+                    #     await cur.execute(
+                    #         "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND side=%s AND is_current=TRUE",
+                    #         (config.hp_id, state_info.side.value),
+                    #     )
+
+                    # # Insert a new record with the updated values
+                    # version_timestamp = datetime.datetime.now().isoformat()
+                    # insert_query = """
+                    # INSERT INTO price_levels (
+                    #     open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state,
+                    #     is_current, version_timestamp, stagnation_counter, next_monitor_time
+                    # ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    # """
+                    # await cur.execute(
+                    #     insert_query,
+                    #     (
+                    #         state_info.open_time,
+                    #         config.hp_id,
+                    #         config.symbol_info.symbol,
+                    #         state_info.side.value,
+                    #         config.mode.value,
+                    #         config.price_low,
+                    #         config.price_high,
+                    #         config.order_trigger,
+                    #         config.budget,
+                    #         state_info.state.value,
+                    #         version_timestamp,
+                    #         state_info.stagnation_counter,
+                    #         state_info.next_monitor_time,
+                    #     ),
+                    # )
+                    # await conn.commit()
+
+        return self.run_task(_upsert_price_level(position=position))
+
+    def upsert_order(self, order: Order, hp_id: str, side: PositionSide) -> None:
+        async def _upsert_order(order: Order, hp_id: str, side: PositionSide) -> None:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -408,10 +457,10 @@ class Database:
                         insert_query,
                         (
                             order.order_id,
-                            position.config.hp_id,
+                            hp_id,
                             order.quantity,
                             order.price,
-                            position.state_info.side.value,
+                            side.value,
                             order.quantity_stable,
                             order.realized_quantity,
                             order.time_in_force,
@@ -422,7 +471,7 @@ class Database:
                     )
                     await conn.commit()
 
-        return self.run_task(_upsert_order(order=order, position=position))
+        return self.run_task(_upsert_order(order=order, hp_id=hp_id, side=side))
 
     def fetch_active_hp_list(self) -> List[Dict]:
         async def _fetch_active_hp_list() -> List[Dict]:

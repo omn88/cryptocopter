@@ -275,6 +275,7 @@ class HPBuyPosition(NamedTuple):
 class HPSellConfig:
     hp_id: str
     asset: str
+    symbol_info: SymbolInfo
     quantity: float
     buy_price: float
     sell_price: float

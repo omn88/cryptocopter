@@ -2,7 +2,7 @@ import asyncio
 import logging
 import pprint
 import queue
-from typing import List
+from typing import List, Union
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -24,9 +24,10 @@ from src.common.symbol_info import SymbolInfo
 from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
-    HPConfig,
-    HpPositionData,
-    StateInfo,
+    HPBuyConfig,
+    HPBuyPosition,
+    HPSellConfig,
+    HPSellPosition,
     Order,
     UiState,
 )
@@ -40,51 +41,78 @@ class PositionHandler:
         self,
         client: BinanceClient,
         strategy_logger: StrategyLogger,
-        config: HPConfig,
-        state_info: StateInfo,
+        position: Union[HPBuyPosition, HPSellPosition],
         ui_queue: queue.Queue,
         db: Database,
     ):
         self.client = client
-        self.config = config
-        self.state_info = state_info
+        self.position = position
         self.strategy_logger = strategy_logger
         self.db = db
         self.ui_queue: queue.Queue = ui_queue
         self.orders: List[Order] = []
 
-    async def cancel_position(self) -> None:
+    async def cancel_buy_position(self) -> None:
+        assert isinstance(self.position, HPBuyPosition)
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
-            self.config.symbol_info.symbol,
-            self.state_info.side,
-            self.config.hp_id,
+            self.position.config.symbol_info.symbol,
+            self.position.state_info.side,
+            self.position.config.hp_id,
         )
-        self.state_info.stagnation_counter = 0
+        self.position.state_info.stagnation_counter = 0
 
         self.orders = await self.cancel_remaining_limit_orders(
-            symbol=self.config.symbol_info.symbol,
+            symbol=self.position.config.symbol_info.symbol,
             orders=self.orders,
         )
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
                 self.db.upsert_order(
                     order=order,
-                    position=HpPositionData(
-                        config=self.config, state_info=self.state_info
-                    ),
+                    hp_id=self.position.config.hp_id,
+                    side=self.position.state_info.side,
                 )
 
-        self.state_info.completeness = round(
+        self.position.state_info.completeness = round(
             sum(order.realized_quantity for order in self.orders)
             / sum(order.quantity for order in self.orders),
             2,
         )
-        self.state_info.ui_state = UiState.STAGNATED
+        self.position.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_price_level(
-            position=HpPositionData(config=self.config, state_info=self.state_info)
+        self.db.upsert_buy_price_level(position=self.position)
+
+    async def cancel_sell_position(self) -> None:
+        assert isinstance(self.position, HPSellPosition)
+        logger.info(
+            "Start canceling position: %s %s, hp id: %s",
+            self.position.config.symbol_info.symbol,
+            self.position.state_info.side,
+            self.position.config.hp_id,
         )
+        self.position.state_info.stagnation_counter = 0
+
+        self.orders = await self.cancel_remaining_limit_orders(
+            symbol=self.position.config.symbol_info.symbol,
+            orders=self.orders,
+        )
+        for order in self.orders:
+            if order.status == ORDER_STATUS_CANCELED:
+                self.db.upsert_order(
+                    order=order,
+                    hp_id=self.position.config.hp_id,
+                    side=self.position.state_info.side,
+                )
+
+        self.position.state_info.completeness = round(
+            sum(order.realized_quantity for order in self.orders)
+            / sum(order.quantity for order in self.orders),
+            2,
+        )
+        self.position.state_info.ui_state = UiState.STAGNATED
+
+        self.db.upsert_buy_price_level(position=self.position)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
@@ -101,9 +129,8 @@ class PositionHandler:
 
                 self.db.upsert_order(
                     order=order,
-                    position=HpPositionData(
-                        config=self.config, state_info=self.state_info
-                    ),
+                    hp_id=self.position.config.hp_id,
+                    side=self.position.state_info.side,
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
@@ -133,9 +160,8 @@ class PositionHandler:
 
                 self.db.upsert_order(
                     order=order,
-                    position=HpPositionData(
-                        config=self.config, state_info=self.state_info
-                    ),
+                    hp_id=self.position.config.hp_id,
+                    side=self.position.state_info.side,
                 )
 
         self.state_info.ui_state = UiState.OPEN
@@ -152,7 +178,7 @@ class PositionHandler:
         logger.info("Completeness: %s", completeness)
         logger.info("Stagnation counter reset for system: %s", self.config.hp_id)
 
-    def prepare_buy_orders(self, config: HPConfig) -> List[Order]:
+    def prepare_buy_orders(self, config: HPBuyConfig) -> List[Order]:
         def prepare_single_buy_order():
             orders.append(
                 Order(
@@ -212,7 +238,7 @@ class PositionHandler:
         return orders
 
     def prepare_sell_orders(
-        self, config: HPConfig, buy_orders: List[Order], sell_orders: List[Order]
+        self, config: HPSellConfig, buy_orders: List[Order], sell_orders: List[Order]
     ) -> List[Order]:
         orders = []
         quantity = sum(order.realized_quantity for order in buy_orders) - sum(
