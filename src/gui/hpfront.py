@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import queue
 import logging
-from typing import Dict, List
+from typing import Dict, List, Union
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -34,9 +34,11 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
     ActivePosition,
     ArchivedPosition,
+    BuyPositionData,
     HPUpdate,
     IdlePosition,
     PositionData,
+    SellPositionData,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 
@@ -49,12 +51,18 @@ class HpFront(BoxLayout):
     active_records: List[Dict] = ListProperty([])
     idle_records: List[Dict] = ListProperty([])
     archive_records: List[Dict] = ListProperty([])
-    filtered_active_records: List[Dict] = ListProperty([])
-    filtered_idle_records: List[Dict] = ListProperty([])
-    filtered_archive_records: List[Dict] = ListProperty([])
-    active_filter = StringProperty("All")
-    idle_filter = StringProperty("All")
-    archive_filter = StringProperty("All")
+    filtered_active_records_buy: List[Dict] = ListProperty([])
+    filtered_idle_records_buy: List[Dict] = ListProperty([])
+    filtered_archive_records_buy: List[Dict] = ListProperty([])
+    filtered_active_records_sell: List[Dict] = ListProperty([])
+    filtered_idle_records_sell: List[Dict] = ListProperty([])
+    filtered_archive_records_sell: List[Dict] = ListProperty([])
+    active_filter_buy = StringProperty("All")
+    idle_filter_buy = StringProperty("All")
+    archive_filter_buy = StringProperty("All")
+    active_filter_sell = StringProperty("All")
+    idle_filter_sell = StringProperty("All")
+    archive_filter_sell = StringProperty("All")
 
     log_display = ObjectProperty(None)
     file_name_input = ObjectProperty(None)
@@ -142,8 +150,10 @@ class HpFront(BoxLayout):
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-                    if isinstance(data, PositionData):
-                        await self._process_position_data(data)
+                    if isinstance(data, BuyPositionData):
+                        await self._process_buy_position_data(data)
+                    if isinstance(data, SellPositionData):
+                        await self._process_sell_position_data(data)
                     elif isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                         assert isinstance(data.content, AllTickers)
                         self._process_all_tickers(data.content)
@@ -151,7 +161,7 @@ class HpFront(BoxLayout):
                 await asyncio.sleep(0.1)
         self.ui_queue_closed = True
 
-    async def _process_position_data(self, data: PositionData) -> None:
+    async def _process_buy_position_data(self, data: BuyPositionData) -> None:
         logger.info("UI received position data: %s", data)
 
         # Update the HP list and DB
@@ -159,8 +169,7 @@ class HpFront(BoxLayout):
             update=data.hp_update, hp_list=self.hp_list_data
         )
 
-        hp_id = str(data.config.hp_id)
-        side = data.state_info.side.value
+        hp_id = str(data.position.config.hp_id)
 
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records, hp_id):
@@ -591,28 +600,58 @@ class HpFront(BoxLayout):
             # self.ids.expected_gain_percent_label.text = "---"
             # self.ids.total_usdt_value_label.text = ""
 
-    def filter_records(self, tab, symbol_filter) -> None:
-        if tab == "active":
-            self.active_filter = symbol_filter
-            self.filtered_active_records = [
-                record
-                for record in self.active_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
-            ]
-        elif tab == "idle":
-            self.idle_filter = symbol_filter
-            self.filtered_idle_records = [
-                record
-                for record in self.idle_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
-            ]
-        elif tab == "archive":
-            self.archive_filter = symbol_filter
-            self.filtered_archive_records = [
-                record
-                for record in self.archive_records
-                if symbol_filter == "All" or record["symbol"] == symbol_filter
-            ]
+    def filter_records(self, tab, symbol_filter, side: str) -> None:
+        if side == PositionSide.LONG.value:
+            if tab == "active":
+                self.active_filter_buy = symbol_filter
+                self.filtered_active_records_buy = [
+                    record
+                    for record in self.active_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
+            elif tab == "idle":
+                self.idle_filter_buy = symbol_filter
+                self.filtered_idle_records_buy = [
+                    record
+                    for record in self.idle_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
+            elif tab == "archive":
+                self.archive_filter_buy = symbol_filter
+                self.filtered_archive_records_buy = [
+                    record
+                    for record in self.archive_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
+
+        if side == PositionSide.SHORT.value:
+            if tab == "active":
+                self.active_filter_sell = symbol_filter
+                self.filtered_active_records_sell = [
+                    record
+                    for record in self.active_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
+            elif tab == "idle":
+                self.idle_filter_sell = symbol_filter
+                self.filtered_idle_records_sell = [
+                    record
+                    for record in self.idle_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
+            elif tab == "archive":
+                self.archive_filter_sell = symbol_filter
+                self.filtered_archive_records_sell = [
+                    record
+                    for record in self.archive_records
+                    if side == record["side"]
+                    and (symbol_filter == "All" or record["symbol"] == symbol_filter)
+                ]
 
         if not self.test_mode:
             self.ids.buy_active_records_list.refresh_from_data()
@@ -621,37 +660,6 @@ class HpFront(BoxLayout):
             self.ids.sell_idle_records_list.refresh_from_data()
             self.ids.buy_archive_records_list.refresh_from_data()
             self.ids.sell_archive_records_list.refresh_from_data()
-
-    # def calculate_expected_gain(self, sell_price):
-    #     """
-    #     Calculate the expected gain and gain percentage based on the sell price.
-
-    #     Args:
-    #     - sell_price: The entered sell price.
-    #     """
-    #     try:
-    #         sell_price_float = float(sell_price)
-    #         quantity_float = float(self.ids.quantity_label.text)
-    #         quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
-    #         buy_price_float = float(self.ids.buy_price_label.text)
-
-    #         # Total USDT value calculation
-    #         total_usdt_value = sell_price_float * quantity_float
-
-    #         # Expected gain calculations
-    #         expected_gain_usdt = total_usdt_value - quantity_usdt_float
-    #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
-
-    #         # Update labels
-    #         self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
-    #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
-    #         self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
-
-    #     except ValueError:
-    #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
-    #         logger.error("Error in calculating expected gain. Invalid input detected.")
-    #         self.ids.expected_gain_label.text = "---"
-    #         self.ids.expected_gain_percent_label.text = "---"
 
     def _calculate_trigger_price(self, data: PositionData) -> float:
         # For idle positions
@@ -687,22 +695,22 @@ class HpFront(BoxLayout):
         )
 
     def _add_new_record(self, data: PositionData) -> None:
-        hp_id = str(data.config.hp_id)
-        if data.state_info.ui_state in [UiState.NEW, UiState.STAGNATED]:
+        hp_id = str(data.hp_id)
+        if data.ui_state in [UiState.NEW, UiState.STAGNATED]:
             logger.info("New position added to Idle, system id: %s", hp_id)
             self.idle_records.append(
                 IdlePosition(
-                    open_time=data.state_info.open_time,
-                    hp_id=str(data.config.hp_id),
-                    symbol=data.config.symbol_info.symbol,
-                    side=str(data.state_info.side.value),
-                    mode=str(data.config.mode.value),
-                    price_low=str(data.config.price_low),
-                    price_high=str(data.config.price_high),
-                    budget=str(data.config.budget),
-                    order_trigger=f"{data.config.order_trigger},({self._calculate_trigger_price(data=data)})",
-                    state=str(data.state_info.ui_state),
-                    completeness=str(data.state_info.completeness),
+                    open_time=data.open_time,
+                    hp_id=str(data.hp_id),
+                    symbol=data.symbol,
+                    side=str(data.side.value),
+                    mode=str(data.mode.value),
+                    price_low=str(data.price_low),
+                    price_high=str(data.price_high),
+                    budget=str(data.budget),
+                    order_trigger=f"{data.order_trigger},({self._calculate_trigger_price(data=data)})",
+                    state=str(data.ui_state),
+                    completeness=str(data.completeness),
                 ).to_dict()
             )
             self.filter_records("idle", "All")
@@ -1047,3 +1055,34 @@ class HpFront(BoxLayout):
         box.add_widget(spinner)
 
         return box
+
+    # def calculate_expected_gain(self, sell_price):
+    #     """
+    #     Calculate the expected gain and gain percentage based on the sell price.
+
+    #     Args:
+    #     - sell_price: The entered sell price.
+    #     """
+    #     try:
+    #         sell_price_float = float(sell_price)
+    #         quantity_float = float(self.ids.quantity_label.text)
+    #         quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
+    #         buy_price_float = float(self.ids.buy_price_label.text)
+
+    #         # Total USDT value calculation
+    #         total_usdt_value = sell_price_float * quantity_float
+
+    #         # Expected gain calculations
+    #         expected_gain_usdt = total_usdt_value - quantity_usdt_float
+    #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
+
+    #         # Update labels
+    #         self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
+    #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
+    #         self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
+
+    #     except ValueError:
+    #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
+    #         logger.error("Error in calculating expected gain. Invalid input detected.")
+    #         self.ids.expected_gain_label.text = "---"
+    #         self.ids.expected_gain_percent_label.text = "---"

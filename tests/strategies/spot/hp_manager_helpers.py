@@ -1350,7 +1350,7 @@ async def send_sell_orders_for_partially_bought_position(
         mode=Mode.SINGLE,
     )
     strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.orders = strategy.sell.prepare_sell_orders(
+    strategy.sell.orders = strategy.sell.prepare_orders(
         config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
@@ -1756,7 +1756,7 @@ async def send_sell_orders_for_bought_position(
         mode=Mode.SINGLE,
     )
     strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.orders = strategy.sell.prepare_sell_orders(
+    strategy.sell.orders = strategy.sell.prepare_orders(
         config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
@@ -1847,7 +1847,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
         mode=Mode.SINGLE,
     )
     strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.orders = strategy.sell.prepare_sell_orders(
+    strategy.sell.orders = strategy.sell.prepare_orders(
         config=strategy.sell.position.config,
         buy_orders=strategy.buy.orders,
         sell_orders=strategy.sell.orders,
@@ -1913,7 +1913,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
         sell_price=strategy.sell.position.config.sell_price
     )
     strategy.sell.position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.orders = strategy.sell.prepare_sell_orders(
+    strategy.sell.orders = strategy.sell.prepare_orders(
         config=strategy.sell.position.config,
         buy_realized_quantity=strategy.buy.orders,
         sell_realized_quantity=strategy.sell.orders,

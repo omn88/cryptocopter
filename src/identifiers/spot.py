@@ -263,7 +263,7 @@ class HPBuyConfig:
         )
 
 
-class HPBuyPosition(NamedTuple):
+class HPBuyData(NamedTuple):
     config: HPBuyConfig
     state_info: StateInfo
 
@@ -289,7 +289,7 @@ class HPSellConfig:
         )
 
 
-class HPSellPosition(NamedTuple):
+class HPSellData(NamedTuple):
     config: HPSellConfig
     state_info: StateInfo
 

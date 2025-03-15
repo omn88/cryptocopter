@@ -20,7 +20,7 @@ from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPUpdate, PositionData
+from src.gui.identifiers.spot import HPUpdate, BuyPositionData, SellPositionData
 from src.database import Database
 from src.identifiers.futures import (
     Event,
@@ -185,7 +185,7 @@ def trading_system_factory(mock_AsyncClient):
             buy_position=HPBuyPosition(config=hp_config, state_info=StateInfo()),
         )
         strategy.buy.position.config.hp_id = generate_hp_id(hp_list=[])
-        strategy.buy.orders = strategy.buy.prepare_buy_orders(config=hp_config)
+        strategy.buy.orders = strategy.buy.prepare_orders(config=hp_config)
         config = strategy.buy.position.config
         assert isinstance(config, HPBuyConfig)
         strategy.client.create_order.side_effect = get_new_orders(
