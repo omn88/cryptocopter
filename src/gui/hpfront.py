@@ -361,9 +361,12 @@ class HpFront(BoxLayout):
                     )
                     self.idle_records.append(idle_position.to_dict())
                     logger.info("Price level stagnated: %s", idle_position)
-        self.filter_records("active", "All")
-        self.filter_records("idle", "All")
-        self.filter_records("archive", "All")
+        self.filter_records("active", "All", side="BUY")
+        self.filter_records("idle", "All", side="BUY")
+        self.filter_records("archive", "All", side="BUY")
+        self.filter_records("active", "All", side="SELL")
+        self.filter_records("idle", "All", side="SELL")
+        self.filter_records("archive", "All", side="SELL")
 
     def update_idle_position(
         self,
@@ -433,9 +436,12 @@ class HpFront(BoxLayout):
                     self.archive_records.append(archived_position.to_dict())
                     logger.info("Archiving price level: %s", archived_position)
 
-        self.filter_records("idle", "All")
-        self.filter_records("active", "All")
-        self.filter_records("archive", "All")
+        self.filter_records("active", "All", side="BUY")
+        self.filter_records("idle", "All", side="BUY")
+        self.filter_records("archive", "All", side="BUY")
+        self.filter_records("active", "All", side="SELL")
+        self.filter_records("idle", "All", side="SELL")
+        self.filter_records("archive", "All", side="SELL")
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         for strategy in self.active_records + self.idle_records:
@@ -491,7 +497,7 @@ class HpFront(BoxLayout):
         self.config_queue.put_nowait(sell_config)
         logger.info("Sell config added to the queue: %s", sell_config.config)
 
-        self.filter_records(tab="idle", symbol_filter="All")
+        self.filter_records("idle", "All", side="SELL")
 
     def sell_hp_button(self, hp_id, asset, quantity, buy_price):
         """
@@ -552,9 +558,12 @@ class HpFront(BoxLayout):
 
         logger.info("Cancel sell send to the config queue: %s", config)
 
-        self.filter_records(tab="idle", symbol_filter="All")
-        self.filter_records(tab="active", symbol_filter="All")
-        self.filter_records(tab="archive", symbol_filter="All")
+        self.filter_records("active", "All", side="BUY")
+        self.filter_records("idle", "All", side="BUY")
+        self.filter_records("archive", "All", side="BUY")
+        self.filter_records("active", "All", side="SELL")
+        self.filter_records("idle", "All", side="SELL")
+        self.filter_records("archive", "All", side="SELL")
 
     def fetch_hp_info(self, hp_id):
         """
@@ -713,7 +722,8 @@ class HpFront(BoxLayout):
                     completeness=str(data.completeness),
                 ).to_dict()
             )
-            self.filter_records("idle", "All")
+        self.filter_records("idle", "All", side="BUY")
+        self.filter_records("idle", "All", side="SELL")
         if data.state_info.ui_state == UiState.OPEN:
             logger.info("New position added to Active, system id: %s", hp_id)
             self.active_records.append(
@@ -732,7 +742,8 @@ class HpFront(BoxLayout):
                     state=str(data.state_info.ui_state),
                 ).to_dict()
             )
-            self.filter_records("active", "All")
+            self.filter_records("active", "All", side="BUY")
+            self.filter_records("active", "All", side="SELL")
         if data.state_info.ui_state == UiState.CLOSED:
             logger.info("New position added to Archive, system id: %s", hp_id)
             data.state_info.close_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -751,7 +762,8 @@ class HpFront(BoxLayout):
                     completeness=str(data.state_info.completeness),
                 ).to_dict()
             )
-            self.filter_records("archive", "All")
+            self.filter_records("archive", "All", side="BUY")
+            self.filter_records("archive", "All", side="SELL")
 
     def _log_all_records(self) -> None:
         logger.info(

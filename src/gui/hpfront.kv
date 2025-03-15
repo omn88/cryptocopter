@@ -132,7 +132,7 @@
                                     id: active_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('active', self.text)
+                                    on_text: root.filter_records('active', self.text, 'BUY')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
@@ -196,7 +196,7 @@
                                     id: idle_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('idle', self.text)
+                                    on_text: root.filter_records('idle', self.text, 'BUY')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
@@ -257,7 +257,7 @@
                                     id: archive_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('archive', self.text)
+                                    on_text: root.filter_records('archive', self.text, 'BUY')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
@@ -405,7 +405,7 @@
                                     id: active_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('active', self.text)
+                                    on_text: root.filter_records('active', self.text, 'SELL')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
@@ -469,7 +469,7 @@
                                     id: idle_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('idle', self.text)
+                                    on_text: root.filter_records('idle', self.text, 'SELL')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
@@ -530,7 +530,7 @@
                                     id: archive_filter_input
                                     text: 'All'
                                     size_hint_x: 0.2
-                                    on_text: root.filter_records('archive', self.text)
+                                    on_text: root.filter_records('archive', self.text, 'SELL')
                                 BoxLayout:
                                     size_hint_x: 0.8  # Empty space for alignment
                             BoxLayout:
