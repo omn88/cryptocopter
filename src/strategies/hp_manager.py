@@ -1425,7 +1425,7 @@ class HpStrategy:
                 data=HPBuyData(
                     config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
-                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 

@@ -17,7 +17,6 @@ from src.identifiers.spot import (
     State,
     StateInfo,
 )
-from src.position_buy import HPPositionBuy
 
 logger = logging.getLogger("database")
 

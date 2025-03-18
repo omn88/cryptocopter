@@ -252,9 +252,14 @@ class HPBuyConfig:
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
-    order_cancel: float = 0 if not order_trigger else 2 * order_trigger
+    order_cancel: float = 0
     budget: float = 0
     mode: Mode = Mode.DCA
+
+    def __post_init__(self):
+        """Ensure order_cancel is always set correctly based on order_trigger"""
+        if self.order_trigger:
+            self.order_cancel = 2 * self.order_trigger
 
     def __str__(self):
         return (

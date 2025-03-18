@@ -425,7 +425,7 @@ async def test_stagnation_counter_increase_buy(
 
     assert strategy.ui_queue.qsize() == 1
     content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
+    logger.info("Content123: %s", content)
     assert isinstance(content, HPGuiDataBuy)
 
     state_info = content.data.state_info
