@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import pprint
-import queue
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,

@@ -37,6 +37,8 @@ from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpd
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 
+# pylint: disable=unused-argument
+
 
 class HpStrategy:
     def __init__(
@@ -381,7 +383,8 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
+                "price trigger: %s last price: %s",
                 self.buy.data.config.symbol_info.symbol,
                 self.buy.data.state_info.side,
                 self.state,
@@ -451,7 +454,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
+                "[Cancel Unfilled BUY] %s, stag: %s/%s, last price: %s, trig price: %s, state: %s, buy state: %s",
                 self.buy.data.config.symbol_info.symbol,
                 self.buy.data.state_info.stagnation_counter,
                 self.buy.data.state_info.stagnation_limit,
@@ -492,7 +495,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trig price: %s",
                 self.buy.data.config.symbol_info.symbol,
                 self.buy.data.state_info.stagnation_counter,
                 self.buy.data.state_info.stagnation_limit,
@@ -531,7 +534,8 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s"
+                "price trigger: %s last price: %s",
                 self.buy.data.config.symbol_info.symbol,
                 self.buy.data.state_info.side,
                 self.state,
@@ -710,7 +714,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -744,7 +748,8 @@ class HpStrategy:
             >= self.calculate_trigger_send_orders_price_sell()
         )
         self.logger.info(
-            "[Send sell orders] hp id: %s, %s, side: %s, state: %s, condition: %s, buy state: %s, sell price: %s, last price: %s, calculated price: %s",
+            "[Send sell orders] hp id: %s, %s, side: %s, state: %s, condition: %s, buy state: %s"
+            "sell price: %s, last price: %s, calculated price: %s",
             self.sell.data.config.hp_id,
             self.sell.data.config.symbol_info.symbol,
             self.sell.data.state_info.side,
@@ -777,7 +782,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -796,7 +801,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Resend sell orders] %s, side: %s, state: %s, balance: %s, price trigger: %s last price: %s",
+                "[Resend sell] %s, side: %s, state: %s, balance: %s, price trig: %s last price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.state,
@@ -859,7 +864,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                "[Cancel Part Filled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -890,13 +895,6 @@ class HpStrategy:
             and all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders)
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
-        # if condition:
-        #     self.logger.info(
-        #         "[All orders filled] %s %s",
-        #         self.sell.data.config.symbol_info.symbol,
-        #         self.sell.data.state_info.side,
-        #     )
-
         self.logger.info(
             "[All orders filled] %s %s",
             self.sell.data.config.symbol_info.symbol,
@@ -950,7 +948,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                "[Cancel Part Filled SELL] %s, stagnation:%s/%s, last price: %s, trigger price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -1030,7 +1028,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -1135,7 +1133,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
@@ -1172,7 +1170,8 @@ class HpStrategy:
 
         self.db.upsert_buy_price_level(data=self.buy.data)
 
-        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        # Calculate the remaining realized quantities in buy orders
+        # after accounting for sold quantity
         remaining_sell_quantity = (
             0 if not self.sell.orders else self.sell.orders[0].realized_quantity
         )
@@ -1246,7 +1245,8 @@ class HpStrategy:
         )
 
         self.db.upsert_buy_price_level(data=self.buy.data)
-        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        # Calculate the remaining realized quantities in buy orders
+        # after accounting for sold quantity
         remaining_sell_quantity = (
             0 if not self.sell.orders else self.sell.orders[0].realized_quantity
         )
@@ -1629,22 +1629,22 @@ class HpStrategy:
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
                     self.ticker_update = event.content
-                    await self.process_ticker()  # type: ignore
+                    await self.process_ticker()  # pylint: disable=no-member
 
                 elif EventName.EXECUTION_REPORT == event.name:
                     assert isinstance(event.content, ExecutionReport)
                     self.execution_report = event.content
-                    await self.process_order()  # type: ignore
+                    await self.process_order()  # pylint: disable=no-member
 
                 elif EventName.ACCOUNT_POSITION == event.name:
                     assert isinstance(event.content, AccountPosition)
                     self.account_position = event.content
-                    await self.process_account()  # type: ignore
+                    await self.process_account()  # pylint: disable=no-member
 
                 elif EventName.SIGNAL == event.name:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
-                    await self.process_signal()  # type: ignore
+                    await self.process_signal()  # pylint: disable=no-member
 
                 self.worker_queue.task_done()
             except queue.Empty:
