@@ -33,7 +33,7 @@ from src.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
-from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 
@@ -931,7 +931,7 @@ class HpStrategy:
         self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.config_queue.put_nowait(
-            HpClose(
+            HPClose(
                 config=self.sell.data.config,
                 state_info=self.sell.data.state_info,
             )

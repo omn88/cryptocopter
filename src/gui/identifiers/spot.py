@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.identifiers.spot import HPBuyData, HPSellData, State
+from src.identifiers.spot import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
 
 
 @dataclass
@@ -28,14 +28,18 @@ class HPGuiDataBuy:
 
 
 @dataclass
+class HPClose:
+    config: HPSellConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"HPClose(data={self.config}, hp_update={self.state_info})"
+
+
+@dataclass
 class HPGuiDataSell:
-    def __init__(
-        self,
-        data: HPSellData,
-        hp_update: HPUpdate,
-    ):
-        self.data = data
-        self.hp_update = hp_update
+    data: HPSellData
+    hp_update: HPUpdate
 
     def __str__(self):
         return f"HPGuiDataSell(data={self.data}, hp_update={self.hp_update})"
