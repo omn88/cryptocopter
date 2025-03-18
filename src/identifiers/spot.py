@@ -252,6 +252,7 @@ class HPBuyConfig:
     price_low: float = 0
     price_high: float = 0
     order_trigger: float = 0
+    order_cancel: float = 0 if not order_trigger else 2 * order_trigger
     budget: float = 0
     mode: Mode = Mode.DCA
 
@@ -263,7 +264,8 @@ class HPBuyConfig:
         )
 
 
-class HPBuyData(NamedTuple):
+@dataclass
+class HPBuyData:
     config: HPBuyConfig
     state_info: StateInfo
 
@@ -289,7 +291,8 @@ class HPSellConfig:
         )
 
 
-class HPSellData(NamedTuple):
+@dataclass
+class HPSellData:
     config: HPSellConfig
     state_info: StateInfo
 

@@ -184,7 +184,7 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.upsert_buy_price_level(position=strategy.buy.data)
+        self.db.upsert_buy_price_level(data=strategy.buy.data)
 
         asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
@@ -202,13 +202,13 @@ class StrategyExecutor:
             )
         )
 
-    def send_sell_position_to_ui(self, config: HPBuyConfig, state_info: StateInfo):
+    def send_sell_position_to_ui(self, config: HPSellConfig, state_info: StateInfo):
         self.ui_queue.put_nowait(
             HPGuiDataSell(
-                data=HPBuyData(config=config, state_info=state_info),
+                data=HPSellData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    buy_price=config.price_high,
+                    buy_price=config.buy_price,
                     asset=config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),
@@ -238,7 +238,7 @@ class StrategyExecutor:
             strategy.sell.data.config.sell_price = strategy_data.config.sell_price
             strategy.sell.data.state_info.ui_state = UiState.CLOSED
 
-        self.db.upsert_sell_price_level(position=strategy.sell.data)
+        self.db.upsert_sell_price_level(data=strategy.sell.data)
 
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
@@ -308,7 +308,7 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.upsert_sell_price_level(position=strategy.sell.data)
+        self.db.upsert_sell_price_level(data=strategy.sell.data)
 
         asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", config.hp_id)
@@ -368,7 +368,7 @@ class StrategyExecutor:
                     2,
                 )
 
-            self.db.upsert_buy_price_level(position=buy.data)
+            self.db.upsert_buy_price_level(data=buy.data)
 
             buy.data.state_info.ui_state = UiState.CLOSED
 
@@ -392,7 +392,9 @@ class StrategyExecutor:
                 strategy.state = buy.data.state_info.state
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(order=order, position=buy.data, side=side)
+                        self.db.upsert_order(
+                            order=order, hp_id=buy.data.config.hp_id, side=side
+                        )
             buy.data.state_info.state = State.CLOSED
             buy.data.state_info.ui_state = UiState.CLOSED
             buy.data.state_info.completeness = sum(
@@ -403,7 +405,7 @@ class StrategyExecutor:
                 state_info=strategy.buy.data.state_info,
             )
 
-            self.db.upsert_buy_price_level(position=buy.data)
+            self.db.upsert_buy_price_level(data=buy.data)
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
@@ -429,7 +431,7 @@ class StrategyExecutor:
                 config=strategy.sell.data.config,
                 state_info=strategy.sell.data.state_info,
             )
-            self.db.upsert_sell_price_level(position=sell.data)
+            self.db.upsert_sell_price_level(data=sell.data)
 
     def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
         price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
@@ -649,7 +651,7 @@ class StrategyExecutor:
                 state=strategy_state,
             ),
         )
-        buy_position.ui_queue.put_nowait(buy_pos_data)
+        self.ui_queue.put_nowait(buy_pos_data)
         self.logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
 
     async def initialize_positions_from_db(self) -> None:
@@ -774,7 +776,7 @@ class StrategyExecutor:
                         state=strategy.state,
                     ),
                 )
-                strategy.sell.ui_queue.put_nowait(sell_pos_data)
+                strategy.ui_queue.put_nowait(sell_pos_data)
                 self.logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
             self.logger.info("Strategy position(s) restored")
 

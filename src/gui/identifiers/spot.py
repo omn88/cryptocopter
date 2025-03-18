@@ -18,19 +18,16 @@ class HPUpdate:
     state: State = State.NONE
 
 
+@dataclass
 class HPGuiDataBuy:
-    def __init__(
-        self,
-        data: HPBuyData,
-        hp_update: HPUpdate,
-    ):
-        self.data = data
-        self.hp_update = hp_update
+    data: HPBuyData
+    hp_update: HPUpdate
 
     def __str__(self):
         return f"HPGuiDataBuy(data={self.data}, hp_update={self.hp_update})"
 
 
+@dataclass
 class HPGuiDataSell:
     def __init__(
         self,
