@@ -11,7 +11,7 @@ from binance.enums import (
     ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_CANCELED,
 )
-from src.gui.identifiers.spot import HPGuiDataBuy
+from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
 from src.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.strategies.hp_manager import HpStrategy
@@ -1941,7 +1941,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataSell)
 
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
@@ -1997,20 +1997,19 @@ async def simulate_partial_fill_sell(
     assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.sell.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataSell)
 
-    state_info = content.state_info
+    state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
 
     assert state_info.next_monitor_time
     assert state_info.state == State.PARTIALLY_SOLD
-    assert content.state_info.side == PositionSide.SHORT
-    assert content.state_info.ui_state == UiState.OPEN
+    assert state_info.side == PositionSide.SHORT
+    assert state_info.ui_state == UiState.OPEN
     assert content.order_cancel == 2.0
-    assert content.state_info.completeness == 0.5
-    assert content.recovering is False
+    assert state_info.completeness == 0.5
 
     assert strategy.buy.ui_queue.qsize() == 0
 
@@ -2057,9 +2056,9 @@ async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
 
     assert strategy.sell.ui_queue.qsize() == 1
 
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.sell.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataSell)
 
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)

@@ -40,14 +40,12 @@ class HPPositionSell:
         client: BinanceClient,
         strategy_logger: StrategyLogger,
         data: HPSellData,
-        ui_queue: queue.Queue,
         db: Database,
     ):
         self.client = client
         self.data = data
         self.strategy_logger = strategy_logger
         self.db = db
-        self.ui_queue: queue.Queue = ui_queue
         self.orders: List[Order] = []
 
     def prepare_orders(
