@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.identifiers.spot import HPBuyPosition, State
+from src.identifiers.spot import HPBuyData, HPSellData, State
 
 
 @dataclass
@@ -18,23 +18,30 @@ class HPUpdate:
     state: State = State.NONE
 
 
-class PositionData:
+class HPGuiDataBuy:
     def __init__(
         self,
-        position: HPBuyPosition,
+        data: HPBuyData,
         hp_update: HPUpdate,
     ):
-        self.position = position
-        self.order_cancel = 2 * position.config.order_trigger
+        self.data = data
         self.hp_update = hp_update
 
-    def __repr__(self) -> str:
-        return (
-            f"BuyPositionData(hp_update={self.hp_update}, "
-            f"state_info={self.position.state_info}, "
-            f"config={self.position.config}, "
-            f"order_cancel={self.order_cancel}, "
-        )
+    def __str__(self):
+        return f"HPGuiDataBuy(data={self.data}, hp_update={self.hp_update})"
+
+
+class HPGuiDataSell:
+    def __init__(
+        self,
+        data: HPSellData,
+        hp_update: HPUpdate,
+    ):
+        self.data = data
+        self.hp_update = hp_update
+
+    def __str__(self):
+        return f"HPGuiDataSell(data={self.data}, hp_update={self.hp_update})"
 
 
 @dataclass

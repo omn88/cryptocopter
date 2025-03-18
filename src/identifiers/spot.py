@@ -315,22 +315,6 @@ class SubscriptionInfo(NamedTuple):
     queue: queue.Queue
 
 
-# class HpPositionData(NamedTuple):
-#     config: HPConfig
-#     state_info: StateInfo
-
-#     def __str__(self):
-#         return f"HpNewPosition(config={self.config}, state_info={self.state_info})"
-
-
-# class HpNewPosition(NamedTuple):
-#     config: HPConfig
-#     state_info: StateInfo
-
-#     def __str__(self):
-#         return f"HpNewPosition(config={self.config}, state_info={self.state_info})"
-
-
 class RemoveRecord(NamedTuple):
     hp_id: str
     symbol: str

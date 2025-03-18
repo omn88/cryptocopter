@@ -33,7 +33,7 @@ from src.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
-from src.gui.identifiers.spot import HPUpdate, PositionData
+from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 
@@ -429,9 +429,9 @@ class HpStrategy:
             "Orders sent, updating DB with price level: %s",
             self.buy.data.state_info,
         )
-        self.db.upsert_buy_price_level(position=self.buy.data)
-        pos_data = BuyPositionData(
-            position=HPBuyPosition(
+        self.db.upsert_buy_price_level(data=self.buy.data)
+        pos_data = HPGuiDataBuy(
+            data=HPBuyData(
                 config=self.buy.data.config, state_info=self.buy.data.state_info
             ),
             hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
@@ -472,14 +472,11 @@ class HpStrategy:
         self.buy.data.state_info.state = State.NEW
 
         self.buy.ui_queue.put_nowait(
-            BuyPositionData(
-                position=HPBuyPosition(
+            HPGuiDataBuy(
+                data=HPBuyData(
                     config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
-                hp_update=HPUpdate(
-                    hp_id=self.buy.data.config.hp_id,
-                    state=self.state,
-                ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
@@ -514,13 +511,11 @@ class HpStrategy:
         await self.buy.cancel_position()
 
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.data.config.hp_id,
-                    state=self.state,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
@@ -573,17 +568,16 @@ class HpStrategy:
         for order in self.buy.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.buy.data.config,
-                    state_info=self.buy.data.state_info,
-                ),
+                hp_id=self.buy.data.config.hp_id,
+                side=self.buy.data.state_info.side,
             )
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
                 hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
@@ -605,12 +599,11 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.data.config.hp_id,
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.sell.data.state_info.state,
-                self.sell.data.config.budget,
             )
 
         return condition
@@ -652,22 +645,17 @@ class HpStrategy:
         for order in self.sell.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.buy.data.config,
-                    state_info=self.buy.data.state_info,
-                ),
+                side=self.sell.data.state_info.side,
+                hp_id=self.sell.data.config.hp_id,
             )
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.data.config.hp_id,
-                    sell_price=self.sell.data.config.price_high,
-                    state=self.state,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -699,17 +687,15 @@ class HpStrategy:
 
         self.logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.data.config.hp_id,
-                    state=self.state,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
     def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
         self, *args, **kwargs
@@ -740,13 +726,11 @@ class HpStrategy:
         await self.sell.cancel_position()
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    state=self.state,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -774,12 +758,11 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.data.config.hp_id,
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.sell.data.state_info.state,
-                self.sell.data.config.budget,
             )
 
         return condition
@@ -811,15 +794,13 @@ class HpStrategy:
             self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and self.buy.data.state_info.state == State.BOUGHT
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.sell.data.config.budget
         )
         if condition:
             self.logger.info(
-                "[Resend sell orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
+                "[Resend sell orders] %s, side: %s, state: %s, balance: %s, price trigger: %s last price: %s",
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.state,
-                self.sell.data.config.budget,
                 self.balance,
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
@@ -854,18 +835,17 @@ class HpStrategy:
         for order in self.sell.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.sell.data.config,
-                    state_info=self.sell.data.state_info,
-                ),
+                hp_id=self.sell.data.config.hp_id,
+                side=self.sell.data.state_info.side,
             )
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -896,9 +876,10 @@ class HpStrategy:
         self.sell.data.state_info.state = State.PARTIALLY_SOLD
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
                 hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
@@ -941,17 +922,14 @@ class HpStrategy:
         self.sell.data.state_info.ui_state = UiState.CLOSED
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    state=self.state,
-                    sell_price=self.sell.orders[0].price,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.config_queue.put_nowait(
             HpClose(
@@ -992,13 +970,11 @@ class HpStrategy:
         )
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    state=self.state,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -1013,12 +989,11 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Resend sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                "[Resend sell orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.data.config.hp_id,
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.sell.data.state_info.state,
-                self.sell.data.config.budget,
             )
 
         return condition
@@ -1034,12 +1009,11 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.data.config.hp_id,
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.sell.data.state_info.state,
-                self.sell.data.config.budget,
             )
 
         return condition
@@ -1120,16 +1094,14 @@ class HpStrategy:
         self.sell.data.state_info.ui_state = UiState.CLOSED
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    state=self.state,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs
@@ -1142,12 +1114,11 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
                 self.sell.data.config.hp_id,
                 self.sell.data.config.symbol_info.symbol,
                 self.sell.data.state_info.side,
                 self.sell.data.state_info.state,
-                self.sell.data.config.budget,
             )
 
         return condition
@@ -1200,7 +1171,7 @@ class HpStrategy:
 
         await self.buy.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
         remaining_sell_quantity = (
@@ -1227,9 +1198,10 @@ class HpStrategy:
         )
 
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
                 hp_update=HPUpdate(
                     hp_id=self.buy.data.config.hp_id,
                     buy_price=self.buy.data.config.symbol_info.adjust_price(
@@ -1274,7 +1246,7 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
         # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
         remaining_sell_quantity = (
             0 if not self.sell.orders else self.sell.orders[0].realized_quantity
@@ -1300,9 +1272,10 @@ class HpStrategy:
         )
 
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
                 hp_update=HPUpdate(
                     hp_id=self.buy.data.config.hp_id,
                     buy_price=self.buy.data.config.symbol_info.adjust_price(
@@ -1338,19 +1311,15 @@ class HpStrategy:
 
         await self.sell.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    quantity=-self.execution_report.last_executed_quantity,
-                    state=self.state,
-                    sell_price=self.execution_report.last_executed_price,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
-            ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
+            )
         )
 
         if all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders):
@@ -1390,17 +1359,14 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.data.config.hp_id,
-                    quantity=-self.execution_report.last_executed_quantity,
-                    state=self.state,
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -1456,14 +1422,15 @@ class HpStrategy:
         self.logger.info("Orders: %s", self.buy.orders)
 
         self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.data.config,
-                state_info=self.buy.data.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id),
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
-        self.db.upsert_buy_price_level(position=self.buy.data)
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
     def conditions_for_position_stagnation_sell(self, *args, **kwargs) -> bool:
         assert self.sell
@@ -1521,13 +1488,14 @@ class HpStrategy:
             else 0
         )
         self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.data.config,
-                state_info=self.sell.data.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id),
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-        self.db.upsert_sell_price_level(position=self.sell.data)
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         condition = (

@@ -20,7 +20,7 @@ from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPUpdate, BuyPositionData, SellPositionData
+from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
 from src.database import Database
 from src.identifiers.futures import (
     Event,
@@ -28,7 +28,7 @@ from src.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.identifiers.spot import HPBuyConfig, HPBuyPosition, State, StateInfo
+from src.identifiers.spot import HPBuyConfig, HPBuyData, State, StateInfo
 from src.identifiers.futures import StrategyConfig as ConfigFutures
 from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -182,11 +182,11 @@ def trading_system_factory(mock_AsyncClient):
             logger=StrategyLogger(name="test"),
             db=test_db,
             worker_queue=queue.Queue(),
-            buy_position=HPBuyPosition(config=hp_config, state_info=StateInfo()),
+            buy_data=HPBuyData(config=hp_config, state_info=StateInfo()),
         )
-        strategy.buy.position.config.hp_id = generate_hp_id(hp_list=[])
+        strategy.buy.data.config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy.orders = strategy.buy.prepare_orders(config=hp_config)
-        config = strategy.buy.position.config
+        config = strategy.buy.data.config
         assert isinstance(config, HPBuyConfig)
         strategy.client.create_order.side_effect = get_new_orders(
             price_low=config.price_low,
@@ -194,12 +194,13 @@ def trading_system_factory(mock_AsyncClient):
         )
 
         ui_queue.put_nowait(
-            PositionData(
-                config=hp_config,
-                state_info=strategy.buy.position.state_info,
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=hp_config, state_info=strategy.buy.data.state_info
+                ),
                 hp_update=HPUpdate(
-                    hp_id=strategy.buy.position.config.hp_id,
-                    asset=strategy.buy.position.config.symbol_info.symbol[:-4],
+                    hp_id=strategy.buy.data.config.hp_id,
+                    asset=strategy.buy.data.config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),
             )

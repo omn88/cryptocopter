@@ -9,6 +9,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_EXPIRED,
 )
+from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
 from src.identifiers.common import PositionSide
 from src.identifiers.spot import (
     Event,
@@ -20,7 +21,6 @@ from src.identifiers.spot import (
     TickerUpdate,
     UiState,
 )
-from src.gui.identifiers.spot import PositionData
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
 from tests.strategies.spot.hp_manager_helpers import (
@@ -320,7 +320,7 @@ async def test_conditions_for_new_buy_order_confirmation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
-        symbol=strategy.buy.position.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
@@ -349,7 +349,7 @@ async def test_conditions_for_buy_order_cancellation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
-        symbol=strategy.buy.position.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_order_cancellation()
 
@@ -403,32 +403,30 @@ async def test_stagnation_counter_increase_buy(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    assert strategy.buy.position.state_info.stagnation_counter == 0
-    assert strategy.buy.position.state_info.stagnation_limit == 8
+    assert strategy.buy.data.state_info.stagnation_counter == 0
+    assert strategy.buy.data.state_info.stagnation_limit == 8
 
     time = datetime.datetime.now()
-    strategy.buy.position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.buy.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    assert strategy.buy.position.state_info.next_monitor_time == time.strftime(
+    assert strategy.buy.data.state_info.next_monitor_time == time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.conditions_for_position_stagnation_buy()
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.buy.position.state_info.stagnation_counter == 1
-    assert strategy.buy.position.state_info.stagnation_limit == 8
+    assert strategy.buy.data.state_info.stagnation_counter == 1
+    assert strategy.buy.data.state_info.stagnation_limit == 8
 
-    assert strategy.buy.position.state_info.next_monitor_time != time.strftime(
+    assert strategy.buy.data.state_info.next_monitor_time != time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.buy.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataBuy)
 
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
@@ -551,25 +549,23 @@ async def test_sell_orders_stagnation_increase(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    assert strategy.sell.position.state_info.stagnation_counter == 0
-    assert strategy.sell.position.state_info.stagnation_limit == 8
+    assert strategy.sell.data.state_info.stagnation_counter == 0
+    assert strategy.sell.data.state_info.stagnation_limit == 8
 
     time = datetime.datetime.now()
-    strategy.sell.position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    strategy.sell.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    assert strategy.sell.position.state_info.next_monitor_time == time.strftime(
+    assert strategy.sell.data.state_info.next_monitor_time == time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.conditions_for_position_stagnation_sell()
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.sell.position.state_info.stagnation_counter == 1
-    assert strategy.sell.position.state_info.stagnation_limit == 8
+    assert strategy.sell.data.state_info.stagnation_counter == 1
+    assert strategy.sell.data.state_info.stagnation_limit == 8
 
-    assert strategy.sell.position.state_info.next_monitor_time != time.strftime(
+    assert strategy.sell.data.state_info.next_monitor_time != time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
@@ -652,7 +648,7 @@ async def test_resend_unfilled_sell_orders(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.NEW
+    assert strategy.sell.data.state_info.state == State.NEW
 
     assert strategy.sell.orders[0].quantity == 0.85
     assert strategy.sell.orders[0].realized_quantity == 0.0
@@ -741,7 +737,7 @@ async def test_sell_position_first_order_filled(
     logger.info("Orders: %s", strategy.sell.orders)
     assert strategy.sell.orders[0].status == ORDER_STATUS_FILLED
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.SOLD
+    assert strategy.sell.data.state_info.state == State.SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.sell.ui_queue.get_nowait()
@@ -891,7 +887,7 @@ async def test_conditions_for_new_sell_order_confirmation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_NEW,
-        symbol=strategy.buy.position.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_new_order_confirmation()
 
@@ -912,7 +908,7 @@ async def test_conditions_for_sell_order_cancellation(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_CANCELED,
-        symbol=strategy.buy.position.config.symbol_info.symbol,
+        symbol=strategy.buy.data.config.symbol_info.symbol,
     )
     assert strategy.conditions_for_order_cancellation()
 
@@ -1195,8 +1191,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.12
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -1250,11 +1246,11 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     # Cancel Buy orders
-    strategy.buy.position.state_info.stagnation_counter = (
-        strategy.buy.position.state_info.stagnation_limit
+    strategy.buy.data.state_info.stagnation_counter = (
+        strategy.buy.data.state_info.stagnation_limit
     )
 
-    strategy.buy.position.state_info.generate_next_monitor_time()
+    strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
@@ -1265,8 +1261,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.state == State.PART_SOLD_PART_BOUGHT
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
@@ -1353,13 +1349,13 @@ async def test_buy_fully_partially_sold_position(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.12
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.PARTIALLY_SOLD
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
     assert strategy.sell.ui_queue.qsize() == 1
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataSell)
 
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
@@ -1470,14 +1466,14 @@ async def test_sell_fully_partially_bought_position(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.24
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.SOLD
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
 
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
 
@@ -1525,15 +1521,15 @@ async def test_sell_fully_partially_bought_position(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.position.state_info.state == State.SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.state == State.SOLD_PART_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
 
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
 
@@ -1616,14 +1612,14 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].realized_quantity == 0.24
     assert strategy.state == State.SELLING
-    assert strategy.sell.position.state_info.state == State.SOLD
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
 
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
 
@@ -1671,15 +1667,15 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.position.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.sell.position.state_info.state == State.SOLD
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.state == State.SOLD_PART_BOUGHT
 
     assert strategy.buy.ui_queue.qsize() == 1
 
     content = strategy.buy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, PositionData)
+    assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
     assert isinstance(state_info, StateInfo)
 

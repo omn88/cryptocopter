@@ -19,12 +19,12 @@ from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
 from src.identifiers.spot import (
     HPBuyConfig,
-    HPBuyPosition,
+    HPBuyData,
     HPSellConfig,
     AllTickers,
     Event,
     EventName,
-    HPSellPosition,
+    HPSellData,
     RemoveRecord,
     State,
     StateInfo,
@@ -34,11 +34,10 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
     ActivePosition,
     ArchivedPosition,
-    BuyPositionData,
+    HPGuiDataBuy,
+    HPGuiDataSell,
     HPUpdate,
     IdlePosition,
-    PositionData,
-    SellPositionData,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 
@@ -117,7 +116,7 @@ class HpFront(BoxLayout):
         if not self._validate_buy_inputs():
             return
 
-        new_hp = HPBuyPosition(
+        new_hp = HPBuyData(
             config=HPBuyConfig(
                 symbol_info=self.symbols_info[self.symbol_input.selected_value],
                 price_low=float(self.symbol_input.price_low_input.text),
@@ -150,9 +149,9 @@ class HpFront(BoxLayout):
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-                    if isinstance(data, BuyPositionData):
+                    if isinstance(data, HPGuiDataBuy):
                         await self._process_buy_position_data(data)
-                    if isinstance(data, SellPositionData):
+                    if isinstance(data, HPGuiDataSell):
                         await self._process_sell_position_data(data)
                     elif isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                         assert isinstance(data.content, AllTickers)
@@ -161,7 +160,7 @@ class HpFront(BoxLayout):
                 await asyncio.sleep(0.1)
         self.ui_queue_closed = True
 
-    async def _process_buy_position_data(self, data: BuyPositionData) -> None:
+    async def _process_buy_position_data(self, data: HPGuiDataBuy) -> None:
         logger.info("UI received position data: %s", data)
 
         # Update the HP list and DB
@@ -169,21 +168,45 @@ class HpFront(BoxLayout):
             update=data.hp_update, hp_list=self.hp_list_data
         )
 
-        hp_id = str(data.position.config.hp_id)
+        hp_id = str(data.data.config.hp_id)
 
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records, hp_id):
             logger.info("Record %s found in active records", hp_id)
-            self.update_active_position(data=data)
+            self.update_active_position_buy(data=data.data)
         elif self._record_exists(self.idle_records, hp_id):
             logger.info("Record %s found in idle records", hp_id)
-            self.update_idle_position(data=data)
-        elif self._archived_record_exists(self.archive_records, data):
+            self.update_idle_position_buy(data=data.data)
+        elif self._archived_record_exists_buy(self.archive_records, data.data):
             logger.info("Record %s already found in archived records", hp_id)
         else:
-            self._add_new_record(data)
+            self._add_new_record_buy(data.data)
 
         self._log_all_records()
+
+    async def _process_sell_position_data(self, data: HPGuiDataSell) -> None:
+        logger.info("UI received position data: %s", data)
+
+        # # Update the HP list and DB
+        # self.hp_list_data = self.update_hp_list(
+        #     update=data.hp_update, hp_list=self.hp_list_data
+        # )
+
+        # hp_id = str(data.position.config.hp_id)
+
+        # # Try to update the record in one of the lists
+        # if self._record_exists(self.active_records, hp_id):
+        #     logger.info("Record %s found in active records", hp_id)
+        #     self.update_active_position(data=data)
+        # elif self._record_exists(self.idle_records, hp_id):
+        #     logger.info("Record %s found in idle records", hp_id)
+        #     self.update_idle_position(data=data)
+        # elif self._archived_record_exists(self.archive_records, data):
+        #     logger.info("Record %s already found in archived records", hp_id)
+        # else:
+        #     self._add_new_record(data)
+
+        # self._log_all_records()
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         logger.info("Entering update hp list")
@@ -285,9 +308,9 @@ class HpFront(BoxLayout):
 
         return hp_list
 
-    def update_active_position(
+    def update_active_position_buy(
         self,
-        data: PositionData,
+        data: HPBuyData,
     ) -> None:
         for position in self.active_records:
             if (
@@ -368,9 +391,9 @@ class HpFront(BoxLayout):
         self.filter_records("idle", "All", side="SELL")
         self.filter_records("archive", "All", side="SELL")
 
-    def update_idle_position(
+    def update_idle_position_buy(
         self,
-        data: PositionData,
+        data: HPBuyData,
     ) -> None:
         for position in self.idle_records:
             if (
@@ -482,7 +505,7 @@ class HpFront(BoxLayout):
         if not self._validate_sell_inputs():
             return
 
-        sell_config = HPSellPosition(
+        sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
                 asset=self.ids.asset_input.text,
@@ -536,21 +559,15 @@ class HpFront(BoxLayout):
         )
 
     def cancel_sell(self, hp_id: str, asset: str):
-        config = HPConfig(
-            hp_id=hp_id,
-            symbol_info=self.symbols_info[f"{asset}USDT"],
-            price_low=0.0,
-            price_high=0.0,
-            budget=0.0,
-            order_trigger=1.0,
-            mode=Mode.SINGLE,
+        config = HPSellConfig(
+            hp_id=hp_id, symbol_info=self.symbols_info[f"{asset}USDT"]
         )
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
         )
 
         self.config_queue.put_nowait(
-            SellConfig(
+            HPSellData(
                 config=config,
                 state_info=state_info,
             )
@@ -670,7 +687,7 @@ class HpFront(BoxLayout):
             self.ids.buy_archive_records_list.refresh_from_data()
             self.ids.sell_archive_records_list.refresh_from_data()
 
-    def _calculate_trigger_price(self, data: PositionData) -> float:
+    def _calculate_trigger_price(self, data: HPBuyData) -> float:
         # For idle positions
         if data.state_info.side.value == PositionSide.LONG.value:
             base = data.config.price_high
@@ -680,7 +697,7 @@ class HpFront(BoxLayout):
             factor = 1 - (data.config.order_trigger / 100)
         return data.config.symbol_info.adjust_price(base * factor)
 
-    def _calculate_cancel_price(self, data: PositionData) -> float:
+    def _calculate_cancel_price(self, data: HPBuyData) -> float:
         # For active positions; note the 2*order_trigger
         if data.state_info.side.value == PositionSide.LONG.value:
             base = data.config.price_high
@@ -693,7 +710,7 @@ class HpFront(BoxLayout):
     def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
         return any(record["hp_id"] == hp_id for record in records)
 
-    def _archived_record_exists(self, records: List[Dict], data: PositionData) -> bool:
+    def _archived_record_exists_buy(self, records: List[Dict], data: HPBuyData) -> bool:
         hp_id = str(data.config.hp_id)
         side = data.state_info.side.value
         return any(
@@ -703,23 +720,23 @@ class HpFront(BoxLayout):
             for record in records
         )
 
-    def _add_new_record(self, data: PositionData) -> None:
-        hp_id = str(data.hp_id)
-        if data.ui_state in [UiState.NEW, UiState.STAGNATED]:
+    def _add_new_record_buy(self, data: HPBuyData) -> None:
+        hp_id = str(data.config.hp_id)
+        if data.state_info.ui_state in [UiState.NEW, UiState.STAGNATED]:
             logger.info("New position added to Idle, system id: %s", hp_id)
             self.idle_records.append(
                 IdlePosition(
-                    open_time=data.open_time,
-                    hp_id=str(data.hp_id),
-                    symbol=data.symbol,
-                    side=str(data.side.value),
-                    mode=str(data.mode.value),
-                    price_low=str(data.price_low),
-                    price_high=str(data.price_high),
-                    budget=str(data.budget),
-                    order_trigger=f"{data.order_trigger},({self._calculate_trigger_price(data=data)})",
-                    state=str(data.ui_state),
-                    completeness=str(data.completeness),
+                    open_time=data.state_info.open_time,
+                    hp_id=str(data.config.hp_id),
+                    symbol=data.config.symbol_info.symbol,
+                    side=str(data.state_info.side.value),
+                    mode=str(data.config.mode.value),
+                    price_low=str(data.config.price_low),
+                    price_high=str(data.config.price_high),
+                    budget=str(data.config.budget),
+                    order_trigger=f"{data.config.order_trigger},({self._calculate_trigger_price(data=data)})",
+                    state=str(data.state_info.ui_state),
+                    completeness=str(data.state_info.completeness),
                 ).to_dict()
             )
         self.filter_records("idle", "All", side="BUY")
