@@ -423,8 +423,8 @@ async def test_stagnation_counter_increase_buy(
         "%Y-%m-%d %H:%M:%S"
     )
 
-    assert strategy.buy.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
 
@@ -438,7 +438,7 @@ async def test_stagnation_counter_increase_buy(
     assert content.order_cancel == 2.0
     assert content.data.state_info.completeness == 0.00
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
     assert len(hp_list) == 1
@@ -569,8 +569,8 @@ async def test_sell_orders_stagnation_increase(
         "%Y-%m-%d %H:%M:%S"
     )
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -584,7 +584,7 @@ async def test_sell_orders_stagnation_increase(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 0.00
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -654,8 +654,8 @@ async def test_resend_unfilled_sell_orders(
 
     assert strategy.sell.orders[0].status == ORDER_STATUS_NEW
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -669,7 +669,7 @@ async def test_resend_unfilled_sell_orders(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 0.00
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -737,8 +737,8 @@ async def test_sell_position_first_order_filled(
     assert strategy.state == State.SELLING
     assert strategy.sell.data.state_info.state == State.SOLD
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.sell.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -752,7 +752,7 @@ async def test_sell_position_first_order_filled(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 1.00
 
-    assert strategy.sell.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -783,8 +783,8 @@ async def test_sell_position_first_order_filled(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -798,7 +798,7 @@ async def test_sell_position_first_order_filled(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 1.00
 
-    assert strategy.sell.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1190,8 +1190,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -1205,7 +1205,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 0.5
 
-    assert strategy.sell.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1259,8 +1259,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -1274,7 +1274,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 0.45
 
-    assert strategy.sell.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1346,8 +1346,8 @@ async def test_buy_fully_partially_sold_position(
     assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    assert strategy.sell.ui_queue.qsize() == 1
-    content = strategy.buy.ui_queue.get_nowait()
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
 
@@ -1361,7 +1361,7 @@ async def test_buy_fully_partially_sold_position(
     assert content.order_cancel == 2.0
     assert state_info.completeness == 0.5
 
-    assert strategy.sell.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1462,9 +1462,9 @@ async def test_sell_fully_partially_bought_position(
     assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    assert strategy.buy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 1
 
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
     state_info = content.data.state_info
@@ -1498,7 +1498,7 @@ async def test_sell_fully_partially_bought_position(
 
     logger.info("HP List after the update: %s", hp_list)
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     assert strategy.worker_queue.qsize() == 1
     event = strategy.worker_queue.get_nowait()
@@ -1517,9 +1517,9 @@ async def test_sell_fully_partially_bought_position(
     assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.state == State.SOLD_PART_BOUGHT
 
-    assert strategy.buy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 1
 
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
@@ -1554,7 +1554,7 @@ async def test_sell_fully_partially_bought_position(
 
     logger.info("HP List after the update: %s", hp_list)
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
 
 async def test_buy_fully_partially_bought_position_when_sold_position(
@@ -1607,9 +1607,9 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
-    assert strategy.buy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 1
 
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
     state_info = content.data.state_info
@@ -1643,7 +1643,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     logger.info("HP List after the update: %s", hp_list)
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     assert strategy.worker_queue.qsize() == 1
     event = strategy.worker_queue.get_nowait()
@@ -1662,9 +1662,9 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.sell.data.state_info.state == State.SOLD
     assert strategy.state == State.SOLD_PART_BOUGHT
 
-    assert strategy.buy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 1
 
-    content = strategy.buy.ui_queue.get_nowait()
+    content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
     state_info = content.state_info
@@ -1699,7 +1699,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     logger.info("HP List after the update: %s", hp_list)
 
-    assert strategy.buy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 0
 
     # Reopen Buy position
     strategy, hp_list = await reopen_buy_part_bought_sold(
