@@ -176,7 +176,7 @@
                                     size_hint_x: 0.1
                             RecycleView:
                                 id: buy_active_records_list
-                                data: root.filtered_active_records
+                                data: root.filtered_active_records_buy
                                 viewclass: 'RecordListItemActive'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
@@ -237,7 +237,7 @@
                                     size_hint_x: 0.1  # Space for the button
                             RecycleView:
                                 id: buy_idle_records_list
-                                data: root.filtered_idle_records
+                                data: root.filtered_idle_records_buy
                                 viewclass: 'RecordListItemIdle'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
@@ -295,7 +295,7 @@
                                     size_hint_x: 0.1
                             RecycleView:
                                 id: buy_archive_records_list
-                                data: root.filtered_archive_records
+                                data: root.filtered_archive_records_buy
                                 viewclass: 'RecordListItemArchive'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
@@ -449,7 +449,7 @@
                                     size_hint_x: 0.1
                             RecycleView:
                                 id: sell_active_records_list
-                                data: root.filtered_active_records
+                                data: root.filtered_active_records_sell
                                 viewclass: 'RecordListItemActive'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
@@ -510,7 +510,7 @@
                                     size_hint_x: 0.1  # Space for the button
                             RecycleView:
                                 id: sell_idle_records_list
-                                data: root.filtered_idle_records
+                                data: root.filtered_idle_records_sell
                                 viewclass: 'RecordListItemIdle'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
@@ -568,7 +568,7 @@
                                     size_hint_x: 0.1
                             RecycleView:
                                 id: sell_archive_records_list
-                                data: root.filtered_archive_records
+                                data: root.filtered_archive_records_sell
                                 viewclass: 'RecordListItemArchive'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
