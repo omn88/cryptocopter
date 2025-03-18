@@ -587,8 +587,7 @@ class HpStrategy:
 
     def calculate_trigger_send_orders_price_sell(self):
         return self.sell.data.config.symbol_info.adjust_price(
-            self.sell.data.config.price_low
-            * (1 - (self.sell.data.config.order_trigger / 100))
+            0.96 * self.sell.data.config.sell_price
         )
 
     def conditions_for_sending_sell_orders_for_partially_bought_position(
@@ -658,7 +657,11 @@ class HpStrategy:
                 data=HPSellData(
                     config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
-                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
+                hp_update=HPUpdate(
+                    hp_id=self.sell.data.config.hp_id,
+                    state=self.state,
+                    sell_price=self.sell.data.config.sell_price,
+                ),
             )
         )
 
@@ -1607,8 +1610,7 @@ class HpStrategy:
 
     def calculate_trigger_cancel_orders_price_sell(self):
         return self.sell.data.config.symbol_info.adjust_price(
-            self.sell.data.config.price_low
-            * (1 - (2 * self.sell.data.config.order_trigger / 100))
+            0.92 * self.sell.data.config.sell_price
         )
 
     async def allow_messages(self, *args, **kwargs) -> None:

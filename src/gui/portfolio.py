@@ -96,7 +96,6 @@ class PortfolioUI(BoxLayout):
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
-
         last_btc_price = price_updates.msg.get("BTC")
         # Iterate through the coin_list_data and update only coins that are in price_updates
         for coin in self.coin_list_data:
