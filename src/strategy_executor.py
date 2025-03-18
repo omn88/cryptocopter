@@ -160,8 +160,8 @@ class StrategyExecutor:
         self.strategies[new_hp.config.hp_id] = strategy
 
         assert new_hp.config.symbol_info.symbol.endswith(
-            "USDC"
-        ), "Symbol must end with 'USDC'"
+            "USDT"
+        ), "Symbol must end with 'USDT'"
 
         self.send_buy_position_to_ui(config=new_hp.config, state_info=new_hp.state_info)
 
@@ -283,7 +283,7 @@ class StrategyExecutor:
         )
         self.strategies[config.hp_id] = strategy
 
-        assert config.symbol_info.symbol.endswith("USDC"), "Symbol must end with 'USDC'"
+        assert config.symbol_info.symbol.endswith("USDT"), "Symbol must end with 'USDT'"
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
             state_info=strategy.sell.data.state_info,

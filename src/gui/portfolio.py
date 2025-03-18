@@ -26,7 +26,7 @@ logger = logging.getLogger("PortfolioUI")
 
 
 class PortfolioUI(BoxLayout):
-    saldo_usdc_label = ObjectProperty(None)  # Label for USDC saldo in the GUI
+    saldo_usdt_label = ObjectProperty(None)  # Label for USDT saldo in the GUI
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
 
     coin_list_data = ListProperty()
@@ -59,7 +59,7 @@ class PortfolioUI(BoxLayout):
                     self.update_coin_list(data.content)
                 if data.name == EventName.PRICE_UPDATES:
                     assert isinstance(data.content, PriceUpdates)
-                    # Update saldo in USDC and BTC
+                    # Update saldo in USDT and BTC
                     await self.update_coin_prices(data.content)
 
             except queue.Empty:
@@ -71,27 +71,18 @@ class PortfolioUI(BoxLayout):
 
         for symbol, quantity in balances.msg.items():
             try:
-                if symbol == "USDC":
+                # Round up to coins precision, to filter out first close to zero quantities
+                rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
+                    quantity=quantity
+                )
+                if rounded:
                     coin_data = {
                         "symbol": symbol,
-                        "quantity": str(round(quantity, 2)),
-                        "price_usdc": "1.00",
-                        "total_usdc": str(round(quantity, 2)),
+                        "quantity": str(rounded),
+                        "price_usdt": "0.00",
+                        "total_usdt": "0.00",
                     }
                     self.coin_list_data.append(coin_data)
-                else:
-                    # Round up to coins precision, to filter out first close to zero quantities
-                    rounded = self.symbols_info[f"{symbol}USDC"].adjust_quantity(
-                        quantity=quantity
-                    )
-                    if rounded:
-                        coin_data = {
-                            "symbol": symbol,
-                            "quantity": str(rounded),
-                            "price_usdc": "0.00",  # Placeholder value for now
-                            "total_usdc": "0.00",  # Placeholder value for now
-                        }
-                        self.coin_list_data.append(coin_data)
             except KeyError as e:
                 # Log the error and skip the symbol
                 logger.warning(
@@ -105,7 +96,8 @@ class PortfolioUI(BoxLayout):
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
-        last_btc_price = 0.0
+
+        last_btc_price = price_updates.msg.get("BTC")
         # Iterate through the coin_list_data and update only coins that are in price_updates
         for coin in self.coin_list_data:
             symbol = coin["symbol"]
@@ -114,32 +106,31 @@ class PortfolioUI(BoxLayout):
             if symbol in price_updates.msg:
                 price = price_updates.msg[symbol]
 
-                # Update the price and total in USDC for this coin
-                coin["price_usdc"] = str(
-                    self.symbols_info[f"{symbol}USDC"].adjust_price(price)
+                # Update the price and total in USDT for this coin
+                coin["price_usdt"] = str(
+                    self.symbols_info[f"{symbol}USDT"].adjust_price(price)
                 )
-                if coin["symbol"] == "BTC":
-                    last_btc_price = float(coin["price_usdc"])
-                total_in_usdc = round(float(coin["quantity"]) * price, 2)
-                coin["total_usdc"] = str(total_in_usdc)
+                total_in_usdt = round(float(coin["quantity"]) * price, 2)
+                coin["total_usdt"] = str(total_in_usdt)
 
-        # Sort the filtered list by 'total_usdc' in descending order (highest to lowest)
+        # Sort the filtered list by 'total_usdt' in descending order (highest to lowest)
         sorted_coin_list = sorted(
             [coin for coin in self.coin_list_data],
-            key=lambda x: float(x["total_usdc"]),
+            key=lambda x: float(x["total_usdt"]),
             reverse=True,
         )
 
         # Re-assign the ListProperty with the sorted list to trigger the UI update
         self.coin_list_data = sorted_coin_list
-        self.saldo_usdc_label = round(
-            sum([float(coin["total_usdc"]) for coin in self.coin_list_data]), 2
+        self.saldo_usdt_label = round(
+            sum([float(coin["total_usdt"]) for coin in self.coin_list_data]), 2
         )
-        self.saldo_btc_label = round(self.saldo_usdc_label / last_btc_price, 8)
+        if last_btc_price:
+            self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 8)
 
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
-        self.ids.saldo_usdc_label.text = str(self.saldo_usdc_label)
+        self.ids.saldo_usdt_label.text = str(self.saldo_usdt_label)
         self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
 
     def update_coin_list(self, account_position: AccountPosition) -> None:
@@ -155,10 +146,7 @@ class PortfolioUI(BoxLayout):
             for coin in self.coin_list_data:
                 if coin["symbol"] == symbol:
                     # Update the quantity (balances) if found
-                    coin["quantity"] = str(total_balance)
-                    if coin["symbol"] == "USDC":
-                        coin["quantity"] = str(round(total_balance, 2))
-                        coin["total_usdc"] = str(round(total_balance, 2))
+                    coin["quantity"] = str(round(total_balance, 2))
                     found = True
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
                     break
@@ -166,27 +154,27 @@ class PortfolioUI(BoxLayout):
             # If the asset is not in the current coin list, add it
             if not found:
                 logger.info(f"Adding new symbol {symbol} to the coin list.")
-                # Handle USDC separately as it doesn't need price updates
-                if symbol == "USDC":
+                # Handle USDT separately as it doesn't need price updates
+                if symbol == "USDT":
                     coin_data = {
                         "symbol": symbol,
                         "quantity": str(round(total_balance, 2)),
-                        "price_usdc": "1.00",
-                        "total_usdc": str(round(total_balance, 2)),
+                        "price_usdt": "1.00",
+                        "total_usdt": str(round(total_balance, 2)),
                     }
                 else:
                     coin_data = {
                         "symbol": symbol,
                         "quantity": str(total_balance),
-                        "price_usdc": "0.00",  # Placeholder, to be updated by price feed
-                        "total_usdc": "0.00",  # Placeholder, to be updated
+                        "price_usdt": "0.00",
+                        "total_usdt": "0.00",
                     }
                 self.coin_list_data.append(coin_data)
 
         # Sort the updated coin list again by total value
         self.coin_list_data = sorted(
             self.coin_list_data,
-            key=lambda x: float(x["total_usdc"]),
+            key=lambda x: float(x["total_usdt"]),
             reverse=True,
         )
 
