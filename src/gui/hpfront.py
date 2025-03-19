@@ -273,7 +273,7 @@ class HpFront(BoxLayout):
                     if update.quantity is not None:
                         hp["quantity"] = str(
                             self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
-                                float(hp["quantity"]) + update.quantity
+                                update.quantity
                             )
                         )
                     if update.sell_price is not None:

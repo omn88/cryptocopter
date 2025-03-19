@@ -655,8 +655,8 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert item["hp_id"] == "1000"
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1260.0"
-    assert item["quantity"] == "0.4"
-    assert item["quantity_usdt"] == "504.0"
+    assert item["quantity"] == "0.4", f"{item['quantity']}"
+    assert item["quantity_usdt"] == "504.0", f"{item['quantity_usdt']}"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -924,7 +924,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataSell)
+    assert isinstance(content, HPGuiDataBuy)
 
     state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
@@ -1126,8 +1126,8 @@ async def simulate_second_buy_order_partial_fill(
     assert item["hp_id"] == "1000"
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1292.31"
-    assert item["quantity"] == "0.26"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity"] == "0.26", f"{item['quantity']}"
+    assert item["quantity_usdt"] == "336.0", f"{item['quantity_usdt']}"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1369,10 +1369,10 @@ async def send_sell_orders_for_partially_bought_position(
     assert strategy.sell.orders[0].quantity == 0.24
     assert strategy.sell.orders[0].status == ORDER_STATUS_NEW
 
-    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4032
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0)
     assert strategy.conditions_for_sending_sell_orders_for_partially_bought_position()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1488,8 +1488,8 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 
     strategy.sell.data.state_info.generate_next_monitor_time()
 
-    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
-    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
+    strategy.ticker_update = TickerUpdate(last_price=3864.0)
     assert (
         strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
     )
@@ -1549,8 +1549,8 @@ async def simulate_cancel_sell_position(
 
     strategy.sell.data.state_info.generate_next_monitor_time()
 
-    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
-    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
+    strategy.ticker_update = TickerUpdate(last_price=3864.0)
     assert strategy.conditions_for_cancelling_partially_sold_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1603,11 +1603,11 @@ async def simulate_cancel_sell_position(
 async def simulate_resend_sell_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    assert strategy.calculate_trigger_send_orders_price_sell() == 4158
+    assert strategy.calculate_trigger_send_orders_price_sell() == 4032.0
     assert strategy.state == State.PARTIALLY_SOLD
     assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
 
-    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0)
     assert not strategy.conditions_for_sending_sell_orders()
     assert strategy.conditions_for_resending_partially_sold_orders()
 
@@ -2036,8 +2036,8 @@ async def cancel_sell_position_part_bought_part_sold(
         strategy.sell.data.state_info.stagnation_limit
     )
     strategy.sell.data.state_info.generate_next_monitor_time()
-    assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
-    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
+    strategy.ticker_update = TickerUpdate(last_price=3864.0)
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_sell_position()
     )

@@ -1195,7 +1195,8 @@ class HpStrategy:
                     buy_price=self.buy.data.config.symbol_info.adjust_price(
                         adjusted_total / adjusted_real_quant
                     ),
-                    quantity=self.execution_report.last_executed_quantity,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                     state=self.state,
                 ),
             )
@@ -1270,7 +1271,8 @@ class HpStrategy:
                     buy_price=self.buy.data.config.symbol_info.adjust_price(
                         adjusted_total / adjusted_real_quant
                     ),
-                    quantity=self.execution_report.last_executed_quantity,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                     state=self.state,
                 ),
             )
@@ -1307,8 +1309,13 @@ class HpStrategy:
                 data=HPSellData(
                     config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
-                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
-            )
+                hp_update=HPUpdate(
+                    hp_id=self.sell.data.config.hp_id,
+                    state=self.state,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
+                ),
+            ),
         )
 
         if all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders):
@@ -1360,10 +1367,8 @@ class HpStrategy:
                 hp_update=HPUpdate(
                     hp_id=self.sell.data.config.hp_id,
                     state=self.state,
-                    quantity=-(
-                        self.sell.orders[0].quantity
-                        - self.sell.orders[0].realized_quantity
-                    ),
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                 ),
             )
         )
