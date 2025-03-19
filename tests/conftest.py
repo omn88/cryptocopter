@@ -173,38 +173,33 @@ def trading_system_factory(mock_AsyncClient):
         hp_config: HPBuyConfig, balance: float = 10000
     ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
-        test_db = MagicMock()
+        test_database = MagicMock()
         strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
             config_queue=MagicMock(),
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
-            db=test_db,
+            db=test_database,
             worker_queue=queue.Queue(),
             buy_data=HPBuyData(config=hp_config, state_info=StateInfo()),
         )
-        strategy.buy.data.config.hp_id = generate_hp_id(hp_list=[])
+        hp_config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy.orders = strategy.buy.prepare_orders(config=hp_config)
-        config = strategy.buy.data.config
-        assert isinstance(config, HPBuyConfig)
         strategy.client.create_order.side_effect = get_new_orders(
-            price_low=config.price_low,
-            price_high=config.price_high,
+            price_low=hp_config.price_low,
+            price_high=hp_config.price_high,
         )
-
-        ui_queue.put_nowait(
-            HPGuiDataBuy(
-                data=HPBuyData(
-                    config=hp_config, state_info=strategy.buy.data.state_info
-                ),
-                hp_update=HPUpdate(
-                    hp_id=strategy.buy.data.config.hp_id,
-                    asset=strategy.buy.data.config.symbol_info.symbol[:-4],
-                    state=State.NEW,
-                ),
-            )
+        hp_gui_data_buy = HPGuiDataBuy(
+            data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
+            hp_update=HPUpdate(
+                hp_id=hp_config.hp_id,
+                asset=hp_config.symbol_info.symbol[:-4],
+                state=State.NEW,
+            ),
         )
+        logger.debug("Going to send hpguidatabuy to ui queue: %s", hp_gui_data_buy)
+        ui_queue.put_nowait(hp_gui_data_buy)
 
         return strategy
 

@@ -275,7 +275,7 @@ class HPBuyData:
     state_info: StateInfo
 
     def __str__(self):
-        return f"SellConfig(config={self.config}, state_info={self.state_info})"
+        return f"HPBuyData(config={self.config}, state_info={self.state_info})"
 
 
 @dataclass
@@ -302,7 +302,7 @@ class HPSellData:
     state_info: StateInfo
 
     def __str__(self):
-        return f"SellConfig(config={self.config}, state_info={self.state_info})"
+        return f"HPSellData(config={self.config}, state_info={self.state_info})"
 
 
 class SubscriptionType(Enum):

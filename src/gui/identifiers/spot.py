@@ -24,7 +24,7 @@ class HPGuiDataBuy:
     hp_update: HPUpdate
 
     def __str__(self):
-        return f"HPGuiDataBuy(data={self.data}, hp_update={self.hp_update})"
+        return f"HPGuiDataBuy(hp_update={self.hp_update}, data={self.data})"
 
 
 @dataclass
@@ -42,11 +42,11 @@ class HPGuiDataSell:
     hp_update: HPUpdate
 
     def __str__(self):
-        return f"HPGuiDataSell(data={self.data}, hp_update={self.hp_update})"
+        return f"HPGuiDataSell(hp_update={self.hp_update}, data={self.data})"
 
 
 @dataclass
-class IdlePosition:
+class IdlePositionBuy:
     open_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
     symbol: str = field(default="")
@@ -65,7 +65,7 @@ class IdlePosition:
 
 
 @dataclass
-class ActivePosition:
+class ActivePositionBuy:
     open_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
     symbol: str = field(default="")
@@ -85,7 +85,7 @@ class ActivePosition:
 
 
 @dataclass
-class ArchivedPosition:
+class ArchivedPositionBuy:
     open_time: Optional[str] = field(default=None)
     close_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
@@ -96,6 +96,60 @@ class ArchivedPosition:
     price_high: str = field(default="")
     budget: str = field(default="")
     order_trigger: str = field(default="")
+    completeness: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class IdlePositionSell:
+    open_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    current_price: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class ActivePositionSell:
+    open_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    stagnation: str = field(default="")
+    current_price: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class ArchivedPositionSell:
+    open_time: Optional[str] = field(default=None)
+    close_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
     completeness: str = field(default="")
 
     def to_dict(self):

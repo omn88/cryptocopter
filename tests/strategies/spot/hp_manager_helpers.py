@@ -133,7 +133,7 @@ async def db_and_gui_assertions(
     db = strategy.buy.db
     db.assert_db_buy_price_level_content(
         config=strategy.buy.data.config,
-        state=strategy.state,
+        state_info=strategy.buy.data.state_info,
     )
     assert_gui_position_data_content_buy(
         ui_queue=strategy.ui_queue,
@@ -1700,7 +1700,7 @@ async def send_sell_orders_for_bought_position(
         hp_id=strategy.buy.data.config.hp_id,
         symbol_info=strategy.buy.data.config.symbol_info,
         sell_price=4200.0,
-        quantity=0.1,
+        quantity=buy_realized_quantity,
     )
     strategy.sell.data.state_info = StateInfo(side=PositionSide.SHORT)
     strategy.sell.orders = strategy.sell.prepare_orders(
@@ -1719,7 +1719,7 @@ async def send_sell_orders_for_bought_position(
     assert strategy.sell.data.state_info.stagnation_limit == 8
 
     assert len(strategy.sell.orders) == 1
-    assert strategy.sell.orders[0].quantity == 0.85
+    assert strategy.sell.orders[0].quantity == buy_realized_quantity
     assert strategy.sell.orders[0].status == ORDER_STATUS_NEW
 
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032

@@ -89,7 +89,7 @@ class StrategyExecutor:
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
 
-        await self.initialize_positions_from_db()
+        # await self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
@@ -160,8 +160,8 @@ class StrategyExecutor:
         self.strategies[new_hp.config.hp_id] = strategy
 
         assert new_hp.config.symbol_info.symbol.endswith(
-            "USDT"
-        ), "Symbol must end with 'USDT'"
+            "USDC"
+        ), "Symbol must end with 'USDC'"
 
         self.send_buy_position_to_ui(config=new_hp.config, state_info=new_hp.state_info)
 
@@ -283,7 +283,7 @@ class StrategyExecutor:
         )
         self.strategies[config.hp_id] = strategy
 
-        assert config.symbol_info.symbol.endswith("USDT"), "Symbol must end with 'USDT'"
+        assert config.symbol_info.symbol.endswith("USDC"), "Symbol must end with 'USDC'"
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
             state_info=strategy.sell.data.state_info,
@@ -312,18 +312,6 @@ class StrategyExecutor:
 
         asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", config.hp_id)
-
-    # ToDo: why it is not used???
-    # async def close_sold_position(
-    #     self,
-    #     hp_id: str
-    # ) -> None:
-    #     self.logger.info("Entered strategy %s removal!", hp_id)
-
-    #     strategy = self.strategies[hp_id]
-    #     strategy.stop_event.set()
-    #     self.broker.unsubscribe(system_id=hp_id)
-    #     self.logger.info("Removed strategy with %s.", hp_id)
 
     async def remove_record(self, hp_id: str, side: PositionSide) -> None:
         self.logger.info(
@@ -433,19 +421,8 @@ class StrategyExecutor:
             )
             self.db.upsert_sell_price_level(data=sell.data)
 
-    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
-        price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
-        logger.info("Current active price levels: %s", price_levels)
-
-        buy_level = next(
-            (pl for pl in price_levels if pl["side"] == PositionSide.LONG.value),
-            None,
-        )
-        assert buy_level, f"Buy price level does not exist for active HP: {hp_id}"
-        sell_level = next(
-            (pl for pl in price_levels if pl["side"] == PositionSide.SHORT.value),
-            None,
-        )
+    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Dict]:
+        buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
         logger.info(
             "HP: %s\nBuy price level: %s\nSell price level: %s",
             hp_id,

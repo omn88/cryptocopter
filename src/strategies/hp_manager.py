@@ -750,19 +750,6 @@ class HpStrategy:
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
         )
-        self.logger.info(
-            "[Send sell orders] hp id: %s, %s, side: %s, state: %s, condition: %s, buy state: %s"
-            "sell price: %s, last price: %s, calculated price: %s",
-            self.sell.data.config.hp_id,
-            self.sell.data.config.symbol_info.symbol,
-            self.sell.data.state_info.side,
-            self.sell.data.state_info.state,
-            condition,
-            self.buy.data.state_info.state,
-            self.sell.data.config.sell_price,
-            self.ticker_update.last_price,
-            self.calculate_trigger_send_orders_price_sell(),
-        )
         if condition:
             self.logger.info(
                 "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
@@ -1361,6 +1348,8 @@ class HpStrategy:
             execution_report=self.execution_report
         )
 
+        self.logger.info("Orders: %s", self.sell.orders)
+
         self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.ui_queue.put_nowait(
@@ -1368,7 +1357,14 @@ class HpStrategy:
                 data=HPSellData(
                     config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
-                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
+                hp_update=HPUpdate(
+                    hp_id=self.sell.data.config.hp_id,
+                    state=self.state,
+                    quantity=-(
+                        self.sell.orders[0].quantity
+                        - self.sell.orders[0].realized_quantity
+                    ),
+                ),
             )
         )
 

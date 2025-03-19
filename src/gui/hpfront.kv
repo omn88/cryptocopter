@@ -129,7 +129,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: active_filter_input
+                                    id: active_filter_input_buy
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('active', self.text, 'BUY')
@@ -177,7 +177,7 @@
                             RecycleView:
                                 id: buy_active_records_list
                                 data: root.filtered_active_records_buy
-                                viewclass: 'RecordListItemActive'
+                                viewclass: 'RecordListItemActiveBuy'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
@@ -193,7 +193,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: idle_filter_input
+                                    id: idle_filter_input_buy
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('idle', self.text, 'BUY')
@@ -238,7 +238,7 @@
                             RecycleView:
                                 id: buy_idle_records_list
                                 data: root.filtered_idle_records_buy
-                                viewclass: 'RecordListItemIdle'
+                                viewclass: 'RecordListItemIdleBuy'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
@@ -254,7 +254,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: archive_filter_input
+                                    id: archive_filter_input_buy
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('archive', self.text, 'BUY')
@@ -296,31 +296,13 @@
                             RecycleView:
                                 id: buy_archive_records_list
                                 data: root.filtered_archive_records_buy
-                                viewclass: 'RecordListItemArchive'
+                                viewclass: 'RecordListItemArchiveBuy'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
                                     size_hint_y: None
                                     height: self.minimum_height  # This makes the layout as tall as its contents
                                     orientation: 'vertical'
-
-                    TabbedPanelItem:
-                        text: 'Logs'
-                        ScrollView:
-                            scroll_type: ['bars', 'content']
-                            bar_width: 10
-                            effect_cls: 'ScrollEffect'  # To limit the scroll bounce effect
-                            TextInput:
-                                id: log_display
-                                on_parent: root.log_display = self
-                                font_size: '14sp'
-                                background_color: (0.2, 0.2, 0.2, 1)
-                                foreground_color: (1, 1, 1, 1)
-                                padding: 10
-                                readonly: True
-                                multiline: True
-                                size_hint_y: None
-                                height: max(self.minimum_height, self.parent.height)
 
         TabbedPanelItem:
             text: 'Sell'
@@ -402,7 +384,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: active_filter_input
+                                    id: active_filter_input_sell
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('active', self.text, 'SELL')
@@ -421,16 +403,16 @@
                                     text: 'Side'
                                     size_hint_x: 0.05
                                 Label:
-                                    text: 'Mode'
+                                    text: 'Buy Price'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Price Low'
+                                    text: 'Sell Price'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Price High'
+                                    text: 'Quantity'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Order Cancel'
+                                    text: 'End currency'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Stagnation'
@@ -450,7 +432,7 @@
                             RecycleView:
                                 id: sell_active_records_list
                                 data: root.filtered_active_records_sell
-                                viewclass: 'RecordListItemActive'
+                                viewclass: 'RecordListItemActiveSell'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
@@ -466,7 +448,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: idle_filter_input
+                                    id: idle_filter_input_sell
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('idle', self.text, 'SELL')
@@ -485,16 +467,16 @@
                                     text: 'Side'
                                     size_hint_x: 0.05
                                 Label:
-                                    text: 'Mode'
+                                    text: 'Buy Price'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Price Low'
+                                    text: 'Sell Price'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Price High'
+                                    text: 'Quantity'
                                     size_hint_x: 0.08
                                 Label:
-                                    text: 'Order Trigger'
+                                    text: 'End currency'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Current Price'
@@ -511,7 +493,7 @@
                             RecycleView:
                                 id: sell_idle_records_list
                                 data: root.filtered_idle_records_sell
-                                viewclass: 'RecordListItemIdle'
+                                viewclass: 'RecordListItemIdleSell'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
@@ -527,7 +509,7 @@
                                 size_hint_y: None
                                 height: '40dp'
                                 Spinner:
-                                    id: archive_filter_input
+                                    id: archive_filter_input_sell
                                     text: 'All'
                                     size_hint_x: 0.2
                                     on_text: root.filter_records('archive', self.text, 'SELL')
@@ -544,24 +526,21 @@
                                     size_hint_x: 0.13
                                 Label:
                                     text: 'Symbol'
-                                    size_hint_x: 0.09
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Side'
                                     size_hint_x: 0.06
                                 Label:
-                                    text: 'Mode'
-                                    size_hint_x: 0.09
-                                Label:
-                                    text: 'Price Low'
+                                    text: 'Buy Price'
                                     size_hint_x: 0.1
                                 Label:
-                                    text: 'Price High'
+                                    text: 'Sell Price'
                                     size_hint_x: 0.1
                                 Label:
-                                    text: 'Order Trigger'
-                                    size_hint_x: 0.1
+                                    text: 'Quantity'
+                                    size_hint_x: 0.08
                                 Label:
-                                    text: 'Budget'
+                                    text: 'End currency'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Completeness'
@@ -569,7 +548,7 @@
                             RecycleView:
                                 id: sell_archive_records_list
                                 data: root.filtered_archive_records_sell
-                                viewclass: 'RecordListItemArchive'
+                                viewclass: 'RecordListItemArchiveSell'
                                 RecycleBoxLayout:
                                     default_size: None, dp(56)  # Adjust the height as necessary
                                     default_size_hint: 1, None
