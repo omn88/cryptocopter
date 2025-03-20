@@ -5,6 +5,8 @@ from src.gui.hpfront import HpFront
 from src.identifiers.spot import (
     Event,
     EventName,
+    HPBuyConfig,
+    HPBuyData,
     State,
     StateInfo,
     TickerUpdate,
@@ -26,9 +28,9 @@ async def test_default_buy_scenario(frontend_backend_setup):
 
     assert len(back.strategies) == 0
 
-    hp = HpNewPosition(
-        HPConfig(
-            symbol_info=SymbolInfo(symbol="BTCUSDT", precision=2, price_precision=2),
+    hp = HPBuyData(
+        HPBuyConfig(
+            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
             price_low=1000,
             price_high=1400,
             order_trigger=1.0,
@@ -49,8 +51,8 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert isinstance(strategy, HpStrategy)
     assert strategy.state == State.NEW
 
-    buy_pos = strategy.buy
-    assert len(buy_pos.orders) == 3
+    buy_pos = strategy.buy.data
+    assert len(strategy.buy.orders) == 3
 
     strategy.client.create_order.side_effect = get_new_orders(
         price_low=buy_pos.config.price_low,
@@ -69,10 +71,10 @@ async def test_default_buy_scenario(frontend_backend_setup):
     assert strategy.state == State.BUYING
     assert buy_pos.state_info.state == State.NEW
 
-    logger.info("Active records: %s", front.active_records)
-    logger.info("Idle records: %s", front.idle_records)
+    logger.info("Active records: %s", front.active_records_buy)
+    logger.info("Idle records: %s", front.idle_records_buy)
 
-    await wait_for_condition(condition_func=lambda: front.active_records)
+    await wait_for_condition(condition_func=lambda: front.active_records_buy)
 
     strategy.db.stop_worker()
     strategy.stop_event.set()

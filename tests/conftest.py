@@ -92,9 +92,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
     strategy_logger = StrategyLogger(name="test_strategy_executor")
-    balances = {"USDT": 10000.0}  # Mock balance
+    balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
     }
 
     # Create the StrategyExecutor instance
@@ -137,9 +137,27 @@ async def frontend_backend_setup(
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
 
+import warnings
+import pytest
+import logging
+
+
 @pytest.fixture
 async def test_db():
     """Drop the test database, recreate it, and set up tables before running tests."""
+
+    # Suppress specific warnings related to database operations
+    warnings.filterwarnings(
+        "ignore", message="Can't create database 'e2e_test'; database exists"
+    )
+    warnings.filterwarnings("ignore", message="Table 'strategies' already exists")
+    warnings.filterwarnings("ignore", message="Table 'buy_price_levels' already exists")
+    warnings.filterwarnings(
+        "ignore", message="Table 'sell_price_levels' already exists"
+    )
+    warnings.filterwarnings("ignore", message="Table 'hp_list' already exists")
+    warnings.filterwarnings("ignore", message="Table 'orders' already exists")
+
     db = Database(
         host=config("DB_HOST"),
         port=int(config("DB_PORT")),
@@ -149,7 +167,6 @@ async def test_db():
     )
     await db.initialize()
 
-    # try:
     logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
 
     # Drop the existing test database
@@ -161,10 +178,8 @@ async def test_db():
     db.setup_tables()
 
     yield db  # Provide the database instance for the test
+
     db.stop_worker()
-    # finally:
-    # db.close_pool()
-    # db.stop_worker()
 
 
 @pytest.fixture

@@ -14,7 +14,6 @@ from src.identifiers.spot import (
     HPSellConfig,
     HPSellData,
     Order,
-    State,
     StateInfo,
 )
 
@@ -347,8 +346,8 @@ class Database:
                     state_info = data.state_info
                     # Check if a record with the same hp_id, side, and state already exists
                     await cur.execute(
-                        "SELECT 1 FROM buy_price_levels WHERE hp_id=%s AND side=%s LIMIT 1",
-                        (config.hp_id, state_info.side.value),
+                        "SELECT 1 FROM buy_price_levels WHERE hp_id=%s LIMIT 1",
+                        (config.hp_id,),
                     )
                     existing_record = await cur.fetchone()
 
@@ -356,17 +355,17 @@ class Database:
                     if existing_record:
                         # Mark the current record as not current
                         await cur.execute(
-                            "UPDATE buy_price_levels SET is_current=FALSE WHERE hp_id=%s AND side=%s AND is_current=TRUE",
-                            (config.hp_id, state_info.side.value),
+                            "UPDATE buy_price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
+                            (config.hp_id,),
                         )
 
                     # Insert a new record with the updated values
                     version_timestamp = datetime.datetime.now().isoformat()
                     insert_query = """
                     INSERT INTO buy_price_levels (
-                        open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state,
+                        open_time, hp_id, symbol, mode, price_low, price_high, order_trigger, budget, state,
                         is_current, version_timestamp, stagnation_counter, next_monitor_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                     """
                     await cur.execute(
                         insert_query,
@@ -374,7 +373,6 @@ class Database:
                             state_info.open_time,
                             config.hp_id,
                             config.symbol_info.symbol,
-                            state_info.side.value,
                             config.mode.value,
                             config.price_low,
                             config.price_high,
@@ -401,8 +399,8 @@ class Database:
                     state_info: StateInfo = data.state_info
                     # Check if a record with the same hp_id, side, and state already exists
                     await cur.execute(
-                        "SELECT 1 FROM sell_price_levels WHERE hp_id=%s AND side=%s LIMIT 1",
-                        (config.hp_id, state_info.side.value),
+                        "SELECT 1 FROM sell_price_levels WHERE hp_id=%s LIMIT 1",
+                        (config.hp_id,),
                     )
                     existing_record = await cur.fetchone()
 
@@ -410,17 +408,17 @@ class Database:
                     if existing_record:
                         # Mark the current record as not current
                         await cur.execute(
-                            "UPDATE sell_price_levels SET is_current=FALSE WHERE hp_id=%s AND side=%s AND is_current=TRUE",
-                            (config.hp_id, state_info.side.value),
+                            "UPDATE sell_price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
+                            (config.hp_id,),
                         )
 
                     # Insert a new record with the updated values
                     version_timestamp = datetime.datetime.now().isoformat()
                     insert_query = """
                     INSERT INTO sell_price_levels (
-                        open_time, hp_id, symbol, side, buy_price, sell_price, quantity, end_currency, state,
+                        open_time, hp_id, symbol, buy_price, sell_price, quantity, end_currency, state,
                         is_current, version_timestamp, stagnation_counter, next_monitor_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                     """
                     await cur.execute(
                         insert_query,
@@ -428,7 +426,6 @@ class Database:
                             state_info.open_time,
                             config.hp_id,
                             config.symbol_info.symbol,
-                            state_info.side.value,
                             config.buy_price,
                             config.sell_price,
                             config.quantity,
