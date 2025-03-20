@@ -108,6 +108,7 @@ class HpStrategy:
             send_event=True,
             queued=True,
         )
+        self.worker_active = False
 
     def _get_transitions(self):
         return [
@@ -1622,6 +1623,7 @@ class HpStrategy:
 
     async def worker(self):
         self.logger.info("Worker start now, state: %s.", self.state)
+        self.worker_active = True
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()
@@ -1653,4 +1655,5 @@ class HpStrategy:
             except queue.Empty:
                 # logger.info("Queue empty, waiting 0.1s")
                 await asyncio.sleep(0.1)
-        self.logger.info("Stop event IS SET, worker close")
+        self.logger.info("Stop event IS SET, worker closed")
+        self.worker_active = False

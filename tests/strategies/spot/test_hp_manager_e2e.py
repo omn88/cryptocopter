@@ -2,7 +2,7 @@ import logging
 import pytest
 from src.gui.hpfront import HpFront
 from src.identifiers.spot import State
-from src.strategies.hp_manager import HpStrategy
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
 from tests.strategies.spot.e2e_tests_helpers import (
@@ -25,10 +25,6 @@ async def test_get_default_buy_position(frontend_backend_setup):
 
     simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
     await assert_default_buy_position(front=front, back=back)
-    strategy = back.strategies["1000"]
-
-    strategy.stop_event.set()
-    logger.info("DONE")
 
 
 @pytest.mark.database_integration
@@ -41,39 +37,26 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
 
     # Get default buy position
     simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
-
-    # Assert default buy position
-    await wait_for_condition(condition_func=lambda: len(back.strategies) == 1)
-    assert not back.config_queue.qsize()
+    await assert_default_buy_position(front=front, back=back)
 
     strategy = back.strategies["1000"]
-    assert isinstance(strategy, HpStrategy)
-    assert strategy.state == State.NEW
-
-    buy_pos = strategy.buy.data
-    assert len(strategy.buy.orders) == 3
-
     strategy.client.create_order.side_effect = get_new_orders(
-        price_low=buy_pos.config.price_low,
-        price_high=buy_pos.config.price_high,
+        price_low=strategy.buy.data.config.price_low,
+        price_high=strategy.buy.data.config.price_high,
         number_of_orders=3,
     )
 
     simulate_new_price(worker_queue=strategy.worker_queue, price=1410)
 
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
-
-    assert buy_pos.state_info.state == State.NEW
+    await wait_for_condition(condition_func=lambda: front.active_records_buy)
+    await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
+    assert strategy.buy.data.state_info.state == State.NEW
     assert all(order.order_id for order in strategy.buy.orders)
+    assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
 
     logger.info("Active records: %s", front.active_records_buy)
     logger.info("Idle records: %s", front.idle_records_buy)
-
-    await wait_for_condition(condition_func=lambda: front.active_records_buy)
-    await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
-
-    strategy.stop_event.set()
-    logger.info("DONE")
 
 
 # async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None:

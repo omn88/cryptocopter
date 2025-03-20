@@ -1,6 +1,6 @@
 import logging
 import queue
-
+from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
 from src.identifiers.common import Mode
