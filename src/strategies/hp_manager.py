@@ -1653,3 +1653,4 @@ class HpStrategy:
             except queue.Empty:
                 # logger.info("Queue empty, waiting 0.1s")
                 await asyncio.sleep(0.1)
+        self.logger.info("Stop event IS SET, worker close")

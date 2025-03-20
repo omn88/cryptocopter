@@ -140,11 +140,25 @@ class Database:
 
     def stop_worker(self):
         logger.info("DB: Stop the event loop and join the thread")
+
+        # Ensure the pool is properly closed before stopping the loop
+        if self.pool is not None:
+            self.run_task(self._close_pool_async())  # Ensure pool is closed
+
         if self.loop is not None:
             self.loop.call_soon_threadsafe(self.loop.stop)
+
         if self.thread is not None:
             self.thread.join()
             logger.info("DB thread finished")
+
+    async def _close_pool_async(self):
+        """Asynchronously close the aiomysql connection pool."""
+        if self.pool is not None:
+            logger.info("Closing the database pool")
+            self.pool.close()
+            await self.pool.wait_closed()
+            logger.info("Database pool closed successfully")
 
     def run_task(self, coro):
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()

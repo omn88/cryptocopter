@@ -1,6 +1,18 @@
 import logging
+import queue
 
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
+
+from src.common.symbol_info import SymbolInfo
+from src.identifiers.common import Mode
+from src.identifiers.spot import (
+    Event,
+    EventName,
+    HPBuyConfig,
+    HPBuyData,
+    StateInfo,
+    TickerUpdate,
+)
 
 
 logger = logging.getLogger("common_spot")
@@ -63,3 +75,35 @@ def get_cancel_order():
             "updateTime": 1566818724722,
         },
     ]
+
+
+def simulate_new_price(worker_queue: queue.Queue, price: float):
+    ticker_event = Event(name=EventName.TICKER, content=TickerUpdate(last_price=price))
+    worker_queue.put_nowait(ticker_event)
+    logger.info("Put event to the worker: %s", ticker_event)
+
+
+def simulate_buy_position(
+    config_queue: queue.Queue,
+    symbol: str,
+    mode: Mode = Mode.DCA,
+    budget: float = 1000,
+    price_low: float = 1000,
+    price_high: float = 1400,
+    order_trigger: float = 1.0,
+):
+    hp = HPBuyData(
+        HPBuyConfig(
+            hp_id="0",
+            symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+            price_low=price_low,
+            price_high=price_high,
+            order_trigger=order_trigger,
+            budget=budget,
+            mode=mode,
+        ),
+        state_info=StateInfo(),
+    )
+
+    config_queue.put_nowait(hp)
+    logger.info("HP Buy Data added to the queue: %s", hp)

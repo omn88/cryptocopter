@@ -8,12 +8,13 @@ from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
+import warnings
+import pytest
 import logging
 import queue
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
-import pytest
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
@@ -79,7 +80,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
+def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -135,11 +136,6 @@ async def frontend_backend_setup(
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
-
-
-import warnings
-import pytest
-import logging
 
 
 @pytest.fixture
