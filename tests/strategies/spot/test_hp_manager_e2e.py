@@ -1,11 +1,15 @@
-import asyncio
 import logging
 import pytest
 from src.gui.hpfront import HpFront
 from src.identifiers.spot import State
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
-from tests.spot import get_new_orders, simulate_buy_position, simulate_new_price
+from tests.spot import get_new_orders
+from tests.strategies.spot.e2e_tests_helpers import (
+    assert_default_buy_position,
+    simulate_buy_position,
+    simulate_new_price,
+)
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 
@@ -20,15 +24,8 @@ async def test_get_default_buy_position(frontend_backend_setup):
     assert len(back.strategies) == 0
 
     simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
-
-    await wait_for_condition(condition_func=lambda: len(back.strategies) == 1)
-    assert not back.config_queue.qsize()
-    assert len(back.strategies) == 1
+    await assert_default_buy_position(front=front, back=back)
     strategy = back.strategies["1000"]
-
-    assert isinstance(strategy, HpStrategy)
-    assert strategy.state == State.NEW
-    assert len(strategy.buy.orders) == 3
 
     strategy.stop_event.set()
     logger.info("DONE")
@@ -42,8 +39,10 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
 
     assert len(back.strategies) == 0
 
+    # Get default buy position
     simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
 
+    # Assert default buy position
     await wait_for_condition(condition_func=lambda: len(back.strategies) == 1)
     assert not back.config_queue.qsize()
 
@@ -71,9 +70,9 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     logger.info("Idle records: %s", front.idle_records_buy)
 
     await wait_for_condition(condition_func=lambda: front.active_records_buy)
+    await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
 
     strategy.stop_event.set()
-    await asyncio.sleep(0.1)
     logger.info("DONE")
 
 
