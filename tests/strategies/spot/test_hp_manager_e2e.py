@@ -1,15 +1,8 @@
 import asyncio
 import logging
 import pytest
-from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.identifiers.common import Mode
-from src.identifiers.spot import (
-    HPBuyConfig,
-    HPBuyData,
-    State,
-    StateInfo,
-)
+from src.identifiers.spot import State
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders, simulate_buy_position, simulate_new_price
@@ -38,7 +31,6 @@ async def test_get_default_buy_position(frontend_backend_setup):
     assert len(strategy.buy.orders) == 3
 
     strategy.stop_event.set()
-    await asyncio.sleep(0.1)
     logger.info("DONE")
 
 
