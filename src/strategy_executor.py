@@ -195,7 +195,6 @@ class StrategyExecutor:
                 data=HPBuyData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    buy_price=config.price_high,
                     asset=config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),

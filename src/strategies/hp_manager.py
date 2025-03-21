@@ -653,18 +653,18 @@ class HpStrategy:
             )
         self.db.upsert_buy_price_level(data=self.buy.data)
 
-        self.ui_queue.put_nowait(
-            HPGuiDataSell(
-                data=HPSellData(
-                    config=self.sell.data.config, state_info=self.sell.data.state_info
-                ),
-                hp_update=HPUpdate(
-                    hp_id=self.sell.data.config.hp_id,
-                    state=self.state,
-                    sell_price=self.sell.data.config.sell_price,
-                ),
-            )
+        gui_sell = HPGuiDataSell(
+            data=HPSellData(
+                config=self.sell.data.config, state_info=self.sell.data.state_info
+            ),
+            hp_update=HPUpdate(
+                hp_id=self.sell.data.config.hp_id,
+                state=self.state,
+                sell_price=self.sell.data.config.sell_price,
+            ),
         )
+        self.ui_queue.put_nowait(gui_sell)
+        self.logger.info("Put gui data sell to the ui queue: %s", gui_sell)
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (

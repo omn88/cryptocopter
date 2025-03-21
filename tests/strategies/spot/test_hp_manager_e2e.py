@@ -1,12 +1,20 @@
 import logging
 import pytest
 from src.gui.hpfront import HpFront
-from src.identifiers.spot import State
-from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
+from src.gui.identifiers.spot import HPGuiDataBuy
+from src.identifiers.common import PositionSide
+from src.identifiers.spot import State, StateInfo, UiState
+from binance.enums import (
+    ORDER_TYPE_LIMIT,
+    TIME_IN_FORCE_GTC,
+    ORDER_STATUS_NEW,
+    ORDER_STATUS_CANCELED,
+)
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
 from tests.strategies.spot.e2e_tests_helpers import (
     assert_default_buy_position,
+    move_to_position_active_buy,
     simulate_buy_position,
     simulate_new_price,
 )
@@ -39,15 +47,16 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
     await assert_default_buy_position(front=front, back=back)
 
+    # Open position and send orders
     strategy = back.strategies["1000"]
     strategy.client.create_order.side_effect = get_new_orders(
         price_low=strategy.buy.data.config.price_low,
         price_high=strategy.buy.data.config.price_high,
         number_of_orders=3,
     )
-
     simulate_new_price(worker_queue=strategy.worker_queue, price=1410)
 
+    # Assert new opened position data
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
     await wait_for_condition(condition_func=lambda: front.active_records_buy)
     await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
@@ -59,42 +68,72 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     logger.info("Idle records: %s", front.idle_records_buy)
 
 
-# async def test_default_position(hp_gui: HpFront, trading_system_factory) -> None:
-# """
-# This test purpose is to instantiate basic buy position and assert on
-# the default values
+@pytest.mark.database_integration
+async def test_cancel_default_position_untouched(frontend_backend_setup):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
 
-# Path 0
-# """
-# hp_list: List[Dict] = []
-# strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-# assert isinstance(strategy, HpStrategy)
+    assert len(back.strategies) == 0
 
-# strategy, hp_list = assert_default_buy_position_data(
-#     strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-# )
+    # Get default buy position
+    simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    await assert_default_buy_position(front=front, back=back)
 
+    await move_to_position_active_buy(front=front, back=back)
+    strategy = back.strategies["1000"]
+    strategy.buy.data.state_info.stagnation_counter = (
+        strategy.buy.data.state_info.stagnation_limit
+    )
 
-# async def test_default_position_send_orders(
-#     hp_gui: HpFront, trading_system_factory
-# ) -> None:
-#     """
-#     Path 1
-#     """
+    strategy.buy.data.state_info.generate_next_monitor_time()
 
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    simulate_new_price(worker_queue=strategy.worker_queue, price=1428)
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await wait_for_condition(
+        condition_func=lambda: all(
+            order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
+        )
+    )
 
-#     # Path 1: Send buy orders
+    assert len(strategy.buy.orders) == 3
+    assert strategy.buy.data.state_info.state == State.NEW
+    assert strategy.state == State.NEW
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize() == 1)
+    content = strategy.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, HPGuiDataBuy)
+
+    state_info = content.data.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.NEW
+    assert state_info.stagnation_counter == 0
+    assert state_info.stagnation_limit == 8
+    assert state_info.side == PositionSide.LONG
+    assert state_info.next_monitor_time
+
+    assert state_info.ui_state == UiState.STAGNATED
+    assert content.data.config.order_cancel == 2.0
+    assert state_info.completeness == 0.00
+
+    assert strategy.ui_queue.qsize() == 0
+    hp_list = front.update_hp_list(update=content.hp_update, hp_list=front.hp_list_data)
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
 
 
 # async def test_cancel_default_position_untouched(

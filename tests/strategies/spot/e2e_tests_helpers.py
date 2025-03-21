@@ -15,6 +15,7 @@ from src.identifiers.spot import (
 )
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
+from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger("e2e_helpers")
@@ -64,3 +65,25 @@ async def assert_default_buy_position(front: HpFront, back: StrategyExecutor):
 
     await wait_for_condition(condition_func=lambda: not front.active_records_buy)
     await wait_for_condition(condition_func=lambda: front.idle_records_buy)
+
+
+async def move_to_position_active_buy(front: HpFront, back: StrategyExecutor):
+    # Open position and send orders
+    strategy = back.strategies["1000"]
+    strategy.client.create_order.side_effect = get_new_orders(
+        price_low=strategy.buy.data.config.price_low,
+        price_high=strategy.buy.data.config.price_high,
+        number_of_orders=3,
+    )
+    simulate_new_price(worker_queue=strategy.worker_queue, price=1410)
+
+    # Assert new opened position data
+    await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
+    await wait_for_condition(condition_func=lambda: front.active_records_buy)
+    await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
+    assert strategy.buy.data.state_info.state == State.NEW
+    assert all(order.order_id for order in strategy.buy.orders)
+    assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
+
+    logger.info("Active records: %s", front.active_records_buy)
+    logger.info("Idle records: %s", front.idle_records_buy)
