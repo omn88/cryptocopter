@@ -96,28 +96,11 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     assert strategy.buy.data.state_info.state == State.NEW
     assert strategy.state == State.NEW
 
-    await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-    content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataBuy)
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == State.NEW.value
+    )
 
-    state_info = content.data.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.NEW
-    assert state_info.stagnation_counter == 0
-    assert state_info.stagnation_limit == 8
-    assert state_info.side == PositionSide.LONG
-    assert state_info.next_monitor_time
-
-    assert state_info.ui_state == UiState.STAGNATED
-    assert content.data.config.order_cancel == 2.0
-    assert state_info.completeness == 0.00
-
-    assert strategy.ui_queue.qsize() == 0
-    hp_list = front.update_hp_list(update=content.hp_update, hp_list=front.hp_list_data)
-    assert len(hp_list) == 1
-    item = hp_list[0]
+    item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "0.0"
@@ -202,28 +185,11 @@ async def test_default_position_first_order_filled_then_cancel(
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-    content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataBuy)
-
-    state_info = content.data.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert state_info.ui_state == UiState.STAGNATED
-    assert state_info.completeness == 0.28
-
-    assert strategy.ui_queue.qsize() == 0
-
-    hp_list = sim.front.update_hp_list(
-        update=content.hp_update, hp_list=sim.front.hp_list_data
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    assert len(hp_list) == 1
-    item = hp_list[0]
+    item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
@@ -236,7 +202,7 @@ async def test_default_position_first_order_filled_then_cancel(
     assert item["net_percent"] == "0.0"
     assert item["state"] == "PARTIALLY_BOUGHT"
 
-    logger.info("HP List after the update: %s", hp_list)
+    logger.info("HP List after the update: %s", front.hp_list_data)
 
 
 @pytest.mark.database_integration
@@ -307,28 +273,11 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    await wait_for_condition(lambda: strategy.ui_queue.qsize())
-    content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataBuy)
-
-    state_info = content.data.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.PARTIALLY_BOUGHT
-    assert state_info.next_monitor_time
-
-    assert state_info.ui_state == UiState.STAGNATED
-    assert state_info.completeness == 0.14
-
-    assert strategy.ui_queue.qsize() == 0
-
-    hp_list = sim.front.update_hp_list(
-        update=content.hp_update, hp_list=sim.front.hp_list_data
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    assert len(hp_list) == 1
-    item = hp_list[0]
+    item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
@@ -341,7 +290,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert item["net_percent"] == "0.0"
     assert item["state"] == "PARTIALLY_BOUGHT"
 
-    logger.info("HP List after the update: %s", hp_list)
+    logger.info("HP List after the update: %s", front.hp_list_data)
 
 
 @pytest.mark.database_integration

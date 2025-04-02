@@ -1229,7 +1229,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Partially filled order] %s %s @ %s",
+                "[Partially filled buy order] %s %s @ %s",
                 self.execution_report.symbol,
                 self.execution_report.side,
                 self.execution_report.price,
@@ -1349,7 +1349,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Partially filled order] %s %s @ %s",
+                "[Partially filled sell order] %s %s @ %s",
                 self.execution_report.symbol,
                 self.execution_report.side,
                 self.execution_report.price,

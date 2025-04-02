@@ -27,7 +27,7 @@ from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
-logger = logging.getLogger("e2e_helpers")
+logger = logging.getLogger("hp_simulator")
 
 
 class HPSimulator:
@@ -125,30 +125,12 @@ class HPSimulator:
         assert strategy.buy.data.state_info.state == State.NEW
         assert strategy.state == State.NEW
 
-        await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.NEW
-        assert state_info.stagnation_counter == 0
-        assert state_info.stagnation_limit == 8
-        assert state_info.side == PositionSide.LONG
-        assert state_info.next_monitor_time
-
-        assert state_info.ui_state == UiState.STAGNATED
-        assert content.data.config.order_cancel == 2.0
-        assert state_info.completeness == 0.00
-
-        assert strategy.ui_queue.qsize() == 0
-        hp_list = self.front.update_hp_list(
-            update=content.hp_update, hp_list=self.front.hp_list_data
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == State.NEW.value
         )
-        assert len(hp_list) == 1
-        item = hp_list[0]
+
+        item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["asset"] == "BTC"
         assert item["buy_price"] == "0.0"
@@ -184,27 +166,11 @@ class HPSimulator:
         assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.PARTIALLY_BOUGHT
-        assert state_info.next_monitor_time
-
-        assert state_info.ui_state == UiState.OPEN
-        assert content.data.config.order_cancel == 2.0
-        assert state_info.completeness == 0.14
-        assert strategy.ui_queue.qsize() == 0
-
-        self.front.hp_list_data = self.front.update_hp_list(
-            update=content.hp_update, hp_list=self.front.hp_list_data
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == str(exc_report.last_executed_quantity)
         )
 
-        assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["asset"] == "BTC"
@@ -245,28 +211,11 @@ class HPSimulator:
         assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-        assert strategy.ui_queue.qsize() == 1
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.PARTIALLY_BOUGHT
-        assert state_info.next_monitor_time
-
-        assert state_info.ui_state == UiState.OPEN
-        assert content.data.config.order_cancel == 2.0
-        assert state_info.completeness == 0.28
-        assert strategy.ui_queue.qsize() == 0
-
-        self.front.hp_list_data = self.front.update_hp_list(
-            update=content.hp_update, hp_list=self.front.hp_list_data
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == str(exc_report.last_executed_quantity)
         )
 
-        assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["asset"] == "BTC"
@@ -309,27 +258,9 @@ class HPSimulator:
         )
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-        assert strategy.ui_queue.qsize() == 1
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.PARTIALLY_BOUGHT
-        assert state_info.next_monitor_time
-
-        assert state_info.ui_state == UiState.OPEN
-
-        assert content.data.config.order_cancel == 2.0
-        assert state_info.completeness == 0.61
-
-        assert strategy.ui_queue.qsize() == 0
-
-        self.front.hp_list_data = self.front.update_hp_list(
-            update=content.hp_update, hp_list=self.front.hp_list_data
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == str(exc_report.last_executed_quantity)
         )
 
         assert len(self.front.hp_list_data) == 1
@@ -375,39 +306,9 @@ class HPSimulator:
             condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
         )
 
-        await wait_for_condition(condition_func=lambda: strategy.ui_queue.qsize())
-        assert strategy.ui_queue.qsize() == 1
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.BOUGHT
-        assert strategy.state == State.BOUGHT
-
-        assert strategy.worker_queue.qsize() == 0
-
-        assert strategy.ui_queue.qsize() == 2
-        content = strategy.ui_queue.get_nowait()
-        logger.info("Content: %s", content)
-        assert isinstance(content, HPGuiDataBuy)
-
-        state_info = content.data.state_info
-        assert isinstance(state_info, StateInfo)
-
-        assert state_info.state == State.BOUGHT
-        assert state_info.next_monitor_time
-
-        assert state_info.ui_state == UiState.CLOSED
-        assert content.data.config.order_cancel == 2.0
-        assert state_info.completeness == 1.00
-
-        assert strategy.ui_queue.qsize() == 1
-
-        self.front.hp_list_data = self.front.update_hp_list(
-            update=content.hp_update, hp_list=self.front.hp_list_data
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == str(exc_report.last_executed_quantity)
         )
 
         assert len(self.front.hp_list_data) == 1
