@@ -48,38 +48,30 @@ class HPPositionBuy:
         self.db = db
         self.orders: List[Order] = []
 
-    async def open_position(
-        self,
-        side: PositionSide,
-        orders: List[Order],
-        symbol_info: SymbolInfo,
-    ) -> List[Order]:
+    async def open_position(self) -> List[Order]:
         """Send a list of orders concurrently.
-
-        Args:
-            client: A `BinanceClient` object.
-            side: The side of the orders (either `PositionSide.BUY` or `PositionSide.SELL`).
-            orders: A list of `Order` objects to send.
 
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
+        logger.info("Entered open position")
         results = await asyncio.gather(
             *[
-                self._create_order(side=side, order=order, symbol_info=symbol_info)
-                for order in orders
+                self._create_order(order=order)
+                for order in self.orders
                 if order.status != ORDER_STATUS_FILLED
             ]
         )
         for order in results:
             logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                side.value,
-                symbol_info.symbol,
+                self.data.state_info.side.value,
+                self.data.config.symbol_info.symbol,
                 order.price,
                 order.quantity_stable,
                 order.order_id,
             )
+        logger.info("Exited open position")
         return results
 
     async def cancel_position(self) -> None:
@@ -176,7 +168,9 @@ class HPPositionBuy:
         logger.info("Completeness: %s", completeness)
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 
-    def prepare_orders(self, config: HPBuyConfig) -> List[Order]:
+    def prepare_orders(self) -> List[Order]:
+        config = self.data.config
+
         def prepare_single_buy_order():
             orders.append(
                 Order(
@@ -255,26 +249,27 @@ class HPPositionBuy:
 
         return orders
 
-    async def _create_order(
-        self, side: PositionSide, order: Order, symbol_info: SymbolInfo
-    ) -> Order:
+    async def _create_order(self, order: Order) -> Order:
         max_retries = 10
         last_exception = None
         for _ in range(max_retries):
             try:
+                symbol_info = self.data.config.symbol_info
                 price = symbol_info.adjust_price(order.price)
                 quantity = symbol_info.adjust_quantity(
                     order.quantity - order.realized_quantity
                 )
                 symbol_info.validate_order(price=price, quantity=quantity)
+                logger.info("Before sending order..........")
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
                     quantity=quantity,
-                    side=side.value,
+                    side=self.data.state_info.side.value,
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
+                logger.info("Resp..........")
             except (
                 BinanceAPIException,
                 BinanceOrderException,

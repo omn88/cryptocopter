@@ -1,3 +1,5 @@
+import asyncio
+import datetime
 import logging
 import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
@@ -47,7 +49,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
         price_high=strategy.buy.data.config.price_high,
         number_of_orders=3,
     )
-    sim.simulate_new_price(worker_queue=strategy.worker_queue, price=1410)
+    sim.simulate_new_price(price=1410)
 
     # Assert new opened position data
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -84,7 +86,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(worker_queue=strategy.worker_queue, price=1428)
+    sim.simulate_new_price(price=1428)
 
     await wait_for_condition(
         condition_func=lambda: all(
@@ -167,7 +169,7 @@ async def test_default_position_first_order_filled_then_cancel(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0, worker_queue=strategy.worker_queue)
+    sim.simulate_new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -256,7 +258,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0, worker_queue=strategy.worker_queue)
+    sim.simulate_new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -338,125 +340,161 @@ async def test_default_position_all_buy_orders_filled(
     strategy = await sim.simulate_third_buy_order_fill()
 
 
-# async def test_stagnation_counter_increase_buy(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
-#     """
-#     This test purpose is to instantiate basic buy position then trigger
-#     the conditions with which the position will be cancelled untouched and the states
-#     will get back to State.NEW
-#     """
+@pytest.mark.database_integration
+async def test_stagnation_counter_increase_buy(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Path 1: Send buy orders
 
-#     # Path 1: Send buy orders
+    await sim.move_to_position_active_buy()
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    strategy = back.strategies["1000"]
+    assert strategy.buy.data.state_info.stagnation_counter == 0
+    assert strategy.buy.data.state_info.stagnation_limit == 8
 
-#     assert strategy.buy.data.state_info.stagnation_counter == 0
-#     assert strategy.buy.data.state_info.stagnation_limit == 8
+    time = datetime.datetime.now()
+    strategy.buy.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-#     time = datetime.datetime.now()
-#     strategy.buy.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
+    assert strategy.buy.data.state_info.next_monitor_time == time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
-#     assert strategy.buy.data.state_info.next_monitor_time == time.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
+    assert strategy.conditions_for_position_stagnation_buy()
+    await strategy.process_ticker()  # type: ignore[attr-defined]
 
-#     assert strategy.conditions_for_position_stagnation_buy()
-#     await strategy.process_ticker()  # type: ignore[attr-defined]
+    assert strategy.buy.data.state_info.stagnation_counter == 1
+    assert strategy.buy.data.state_info.stagnation_limit == 8
 
-#     assert strategy.buy.data.state_info.stagnation_counter == 1
-#     assert strategy.buy.data.state_info.stagnation_limit == 8
+    assert strategy.buy.data.state_info.next_monitor_time != time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
-#     assert strategy.buy.data.state_info.next_monitor_time != time.strftime(
-#         "%Y-%m-%d %H:%M:%S"
-#     )
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "0.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usdt"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
 
-#     assert strategy.ui_queue.qsize() == 1
-#     content = strategy.ui_queue.get_nowait()
-#     logger.info("Content123: %s", content)
-#     assert isinstance(content, HPGuiDataBuy)
+    assert len(front.active_records_buy) == 1
+    assert len(front.idle_records_buy) == 0
+    active_pos = front.active_records_buy[0]
+    logger.info("active pos: %s", active_pos)
 
-#     state_info = content.data.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.state == State.NEW
-#     assert state_info.next_monitor_time
-
-#     assert content.data.state_info.ui_state == UiState.OPEN
-#     assert content.data.config.order_cancel == 2.0
-#     assert content.data.state_info.completeness == 0.00
-
-#     assert strategy.ui_queue.qsize() == 0
-
-#     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-#     assert len(hp_list) == 1
-#     item = hp_list[0]
-#     assert item["hp_id"] == "1000"
-#     assert item["asset"] == "BTC"
-#     assert item["buy_price"] == "0.0"
-#     assert item["quantity"] == "0.0"
-#     assert item["quantity_usdt"] == "0.0"
-#     assert item["sell_price"] == "0.0"
-#     assert item["expected_return"] == "0.0"
-#     assert item["current_price"] == "0.0"
-#     assert item["net"] == "0.0"
-#     assert item["net_percent"] == "0.0"
-#     assert item["state"] == "BUYING"
+    await wait_for_condition(condition_func=lambda: active_pos["stagnation"] == "1/8")
 
 
-# async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+@pytest.mark.database_integration
+async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Path 0: Default buy position
+    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     # Path 1: Send buy orders
+    # Path 1: Send buy orders
+    await sim.move_to_position_active_buy()
+    # Simulate partial fill
+    strategy = await sim.simulate_partial_fill()
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Cancel position
+    strategy.buy.data.state_info.stagnation_counter = (
+        strategy.buy.data.state_info.stagnation_limit
+    )
 
-#     # Simulate partial fill
-#     strategy = await simulate_partial_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert strategy.buy.data.state_info.next_monitor_time
 
-#     # Cancel position
-#     strategy = await cancel_partially_bought_position_first_order_filled_partially(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    sim.simulate_new_price(price=1428.0)
 
-#     # Reopen position
-#     strategy = await resend_part_bought_first_order_filled_partially(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert len(strategy.buy.orders) == 3
+
+    await wait_for_condition(
+        lambda: strategy.buy.orders[0].status == ORDER_STATUS_CANCELED
+    )
+    assert strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
+    assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+
+    assert strategy.buy.orders[0].realized_quantity == 0.12
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usdt"] == "168.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "PARTIALLY_BOUGHT"
+
+    logger.info("HP List after the update: %s", front.hp_list_data)
+
+    # Reopen position
+    sim.simulate_new_price(price=1414)
+
+    logger.info("orders before wait: %s", strategy.buy.orders)
+    await asyncio.sleep(1)
+    # await wait_for_condition(
+    #     lambda: strategy.buy.orders[0].status == ORDER_STATUS_NEW
+    # )
+    logger.info("orders after wait: %s", strategy.buy.orders)
+    assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
+    assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+    assert strategy.buy.orders[0].realized_quantity == 0.12
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.BUYING
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+    )
 
 
+# @pytest.mark.database_integration
 # async def test_default_position_first_order_filled_then_cancel_then_resend(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+#     sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+#     await sim.assert_default_buy_position()
 
 #     # Path 1: Send buy orders
 
@@ -479,10 +517,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_send_sell_orders_for_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -493,10 +535,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_sell_orders_stagnation_increase(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -561,10 +607,14 @@ async def test_default_position_all_buy_orders_filled(
 
 #     logger.info("HP List after the update: %s", hp_list)
 
-
+# @pytest.mark.database_integration
 # async def test_cancel_unfilled_sell_orders(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -579,10 +629,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_resend_unfilled_sell_orders(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -645,10 +699,14 @@ async def test_default_position_all_buy_orders_filled(
 
 #     logger.info("HP List after the update: %s", hp_list)
 
-
+# @pytest.mark.database_integration
 # async def test_sell_position_first_order_filled_partially(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -663,10 +721,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_sell_position_first_order_filled(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -772,10 +834,14 @@ async def test_default_position_all_buy_orders_filled(
 
 #     logger.info("HP List after the update: %s", hp_list)
 
-
+# @pytest.mark.database_integration
 # async def test_cancel_sell_position_first_order_filled_partially(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -794,10 +860,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_resend_sell_position_first_order_filled_partially(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -820,10 +890,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_conditions_for_new_sell_order_confirmation(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -841,10 +915,14 @@ async def test_default_position_all_buy_orders_filled(
 #     )
 #     assert strategy.conditions_for_new_order_confirmation()
 
-
+# @pytest.mark.database_integration
 # async def test_conditions_for_sell_order_cancellation(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -862,10 +940,14 @@ async def test_default_position_all_buy_orders_filled(
 #     )
 #     assert strategy.conditions_for_order_cancellation()
 
-
+# @pytest.mark.database_integration
 # async def test_conditions_for_sell_order_expiration(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     hp_list: List[Dict] = []
 #     strategy, hp_list = await simulate_bought_position(
 #         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
@@ -881,10 +963,14 @@ async def test_default_position_all_buy_orders_filled(
 #     )
 #     assert strategy.conditions_for_order_expiration()
 
-
+# @pytest.mark.database_integration
 # async def test_send_sell_orders_for_partially_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -913,10 +999,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -949,10 +1039,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_fill_orders_for_previously_partially_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1006,10 +1100,14 @@ async def test_default_position_all_buy_orders_filled(
 #         sell_price="4200",
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_sell_partially_partially_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1041,10 +1139,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_buy_partially_partially_sold_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1092,10 +1194,14 @@ async def test_default_position_all_buy_orders_filled(
 #         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_cancel_buy_to_part_sold_part_bought(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1246,10 +1352,14 @@ async def test_default_position_all_buy_orders_filled(
 
 #     logger.info("HP List after the update: %s", hp_list)
 
-
+# @pytest.mark.database_integration
 # async def test_buy_fully_partially_sold_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1363,10 +1473,14 @@ async def test_default_position_all_buy_orders_filled(
 #         sell_price="4200",
 #     )
 
-
+# @pytest.mark.database_integration
 # async def test_sell_fully_partially_bought_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
@@ -1504,10 +1618,14 @@ async def test_default_position_all_buy_orders_filled(
 
 #     assert strategy.ui_queue.qsize() == 0
 
-
+# @pytest.mark.database_integration
 # async def test_buy_fully_partially_bought_position_when_sold_position(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
 #     # Path 0: Default buy position
 #     hp_list: List[Dict] = []
 #     strategy: HpStrategy = get_default_buy_position(trading_system_factory)

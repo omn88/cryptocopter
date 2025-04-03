@@ -36,11 +36,11 @@ class HPSimulator:
         self.front = front
         self.back = back
 
-    def simulate_new_price(self, worker_queue: queue.Queue, price: float):
+    def simulate_new_price(self, price: float):
         ticker_event = Event(
             name=EventName.TICKER, content=TickerUpdate(last_price=price)
         )
-        worker_queue.put_nowait(ticker_event)
+        self.back.strategies["1000"].worker_queue.put_nowait(ticker_event)
         logger.info("Put event to the worker: %s", ticker_event)
 
     def simulate_buy_position(
@@ -92,7 +92,7 @@ class HPSimulator:
             price_high=strategy.buy.data.config.price_high,
             number_of_orders=3,
         )
-        self.simulate_new_price(worker_queue=strategy.worker_queue, price=1410)
+        self.simulate_new_price(price=1410)
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -114,7 +114,7 @@ class HPSimulator:
         strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-        self.simulate_new_price(worker_queue=strategy.worker_queue, price=1428)
+        self.simulate_new_price(price=1428)
 
         await wait_for_condition(
             condition_func=lambda: all(
@@ -259,13 +259,18 @@ class HPSimulator:
         )
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        realized_quantity = str(strategy.buy.orders[0].realized_quantity + strategy.buy.orders[1].realized_quantity)
+        realized_quantity = str(
+            strategy.buy.orders[0].realized_quantity
+            + strategy.buy.orders[1].realized_quantity
+        )
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
             == realized_quantity
         )
 
-        logger.info("a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity)
+        logger.info(
+            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
+        )
 
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
@@ -310,7 +315,9 @@ class HPSimulator:
             condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
         )
 
-        realized_quantity = str(round(sum(order.realized_quantity for order in strategy.buy.orders), 2))
+        realized_quantity = str(
+            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
+        )
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]

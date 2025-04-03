@@ -22,6 +22,7 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    Order,
     Signal,
     SignalUpdate,
     State,
@@ -401,12 +402,8 @@ class HpStrategy:
         self.logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
 
-        self.buy.orders = self.buy.prepare_orders(config=self.buy.data.config)
-        self.buy.orders = await self.buy.open_position(
-            side=self.buy.data.state_info.side,
-            symbol_info=self.buy.data.config.symbol_info,
-            orders=self.buy.orders,
-        )
+        self.buy.orders = self.buy.prepare_orders()
+        self.buy.orders = await self.buy.open_position()
         self.state = State.BUYING
         self.buy.data.state_info.state = State.NEW
 
@@ -562,11 +559,7 @@ class HpStrategy:
         self.balance -= self.get_remaining_quantity_buy()
         self.buy.data.state_info.stagnation_counter = 0
 
-        await self.buy.open_position(
-            side=self.buy.data.state_info.side,
-            symbol_info=self.buy.data.config.symbol_info,
-            orders=self.buy.orders,
-        )
+        await self.buy.open_position()
         self.state = State.BUYING
         self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
         self.buy.data.state_info.completeness = round(
