@@ -23,6 +23,7 @@ from src.identifiers.spot import (
 )
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
+from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import (
     assert_default_buy_position_data,
     buy_fully_last_order,
@@ -158,6 +159,10 @@ async def test_cancel_default_position_untouched_then_resend_orders(
     )
 
     # Path 1: Resend buy orders
+
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
 
     strategy, hp_list = await move_to_buy_position_active(
         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
@@ -484,6 +489,10 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
     # Reopen position
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
+
     strategy = await resend_part_bought_first_order_filled_partially(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -517,6 +526,10 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
     # Resend buy orders after 1st order was filled
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
+
     strategy, hp_list = await resend_part_bought_first_order_filled(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -642,6 +655,8 @@ async def test_resend_unfilled_sell_orders(
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032
     strategy.ticker_update = TickerUpdate(last_price=4032.0)
     assert strategy.conditions_for_sending_sell_orders()
+
+    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
@@ -1125,6 +1140,7 @@ async def test_buy_partially_partially_sold_position(
     )
 
     # Reopen Buy position
+
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )

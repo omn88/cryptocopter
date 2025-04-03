@@ -202,10 +202,7 @@ def trading_system_factory(mock_AsyncClient):
         )
         hp_config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy.orders = strategy.buy.prepare_orders()
-        strategy.client.create_order.side_effect = get_new_orders(
-            price_low=hp_config.price_low,
-            price_high=hp_config.price_high,
-        )
+        strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
         hp_gui_data_buy = HPGuiDataBuy(
             data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
             hp_update=HPUpdate(

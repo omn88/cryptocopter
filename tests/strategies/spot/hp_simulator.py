@@ -88,9 +88,7 @@ class HPSimulator:
         # Open position and send orders
         strategy = self.back.strategies["1000"]
         strategy.client.create_order.side_effect = get_new_orders(
-            price_low=strategy.buy.data.config.price_low,
-            price_high=strategy.buy.data.config.price_high,
-            number_of_orders=3,
+            orders=strategy.buy.orders
         )
         self.simulate_new_price(price=1410)
 

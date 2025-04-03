@@ -45,9 +45,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     # Open position and send orders
     strategy = back.strategies["1000"]
     strategy.client.create_order.side_effect = get_new_orders(
-        price_low=strategy.buy.data.config.price_low,
-        price_high=strategy.buy.data.config.price_high,
-        number_of_orders=3,
+        orders=strategy.buy.orders
     )
     sim.simulate_new_price(price=1410)
 
@@ -431,8 +429,12 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     await wait_for_condition(
         lambda: strategy.buy.orders[0].status == ORDER_STATUS_CANCELED
     )
-    assert strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
-    assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+    await wait_for_condition(
+        lambda: strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
+    )
+    await wait_for_condition(
+        lambda: strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+    )
 
     assert strategy.buy.orders[0].realized_quantity == 0.12
     assert strategy.buy.orders[1].realized_quantity == 0.0
@@ -461,14 +463,12 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     logger.info("HP List after the update: %s", front.hp_list_data)
 
     # Reopen position
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
     sim.simulate_new_price(price=1414)
 
-    logger.info("orders before wait: %s", strategy.buy.orders)
-    await asyncio.sleep(1)
-    # await wait_for_condition(
-    #     lambda: strategy.buy.orders[0].status == ORDER_STATUS_NEW
-    # )
-    logger.info("orders after wait: %s", strategy.buy.orders)
+    await wait_for_condition(lambda: strategy.buy.orders[0].status == ORDER_STATUS_NEW)
     assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
     assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
@@ -484,38 +484,94 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
 
-# @pytest.mark.database_integration
-# async def test_default_position_first_order_filled_then_cancel_then_resend(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     # Path 0: Default buy position
-#     sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
-#     await sim.assert_default_buy_position()
+@pytest.mark.database_integration
+async def test_default_position_first_order_filled_then_cancel_then_resend(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     # Path 1: Send buy orders
+    assert len(back.strategies) == 0
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Get default buy position
+    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     # Simulate full order fill
-#     strategy, hp_list = await simulate_first_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
-#     )
+    await sim.move_to_position_active_buy()
 
-#     # Cancel partially bought position
-#     strategy = await cancel_partially_bought_position_first_order_filled(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Simulate first buy order fill
+    strategy = await sim.simulate_first_buy_order_fill()
 
-#     # Resend buy orders after 1st order was filled
-#     strategy, hp_list = await resend_part_bought_first_order_filled(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Cancel partially bought position
+    strategy.buy.data.state_info.stagnation_counter = (
+        strategy.buy.data.state_info.stagnation_limit
+    )
+
+    assert strategy.buy.data.state_info.next_monitor_time
+
+    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    sim.simulate_new_price(price=1428.0)
+
+    assert len(strategy.buy.orders) == 3
+
+    assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+
+    await wait_for_condition(
+        condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
+    )
+    assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+
+    assert strategy.buy.orders[0].realized_quantity == 0.24
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.24"
+    assert item["quantity_usdt"] == "336.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "PARTIALLY_BOUGHT"
+
+    logger.info("HP List after the update: %s", front.hp_list_data)
+
+    # Reopen position
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
+
+    # Price trigger is now related to the middle order as the top order is already filled.
+    sim.simulate_new_price(price=1212)
+
+    assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+    await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
+    assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+    assert strategy.buy.orders[0].realized_quantity == 0.24
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.BUYING
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+    )
+
 
 # @pytest.mark.database_integration
 # async def test_send_sell_orders_for_bought_position(

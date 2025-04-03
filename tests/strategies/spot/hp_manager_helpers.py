@@ -159,8 +159,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     buy_cfg = strategy.buy.data.config
     assert isinstance(buy_cfg, HPBuyConfig)
     strategy.client.create_order.side_effect = get_new_orders(
-        price_low=buy_cfg.price_low,
-        price_high=buy_cfg.price_high,
+        orders=strategy.buy.orders
     )
     assert buy_cfg.hp_id == "1000"
     assert buy_cfg.price_low == 1000
@@ -1356,6 +1355,10 @@ async def send_sell_orders_for_partially_bought_position(
         sell_realized_quantity=sell_realized_quantity,
     )
 
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.sell.orders
+    )
+
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200
     assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
@@ -1709,6 +1712,8 @@ async def send_sell_orders_for_bought_position(
         sell_realized_quantity=sell_realized_quantity,
     )
 
+    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
+
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200.0
     assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
@@ -1937,6 +1942,8 @@ async def simulate_first_sell_order_fill(strategy: HpStrategy) -> HpStrategy:
 async def simulate_partial_fill_sell(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
+    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
+
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
