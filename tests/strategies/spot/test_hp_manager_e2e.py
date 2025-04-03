@@ -314,118 +314,28 @@ async def test_default_position_first_order_filled(
     strategy = await sim.simulate_first_buy_order_fill()
 
 
-# async def test_default_position_all_buy_orders_filled(
-#     trading_system_factory, hp_gui: HpFront
-# ) -> None:
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+@pytest.mark.database_integration
+async def test_default_position_all_buy_orders_filled(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert len(back.strategies) == 0
 
-#     # Path 1: Send buy orders
+    # Get default buy position
+    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.move_to_position_active_buy()
 
-#     # Simulate full order fill
-#     strategy, hp_list = await simulate_first_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
-#     )
+    # Simulate first order fill
+    strategy = await sim.simulate_first_buy_order_fill()
 
-#     strategy, hp_list = await simulate_second_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
-#     )
-#     strategy, hp_list = await simulate_third_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
-#     )
-
-
-# async def test_conditions_for_new_buy_order_confirmation(
-#     hp_gui: HpFront, trading_system_factory
-# ) -> None:
-#     """
-#     Path 1
-#     """
-
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
-
-#     # Path 1: Send buy orders
-
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
-
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_NEW,
-#         symbol=strategy.buy.data.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_new_order_confirmation()
-
-
-# async def test_conditions_for_buy_order_cancellation(
-#     hp_gui: HpFront, trading_system_factory
-# ) -> None:
-#     """
-#     Path 1
-#     """
-
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
-
-#     # Path 1: Send buy orders
-
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
-
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_CANCELED,
-#         symbol=strategy.buy.data.config.symbol_info.symbol,
-#     )
-#     assert strategy.conditions_for_order_cancellation()
-
-
-# async def test_conditions_for_buy_order_expiration(
-#     hp_gui: HpFront, trading_system_factory
-# ) -> None:
-#     """
-#     Path 1
-#     """
-
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
-
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
-
-#     # Path 1: Send buy orders
-
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT, current_order_status=ORDER_STATUS_EXPIRED
-#     )
-#     assert strategy.conditions_for_order_expiration()
+    strategy = await sim.simulate_second_buy_order_fill()
+    strategy = await sim.simulate_third_buy_order_fill()
 
 
 # async def test_stagnation_counter_increase_buy(

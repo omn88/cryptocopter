@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import queue
 from binance.enums import (
@@ -258,10 +259,13 @@ class HPSimulator:
         )
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
+        realized_quantity = str(strategy.buy.orders[0].realized_quantity + strategy.buy.orders[1].realized_quantity)
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            == realized_quantity
         )
+
+        logger.info("a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity)
 
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
@@ -306,9 +310,11 @@ class HPSimulator:
             condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
         )
 
+        realized_quantity = str(round(sum(order.realized_quantity for order in strategy.buy.orders), 2))
+
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            == realized_quantity
         )
 
         assert len(self.front.hp_list_data) == 1
@@ -323,7 +329,7 @@ class HPSimulator:
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "BUYING"
+        assert item["state"] == "BOUGHT"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 

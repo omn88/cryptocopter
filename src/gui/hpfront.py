@@ -791,7 +791,7 @@ class HpFront(BoxLayout):
                 self.active_filter_sell = symbol_filter
                 self.filtered_active_records_sell = [
                     record
-                    for record in self.active_records
+                    for record in self.active_records_sell
                     if side == record["side"]
                     and (symbol_filter == "All" or record["symbol"] == symbol_filter)
                 ]
@@ -799,7 +799,7 @@ class HpFront(BoxLayout):
                 self.idle_filter_sell = symbol_filter
                 self.filtered_idle_records_sell = [
                     record
-                    for record in self.idle_records
+                    for record in self.idle_records_sell
                     if side == record["side"]
                     and (symbol_filter == "All" or record["symbol"] == symbol_filter)
                 ]
@@ -807,7 +807,7 @@ class HpFront(BoxLayout):
                 self.archive_filter_sell = symbol_filter
                 self.filtered_archive_records_sell = [
                     record
-                    for record in self.archive_records
+                    for record in self.archive_records_sell
                     if side == record["side"]
                     and (symbol_filter == "All" or record["symbol"] == symbol_filter)
                 ]
