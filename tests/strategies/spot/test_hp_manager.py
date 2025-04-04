@@ -738,7 +738,7 @@ async def test_sell_position_first_order_filled(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.85,
         last_executed_price=4200.0,
         cumulative_filled_quantity=0.85,
@@ -1052,14 +1052,14 @@ async def test_fill_orders_for_previously_partially_bought_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445864,
+        order_id=445861,
         sell_price="4200",
     )
     strategy, hp_list = await simulate_third_buy_order_fill(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445865,
+        order_id=445862,
         sell_price="4200",
     )
 
@@ -1140,7 +1140,7 @@ async def test_buy_partially_partially_sold_position(
     )
 
     # Reopen Buy position
-
+    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -1185,7 +1185,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1242,6 +1242,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     # Reopen Buy position
+    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -1339,7 +1340,7 @@ async def test_buy_fully_partially_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1396,10 +1397,12 @@ async def test_buy_fully_partially_sold_position(
     )
 
     # Reopen Buy position
+    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
     strategy, hp_list = await reopen_buy_part_bought_part_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
+    logger.info("Some orders..........................: %s", strategy.buy.orders)
     (
         strategy,
         hp_list,
@@ -1407,7 +1410,7 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445864,
+        order_id=445861,
         sell_price="4200",
     )
     (
@@ -1417,7 +1420,7 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445865,
+        order_id=445862,
         sell_price="4200",
     )
 
@@ -1456,7 +1459,7 @@ async def test_sell_fully_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,
@@ -1598,7 +1601,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,
@@ -1705,6 +1708,10 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert strategy.ui_queue.qsize() == 0
 
     # Reopen Buy position
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
+
     strategy, hp_list = await reopen_buy_part_bought_sold(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
@@ -1716,7 +1723,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445864,
+        order_id=445861,
         sell_price="4200",
     )
     (
@@ -1726,6 +1733,6 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445865,
+        order_id=445862,
         sell_price="4200",
     )

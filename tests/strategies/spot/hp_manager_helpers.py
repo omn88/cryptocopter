@@ -1024,6 +1024,8 @@ async def resend_part_bought_first_order_filled_with_sell_price(
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
     strategy.ticker_update = TickerUpdate(last_price=1212)
+    strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
+
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
@@ -1087,7 +1089,7 @@ async def simulate_second_buy_order_partial_fill(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445864,
+        order_id=445861,
         last_executed_quantity=0.14,
         last_executed_price=1200,
         cumulative_filled_quantity=0.14,
@@ -1431,7 +1433,7 @@ async def sell_partially_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1613,6 +1615,8 @@ async def simulate_resend_sell_position(
     strategy.ticker_update = TickerUpdate(last_price=4032.0)
     assert not strategy.conditions_for_sending_sell_orders()
     assert strategy.conditions_for_resending_partially_sold_orders()
+
+    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
@@ -1942,12 +1946,10 @@ async def simulate_first_sell_order_fill(strategy: HpStrategy) -> HpStrategy:
 async def simulate_partial_fill_sell(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
-
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445863,
+        order_id=5617834,
         last_executed_quantity=0.425,
         last_executed_price=4200,
         cumulative_filled_quantity=0.425,
