@@ -1,6 +1,4 @@
-import asyncio
 import logging
-import queue
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
@@ -10,7 +8,6 @@ from binance.enums import (
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.gui.identifiers.spot import HPGuiDataBuy
 from src.identifiers.common import Mode, PositionSide
 from src.identifiers.spot import (
     Event,
@@ -18,10 +15,11 @@ from src.identifiers.spot import (
     ExecutionReport,
     HPBuyConfig,
     HPBuyData,
+    HPSellConfig,
+    HPSellData,
     State,
     StateInfo,
     TickerUpdate,
-    UiState,
 )
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
@@ -36,7 +34,7 @@ class HPSimulator:
         self.front = front
         self.back = back
 
-    def simulate_new_price(self, price: float):
+    def new_price(self, price: float):
         ticker_event = Event(
             name=EventName.TICKER, content=TickerUpdate(last_price=price)
         )
@@ -45,7 +43,6 @@ class HPSimulator:
 
     def simulate_buy_position(
         self,
-        config_queue: queue.Queue,
         symbol: str,
         mode: Mode = Mode.DCA,
         budget: float = 1000,
@@ -66,7 +63,7 @@ class HPSimulator:
             state_info=StateInfo(),
         )
 
-        config_queue.put_nowait(hp)
+        self.front.config_queue.put_nowait(hp)
         logger.info("HP Buy Data added to the queue: %s", hp)
 
     async def assert_default_buy_position(self):
@@ -90,7 +87,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             orders=strategy.buy.orders
         )
-        self.simulate_new_price(price=1410)
+        self.new_price(price=1410)
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -112,7 +109,7 @@ class HPSimulator:
         strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-        self.simulate_new_price(price=1428)
+        self.new_price(price=1428)
 
         await wait_for_condition(
             condition_func=lambda: all(
@@ -339,3 +336,40 @@ class HPSimulator:
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
+
+    async def simulate_bought_position(self):
+        # Get default buy position
+        self.simulate_buy_position(symbol="BTCUSDC")
+        await self.assert_default_buy_position()
+
+        await self.move_to_position_active_buy()
+
+        # Simulate first order fill
+        await self.simulate_first_buy_order_fill()
+        await self.simulate_second_buy_order_fill()
+        await self.simulate_third_buy_order_fill()
+
+    def setup_sell_position(
+        self,
+        hp_id: str,
+        symbol: str,
+        quantity: float,
+        buy_price: float,
+        sell_price: float,
+        end_currency: str,
+        asset: str,
+    ):
+        sell_config = HPSellData(
+            config=HPSellConfig(
+                hp_id=hp_id,
+                asset=asset,
+                buy_price=buy_price,
+                sell_price=sell_price,
+                quantity=quantity,
+                end_currency=end_currency,
+                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.front.config_queue.put_nowait(sell_config)
+        logger.info("Sell config added to the queue: %s", sell_config.config)

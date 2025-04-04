@@ -36,7 +36,7 @@ logger = logging.getLogger("hp_helpers")
 
 
 async def wait_for_condition(
-    condition_func, timeout: float = 3.0, interval: float = 0.05
+    condition_func, timeout: float = 1.0, interval: float = 0.05
 ):
     """
     Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.

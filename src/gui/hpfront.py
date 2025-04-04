@@ -554,7 +554,7 @@ class HpFront(BoxLayout):
                 position["state"] = str(data.state_info.ui_state)
                 logger.info("Data state: %s", data.state_info.ui_state)
                 if data.state_info.ui_state == UiState.OPEN:
-                    self.idle_records_buy.remove(position)
+                    self.idle_records_sell.remove(position)
                     active_position = ActivePositionSell(
                         open_time=data.state_info.open_time,
                         hp_id=str(data.config.hp_id),

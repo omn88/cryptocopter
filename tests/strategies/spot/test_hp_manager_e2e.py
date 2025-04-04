@@ -25,7 +25,7 @@ async def test_get_default_buy_position(frontend_backend_setup):
     assert isinstance(back, StrategyExecutor)
     assert len(back.strategies) == 0
 
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
 
@@ -39,7 +39,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     # Open position and send orders
@@ -47,7 +47,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     strategy.client.create_order.side_effect = get_new_orders(
         orders=strategy.buy.orders
     )
-    sim.simulate_new_price(price=1410)
+    sim.new_price(price=1410)
 
     # Assert new opened position data
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -72,7 +72,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -84,7 +84,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428)
+    sim.new_price(price=1428)
 
     await wait_for_condition(
         condition_func=lambda: all(
@@ -127,7 +127,7 @@ async def test_cancel_default_position_untouched_then_resend_orders(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -151,7 +151,7 @@ async def test_default_position_first_order_filled_then_cancel(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -167,7 +167,7 @@ async def test_default_position_first_order_filled_then_cancel(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0)
+    sim.new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -218,7 +218,7 @@ async def test_default_position_first_order_filled_partially(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -240,7 +240,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -256,7 +256,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0)
+    sim.new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -305,7 +305,7 @@ async def test_default_position_first_order_filled(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -325,17 +325,7 @@ async def test_default_position_all_buy_orders_filled(
 
     assert len(back.strategies) == 0
 
-    # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    await sim.move_to_position_active_buy()
-
-    # Simulate first order fill
-    strategy = await sim.simulate_first_buy_order_fill()
-
-    strategy = await sim.simulate_second_buy_order_fill()
-    strategy = await sim.simulate_third_buy_order_fill()
+    await sim.simulate_bought_position()
 
 
 @pytest.mark.database_integration
@@ -347,7 +337,7 @@ async def test_stagnation_counter_increase_buy(
     assert isinstance(back, StrategyExecutor)
     sim = HPSimulator(front=front, back=back)
 
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     # Path 1: Send buy orders
@@ -406,7 +396,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     sim = HPSimulator(front=front, back=back)
 
     # Path 0: Default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     # Path 1: Send buy orders
@@ -422,7 +412,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0)
+    sim.new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -466,7 +456,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     strategy.client.create_order.side_effect = get_new_orders(
         orders=strategy.buy.orders
     )
-    sim.simulate_new_price(price=1414)
+    sim.new_price(price=1414)
 
     await wait_for_condition(lambda: strategy.buy.orders[0].status == ORDER_STATUS_NEW)
     assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
@@ -496,7 +486,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     assert len(back.strategies) == 0
 
     # Get default buy position
-    sim.simulate_buy_position(config_queue=front.config_queue, symbol="BTCUSDC")
+    sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
     await sim.move_to_position_active_buy()
@@ -512,7 +502,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    sim.simulate_new_price(price=1428.0)
+    sim.new_price(price=1428.0)
 
     assert len(strategy.buy.orders) == 3
 
@@ -555,7 +545,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
     # Price trigger is now related to the middle order as the top order is already filled.
-    sim.simulate_new_price(price=1212)
+    sim.new_price(price=1212)
 
     assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
     await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
@@ -573,23 +563,121 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
 
-# @pytest.mark.database_integration
-# async def test_send_sell_orders_for_bought_position(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     hp_list: List[Dict] = []
-#     strategy, hp_list = await simulate_bought_position(
-#         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
-#     )
-#     assert isinstance(strategy, HpStrategy)
+@pytest.mark.database_integration
+async def test_setup_sell_position_for_bought_position(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
 
-#     strategy, hp_list = await send_sell_orders_for_bought_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usdt"] == "1002.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BOUGHT"
+
+
+@pytest.mark.database_integration
+async def test_send_sell_orders_for_bought_position(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
+
+    sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usdt"] == "1002.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BOUGHT"
+
+    strategy = back.strategies["1000"]
+    strategy.client.create_order.side_effect = get_new_orders(strategy.sell.orders)
+    sim.new_price(price=4156)
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "SELLING"
+    )
+
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usdt"] == "1002.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
+
+    await wait_for_condition(
+        condition_func=lambda: strategy.sell.orders[0].status == ORDER_STATUS_NEW
+    )
+    assert strategy.sell.orders[0].quantity == 0.85
+    assert strategy.sell.orders[0].realized_quantity == 0.0
+
+    active_sell_item = front.active_records_sell[0]
+
+    assert active_sell_item["hp_id"] == "1000"
+    assert active_sell_item["symbol"] == "BTCUSDC"
+    assert active_sell_item["buy_price"] == "1178.82"
+    assert active_sell_item["quantity"] == "0.85"
+    assert active_sell_item["end_currency"] == "USDC"
+    assert (
+        active_sell_item["sell_price"] == "4200.0"
+    ), f"Item sell price: {item['sell_price']}"
+    assert active_sell_item["stagnation"] == "0/8"
+    assert active_sell_item["side"] == "SELL"
+    assert active_sell_item["completeness"] == "0.0"
+
 
 # @pytest.mark.database_integration
 # async def test_sell_orders_stagnation_increase(

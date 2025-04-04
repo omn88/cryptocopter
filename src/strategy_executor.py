@@ -201,15 +201,18 @@ class StrategyExecutor:
             )
         )
 
-    def send_sell_position_to_ui(self, config: HPSellConfig, state_info: StateInfo):
+    def send_sell_position_to_ui(
+        self, config: HPSellConfig, state_info: StateInfo, state: State
+    ):
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     buy_price=config.buy_price,
+                    sell_price=config.sell_price,
                     asset=config.symbol_info.symbol[:-4],
-                    state=State.NEW,
+                    state=state,
                 ),
             )
         )
@@ -238,11 +241,12 @@ class StrategyExecutor:
             strategy.sell.data.state_info.ui_state = UiState.CLOSED
 
         self.db.upsert_sell_price_level(data=strategy.sell.data)
-
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
             state_info=strategy.sell.data.state_info,
+            state=strategy.state,
         )
+        logger.debug("Sell position setup exit")
 
     async def setup_sell_position_with_new_hp(self, strategy_data: HPSellData) -> None:
         self.logger.info(
@@ -286,6 +290,7 @@ class StrategyExecutor:
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
             state_info=strategy.sell.data.state_info,
+            state=strategy.state,
         )
 
         self.broker.subscribe(
@@ -417,6 +422,7 @@ class StrategyExecutor:
             self.send_sell_position_to_ui(
                 config=strategy.sell.data.config,
                 state_info=strategy.sell.data.state_info,
+                state=strategy.state,
             )
             self.db.upsert_sell_price_level(data=sell.data)
 

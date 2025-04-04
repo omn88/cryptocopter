@@ -61,9 +61,13 @@ CREATE TABLE IF NOT EXISTS sell_price_levels (
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
+    buy_price FLOAT NOT NULL,
     sell_price FLOAT NOT NULL,
     quantity FLOAT NOT NULL,
     state VARCHAR(20) NOT NULL,
+    end_currency VARCHAR(20) NOT NULL,
+    stagnation_counter INT NOT NULL DEFAULT 0,
+    next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -417,7 +421,6 @@ class Database:
                         (config.hp_id,),
                     )
                     existing_record = await cur.fetchone()
-
                     # If no such record exists, proceed with the update and insert
                     if existing_record:
                         # Mark the current record as not current
@@ -425,7 +428,6 @@ class Database:
                             "UPDATE sell_price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
                             (config.hp_id,),
                         )
-
                     # Insert a new record with the updated values
                     version_timestamp = datetime.datetime.now().isoformat()
                     insert_query = """
