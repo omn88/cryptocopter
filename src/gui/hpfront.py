@@ -296,13 +296,6 @@ class HpFront(BoxLayout):
                         hp["quantity_usdt"],
                     )
 
-                    # Check if state is CLOSED and quantity is 0, then remove it by index
-                    # if (
-                    #     hp["state"] == State.CLOSED.value
-                    #     and float(hp["quantity"]) == 0.0
-                    # ):
-                    #     logger.info("State closed, removing item with index %s", index)
-                    #     hp_list.pop(index)
                     break  # Exit the loop once the correct item is found and processed
 
         # Find the updated record and send it to the DB
