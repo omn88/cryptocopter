@@ -1,7 +1,7 @@
 <PortfolioUI>:
     orientation: 'vertical'
 
-    # Sizing for the labels at the top (USDT and BTC saldo)
+    # Sizing for the labels at the top (USD and BTC saldo)
     BoxLayout:
         orientation: 'horizontal'
         size_hint_y: 0.1
@@ -9,11 +9,11 @@
         spacing: 20
 
         Label:
-            text: 'Saldo in USDT:'
+            text: 'Saldo in USD:'
             size_hint_x: 0.2
         Label:
-            id: saldo_usdt_label
-            text: '0.00 USDT'
+            id: saldo_usd_label
+            text: '0.00 USD'
             font_size: '18sp'
             size_hint_x: 0.4
 
@@ -42,11 +42,11 @@
             bold: True
             size_hint_x: 0.2
         Label:
-            text: 'Price in USDT'
+            text: 'Price in USD'
             bold: True
             size_hint_x: 0.2
         Label:
-            text: 'Total in USDT'
+            text: 'Total in USD'
             bold: True
             size_hint_x: 0.25
 

@@ -2,8 +2,9 @@ import asyncio
 import logging
 import queue
 import threading
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
+from src.common.symbol_info import SymbolInfo
 from src.identifiers.common import BinanceClient
 from src.identifiers.spot import (
     AccountPosition,
@@ -17,6 +18,7 @@ from src.identifiers.spot import (
     SubscriptionType,
 )
 from src.broker import BrokerSpot
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 # Specify the path to the .env file
 DOTENV_FILE = "config/.env"
@@ -27,7 +29,12 @@ logger = logging.getLogger("portfolio")
 
 class PortfolioManager:
     def __init__(
-        self, broker: BrokerSpot, ui_queue: queue.Queue, balances: Dict[str, float]
+        self,
+        broker: BrokerSpot,
+        ui_queue: queue.Queue,
+        balances: Dict[str, float],
+        symbols_info: Dict[str, SymbolInfo],
+        price_resolver: UsdPriceResolver,
     ):
         self.client: Optional[BinanceClient] = None
         self.broker = broker
@@ -37,6 +44,8 @@ class PortfolioManager:
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
         self.usdt_saldo = 0.0
+        self.price_resolver = price_resolver
+        self.symbols_info = symbols_info
 
         # Starting the async loop
         self.loop = asyncio.new_event_loop()
@@ -132,10 +141,18 @@ class PortfolioManager:
             symbol = ticker.get("s")
             assert symbol
             price = float(ticker.get("c", 0))
-            base_asset, quote_asset = symbol[:-4], symbol[-4:]
+            # Update price map
+            self.price_resolver.update_price(symbol, price)
 
-            if base_asset in self.balances and quote_asset == "USDT":
-                self.price_updates[base_asset] = price
+        # Calculate USD-equivalent prices for known balances
+        for asset in self.balances:
+            try:
+                usd_price = self.price_resolver.resolve_usd(asset)
+                # logger.info("Asset: %s, price: %s", asset, usd_price)
+                self.price_updates[asset] = usd_price
+            except ValueError:
+                logger.info("Errror to find price for asset: %s", asset)
+
         self.ui_queue.put(
             Event(
                 name=EventName.PRICE_UPDATES,
@@ -144,22 +161,38 @@ class PortfolioManager:
         )
 
 
-async def fetch_initial_balances(client: BinanceClient) -> Dict[str, float]:
-    """Fetch the initial balances from the exchange on startup."""
+async def fetch_initial_balances(
+    client: BinanceClient, resolver: UsdPriceResolver
+) -> Dict[str, float]:
+    """Fetch the initial balances from the exchange on startup and filter by value in USD."""
     logger.info("Fetching initial balances from the exchange.")
     balances = {}
-    # Fetch account info using the Binance API
-    account_info = await client.get_account()  # Fetch all balances
+    account_info = await client.get_account()
 
-    # Iterate through balances and store them
     for balance_info in account_info["balances"]:
         asset = balance_info["asset"]
         free = float(balance_info["free"])
         locked = float(balance_info["locked"])
         total_balance = free + locked
 
-        if total_balance > 0:  # Only store assets with a non-zero balance
-            balances[asset] = total_balance
+        if total_balance <= 0:
+            continue
+
+        logger.info("Coin with balance bigger than zero: %s - %s", asset, total_balance)
+
+        try:
+            price_in_usd = resolver.resolve_usd(asset)
+            logger.info("Coin: %s price in usd: %s", asset, price_in_usd)
+
+            total_value = price_in_usd * total_balance
+
+            if total_value >= 1.0:  # Only include balances >= $1 USD
+                balances[asset] = total_balance
+            else:
+                logger.info("Skipping asset %s: only worth $%.2f", asset, total_value)
+
+        except ValueError:
+            logger.warning("Skipping asset %s: no USD price available", asset)
 
     logger.info("Initial balances fetched: %s", balances)
     return balances
