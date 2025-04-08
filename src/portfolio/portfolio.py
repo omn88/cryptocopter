@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
 from src.identifiers.common import BinanceClient
@@ -148,11 +148,13 @@ class PortfolioManager:
         for asset in self.balances:
             try:
                 usd_price = self.price_resolver.resolve_usd(asset)
-                # logger.info("Asset: %s, price: %s", asset, usd_price)
                 self.price_updates[asset] = usd_price
+
             except ValueError:
                 logger.info("Errror to find price for asset: %s", asset)
-
+        if "BTC" not in self.balances:
+            usd_price = self.price_resolver.resolve_usd("BTC")
+            self.price_updates["BTC"] = usd_price
         self.ui_queue.put(
             Event(
                 name=EventName.PRICE_UPDATES,

@@ -97,6 +97,9 @@ class PortfolioUI(BoxLayout):
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
         last_btc_price = price_updates.msg.get("BTC")
+        logger.info(
+            "Price updates....................................: %s", price_updates
+        )
         # Iterate through the coin_list_data and update only coins that are in price_updates
         for coin in self.coin_list_data:
             symbol = coin["symbol"]
@@ -112,6 +115,8 @@ class PortfolioUI(BoxLayout):
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)
 
+                logger.info("New price for %s: %s", symbol, price)
+
         # Sort the filtered list by 'total_usd' in descending order (highest to lowest)
         sorted_coin_list = sorted(
             [coin for coin in self.coin_list_data],
@@ -126,6 +131,12 @@ class PortfolioUI(BoxLayout):
         )
         if last_btc_price:
             self.saldo_btc_label = round(self.saldo_usd_label / last_btc_price, 8)
+
+            logger.info(
+                "Last btc price:............................%s, saldo btc label: %s",
+                last_btc_price,
+                self.saldo_btc_label,
+            )
 
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
@@ -144,7 +155,6 @@ class PortfolioUI(BoxLayout):
             found = False
             for coin in self.coin_list_data:
                 if coin["symbol"] == symbol:
-                    # Update the quantity (balances) if found
                     coin["quantity"] = str(round(total_balance, 2))
                     found = True
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
