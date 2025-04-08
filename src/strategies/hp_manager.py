@@ -18,9 +18,11 @@ from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
-    HPConfig,
-    HpClose,
-    HpPositionData,
+    HPBuyConfig,
+    HPBuyData,
+    HPSellConfig,
+    HPSellData,
+    Order,
     Signal,
     SignalUpdate,
     State,
@@ -32,16 +34,18 @@ from src.identifiers.common import (
     BinanceClient,
     PositionSide,
 )
-from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.position_handler import PositionHandler
+from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.position_buy import HPPositionBuy
+from src.position_sell import HPPositionSell
+
+# pylint: disable=unused-argument
 
 
 class HpStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        buy_config: HPConfig,
-        state_info: StateInfo,
+        buy_data: HPBuyData,
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
@@ -56,27 +60,33 @@ class HpStrategy:
         self.stop_event: asyncio.Event = asyncio.Event()
         self.worker_queue = worker_queue
         self.config_queue = config_queue
-        self.buy = PositionHandler(
+        self.ui_queue = ui_queue
+        self.buy = HPPositionBuy(
             client=client,
             strategy_logger=logger,
-            config=buy_config,
-            ui_queue=ui_queue,
+            data=buy_data,
             db=db,
-            state_info=state_info,
         )
-        self.sell: PositionHandler = PositionHandler(
+        self.sell: HPPositionSell = HPPositionSell(
             client=client,
             strategy_logger=logger,
-            config=HPConfig(
-                symbol_info=self.buy.config.symbol_info,
-                hp_id=self.buy.config.hp_id,
+            data=HPSellData(
+                config=HPSellConfig(
+                    hp_id=self.buy.data.config.hp_id,
+                    symbol_info=self.buy.data.config.symbol_info,
+                ),
+                state_info=StateInfo(side=PositionSide.SHORT),
             ),
-            ui_queue=ui_queue,
             db=db,
-            state_info=StateInfo(side=PositionSide.SHORT),
         )
-        self.state = State.NEW
 
+        # Initialize any other common attributes
+        self.signal_update: SignalUpdate = SignalUpdate()
+        self.execution_report: ExecutionReport = ExecutionReport()
+        self.ticker_update: TickerUpdate = TickerUpdate()
+        self.account_position: AccountPosition = AccountPosition()
+
+        self.state = State.NEW
         self.states = [
             State.NEW,
             State.BUYING,
@@ -90,15 +100,7 @@ class HpStrategy:
             State.SOLD,
             State.CLOSED,
         ]
-
-        # Initialize any other common attributes
-        self.signal_update: SignalUpdate = SignalUpdate()
-        self.execution_report: ExecutionReport = ExecutionReport()
-        self.ticker_update: TickerUpdate = TickerUpdate()
-        self.account_position: AccountPosition = AccountPosition()
-
-        self.transitions = self.get_transitions()
-
+        self.transitions = self._get_transitions()
         self.state_machine = AsyncMachine(
             model=self,
             states=self.states,
@@ -107,8 +109,9 @@ class HpStrategy:
             send_event=True,
             queued=True,
         )
+        self.worker_active = False
 
-    def get_transitions(self):
+    def _get_transitions(self):
         return [
             {
                 # No 1
@@ -355,8 +358,8 @@ class HpStrategy:
             if order.status != ORDER_STATUS_FILLED:
                 price = max(price, order.price)
 
-        return self.buy.config.symbol_info.adjust_price(
-            price * (1 + (self.buy.config.order_trigger / 100))
+        return self.buy.data.config.symbol_info.adjust_price(
+            price * (1 + (self.buy.data.config.order_trigger / 100))
         )
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
@@ -368,7 +371,7 @@ class HpStrategy:
         self.logger.debug(
             "Remaining quantity: %s for %s",
             rem_quant,
-            self.buy.config.symbol_info.symbol,
+            self.buy.data.config.symbol_info.symbol,
         )
         return rem_quant
 
@@ -376,17 +379,18 @@ class HpStrategy:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
         condition = (
             self.state == State.NEW
-            and self.buy.state_info.state == State.NEW
+            and self.buy.data.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.config.budget
+            and self.balance > self.buy.data.config.budget
         )
         if condition:
             self.logger.info(
-                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.side,
+                "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
+                "price trigger: %s last price: %s",
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.side,
                 self.state,
-                self.buy.config.budget,
+                self.buy.data.config.budget,
                 self.balance,
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
@@ -395,95 +399,84 @@ class HpStrategy:
         return condition
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Sending %s BUY", self.buy.config.symbol_info.symbol)
+        self.logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
 
-        self.buy.orders = self.buy.prepare_buy_orders(config=self.buy.config)
-        self.buy.orders = await self.buy.create_orders(
-            side=self.buy.state_info.side,
-            symbol_info=self.buy.config.symbol_info,
-            orders=self.buy.orders,
-        )
+        self.buy.orders = self.buy.prepare_orders()
+        self.buy.orders = await self.buy.open_position()
         self.state = State.BUYING
-        self.buy.state_info.state = State.NEW
+        self.buy.data.state_info.state = State.NEW
 
-        self.buy.state_info.generate_next_monitor_time()
-        self.buy.state_info.completeness = round(
+        self.buy.data.state_info.generate_next_monitor_time()
+        self.buy.data.state_info.completeness = round(
             sum(order.realized_quantity for order in self.buy.orders)
             / sum(order.quantity for order in self.buy.orders),
             2,
         )
 
-        self.buy.state_info.ui_state = UiState.OPEN
+        self.buy.data.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Orders sent, updating DB: %s", self.buy.orders)
 
         for order in self.buy.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.buy.config,
-                    state_info=self.buy.state_info,
-                ),
+                hp_id=self.buy.data.config.hp_id,
+                side=self.buy.data.state_info.side,
             )
 
         self.logger.info(
             "Orders sent, updating DB with price level: %s",
-            self.buy.state_info,
+            self.buy.data.state_info,
         )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
-        pos_data = PositionData(
-            config=self.buy.config,
-            state_info=self.buy.state_info,
-            hp_update=HPUpdate(hp_id=self.buy.config.hp_id, state=self.state),
+        self.db.upsert_buy_price_level(data=self.buy.data)
+        pos_data = HPGuiDataBuy(
+            data=HPBuyData(
+                config=self.buy.data.config, state_info=self.buy.data.state_info
+            ),
+            hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
         )
         self.logger.info("Orders sent, GUI with position data: %s", pos_data)
-        self.buy.ui_queue.put_nowait(pos_data)
+        self.ui_queue.put_nowait(pos_data)
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.buy.state_info.state == State.NEW
-            and self.sell.state_info.state == State.NEW
+            self.buy.data.state_info.state == State.NEW
+            and self.sell.data.state_info.state == State.NEW
             and self.state == State.BUYING
-            and self.buy.state_info.stagnation_counter
-            >= self.buy.state_info.stagnation_limit
+            and self.buy.data.state_info.stagnation_counter
+            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
             and all(order.status == ORDER_STATUS_NEW for order in self.buy.orders)
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s, state: %s, buy state: %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.stagnation_counter,
-                self.buy.state_info.stagnation_limit,
+                "[Cancel Unfilled BUY] %s, stag: %s/%s, last price: %s, trig price: %s, state: %s, buy state: %s",
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.stagnation_counter,
+                self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
                 self.state,
-                self.buy.state_info.state,
+                self.buy.data.state_info.state,
             )
 
         return condition
 
     async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.buy.state_info.side.value)
+        self.logger.info("Cancelling %s", self.buy.data.state_info.side.value)
         self.logger.info("Orders: %s", self.buy.orders)
         self.balance += self.get_remaining_quantity_buy()
         await self.buy.cancel_position()
-        self.buy.state_info.state = State.NEW
+        self.buy.data.state_info.state = State.NEW
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
@@ -491,40 +484,47 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.NEW
-            and self.buy.state_info.stagnation_counter
-            >= self.buy.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.NEW
+            and self.buy.data.state_info.stagnation_counter
+            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.stagnation_counter,
-                self.buy.state_info.stagnation_limit,
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.stagnation_counter,
+                self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
 
+        self.logger.info(
+            "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+            self.buy.data.config.symbol_info.symbol,
+            self.buy.data.state_info.stagnation_counter,
+            self.buy.data.state_info.stagnation_limit,
+            self.ticker_update.last_price,
+            self.calculate_trigger_cancel_orders_price_buy(),
+        )
+
         return condition
 
     async def cancel_partially_bought_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.buy.state_info.side.value)
+        self.logger.info("Cancelling %s", self.buy.data.state_info.side.value)
         self.logger.info("Orders: %s", self.buy.orders)
-        self.buy.state_info.state = State.PARTIALLY_BOUGHT
+        self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
         self.balance += self.get_remaining_quantity_buy()
         await self.buy.cancel_position()
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
@@ -534,18 +534,19 @@ class HpStrategy:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
         condition = (
             self.state == State.PARTIALLY_BOUGHT
-            and self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.NEW
+            and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.config.budget
+            and self.balance > self.buy.data.config.budget
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.side,
+                "[Resend buy orders] %s, side: %s, state: %s, budget: %s, balance: %s"
+                "price trigger: %s last price: %s",
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.side,
                 self.state,
-                self.buy.config.budget,
+                self.buy.data.config.budget,
                 self.balance,
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
@@ -554,93 +555,87 @@ class HpStrategy:
         return condition
 
     async def resend_buy_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Resending %s BUY", self.buy.config.symbol_info.symbol)
+        self.logger.info("Resending %s BUY", self.buy.data.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
-        self.buy.state_info.stagnation_counter = 0
+        self.buy.data.state_info.stagnation_counter = 0
 
-        await self.buy.create_orders(
-            side=self.buy.state_info.side,
-            symbol_info=self.buy.config.symbol_info,
-            orders=self.buy.orders,
-        )
+        await self.buy.open_position()
         self.state = State.BUYING
-        self.buy.state_info.state = State.PARTIALLY_BOUGHT
-        self.buy.state_info.completeness = round(
+        self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+        self.buy.data.state_info.completeness = round(
             sum(order.realized_quantity for order in self.buy.orders)
             / sum(order.quantity for order in self.buy.orders),
             2,
         )
-        self.buy.state_info.ui_state = UiState.OPEN
+        self.buy.data.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Will update orders: %s", self.buy.orders)
 
         for order in self.buy.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.buy.config,
-                    state_info=self.buy.state_info,
-                ),
+                hp_id=self.buy.data.config.hp_id,
+                side=self.buy.data.state_info.side,
             )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.config.hp_id, state=self.state),
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
     def calculate_trigger_send_orders_price_sell(self):
-        return self.sell.config.symbol_info.adjust_price(
-            self.sell.config.price_low * (1 - (self.sell.config.order_trigger / 100))
+        return self.sell.data.config.symbol_info.adjust_price(
+            0.96 * self.sell.data.config.sell_price
         )
 
     def conditions_for_sending_sell_orders_for_partially_bought_position(
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.NEW
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.NEW
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
         )
         if condition:
             self.logger.info(
-                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
-                self.sell.config.hp_id,
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
-                self.sell.state_info.state,
-                self.sell.config.budget,
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
+                self.sell.data.config.hp_id,
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
+                self.sell.data.state_info.state,
             )
 
         return condition
 
     async def send_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Sending %s SELL", self.sell.config.symbol_info.symbol)
+        self.logger.info("Sending %s SELL", self.sell.data.config.symbol_info.symbol)
 
-        self.sell.orders = self.sell.prepare_sell_orders(
-            config=self.sell.config,
-            buy_orders=self.buy.orders,
-            sell_orders=self.sell.orders,
+        self.sell.orders = self.sell.prepare_orders(
+            config=self.sell.data.config,
+            buy_realized_quantity=sum(
+                order.realized_quantity for order in self.buy.orders
+            ),
+            sell_realized_quantity=sum(
+                order.realized_quantity for order in self.sell.orders
+            ),
         )
 
-        await self.sell.create_orders(
-            side=self.sell.state_info.side,
-            symbol_info=self.sell.config.symbol_info,
+        await self.sell.open_position(
+            side=self.sell.data.state_info.side,
+            symbol_info=self.sell.data.config.symbol_info,
             orders=self.sell.orders,
         )
         self.state = State.SELLING
 
-        self.sell.state_info.generate_next_monitor_time()
+        self.sell.data.state_info.generate_next_monitor_time()
 
-        self.sell.state_info.completeness = (
+        self.sell.data.state_info.completeness = (
             round(
                 sum(order.realized_quantity for order in self.sell.orders)
                 / sum(order.quantity for order in self.sell.orders),
@@ -650,96 +645,85 @@ class HpStrategy:
             else 0
         )
 
-        self.sell.state_info.ui_state = UiState.OPEN
+        self.sell.data.state_info.ui_state = UiState.OPEN
 
         for order in self.sell.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.buy.config,
-                    state_info=self.buy.state_info,
-                ),
+                side=self.sell.data.state_info.side,
+                hp_id=self.sell.data.config.hp_id,
             )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    sell_price=self.sell.config.price_high,
-                    state=self.state,
-                ),
-            )
+        gui_sell = HPGuiDataSell(
+            data=HPSellData(
+                config=self.sell.data.config, state_info=self.sell.data.state_info
+            ),
+            hp_update=HPUpdate(
+                hp_id=self.sell.data.config.hp_id,
+                state=self.state,
+                sell_price=self.sell.data.config.sell_price,
+            ),
         )
+        self.ui_queue.put_nowait(gui_sell)
+        self.logger.info("Put gui data sell to the ui queue: %s", gui_sell)
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.BUYING
-            and self.sell.state_info.state == State.NEW
+            and self.sell.data.state_info.state == State.NEW
             and all(order.status == ORDER_STATUS_FILLED for order in self.buy.orders)
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
         if condition:
             self.logger.info(
                 "[All orders filled] %s %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.side,
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.side,
             )
         return condition
 
     async def close_filled_position_buy(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
 
-        self.buy.state_info.state = State.BOUGHT
-        self.buy.state_info.completeness = round(
+        self.buy.data.state_info.state = State.BOUGHT
+        self.buy.data.state_info.completeness = round(
             sum(order.realized_quantity for order in self.buy.orders)
             / sum(order.quantity for order in self.buy.orders),
             2,
         )
-        self.buy.state_info.ui_state = UiState.CLOSED
+        self.buy.data.state_info.ui_state = UiState.CLOSED
 
         self.logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
     def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.NEW
-            and self.sell.state_info.stagnation_counter
-            >= self.sell.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.NEW
+            and self.sell.data.state_info.stagnation_counter
+            >= self.sell.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and all(order.status == ORDER_STATUS_NEW for order in self.sell.orders)
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -747,67 +731,54 @@ class HpStrategy:
         return condition
 
     async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.sell.state_info.side.value)
+        self.logger.info("Cancelling %s", self.sell.data.state_info.side.value)
         await self.sell.cancel_position()
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
+        assert isinstance(self.buy.data.config, HPBuyConfig)
+        assert isinstance(self.sell.data.config, HPSellConfig)
         condition = (
-            self.buy.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
-            and self.sell.state_info.state == State.NEW
-            and self.sell.config.price_low
+            self.buy.data.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
+            and self.sell.data.state_info.state == State.NEW
+            and self.sell.data.config.sell_price
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
         )
-        self.logger.info(
-            "[Send sell orders] hp id: %s, %s, side: %s, state: %s, condition: %s, buy state: %s, sell price: %s, last price: %s, calculated price: %s",
-            self.sell.config.hp_id,
-            self.sell.config.symbol_info.symbol,
-            self.sell.state_info.side,
-            self.sell.state_info.state,
-            condition,
-            self.buy.state_info.state,
-            self.sell.config.price_low,
-            self.ticker_update.last_price,
-            self.calculate_trigger_send_orders_price_sell(),
-        )
         if condition:
             self.logger.info(
-                "[Send sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
-                self.sell.config.hp_id,
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
-                self.sell.state_info.state,
-                self.sell.config.budget,
+                "[Send sell orders] hp id: %s, %s, side: %s, state: %s",
+                self.sell.data.config.hp_id,
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
+                self.sell.data.state_info.state,
             )
 
         return condition
 
     def conditions_for_cancelling_unfilled_sell_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.buy.state_info.state == State.BOUGHT
-            and self.sell.state_info.state == State.NEW
-            and self.sell.state_info.stagnation_counter
-            >= self.sell.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.BOUGHT
+            and self.sell.data.state_info.state == State.NEW
+            and self.sell.data.state_info.stagnation_counter
+            >= self.sell.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
         )
         if condition:
             self.logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trigger cancel price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -817,18 +788,16 @@ class HpStrategy:
     def conditions_for_resending_partially_sold_orders(self, *args, **kwargs) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_sell()
         condition = (
-            self.sell.state_info.state == State.PARTIALLY_SOLD
-            and self.buy.state_info.state == State.BOUGHT
+            self.sell.data.state_info.state == State.PARTIALLY_SOLD
+            and self.buy.data.state_info.state == State.BOUGHT
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.sell.config.budget
         )
         if condition:
             self.logger.info(
-                "[Resend sell orders] %s, side: %s, state: %s, budget: %s, balance: %s, price trigger: %s last price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
+                "[Resend sell] %s, side: %s, state: %s, balance: %s, price trig: %s last price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
                 self.state,
-                self.sell.config.budget,
                 self.balance,
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
@@ -839,15 +808,15 @@ class HpStrategy:
     async def resend_sell_orders(self, *args, **kwargs) -> None:
         self.logger.info("Sending %s SELL")
 
-        await self.sell.create_orders(
-            side=self.sell.state_info.side,
-            symbol_info=self.sell.config.symbol_info,
+        await self.sell.open_position(
+            side=self.sell.data.state_info.side,
+            symbol_info=self.sell.data.config.symbol_info,
             orders=self.sell.orders,
         )
         self.state = State.SELLING
-        self.sell.state_info.state = State.PARTIALLY_SOLD
-        self.sell.state_info.generate_next_monitor_time()
-        self.sell.state_info.completeness = (
+        self.sell.data.state_info.state = State.PARTIALLY_SOLD
+        self.sell.data.state_info.generate_next_monitor_time()
+        self.sell.data.state_info.completeness = (
             round(
                 sum(order.realized_quantity for order in self.sell.orders)
                 / sum(order.quantity for order in self.sell.orders),
@@ -856,48 +825,42 @@ class HpStrategy:
             if self.sell.orders
             else 0
         )
-        self.sell.state_info.ui_state = UiState.OPEN
+        self.sell.data.state_info.ui_state = UiState.OPEN
 
         self.logger.info("Will update orders: %s", self.sell.orders)
 
         for order in self.sell.orders:
             self.db.upsert_order(
                 order=order,
-                position=HpPositionData(
-                    config=self.sell.config,
-                    state_info=self.sell.state_info,
-                ),
+                hp_id=self.sell.data.config.hp_id,
+                side=self.sell.data.state_info.side,
             )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-            )
-        )
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.config.hp_id, state=self.state),
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
     def conditions_for_cancelling_partially_sold_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.sell.state_info.stagnation_counter
-            >= self.sell.state_info.stagnation_limit
+            self.sell.data.state_info.stagnation_counter
+            >= self.sell.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and not all(order.status == ORDER_STATUS_NEW for order in self.sell.orders)
-            and self.buy.state_info.state == State.BOUGHT
+            and self.buy.data.state_info.state == State.BOUGHT
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Part Filled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -905,45 +868,39 @@ class HpStrategy:
         return condition
 
     async def cancel_partially_sold_orders(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.sell.state_info.side.value)
+        self.logger.info("Cancelling %s", self.sell.data.state_info.side.value)
         await self.sell.cancel_position()
-        self.sell.state_info.state = State.PARTIALLY_SOLD
+        self.sell.data.state_info.state = State.PARTIALLY_SOLD
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(hp_id=self.sell.config.hp_id, state=self.state),
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
     def conditions_for_all_orders_filled_sell(self, *args, **kwargs) -> bool:
         condition = (
             self.state == State.SELLING
-            and self.buy.state_info.state == State.BOUGHT
+            and self.buy.data.state_info.state == State.BOUGHT
             and all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders)
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
-        # if condition:
-        #     self.logger.info(
-        #         "[All orders filled] %s %s",
-        #         self.sell.config.symbol_info.symbol,
-        #         self.sell.state_info.side,
-        #     )
-
         self.logger.info(
             "[All orders filled] %s %s",
-            self.sell.config.symbol_info.symbol,
-            self.sell.state_info.side,
+            self.sell.data.config.symbol_info.symbol,
+            self.sell.data.state_info.side,
         )
         return condition
 
     async def close_filled_position_sell(self, *args, **kwargs) -> None:
         self.logger.info("All order filled, archiving position")
 
-        self.sell.state_info.state = State.SOLD
+        self.sell.data.state_info.state = State.SOLD
 
-        self.sell.state_info.completeness = (
+        self.sell.data.state_info.completeness = (
             round(
                 sum(order.realized_quantity for order in self.sell.orders)
                 / sum(order.quantity for order in self.sell.orders),
@@ -952,30 +909,22 @@ class HpStrategy:
             if self.sell.orders
             else 0
         )
-        self.sell.state_info.ui_state = UiState.CLOSED
+        self.sell.data.state_info.ui_state = UiState.CLOSED
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.config.hp_id,
-                    state=self.state,
-                    sell_price=self.sell.orders[0].price,
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-            )
-        )
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
         self.config_queue.put_nowait(
-            HpClose(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
+            HPClose(
+                config=self.sell.data.config,
+                state_info=self.sell.data.state_info,
             )
         )
 
@@ -983,19 +932,19 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.PARTIALLY_SOLD
-            and self.sell.state_info.stagnation_counter
-            >= self.sell.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.PARTIALLY_SOLD
+            and self.sell.data.state_info.stagnation_counter
+            >= self.sell.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled SELL] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Part Filled SELL] %s, stagnation:%s/%s, last price: %s, trigger price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1003,21 +952,19 @@ class HpStrategy:
         return condition
 
     async def cancel_sell_part_sold_part_bought(self, *args, **kwargs) -> None:
-        self.logger.info("Cancelling %s", self.sell.state_info.side.value)
+        self.logger.info("Cancelling %s", self.sell.data.state_info.side.value)
         await self.sell.cancel_position()
         self.state = State.PARTIALLY_SOLD
-        self.sell.state_info = StateInfo(
+        self.sell.data.state_info = StateInfo(
             side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
         )
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
 
@@ -1025,19 +972,18 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.PARTIALLY_SOLD
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
         )
         if condition:
             self.logger.info(
-                "[Resend sell orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
-                self.sell.config.hp_id,
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
-                self.sell.state_info.state,
-                self.sell.config.budget,
+                "[Resend sell orders] hp id: %s, %s, side: %s, state: %s",
+                self.sell.data.config.hp_id,
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
+                self.sell.data.state_info.state,
             )
 
         return condition
@@ -1046,19 +992,18 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.PARTIALLY_SOLD
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and self.ticker_update.last_price
             <= self.calculate_trigger_send_orders_price_buy()
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
-                self.sell.config.hp_id,
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
-                self.sell.state_info.state,
-                self.sell.config.budget,
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
+                self.sell.data.config.hp_id,
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
+                self.sell.data.state_info.state,
             )
 
         return condition
@@ -1067,19 +1012,19 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.PARTIALLY_SOLD
-            and self.buy.state_info.stagnation_counter
-            >= self.buy.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.PARTIALLY_SOLD
+            and self.buy.data.state_info.stagnation_counter
+            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
@@ -1091,16 +1036,16 @@ class HpStrategy:
     ) -> bool:
         condition = (
             self.state == State.BUYING
-            and self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.PARTIALLY_SOLD
+            and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and all(order.status == ORDER_STATUS_FILLED for order in self.buy.orders)
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
         if condition:
             self.logger.info(
                 "[All orders filled] %s %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.side,
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.side,
             )
         return condition
 
@@ -1109,25 +1054,25 @@ class HpStrategy:
     ) -> bool:
         condition = (
             self.state == State.SELLING
-            and self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.SOLD
+            and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.SOLD
             and all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders)
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
         if condition:
             self.logger.info(
                 "[All orders filled] %s %s",
-                self.buy.config.symbol_info.symbol,
-                self.buy.state_info.side,
+                self.buy.data.config.symbol_info.symbol,
+                self.buy.data.state_info.side,
             )
         return condition
 
     async def close_sold_position_which_is_part_bought(self, *args, **kwargs) -> None:
         self.logger.info("Close sold position which is partially bought")
 
-        self.sell.state_info.state = State.SOLD
+        self.sell.data.state_info.state = State.SOLD
 
-        self.sell.state_info.completeness = (
+        self.sell.data.state_info.completeness = (
             round(
                 sum(order.realized_quantity for order in self.sell.orders)
                 / sum(order.quantity for order in self.buy.orders),
@@ -1136,42 +1081,34 @@ class HpStrategy:
             if self.sell.orders
             else 0
         )
-        self.sell.state_info.ui_state = UiState.CLOSED
+        self.sell.data.state_info.ui_state = UiState.CLOSED
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=self.sell.config.hp_id,
-                    state=self.state,
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
                 ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-            )
-        )
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.state == State.SOLD
+            self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.state == State.SOLD
             and self.ticker_update.last_price
             <= self.calculate_trigger_send_orders_price_buy()
         )
         if condition:
             self.logger.info(
-                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s, budget: %s",
-                self.sell.config.hp_id,
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.side,
-                self.sell.state_info.state,
-                self.sell.config.budget,
+                "[Resend buy orders] hp id: %s, %s, side: %s, state: %s",
+                self.sell.data.config.hp_id,
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.side,
+                self.sell.data.state_info.state,
             )
 
         return condition
@@ -1180,19 +1117,19 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         condition = (
-            self.buy.state_info.state == State.SOLD
-            and self.sell.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.state_info.stagnation_counter
-            >= self.sell.state_info.stagnation_limit
+            self.buy.data.state_info.state == State.SOLD
+            and self.sell.data.state_info.state == State.PARTIALLY_BOUGHT
+            and self.sell.data.state_info.stagnation_counter
+            >= self.sell.data.state_info.stagnation_limit
             and self.ticker_update.last_price
             >= self.calculate_trigger_cancel_orders_price_buy()
         )
         if condition:
             self.logger.info(
-                "[Cancel Partially Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger order price: %s",
-                self.sell.config.symbol_info.symbol,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
+                self.sell.data.config.symbol_info.symbol,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
@@ -1218,19 +1155,16 @@ class HpStrategy:
     async def handle_order_filled_buy(self, *args, **kwargs) -> None:
         self.logger.debug("Entering handle order filled")
 
-        self.buy.state_info.state = State.PARTIALLY_BOUGHT
-        if self.sell.state_info.state == State.SOLD:
-            self.sell.state_info.state = State.PARTIALLY_SOLD
+        self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+        if self.sell.data.state_info.state == State.SOLD:
+            self.sell.data.state_info.state = State.PARTIALLY_SOLD
 
         await self.buy.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
-        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        # Calculate the remaining realized quantities in buy orders
+        # after accounting for sold quantity
         remaining_sell_quantity = (
             0 if not self.sell.orders else self.sell.orders[0].realized_quantity
         )
@@ -1250,18 +1184,22 @@ class HpStrategy:
             adjusted_total += effective_quantity * order.price
             adjusted_real_quant += effective_quantity
 
-        self.logger.info("Handler order filled BUY state info: %s", self.buy.state_info)
+        self.logger.info(
+            "Handler order filled BUY state info: %s", self.buy.data.state_info
+        )
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
                 hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    buy_price=self.buy.config.symbol_info.adjust_price(
+                    hp_id=self.buy.data.config.hp_id,
+                    buy_price=self.buy.data.config.symbol_info.adjust_price(
                         adjusted_total / adjusted_real_quant
                     ),
-                    quantity=self.execution_report.last_executed_quantity,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                     state=self.state,
                 ),
             )
@@ -1284,7 +1222,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Partially filled order] %s %s @ %s",
+                "[Partially filled buy order] %s %s @ %s",
                 self.execution_report.symbol,
                 self.execution_report.side,
                 self.execution_report.price,
@@ -1294,17 +1232,15 @@ class HpStrategy:
     async def handle_order_partially_filled_buy(self, *args, **kwargs):
         self.logger.debug("Entering handle order partially filled")
 
-        self.buy.state_info.state = State.PARTIALLY_BOUGHT
+        self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
 
         await self.buy.handle_order_partially_filled(
             execution_report=self.execution_report
         )
 
-        self.db.upsert_price_level(
-            config=self.buy.config, state_info=self.buy.state_info
-        )
-
-        # Calculate the remaining realized quantities in buy orders after accounting for sold quantity
+        self.db.upsert_buy_price_level(data=self.buy.data)
+        # Calculate the remaining realized quantities in buy orders
+        # after accounting for sold quantity
         remaining_sell_quantity = (
             0 if not self.sell.orders else self.sell.orders[0].realized_quantity
         )
@@ -1324,18 +1260,22 @@ class HpStrategy:
             adjusted_total += effective_quantity * order.price
             adjusted_real_quant += effective_quantity
 
-        self.logger.info("Handler order filled BUY state info: %s", self.buy.state_info)
+        self.logger.info(
+            "Handler order filled BUY state info: %s", self.buy.data.state_info
+        )
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
                 hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    buy_price=self.buy.config.symbol_info.adjust_price(
+                    hp_id=self.buy.data.config.hp_id,
+                    buy_price=self.buy.data.config.symbol_info.adjust_price(
                         adjusted_total / adjusted_real_quant
                     ),
-                    quantity=self.execution_report.last_executed_quantity,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                     state=self.state,
                 ),
             )
@@ -1361,34 +1301,30 @@ class HpStrategy:
     async def handle_order_filled_sell(self, *args, **kwargs) -> None:
         self.logger.info("Entering handle order filled sell")
 
-        self.sell.state_info.state = State.PARTIALLY_SOLD
+        self.sell.data.state_info.state = State.PARTIALLY_SOLD
 
         await self.sell.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-            )
-        )
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
                 hp_update=HPUpdate(
-                    hp_id=self.sell.config.hp_id,
-                    quantity=-self.execution_report.last_executed_quantity,
+                    hp_id=self.sell.data.config.hp_id,
                     state=self.state,
-                    sell_price=self.execution_report.last_executed_price,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                 ),
             ),
         )
 
         if all(order.status == ORDER_STATUS_FILLED for order in self.sell.orders):
-            self.sell.state_info.state = State.SOLD
-            self.sell.state_info.ui_state = UiState.CLOSED
-            self.sell.state_info.completeness = 1.0
+            self.sell.data.state_info.state = State.SOLD
+            self.sell.data.state_info.ui_state = UiState.CLOSED
+            self.sell.data.state_info.completeness = 1.0
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             self.logger.info("All SELL orders filled, sending: %s", signal)
@@ -1406,7 +1342,7 @@ class HpStrategy:
         )
         if condition:
             self.logger.info(
-                "[Partially filled order] %s %s @ %s",
+                "[Partially filled sell order] %s %s @ %s",
                 self.execution_report.symbol,
                 self.execution_report.side,
                 self.execution_report.price,
@@ -1416,22 +1352,26 @@ class HpStrategy:
     async def handle_order_partially_filled_sell(self, *args, **kwargs):
         self.logger.debug("Entering handle order partially filled")
 
-        self.sell.state_info.state = State.PARTIALLY_SOLD
+        self.sell.data.state_info.state = State.PARTIALLY_SOLD
 
         await self.sell.handle_order_partially_filled(
             execution_report=self.execution_report
         )
 
-        self.db.upsert_price_level(position=self.sell)
+        self.logger.info("Orders: %s", self.sell.orders)
 
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
+        self.db.upsert_sell_price_level(data=self.sell.data)
+
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
                 hp_update=HPUpdate(
-                    hp_id=self.buy.config.hp_id,
-                    quantity=-self.execution_report.last_executed_quantity,
+                    hp_id=self.sell.data.config.hp_id,
                     state=self.state,
+                    quantity=sum(order.realized_quantity for order in self.buy.orders)
+                    - sum(order.realized_quantity for order in self.sell.orders),
                 ),
             )
         )
@@ -1440,46 +1380,46 @@ class HpStrategy:
         date_time_now = datetime.now()
 
         condition = self.state == State.BUYING and date_time_now > datetime.strptime(
-            self.buy.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
+            self.buy.data.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
         )
         if condition:
             self.logger.info(
                 "[Handle stagnation BUY]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
-                self.buy.state_info.next_monitor_time,
+                self.buy.data.state_info.next_monitor_time,
             )
         return condition
 
     def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
         self.logger.info(
             "Entering increase stagnation coutner buy, counter before adding 1: %s",
-            self.buy.state_info.stagnation_counter,
+            self.buy.data.state_info.stagnation_counter,
         )
-        self.buy.state_info.stagnation_counter += 1
+        self.buy.data.state_info.stagnation_counter += 1
 
         if (
-            self.buy.state_info.stagnation_counter
-            < self.buy.state_info.stagnation_limit
+            self.buy.data.state_info.stagnation_counter
+            < self.buy.data.state_info.stagnation_limit
         ):
             self.logger.info(
                 "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
-                self.buy.config.hp_id,
-                self.buy.state_info.stagnation_counter,
-                self.buy.state_info.stagnation_limit,
+                self.buy.data.config.hp_id,
+                self.buy.data.state_info.stagnation_counter,
+                self.buy.data.state_info.stagnation_limit,
             )
         else:
             self.logger.info(
                 "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
-                self.buy.config.hp_id,
+                self.buy.data.config.hp_id,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
 
-        self.buy.state_info.generate_next_monitor_time()
+        self.buy.data.state_info.generate_next_monitor_time()
 
-        self.buy.state_info.ui_state = UiState.OPEN
-        self.buy.state_info.completeness = round(
+        self.buy.data.state_info.ui_state = UiState.OPEN
+        self.buy.data.state_info.completeness = round(
             sum(order.realized_quantity for order in self.buy.orders)
             / sum(order.quantity for order in self.buy.orders),
             2,
@@ -1487,19 +1427,16 @@ class HpStrategy:
 
         self.logger.info("Orders: %s", self.buy.orders)
 
-        self.buy.ui_queue.put_nowait(
-            PositionData(
-                config=self.buy.config,
-                state_info=self.buy.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.config.hp_id),
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(
+                    config=self.buy.data.config, state_info=self.buy.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.buy.data.config.hp_id, state=self.state),
             )
         )
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.buy.config, state_info=self.buy.state_info
-            )
-        )
+        self.db.upsert_buy_price_level(data=self.buy.data)
 
     def conditions_for_position_stagnation_sell(self, *args, **kwargs) -> bool:
         assert self.sell
@@ -1510,7 +1447,7 @@ class HpStrategy:
             and self.state == State.SELLING
             and date_time_now
             > datetime.strptime(
-                self.sell.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
+                self.sell.data.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
             )
         )
         if condition:
@@ -1518,36 +1455,36 @@ class HpStrategy:
                 "[Handle stagnation Sell]: %s, time now: %s, monitor time: %s",
                 condition,
                 date_time_now,
-                self.sell.state_info.next_monitor_time,
+                self.sell.data.state_info.next_monitor_time,
             )
 
         return condition
 
     def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
         assert self.sell
-        self.sell.state_info.stagnation_counter += 1
+        self.sell.data.state_info.stagnation_counter += 1
 
         if (
-            self.sell.state_info.stagnation_counter
-            < self.sell.state_info.stagnation_limit
+            self.sell.data.state_info.stagnation_counter
+            < self.sell.data.state_info.stagnation_limit
         ):
             self.logger.info(
                 "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
-                self.sell.config.hp_id,
-                self.sell.state_info.stagnation_counter,
-                self.sell.state_info.stagnation_limit,
+                self.sell.data.config.hp_id,
+                self.sell.data.state_info.stagnation_counter,
+                self.sell.data.state_info.stagnation_limit,
             )
         else:
             self.logger.info(
                 "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
-                self.sell.config.hp_id,
+                self.sell.data.config.hp_id,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
 
-        self.sell.state_info.generate_next_monitor_time()
-        self.sell.state_info.ui_state = UiState.OPEN
-        self.sell.state_info.completeness = (
+        self.sell.data.state_info.generate_next_monitor_time()
+        self.sell.data.state_info.ui_state = UiState.OPEN
+        self.sell.data.state_info.completeness = (
             round(
                 sum(order.realized_quantity for order in self.sell.orders)
                 / sum(order.quantity for order in self.sell.orders),
@@ -1556,20 +1493,15 @@ class HpStrategy:
             if self.sell.orders
             else 0
         )
-        self.sell.ui_queue.put_nowait(
-            PositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-                hp_update=HPUpdate(hp_id=self.buy.config.hp_id),
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(
+                    config=self.sell.data.config, state_info=self.sell.data.state_info
+                ),
+                hp_update=HPUpdate(hp_id=self.sell.data.config.hp_id, state=self.state),
             )
         )
-
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=self.sell.config,
-                state_info=self.sell.state_info,
-            )
-        )
+        self.db.upsert_sell_price_level(data=self.sell.data)
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         condition = (
@@ -1579,7 +1511,7 @@ class HpStrategy:
                 ORDER_TYPE_MARKET,
             ]
             and self.execution_report.current_order_status == ORDER_STATUS_NEW
-            and self.execution_report.symbol == self.buy.config.symbol_info.symbol
+            and self.execution_report.symbol == self.buy.data.config.symbol_info.symbol
         )
         if condition:
             self.logger.info(
@@ -1612,7 +1544,7 @@ class HpStrategy:
         condition = (
             self.execution_report.order_type == ORDER_TYPE_LIMIT
             and self.execution_report.current_order_status == ORDER_STATUS_CANCELED
-            and self.execution_report.symbol == self.buy.config.symbol_info.symbol
+            and self.execution_report.symbol == self.buy.data.config.symbol_info.symbol
         )
         if condition:
             self.logger.info(
@@ -1675,14 +1607,14 @@ class HpStrategy:
                     )
 
     def calculate_trigger_cancel_orders_price_buy(self):
-        return self.buy.config.symbol_info.adjust_price(
-            self.buy.config.price_high * (1 + (2 * self.buy.config.order_trigger / 100))
+        return self.buy.data.config.symbol_info.adjust_price(
+            self.buy.data.config.price_high
+            * (1 + (2 * self.buy.data.config.order_trigger / 100))
         )
 
     def calculate_trigger_cancel_orders_price_sell(self):
-        return self.sell.config.symbol_info.adjust_price(
-            self.sell.config.price_low
-            * (1 - (2 * self.sell.config.order_trigger / 100))
+        return self.sell.data.config.symbol_info.adjust_price(
+            0.92 * self.sell.data.config.sell_price
         )
 
     async def allow_messages(self, *args, **kwargs) -> None:
@@ -1693,6 +1625,7 @@ class HpStrategy:
 
     async def worker(self):
         self.logger.info("Worker start now, state: %s.", self.state)
+        self.worker_active = True
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()
@@ -1703,24 +1636,26 @@ class HpStrategy:
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
                     self.ticker_update = event.content
-                    await self.process_ticker()  # type: ignore
+                    await self.process_ticker()  # pylint: disable=no-member
 
                 elif EventName.EXECUTION_REPORT == event.name:
                     assert isinstance(event.content, ExecutionReport)
                     self.execution_report = event.content
-                    await self.process_order()  # type: ignore
+                    await self.process_order()  # pylint: disable=no-member
 
                 elif EventName.ACCOUNT_POSITION == event.name:
                     assert isinstance(event.content, AccountPosition)
                     self.account_position = event.content
-                    await self.process_account()  # type: ignore
+                    await self.process_account()  # pylint: disable=no-member
 
                 elif EventName.SIGNAL == event.name:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
-                    await self.process_signal()  # type: ignore
+                    await self.process_signal()  # pylint: disable=no-member
 
                 self.worker_queue.task_done()
             except queue.Empty:
                 # logger.info("Queue empty, waiting 0.1s")
                 await asyncio.sleep(0.1)
+        self.logger.info("Stop event IS SET, worker closed")
+        self.worker_active = False

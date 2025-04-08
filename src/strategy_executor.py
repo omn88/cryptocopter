@@ -14,16 +14,12 @@ from src.identifiers.spot import (
     Event,
     EventName,
     ExecutionReport,
-    HpClose,
-    CsvConfig,
-    HPConfig,
-    HpNewPosition,
-    HpPositionData,
-    LoadConfig,
+    HPBuyConfig,
+    HPBuyData,
+    HPSellConfig,
+    HPSellData,
     Order,
     RemoveRecord,
-    SaveConfig,
-    SellConfig,
     State,
     StateInfo,
     SubscriptionInfo,
@@ -32,8 +28,8 @@ from src.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPUpdate, PositionData
-from src.position_handler import PositionHandler
+from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.position_buy import HPPositionBuy
 from src.strategies.hp_manager import HpStrategy
 from src.broker import BrokerSpot
 
@@ -93,27 +89,27 @@ class StrategyExecutor:
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
 
-        await self.initialize_positions_from_db()
+        # await self.initialize_positions_from_db()
 
         while not self.stop_event.is_set():
             try:
                 strategy_data = self.config_queue.get_nowait()
                 self.logger.info("New config for strategy executor: %s", strategy_data)
-                if isinstance(strategy_data, HpNewPosition):
-                    asyncio.create_task(self.setup_new_position(new_hp=strategy_data))
-                if isinstance(strategy_data, SellConfig):
-                    await self.manage_sell_position(strategy_data=strategy_data)
+                if isinstance(strategy_data, HPBuyData):
+                    asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
+                if isinstance(strategy_data, HPSellData):
+                    if not strategy_data.config.hp_id:
+                        await self.setup_sell_position_with_new_hp(
+                            strategy_data=strategy_data
+                        )
+                    else:
+                        await self.setup_sell_position(strategy_data=strategy_data)
 
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
-                if isinstance(strategy_data, HpClose):
-                    await self.close_sold_position(close_data=strategy_data)
-                # if isinstance(strategy_data, SaveConfig):
-                #     await self.save_config(strategy_data.file_name)
-                # if isinstance(strategy_data, LoadConfig):
-                #     await self.load_config(strategy_data.file_name)
+
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -133,9 +129,9 @@ class StrategyExecutor:
         self.thread.join()
         logger.info("Strategy executor thread finished")
 
-    async def setup_new_position(
+    async def setup_buy_position(
         self,
-        new_hp: HpNewPosition,
+        new_hp: HPBuyData,
     ) -> None:
         self.logger.info("Setting up new position with config: %s", new_hp.config)
 
@@ -149,34 +145,25 @@ class StrategyExecutor:
             client=self.client,
             ui_queue=self.ui_queue,
             logger=self.logger,
-            buy_config=new_hp.config,
-            state_info=new_hp.state_info,
-            balance=self.balances["USDT"],
+            buy_data=new_hp,
+            balance=self.balances["USDC"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
         )
 
-        strategy.buy.orders = strategy.buy.prepare_buy_orders(config=new_hp.config)
-        strategy.buy.state_info.generate_open_time()
+        assert isinstance(strategy.buy.data.config, HPBuyConfig)
+
+        strategy.buy.orders = strategy.buy.prepare_orders()
+        strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
 
         assert new_hp.config.symbol_info.symbol.endswith(
-            "USDT"
-        ), "Symbol must end with 'USDT'"
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=new_hp.config,
-                state_info=new_hp.state_info,
-                hp_update=HPUpdate(
-                    hp_id=new_hp.config.hp_id,
-                    buy_price=new_hp.config.price_high,
-                    asset=new_hp.config.symbol_info.symbol[:-4],
-                    state=State.NEW,
-                ),
-            )
-        )
+            "USDC"
+        ), "Symbol must end with 'USDC'"
+
+        self.send_buy_position_to_ui(config=new_hp.config, state_info=new_hp.state_info)
 
         self.broker.subscribe(
             system_id=str(new_hp.config.hp_id),
@@ -197,66 +184,138 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=strategy.buy.config,
-                state_info=strategy.buy.state_info,
-            )
-        )
+        self.db.upsert_buy_price_level(data=strategy.buy.data)
 
         asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
-    async def manage_sell_position(self, strategy_data: SellConfig) -> None:
-        self.logger.info("Entered manage sell position")
+    def send_buy_position_to_ui(self, config: HPBuyConfig, state_info: StateInfo):
+        self.ui_queue.put_nowait(
+            HPGuiDataBuy(
+                data=HPBuyData(config=config, state_info=state_info),
+                hp_update=HPUpdate(
+                    hp_id=config.hp_id,
+                    asset=config.symbol_info.symbol[:-4],
+                    state=State.NEW,
+                ),
+            )
+        )
+
+    def send_sell_position_to_ui(
+        self, config: HPSellConfig, state_info: StateInfo, state: State
+    ):
+        self.ui_queue.put_nowait(
+            HPGuiDataSell(
+                data=HPSellData(config=config, state_info=state_info),
+                hp_update=HPUpdate(
+                    hp_id=config.hp_id,
+                    buy_price=config.buy_price,
+                    sell_price=config.sell_price,
+                    asset=config.symbol_info.symbol[:-4],
+                    state=state,
+                ),
+            )
+        )
+
+    async def setup_sell_position(self, strategy_data: HPSellData) -> None:
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
         if strategy_data.state_info.state == State.NEW:
-            self.logger.info("Sell price set: %s", strategy_data.config.price_low)
-            strategy.sell.config = strategy_data.config
-            strategy.sell.state_info = strategy_data.state_info
-            strategy.sell.orders = strategy.sell.prepare_sell_orders(
+            self.logger.info("Sell price set: %s", strategy_data.config.sell_price)
+            strategy.sell.data.config = strategy_data.config
+            strategy.sell.data.state_info = strategy_data.state_info
+            strategy.sell.orders = strategy.sell.prepare_orders(
                 config=strategy_data.config,
-                buy_orders=strategy.buy.orders,
-                sell_orders=strategy.sell.orders,
+                buy_realized_quantity=sum(
+                    order.realized_quantity for order in strategy.buy.orders
+                ),
+                sell_realized_quantity=sum(
+                    order.realized_quantity for order in strategy.sell.orders
+                ),
             )
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
             if strategy.state == State.SELLING:
                 await strategy.sell.cancel_position()
 
-            strategy.sell.config.price_low = strategy_data.config.price_low
-            strategy.sell.state_info.ui_state = UiState.CLOSED
+            strategy.sell.data.config.sell_price = strategy_data.config.sell_price
+            strategy.sell.data.state_info.ui_state = UiState.CLOSED
 
-        self.db.upsert_price_level(
-            position=HpPositionData(
-                config=strategy.sell.config,
-                state_info=strategy.sell.state_info,
-            )
+        self.db.upsert_sell_price_level(data=strategy.sell.data)
+        self.send_sell_position_to_ui(
+            config=strategy.sell.data.config,
+            state_info=strategy.sell.data.state_info,
+            state=strategy.state,
+        )
+        logger.debug("Sell position setup exit")
+
+    async def setup_sell_position_with_new_hp(self, strategy_data: HPSellData) -> None:
+        self.logger.info(
+            "Setting up new SELL position with config: %s", strategy_data.config
+        )
+        assert self.client is not None
+        worker_queue: queue.Queue = queue.Queue()
+
+        strategy = HpStrategy(
+            client=self.client,
+            ui_queue=self.ui_queue,
+            logger=self.logger,
+            buy_data=HPBuyData(
+                config=HPBuyConfig(symbol_info=strategy_data.config.symbol_info),
+                state_info=StateInfo(side=PositionSide.SHORT),
+            ),
+            balance=self.balances["USDC"],
+            db=self.db,
+            worker_queue=worker_queue,
+            config_queue=self.config_queue,
+        )
+        strategy.buy.data.state_info.ui_state = UiState.CLOSED
+        strategy.buy.data.state_info.state = State.BOUGHT
+        strategy.state = State.BOUGHT
+
+        strategy.sell.data = strategy_data
+        strategy.sell.data.config.hp_id = generate_hp_id(
+            hp_list=list(self.strategies.keys())
+        )
+        config = strategy.sell.data.config
+        strategy.sell.data.state_info.generate_open_time()
+
+        strategy.sell.orders = strategy.sell.prepare_orders(
+            config=config,
+            buy_realized_quantity=config.quantity,
+            sell_realized_quantity=0,
+        )
+        self.strategies[config.hp_id] = strategy
+
+        assert config.symbol_info.symbol.endswith("USDC"), "Symbol must end with 'USDC'"
+        self.send_sell_position_to_ui(
+            config=strategy.sell.data.config,
+            state_info=strategy.sell.data.state_info,
+            state=strategy.state,
         )
 
-        self.ui_queue.put_nowait(
-            PositionData(
-                config=strategy.sell.config,
-                state_info=strategy.sell.state_info,
-                hp_update=HPUpdate(
-                    hp_id=strategy.sell.config.hp_id,
-                    sell_price=strategy.sell.config.price_low,
-                    state=strategy.state,
-                ),
-            )
+        self.broker.subscribe(
+            system_id=str(config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol=config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id=str(config.hp_id),
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=worker_queue,
+            ),
         )
 
-    async def close_sold_position(
-        self,
-        close_data: HpClose,
-    ) -> None:
-        hp_id = close_data.config.hp_id
-        self.logger.info("Entered strategy %s removal!", hp_id)
+        self.db.upsert_sell_price_level(data=strategy.sell.data)
 
-        strategy = self.strategies[hp_id]
-        strategy.stop_event.set()
-        self.broker.unsubscribe(system_id=hp_id)
-        self.logger.info("Removed strategy with %s.", hp_id)
+        asyncio.create_task(strategy.worker())
+        self.logger.info("System with ID %s initialized.", config.hp_id)
 
     async def remove_record(self, hp_id: str, side: PositionSide) -> None:
         self.logger.info(
@@ -276,134 +335,99 @@ class StrategyExecutor:
 
         if (
             side == PositionSide.LONG
-            and sell.state_info.state == State.NEW
-            and buy.state_info.state == State.NEW
+            and sell.data.state_info.state == State.NEW
+            and buy.data.state_info.state == State.NEW
         ):
             self.logger.info("Entered trading system removal!")
             self.broker.unsubscribe(system_id=hp_id)
             strategy.state = State.CLOSED
-            buy.state_info.state = State.CLOSED
+            buy.data.state_info.state = State.CLOSED
             if buy.orders:
                 buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.config.symbol_info.symbol,
+                    symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
                 )
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.upsert_order(
                             order=order,
-                            position=HpPositionData(
-                                config=buy.config, state_info=buy.state_info
-                            ),
+                            hp_id=hp_id,
+                            side=side,
                         )
-                buy.state_info.completeness = round(
+                buy.data.state_info.completeness = round(
                     sum(order.realized_quantity for order in buy.orders)
                     / sum(order.quantity for order in buy.orders),
                     2,
                 )
 
-            self.db.upsert_price_level(
-                position=HpPositionData(config=buy.config, state_info=buy.state_info)
-            )
+            self.db.upsert_buy_price_level(data=buy.data)
 
-            buy.state_info.ui_state = UiState.CLOSED
+            buy.data.state_info.ui_state = UiState.CLOSED
 
-            self.ui_queue.put_nowait(
-                PositionData(
-                    config=buy.config,
-                    state_info=buy.state_info,
-                    hp_update=HPUpdate(hp_id=buy.config.hp_id, state=strategy.state),
-                )
+            self.send_buy_position_to_ui(
+                config=strategy.buy.data.config,
+                state_info=strategy.buy.data.state_info,
             )
 
             self.logger.info(f"Removed strategy {hp_id}.")
             return
 
-        if side == PositionSide.LONG and buy.state_info.state == State.PARTIALLY_BOUGHT:
+        if (
+            side == PositionSide.LONG
+            and buy.data.state_info.state == State.PARTIALLY_BOUGHT
+        ):
             if strategy.state == State.BUYING:
                 buy.orders = await buy.cancel_remaining_limit_orders(
-                    symbol=buy.config.symbol_info.symbol,
+                    symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
                 )
-                strategy.state = buy.state_info.state
+                strategy.state = buy.data.state_info.state
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.upsert_order(
-                            order=order,
-                            position=HpPositionData(
-                                config=buy.config, state_info=buy.state_info
-                            ),
+                            order=order, hp_id=buy.data.config.hp_id, side=side
                         )
-            buy.state_info.state = State.CLOSED
-            buy.state_info.ui_state = UiState.CLOSED
-            buy.state_info.completeness = sum(
+            buy.data.state_info.state = State.CLOSED
+            buy.data.state_info.ui_state = UiState.CLOSED
+            buy.data.state_info.completeness = sum(
                 order.realized_quantity for order in buy.orders
             ) / sum(order.quantity for order in buy.orders)
-            self.ui_queue.put_nowait(
-                PositionData(
-                    config=buy.config,
-                    state_info=buy.state_info,
-                    hp_update=HPUpdate(hp_id=buy.config.hp_id, state=strategy.state),
-                )
+            self.send_buy_position_to_ui(
+                config=strategy.buy.data.config,
+                state_info=strategy.buy.data.state_info,
             )
 
-            self.db.upsert_price_level(
-                position=HpPositionData(config=buy.config, state_info=buy.state_info)
-            )
+            self.db.upsert_buy_price_level(data=buy.data)
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
                 sell.orders = await sell.cancel_remaining_limit_orders(
-                    symbol=sell.config.symbol_info.symbol,
+                    symbol=sell.data.config.symbol_info.symbol,
                     orders=sell.orders,
                 )
                 # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
                 # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
-                strategy.state = buy.state_info.state
+                strategy.state = buy.data.state_info.state
                 for order in sell.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(
-                            order=order,
-                            position=HpPositionData(
-                                config=sell.config, state_info=sell.state_info
-                            ),
-                        )
-            sell.config.price_low = 0.0
-            sell.state_info.ui_state = UiState.CLOSED
-            sell.state_info.completeness = (
+                        self.db.upsert_order(order=order, hp_id=hp_id, side=side)
+            sell.data.config.sell_price = 0.0
+            sell.data.state_info.ui_state = UiState.CLOSED
+            sell.data.state_info.completeness = (
                 sum(order.realized_quantity for order in sell.orders)
                 / sum(order.quantity for order in sell.orders)
                 if sell.orders
                 else 0
             )
-            self.ui_queue.put_nowait(
-                PositionData(
-                    config=sell.config,
-                    state_info=sell.state_info,
-                    hp_update=HPUpdate(
-                        hp_id=sell.config.hp_id,
-                        state=strategy.state,
-                        sell_price=0.0,
-                    ),
-                )
+            self.send_sell_position_to_ui(
+                config=strategy.sell.data.config,
+                state_info=strategy.sell.data.state_info,
+                state=strategy.state,
             )
-            self.db.upsert_price_level(
-                position=HpPositionData(config=sell.config, state_info=sell.state_info)
-            )
+            self.db.upsert_sell_price_level(data=sell.data)
 
-    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Optional[Dict]]:
-        price_levels = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
-        logger.info("Current active price levels: %s", price_levels)
-
-        buy_level = next(
-            (pl for pl in price_levels if pl["side"] == PositionSide.LONG.value),
-            None,
-        )
-        assert buy_level, f"Buy price level does not exist for active HP: {hp_id}"
-        sell_level = next(
-            (pl for pl in price_levels if pl["side"] == PositionSide.SHORT.value),
-            None,
-        )
+    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Dict]:
+        buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
         logger.info(
             "HP: %s\nBuy price level: %s\nSell price level: %s",
             hp_id,
@@ -413,39 +437,39 @@ class StrategyExecutor:
         return buy_level, sell_level
 
     def recover_broker_subscriptions(
-        self, cfg: HPConfig, worker_queue: queue.Queue
+        self, symbol: str, hp_id: str, worker_queue: queue.Queue
     ) -> None:
         self.broker.subscribe(
-            system_id=str(cfg.hp_id),
+            system_id=hp_id,
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
-                symbol=cfg.symbol_info.symbol,
+                symbol=symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=worker_queue,
             ),
         )
         self.broker.subscribe(
-            system_id=str(cfg.hp_id),
+            system_id=hp_id,
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
-                symbol=cfg.symbol_info.symbol,
+                symbol=symbol,
                 target=SubscriptionTarget.BACKEND,
                 queue=worker_queue,
             ),
         )
 
     async def restore_buy_orders(
-        self, buy_position: PositionHandler, worker_queue: queue.Queue
+        self, buy_position: HPPositionBuy, worker_queue: queue.Queue
     ) -> List[Order]:
         assert self.client
-        buy_config = buy_position.config
+        buy_config = buy_position.data.config
         # Restore orders for buy position
         orders = self.db.fetch_orders_for_price_level(
             hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
         self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
-            new_orders = buy_position.prepare_buy_orders(config=buy_config)
+            new_orders = buy_position.prepare_orders()
             self.logger.info(
                 "No orders found in DB, prepared new: %s",
                 new_orders,
@@ -511,7 +535,7 @@ class StrategyExecutor:
         return order_list
 
     async def restore_sell_orders(
-        self, sell_config: HPConfig, worker_queue: queue.Queue
+        self, sell_config: HPSellConfig, worker_queue: queue.Queue
     ) -> List[Order]:
         assert self.client
         # Restore orders for sell position
@@ -581,7 +605,7 @@ class StrategyExecutor:
         return order_list
 
     def send_buy_position_data_to_ui(
-        self, buy_position: PositionHandler, strategy_state: State
+        self, buy_position: HPPositionBuy, strategy_state: State
     ) -> None:
         # Send buy position data
         avg_realized_total = sum_realized_quant = 0.0
@@ -591,24 +615,25 @@ class StrategyExecutor:
             sum_realized_quant += order.realized_quantity
 
         buy_price = (
-            buy_position.config.symbol_info.adjust_price(
+            buy_position.data.config.symbol_info.adjust_price(
                 avg_realized_total / sum_realized_quant
             )
             if sum_realized_quant
             else 0
         )
 
-        buy_pos_data = PositionData(
-            config=buy_position.config,
-            state_info=buy_position.state_info,
+        buy_pos_data = HPGuiDataBuy(
+            data=HPBuyData(
+                buy_position.data.config, state_info=buy_position.data.state_info
+            ),
             hp_update=HPUpdate(
-                hp_id=buy_position.config.hp_id,
+                hp_id=buy_position.data.config.hp_id,
                 buy_price=buy_price,
-                asset=buy_position.config.symbol_info.symbol[:-4],
+                asset=buy_position.data.config.symbol_info.symbol[:-4],
                 state=strategy_state,
             ),
         )
-        buy_position.ui_queue.put_nowait(buy_pos_data)
+        self.ui_queue.put_nowait(buy_pos_data)
         self.logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
 
     async def initialize_positions_from_db(self) -> None:
@@ -625,7 +650,7 @@ class StrategyExecutor:
 
             buy_level, sell_level = self.recover_price_levels(hp_id=hp_id)
 
-            buy_config = HPConfig(
+            buy_config = HPBuyConfig(
                 symbol_info=self.symbols_info[buy_level["symbol"]],
                 hp_id=buy_level["hp_id"],
                 price_high=buy_level["price_high"],
@@ -636,7 +661,11 @@ class StrategyExecutor:
             )
             worker_queue: queue.Queue = queue.Queue()
 
-            self.recover_broker_subscriptions(cfg=buy_config, worker_queue=worker_queue)
+            self.recover_broker_subscriptions(
+                hp_id=buy_config.hp_id,
+                symbol=buy_config.symbol_info.symbol,
+                worker_queue=worker_queue,
+            )
 
             # Initialize strategy
             assert self.client
@@ -644,13 +673,15 @@ class StrategyExecutor:
                 client=self.client,
                 ui_queue=self.ui_queue,
                 logger=self.logger,
-                buy_config=buy_config,
-                state_info=StateInfo(
-                    state=State(buy_level["state"]),
-                    stagnation_counter=buy_level["stagnation_counter"],
-                    open_time=buy_level["open_time"],
+                buy_data=HPBuyData(
+                    config=buy_config,
+                    state_info=StateInfo(
+                        state=State(buy_level["state"]),
+                        stagnation_counter=buy_level["stagnation_counter"],
+                        open_time=buy_level["open_time"],
+                    ),
                 ),
-                balance=self.balances["USDT"],
+                balance=self.balances["USDC"],
                 db=self.db,
                 worker_queue=worker_queue,
                 config_queue=self.config_queue,
@@ -664,319 +695,72 @@ class StrategyExecutor:
             strategy.buy.orders = await self.restore_buy_orders(
                 buy_position=strategy.buy, worker_queue=worker_queue
             )
-            strategy.buy.state_info.ui_state = (
+            strategy.buy.data.state_info.ui_state = (
                 UiState.OPEN
                 if strategy.state in [State.BUYING, State.SELLING]
                 else UiState.CLOSED
                 if strategy.state == State.BOUGHT
                 else UiState.STAGNATED
             )
-            strategy.buy.state_info.completeness = round(
+            strategy.buy.data.state_info.completeness = round(
                 sum(order.realized_quantity for order in strategy.buy.orders)
                 / sum(order.quantity for order in strategy.buy.orders),
                 2,
             )
-            strategy.buy.state_info.generate_next_monitor_time()
+            strategy.buy.data.state_info.generate_next_monitor_time()
             self.send_buy_position_data_to_ui(
                 buy_position=strategy.buy, strategy_state=strategy.state
             )
 
             if sell_level:
-                strategy.sell.config = HPConfig(
+                strategy.sell.data.config = HPSellConfig(
                     symbol_info=self.symbols_info[sell_level["symbol"]],
                     hp_id=sell_level["hp_id"],
-                    price_high=sell_level["price_high"],
-                    price_low=sell_level["price_low"],
-                    order_trigger=sell_level["order_trigger"],
-                    budget=sell_level["budget"],
-                    mode=Mode(sell_level["mode"]),
+                    sell_price=sell_level["sell_price"],
+                    buy_price=sell_level["buy_price"],
                 )
 
-                strategy.sell.state_info = StateInfo(
+                strategy.sell.data.state_info = StateInfo(
                     state=State(sell_level["state"]),
-                    stagnation_counter=sell_level["stagnation_counter"],
                     open_time=sell_level["open_time"],
                     side=PositionSide(sell_level["side"]),
                 )
 
-                sell_config = strategy.sell.config
+                sell_config = strategy.sell.data.config
                 strategy.sell.orders = await self.restore_sell_orders(
                     sell_config=sell_config, worker_queue=worker_queue
                 )
-                strategy.sell.state_info.generate_next_monitor_time()
+                strategy.sell.data.state_info.generate_next_monitor_time()
 
-                strategy.sell.state_info.ui_state = (
+                strategy.sell.data.state_info.ui_state = (
                     UiState.OPEN
                     if strategy.state in [State.BUYING, State.SELLING]
                     else UiState.STAGNATED
                 )
                 if strategy.sell.orders:
-                    strategy.sell.state_info.completeness = round(
+                    strategy.sell.data.state_info.completeness = round(
                         sum(order.realized_quantity for order in strategy.sell.orders)
                         / sum(order.quantity for order in strategy.sell.orders),
                         2,
                     )
                 else:
-                    strategy.sell.state_info.completeness = 0
+                    strategy.sell.data.state_info.completeness = 0
 
                 # Send sell position data
-                sell_pos_data = PositionData(
-                    config=sell_config,
-                    state_info=strategy.sell.state_info,
+                sell_pos_data = HPGuiDataSell(
+                    data=HPSellData(
+                        sell_config, state_info=strategy.sell.data.state_info
+                    ),
                     hp_update=HPUpdate(
                         hp_id=sell_config.hp_id,
-                        sell_price=sell_config.price_high,
+                        sell_price=sell_config.sell_price,
                         asset=sell_config.symbol_info.symbol[:-4],
                         state=strategy.state,
                     ),
                 )
-                strategy.sell.ui_queue.put_nowait(sell_pos_data)
+                strategy.ui_queue.put_nowait(sell_pos_data)
                 self.logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
             self.logger.info("Strategy position(s) restored")
 
             asyncio.create_task(strategy.worker())
             self.logger.info("HP %s restored.", buy_config.hp_id)
-
-    # async def save_config(self, file_name: str) -> None:
-    #     """Handle saving the current configuration to a CSV file."""
-    #     config_dir = "src/strategies/spot"
-    #     file_path = os.path.join(config_dir, f"{file_name}.csv")
-    #     os.makedirs(config_dir, exist_ok=True)
-
-    #     # Collect the current configuration
-    #     config_data = self.get_current_configuration()
-
-    #     self.logger.info(f"Saving configuration to {file_path}")
-    #     with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
-    #         writer = csv.writer(csvfile)
-    #         writer.writerow(
-    #             [
-    #                 "Symbol",
-    #                 "Side",
-    #                 "Price Low",
-    #                 "Price High",
-    #                 "Budget",
-    #                 "Order Trigger",
-    #                 "Mode",
-    #             ]
-    #         )
-    #         for config in config_data:
-    #             writer.writerow(
-    #                 [
-    #                     config.symbol,
-    #                     config.side,
-    #                     config.price_low,
-    #                     config.price_high,
-    #                     config.budget,
-    #                     config.order_trigger,
-    #                     config.mode,
-    #                 ]
-    #             )
-    #     self.logger.info("Configuration saved successfully.")
-
-    # async def load_config(self, file_name: str) -> None:
-    #     """Handle loading a configuration from a CSV file."""
-    #     config_dir = "src/strategies/spot/"
-    #     file_path = f"{config_dir}{file_name}.csv"
-
-    #     try:
-    #         with open(file_path, "r", encoding="utf-8") as csvfile:
-    #             reader = csv.reader(csvfile)
-    #             headers = next(reader)  # Skip the headers
-    #             config_data = list(reader)
-    #             for cd in config_data:
-    #                 # Prepare the PositionSetup and put it in the queue
-    #                 config = HPConfig(
-    #                     symbol_info=self.symbols_info[cd[0]],
-    #                     price_low=float(cd[2]),
-    #                     price_high=float(cd[3]),
-    #                     budget=float(cd[4]),
-    #                     order_trigger=float(cd[5]),
-    #                     mode=Mode.DCA if cd[6] == Mode.DCA.value else Mode.SINGLE,
-    #                 )
-
-    #                 self.config_queue.put_nowait(
-    #                     HpNew(config=config, state_info=StateInfo())
-    #                 )
-    #                 # self.ui_queue.put_nowait(
-    #                 #     PositionData(
-    #                 #         config=config, state_info=state_info, completeness=0.0
-    #                 #     )
-    #                 # )
-    #         self.logger.info(f"Loaded configuration from {file_path}")
-    #     except FileNotFoundError:
-    #         self.logger.error(f"File {file_name}.csv not found.")
-
-    # def get_current_configuration(self) -> List[CsvConfig]:
-    #     """Collect the current configurations."""
-    #     hp_config = []
-    #     for system_id, system in self.strategies.items():
-    #         logger.info("System id: %s, system: %s", system_id, system)
-    #         assert isinstance(system, TradingSystem)
-    #         hp_config.append(
-    #             CsvConfig(
-    #                 symbol=system.config.symbol_info.symbol,
-    #                 side=system.state_info.side.value,
-    #                 price_low=system.config.price_low,
-    #                 price_high=system.config.price_high,
-    #                 budget=system.config.budget,
-    #                 order_trigger=system.config.order_trigger,
-    #                 mode=system.config.mode.value,
-    #             )
-    #         )
-    #     return hp_config
-
-    # def initialize_hp_list(self) -> None:
-    #     """
-    #     Initialize the HP list by fetching data from the database and populating the UI.
-    #     """
-
-    #     self.db.run_db_task(self.db.create_hp_list_table())
-
-    #     # Fetch existing records from the database
-    #     hp_list_from_db: List[Dict] = self.db.run_db_task(self.db.fetch_hp_list())
-    #     if not hp_list_from_db:
-    #         logger.info("Creating new list.")
-    #         hp_list_raw: List[Dict] = get_hp_list()
-
-    #         for item in hp_list_raw:
-    #             hp_update = HPUpdate(
-    #                 hp_id=generate_hp_id(hp_list=self.hp_configurations),
-    #                 asset=item["Asset"],
-    #                 buy_price=float(item["Price"]),
-    #                 quantity=float(item["Quantity"]),
-    #                 quantity_usdt=round(
-    #                     float(item["Price"]) * float(item["Quantity"]), 2
-    #                 ),
-    #                 sell_price=0,
-    #                 expected_return=0,
-    #                 state=State.NEW,
-    #             )
-    #             self.hp_configurations.append(hp_update)
-    #             self.db.run_db_task(self.db.insert_hp_list_record(hp_update))
-    #     else:
-    #         logger.info("Reading list from the DB.")
-    #         for item in hp_list_from_db:
-    #             self.hp_configurations.append(
-    #                 HPUpdate(
-    #                     hp_id=item["hp_id"],
-    #                     asset=item["asset"],
-    #                     buy_price=float(item["buy_price"]),
-    #                     quantity=float(item["quantity"]),
-    #                     quantity_usdt=float(item["quantity_usdt"]),
-    #                     sell_price=0,
-    #                     expected_return=0,
-    #                     state=State.NEW,
-    #                 )
-    #             )
-
-    #     if self.hp_list_data:
-    #         self.logger.debug("HP list records found: %s", self.hp_list_data)
-    #         for record in self.hp_list_data:
-    #             self.ui_queue.put_nowait(record)
-    #         self.logger.info("All HPs send to UI.")
-    #     else:
-    #         self.logger.info("No records found in the HP list table.")
-
-
-def get_hp_list():
-    return [
-        {"Asset": "BTC", "Price": 64444.0, "Quantity": 0.427},
-        {"Asset": "BTC", "Price": 67940.0, "Quantity": 0.072},
-        {"Asset": "BTC", "Price": 55386.0, "Quantity": 0.03},
-        {"Asset": "ETH", "Price": 3935.0, "Quantity": 2.7},
-        {"Asset": "BNB", "Price": 325.0, "Quantity": 1.09},
-        {"Asset": "USDT", "Price": 1.0, "Quantity": 2500.0},
-        {"Asset": "PLN", "Price": 0.25, "Quantity": 0.0},
-        {"Asset": "W", "Price": 0.694, "Quantity": 3256.0},
-        {"Asset": "W", "Price": 0.572, "Quantity": 1748.0},
-        {"Asset": "W", "Price": 0.498, "Quantity": 903.0},
-        {"Asset": "W", "Price": 0.3051, "Quantity": 1210.0},
-        {"Asset": "W", "Price": 0.2325, "Quantity": 2150.0},
-        {"Asset": "PORTAL", "Price": 0.8187, "Quantity": 4885.7},
-        {"Asset": "PORTAL", "Price": 0.9014, "Quantity": 1109.3},
-        {"Asset": "PORTAL", "Price": 0.4058, "Quantity": 1400.0},
-        {"Asset": "PORTAL", "Price": 0.2949, "Quantity": 1694.0},
-        {"Asset": "XAI", "Price": 0.6355, "Quantity": 786.7},
-        {"Asset": "XAI", "Price": 0.7231, "Quantity": 3137.0},
-        {"Asset": "XAI", "Price": 0.3913, "Quantity": 2554.0},
-        {"Asset": "XAI", "Price": 0.3388, "Quantity": 1121.0},
-        {"Asset": "XAI", "Price": 0.192, "Quantity": 2470.0},
-        {"Asset": "XAI", "Price": 0.1813, "Quantity": 540.0},
-        {"Asset": "XAI", "Price": 0.202, "Quantity": 2466.0},
-        {"Asset": "1000SATS", "Price": 0.0002552, "Quantity": 7829153.0},
-        {"Asset": "1000SATS", "Price": 0.0002214, "Quantity": 4516711.0},
-        {"Asset": "1000SATS", "Price": 0.0001534, "Quantity": 3434152.0},
-        {"Asset": "LOKA", "Price": 0.261, "Quantity": 8892.3975},
-        {"Asset": "LOKA", "Price": 0.178, "Quantity": 1303.0},
-        {"Asset": "AEVO", "Price": 1.201, "Quantity": 1665.27},
-        {"Asset": "AEVO", "Price": 1.244, "Quantity": 1607.71},
-        {"Asset": "AEVO", "Price": 0.712, "Quantity": 2809.0},
-        {"Asset": "AEVO", "Price": 0.434, "Quantity": 2604.0},
-        {"Asset": "MAGIC", "Price": 0.6939, "Quantity": 3064.1},
-        {"Asset": "MAGIC", "Price": 0.5195, "Quantity": 718.0},
-        {"Asset": "JUP", "Price": 1.0401, "Quantity": 960.7},
-        {"Asset": "JUP", "Price": 1.2163, "Quantity": 1231.0},
-        {"Asset": "JUP", "Price": 0.7337, "Quantity": 846.0},
-        {"Asset": "JUP", "Price": 0.803, "Quantity": 621.0},
-        {"Asset": "HFT", "Price": 0.3019, "Quantity": 4086.0},
-        {"Asset": "HFT", "Price": 0.3128, "Quantity": 4786.0},
-        {"Asset": "HFT", "Price": 0.3131, "Quantity": 4786.0},
-        {"Asset": "HFT", "Price": 0.3134, "Quantity": 7156.0},
-        {"Asset": "HFT", "Price": 0.1965, "Quantity": 3300.0},
-        {"Asset": "HFT", "Price": 0.155, "Quantity": 6440.0},
-        {"Asset": "LQTY", "Price": 1.015, "Quantity": 492.6},
-        {"Asset": "LQTY", "Price": 0.844, "Quantity": 960.0},
-        {"Asset": "OMNI", "Price": 13.88, "Quantity": 72.0},
-        {"Asset": "OMNI", "Price": 12.96, "Quantity": 38.55},
-        {"Asset": "OMNI", "Price": 6.66, "Quantity": 30.0},
-        {"Asset": "NTRN", "Price": 0.647, "Quantity": 1157.0},
-        {"Asset": "NTRN", "Price": 0.4013, "Quantity": 1157.0},
-        {"Asset": "KDA", "Price": 0.851, "Quantity": 2857.0},
-        {"Asset": "KDA", "Price": 0.51, "Quantity": 1960.0},
-        {"Asset": "DYM", "Price": 1.977, "Quantity": 505.3},
-        {"Asset": "DYM", "Price": 1.4, "Quantity": 714.0},
-        {"Asset": "DYM", "Price": 1.38, "Quantity": 84.0},
-        {"Asset": "MANTA", "Price": 1.008, "Quantity": 992.0},
-        {"Asset": "MANTA", "Price": 0.881, "Quantity": 844.0},
-        {"Asset": "PYTH", "Price": 0.335, "Quantity": 3669.0},
-        {"Asset": "PYTH", "Price": 0.2627, "Quantity": 950.0},
-        {"Asset": "APE", "Price": 0.981, "Quantity": 1251.0},
-        {"Asset": "APE", "Price": 0.767, "Quantity": 944.0},
-        {"Asset": "AXL", "Price": 0.5842, "Quantity": 3157.0},
-        {"Asset": "AXL", "Price": 0.4625, "Quantity": 569.0},
-        {"Asset": "BLUR", "Price": 0.2104, "Quantity": 8771.0},
-        {"Asset": "BLUR", "Price": 0.1343, "Quantity": 1861.0},
-        {"Asset": "ENA", "Price": 0.564, "Quantity": 2180.0},
-        {"Asset": "ENA", "Price": 0.41, "Quantity": 1100.0},
-        {"Asset": "ENA", "Price": 0.248, "Quantity": 2016.0},
-        {"Asset": "ENA", "Price": 0.214, "Quantity": 210.0},
-        {"Asset": "STRK", "Price": 0.639, "Quantity": 1564.0},
-        {"Asset": "STRK", "Price": 0.375, "Quantity": 668.0},
-        {"Asset": "STRK", "Price": 0.341, "Quantity": 588.0},
-        {"Asset": "ACE", "Price": 2.292, "Quantity": 271.0},
-        {"Asset": "ACE", "Price": 2.17, "Quantity": 114.0},
-        {"Asset": "SAGA", "Price": 0.9205, "Quantity": 606.0},
-        {"Asset": "SAGA", "Price": 0.995, "Quantity": 250.0},
-        {"Asset": "SAGA", "Price": 1.2, "Quantity": 233.0},
-        {"Asset": "FIDA", "Price": 0.2373, "Quantity": 4214.0},
-        {"Asset": "FIDA", "Price": 0.206, "Quantity": 1628.0},
-        {"Asset": "BB", "Price": 0.3819, "Quantity": 3272.0},
-        {"Asset": "BB", "Price": 0.29, "Quantity": 859.0},
-        {"Asset": "BB", "Price": 0.26, "Quantity": 1680.0},
-        {"Asset": "WIF", "Price": 1.374, "Quantity": 397.0},
-        {"Asset": "AI", "Price": 0.433, "Quantity": 2308.0},
-        {"Asset": "AI", "Price": 0.375, "Quantity": 2666.0},
-        {"Asset": "BSW", "Price": 0.0499, "Quantity": 20040.0},
-        {"Asset": "DODO", "Price": 0.1096, "Quantity": 4562.0},
-        {"Asset": "ETHFI", "Price": 1.419, "Quantity": 704.0},
-        {"Asset": "ETHFI", "Price": 1.32, "Quantity": 90.0},
-        {"Asset": "ID", "Price": 0.3686, "Quantity": 1356.0},
-        {"Asset": "HBAR", "Price": 0.0522, "Quantity": 9578.0},
-        {"Asset": "AERGO", "Price": 0.0981, "Quantity": 5096.0},
-        {"Asset": "EDU", "Price": 0.633, "Quantity": 789.0},
-        {"Asset": "MINA", "Price": 0.4687, "Quantity": 2127.0},
-        {"Asset": "RARE", "Price": 0.1327, "Quantity": 7524.0},
-        {"Asset": "SYN", "Price": 0.4725, "Quantity": 2132.0},
-        {"Asset": "CRV", "Price": 0.3106, "Quantity": 6428.0},
-    ]

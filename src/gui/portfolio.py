@@ -71,27 +71,18 @@ class PortfolioUI(BoxLayout):
 
         for symbol, quantity in balances.msg.items():
             try:
-                if symbol == "USDT":
+                # Round up to coins precision, to filter out first close to zero quantities
+                rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
+                    quantity=quantity
+                )
+                if rounded:
                     coin_data = {
                         "symbol": symbol,
-                        "quantity": str(round(quantity, 2)),
-                        "price_usdt": "1.00",
-                        "total_usdt": str(round(quantity, 2)),
+                        "quantity": str(rounded),
+                        "price_usdt": "0.00",
+                        "total_usdt": "0.00",
                     }
                     self.coin_list_data.append(coin_data)
-                else:
-                    # Round up to coins precision, to filter out first close to zero quantities
-                    rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
-                        quantity=quantity
-                    )
-                    if rounded:
-                        coin_data = {
-                            "symbol": symbol,
-                            "quantity": str(rounded),
-                            "price_usdt": "0.00",  # Placeholder value for now
-                            "total_usdt": "0.00",  # Placeholder value for now
-                        }
-                        self.coin_list_data.append(coin_data)
             except KeyError as e:
                 # Log the error and skip the symbol
                 logger.warning(
@@ -105,7 +96,7 @@ class PortfolioUI(BoxLayout):
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
-        last_btc_price = 0.0
+        last_btc_price = price_updates.msg.get("BTC")
         # Iterate through the coin_list_data and update only coins that are in price_updates
         for coin in self.coin_list_data:
             symbol = coin["symbol"]
@@ -118,8 +109,6 @@ class PortfolioUI(BoxLayout):
                 coin["price_usdt"] = str(
                     self.symbols_info[f"{symbol}USDT"].adjust_price(price)
                 )
-                if coin["symbol"] == "BTC":
-                    last_btc_price = float(coin["price_usdt"])
                 total_in_usdt = round(float(coin["quantity"]) * price, 2)
                 coin["total_usdt"] = str(total_in_usdt)
 
@@ -135,7 +124,8 @@ class PortfolioUI(BoxLayout):
         self.saldo_usdt_label = round(
             sum([float(coin["total_usdt"]) for coin in self.coin_list_data]), 2
         )
-        self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 8)
+        if last_btc_price:
+            self.saldo_btc_label = round(self.saldo_usdt_label / last_btc_price, 8)
 
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
@@ -155,10 +145,7 @@ class PortfolioUI(BoxLayout):
             for coin in self.coin_list_data:
                 if coin["symbol"] == symbol:
                     # Update the quantity (balances) if found
-                    coin["quantity"] = str(total_balance)
-                    if coin["symbol"] == "USDT":
-                        coin["quantity"] = str(round(total_balance, 2))
-                        coin["total_usdt"] = str(round(total_balance, 2))
+                    coin["quantity"] = str(round(total_balance, 2))
                     found = True
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
                     break
@@ -178,8 +165,8 @@ class PortfolioUI(BoxLayout):
                     coin_data = {
                         "symbol": symbol,
                         "quantity": str(total_balance),
-                        "price_usdt": "0.00",  # Placeholder, to be updated by price feed
-                        "total_usdt": "0.00",  # Placeholder, to be updated
+                        "price_usdt": "0.00",
+                        "total_usdt": "0.00",
                     }
                 self.coin_list_data.append(coin_data)
 

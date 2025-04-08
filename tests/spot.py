@@ -1,30 +1,45 @@
 import logging
+from typing import List
+from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 
-from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED
-
+from src.identifiers.spot import Order
 
 logger = logging.getLogger("common_spot")
 
 
-def get_new_orders(price_low: float, price_high: float, number_of_orders: int = 11):
-    assert (
-        number_of_orders >= 3 and number_of_orders % 2 == 1
-    ), "Number of orders must be an odd number starting from 3"
+def get_new_orders(orders: List[Order]):
+    price_low = min(order.price for order in orders)
+    price_high = max(order.price for order in orders)
+
     first_order_id = round(price_low * price_high / 3.14)
     order_list = []
-    for item in range(number_of_orders):
-        price = price_low + item * ((price_high - price_low) / (number_of_orders - 1))
-        quantity = 0.1
+    for item, order in enumerate(orders):
+        if order.status != ORDER_STATUS_FILLED:
+            quantity = order.quantity - order.realized_quantity
 
-        order_list.append(
-            {
-                "orderId": first_order_id + item,
-                "price": price,
-                "quantity": quantity,
-                "status": ORDER_STATUS_NEW,
-                "updateTime": 1566818724722,
-            }
-        )
+            order_list.append(
+                {
+                    "orderId": first_order_id + item,
+                    "price": order.price,
+                    "quantity": quantity,
+                    "status": ORDER_STATUS_NEW,
+                    "updateTime": 1566818724722,
+                }
+            )
+    return order_list
+
+
+def get_sell_order(sell_price: float):
+    order_list = []
+    order_list.append(
+        {
+            "orderId": round(sell_price * sell_price / 3.14),
+            "price": sell_price,
+            "quantity": 0.1,
+            "status": ORDER_STATUS_NEW,
+            "updateTime": 1566818724722,
+        }
+    )
     return order_list
 
 

@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
-from src.identifiers.spot import HPConfig, State, StateInfo
+from src.identifiers.spot import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
 
 
 @dataclass
@@ -18,33 +18,35 @@ class HPUpdate:
     state: State = State.NONE
 
 
-class PositionData:
-    def __init__(
-        self,
-        config: HPConfig,
-        state_info: StateInfo,
-        hp_update: HPUpdate,
-        recovering: bool = False,
-    ):
-        self.config = config
-        self.state_info = state_info
-        self.order_cancel = 2 * config.order_trigger
-        self.hp_update = hp_update
+@dataclass
+class HPGuiDataBuy:
+    data: HPBuyData
+    hp_update: HPUpdate
 
-        self.recovering = recovering
-
-    def __repr__(self) -> str:
-        return (
-            f"PositionData(hp_update={self.hp_update}, "
-            f"state_info={self.state_info}, "
-            f"config={self.config}, "
-            f"order_cancel={self.order_cancel}, "
-            f"recovering={self.recovering})"
-        )
+    def __str__(self):
+        return f"HPGuiDataBuy(hp_update={self.hp_update}, data={self.data})"
 
 
 @dataclass
-class IdlePosition:
+class HPClose:
+    config: HPSellConfig
+    state_info: StateInfo
+
+    def __str__(self):
+        return f"HPClose(data={self.config}, hp_update={self.state_info})"
+
+
+@dataclass
+class HPGuiDataSell:
+    data: HPSellData
+    hp_update: HPUpdate
+
+    def __str__(self):
+        return f"HPGuiDataSell(hp_update={self.hp_update}, data={self.data})"
+
+
+@dataclass
+class IdlePositionBuy:
     open_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
     symbol: str = field(default="")
@@ -63,7 +65,7 @@ class IdlePosition:
 
 
 @dataclass
-class ActivePosition:
+class ActivePositionBuy:
     open_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
     symbol: str = field(default="")
@@ -83,7 +85,7 @@ class ActivePosition:
 
 
 @dataclass
-class ArchivedPosition:
+class ArchivedPositionBuy:
     open_time: Optional[str] = field(default=None)
     close_time: Optional[str] = field(default=None)
     hp_id: str = field(default="")
@@ -94,6 +96,60 @@ class ArchivedPosition:
     price_high: str = field(default="")
     budget: str = field(default="")
     order_trigger: str = field(default="")
+    completeness: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class IdlePositionSell:
+    open_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    current_price: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class ActivePositionSell:
+    open_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
+    state: str = field(default="")
+    completeness: str = field(default="")
+    stagnation: str = field(default="")
+    current_price: str = field(default="")
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
+class ArchivedPositionSell:
+    open_time: Optional[str] = field(default=None)
+    close_time: Optional[str] = field(default=None)
+    hp_id: str = field(default="")
+    symbol: str = field(default="")
+    side: str = field(default="")
+    buy_price: str = field(default="")
+    sell_price: str = field(default="")
+    quantity: str = field(default="")
+    end_currency: str = field(default="")
     completeness: str = field(default="")
 
     def to_dict(self):

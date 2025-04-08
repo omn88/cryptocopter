@@ -8,19 +8,20 @@ from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
+import warnings
+import pytest
 import logging
 import queue
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from transitions.extensions.asyncio import AsyncMachine
-import pytest
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPUpdate, PositionData
+from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
 from src.database import Database
 from src.identifiers.futures import (
     Event,
@@ -28,7 +29,7 @@ from src.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.identifiers.spot import HPConfig, State, StateInfo
+from src.identifiers.spot import HPBuyConfig, HPBuyData, State, StateInfo
 from src.identifiers.futures import StrategyConfig as ConfigFutures
 from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -79,7 +80,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
+def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -92,9 +93,9 @@ def strategy_executor_fixture(mock_AsyncClient, test_db: Database):
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
     strategy_logger = StrategyLogger(name="test_strategy_executor")
-    balances = {"USDT": 10000.0}  # Mock balance
+    balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
     }
 
     # Create the StrategyExecutor instance
@@ -134,12 +135,30 @@ async def frontend_backend_setup(
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
+    for strategy in strategy_executor_fixture.strategies.values():
+        strategy.stop_event.set()
+        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+    logger.info("Front Back teardown finished.")
+
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
 
 @pytest.fixture
 async def test_db():
     """Drop the test database, recreate it, and set up tables before running tests."""
+
+    # Suppress specific warnings related to database operations
+    warnings.filterwarnings(
+        "ignore", message="Can't create database 'e2e_test'; database exists"
+    )
+    warnings.filterwarnings("ignore", message="Table 'strategies' already exists")
+    warnings.filterwarnings("ignore", message="Table 'buy_price_levels' already exists")
+    warnings.filterwarnings(
+        "ignore", message="Table 'sell_price_levels' already exists"
+    )
+    warnings.filterwarnings("ignore", message="Table 'hp_list' already exists")
+    warnings.filterwarnings("ignore", message="Table 'orders' already exists")
+
     db = Database(
         host=config("DB_HOST"),
         port=int(config("DB_PORT")),
@@ -149,7 +168,6 @@ async def test_db():
     )
     await db.initialize()
 
-    # try:
     logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
 
     # Drop the existing test database
@@ -159,51 +177,42 @@ async def test_db():
     db.create_database_if_not_exists()
     db.create_pool()
     db.setup_tables()
-    db.create_hp_list_table()
 
     yield db  # Provide the database instance for the test
+
     db.stop_worker()
-    # finally:
-    # db.close_pool()
-    # db.stop_worker()
 
 
 @pytest.fixture
 def trading_system_factory(mock_AsyncClient):
     def create_trading_system(
-        hp_config: HPConfig, balance: float = 10000
+        hp_config: HPBuyConfig, balance: float = 10000
     ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
-        test_db = MagicMock()
+        test_database = MagicMock()
         strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
             config_queue=MagicMock(),
-            buy_config=hp_config,
             ui_queue=ui_queue,
             logger=StrategyLogger(name="test"),
-            db=test_db,
+            db=test_database,
             worker_queue=queue.Queue(),
-            state_info=StateInfo(),
+            buy_data=HPBuyData(config=hp_config, state_info=StateInfo()),
         )
-        strategy.buy.config.hp_id = generate_hp_id(hp_list=[])
-        strategy.buy.orders = strategy.buy.prepare_buy_orders(config=hp_config)
-        strategy.client.create_order.side_effect = get_new_orders(
-            price_low=strategy.buy.config.price_low,
-            price_high=strategy.buy.config.price_high,
+        hp_config.hp_id = generate_hp_id(hp_list=[])
+        strategy.buy.orders = strategy.buy.prepare_orders()
+        strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
+        hp_gui_data_buy = HPGuiDataBuy(
+            data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
+            hp_update=HPUpdate(
+                hp_id=hp_config.hp_id,
+                asset=hp_config.symbol_info.symbol[:-4],
+                state=State.NEW,
+            ),
         )
-
-        ui_queue.put_nowait(
-            PositionData(
-                config=hp_config,
-                state_info=strategy.buy.state_info,
-                hp_update=HPUpdate(
-                    hp_id=strategy.buy.config.hp_id,
-                    asset=strategy.buy.config.symbol_info.symbol[:-4],
-                    state=State.NEW,
-                ),
-            )
-        )
+        logger.debug("Going to send hpguidatabuy to ui queue: %s", hp_gui_data_buy)
+        ui_queue.put_nowait(hp_gui_data_buy)
 
         return strategy
 

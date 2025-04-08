@@ -3,11 +3,19 @@ import datetime
 import logging
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import uuid
 import aiomysql
 
-from src.identifiers.spot import HpPositionData, Order, State, HPConfig
+from src.identifiers.common import PositionSide
+from src.identifiers.spot import (
+    HPBuyConfig,
+    HPBuyData,
+    HPSellConfig,
+    HPSellData,
+    Order,
+    StateInfo,
+)
 
 logger = logging.getLogger("database")
 
@@ -26,19 +34,38 @@ CREATE TABLE IF NOT EXISTS strategies (
 );
 """
 
-CREATE_PRICE_LEVELS_TABLE = """
-CREATE TABLE IF NOT EXISTS price_levels (
+CREATE_BUY_PRICE_LEVELS_TABLE = """
+CREATE TABLE IF NOT EXISTS buy_price_levels (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hp_id INT NOT NULL,
     open_time VARCHAR(20) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(20) NOT NULL,
     price_low FLOAT NOT NULL,
     price_high FLOAT NOT NULL,
     order_trigger FLOAT NOT NULL,
     budget FLOAT NOT NULL,
     state VARCHAR(20) NOT NULL,
     mode VARCHAR(10) NOT NULL,
+    stagnation_counter INT NOT NULL DEFAULT 0,
+    next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+"""
+
+CREATE_SELL_PRICE_LEVELS_TABLE = """
+CREATE TABLE IF NOT EXISTS sell_price_levels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hp_id INT NOT NULL,
+    open_time VARCHAR(20) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    buy_price FLOAT NOT NULL,
+    sell_price FLOAT NOT NULL,
+    quantity FLOAT NOT NULL,
+    state VARCHAR(20) NOT NULL,
+    end_currency VARCHAR(20) NOT NULL,
     stagnation_counter INT NOT NULL DEFAULT 0,
     next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
@@ -117,11 +144,25 @@ class Database:
 
     def stop_worker(self):
         logger.info("DB: Stop the event loop and join the thread")
+
+        # Ensure the pool is properly closed before stopping the loop
+        if self.pool is not None:
+            self.run_task(self._close_pool_async())  # Ensure pool is closed
+
         if self.loop is not None:
             self.loop.call_soon_threadsafe(self.loop.stop)
+
         if self.thread is not None:
             self.thread.join()
             logger.info("DB thread finished")
+
+    async def _close_pool_async(self):
+        """Asynchronously close the aiomysql connection pool."""
+        if self.pool is not None:
+            logger.info("Closing the database pool")
+            self.pool.close()
+            await self.pool.wait_closed()
+            logger.info("Database pool closed successfully")
 
     def run_task(self, coro):
         return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
@@ -212,21 +253,14 @@ class Database:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(CREATE_STRATEGIES_TABLE)
-                    await cur.execute(CREATE_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_BUY_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_SELL_PRICE_LEVELS_TABLE)
+                    await cur.execute(CREATE_HPLIST_TABLE)
                     await cur.execute(CREATE_ORDERS_TABLE)
 
                     await conn.commit()
 
         return self.run_task(_setup_tables())
-
-    def create_hp_list_table(self) -> None:
-        async def _create_hp_list_table():
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(CREATE_HPLIST_TABLE)
-                    await conn.commit()
-
-        return self.run_task(_create_hp_list_table())
 
     def drop_tables(self) -> None:
         async def _drop_tables():
@@ -234,7 +268,8 @@ class Database:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute("DROP TABLE IF EXISTS strategies")
-                    await cur.execute("DROP TABLE IF EXISTS price_levels")
+                    await cur.execute("DROP TABLE IF EXISTS buy_price_levels")
+                    await cur.execute("DROP TABLE IF EXISTS sell_price_levels")
                     await cur.execute("DROP TABLE IF EXISTS orders")
                     await cur.execute("DROP TABLE IF EXISTS hp_list")
 
@@ -318,19 +353,19 @@ class Database:
 
         return self.run_task(_upsert_hp_record(hp_record=hp_record))
 
-    def upsert_price_level(self, position: HpPositionData) -> None:
+    def upsert_buy_price_level(self, data: HPBuyData) -> None:
         async def _upsert_price_level(
-            position: HpPositionData,
+            data: HPBuyData,
         ) -> None:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    config = position.config
-                    state_info = position.state_info
+                    config = data.config
+                    state_info = data.state_info
                     # Check if a record with the same hp_id, side, and state already exists
                     await cur.execute(
-                        "SELECT 1 FROM price_levels WHERE hp_id=%s AND side=%s LIMIT 1",
-                        (config.hp_id, state_info.side.value),
+                        "SELECT 1 FROM buy_price_levels WHERE hp_id=%s LIMIT 1",
+                        (config.hp_id,),
                     )
                     existing_record = await cur.fetchone()
 
@@ -338,17 +373,17 @@ class Database:
                     if existing_record:
                         # Mark the current record as not current
                         await cur.execute(
-                            "UPDATE price_levels SET is_current=FALSE WHERE hp_id=%s AND side=%s AND is_current=TRUE",
-                            (config.hp_id, state_info.side.value),
+                            "UPDATE buy_price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
+                            (config.hp_id,),
                         )
 
                     # Insert a new record with the updated values
                     version_timestamp = datetime.datetime.now().isoformat()
                     insert_query = """
-                    INSERT INTO price_levels (
-                        open_time, hp_id, symbol, side, mode, price_low, price_high, order_trigger, budget, state,
+                    INSERT INTO buy_price_levels (
+                        open_time, hp_id, symbol, mode, price_low, price_high, order_trigger, budget, state,
                         is_current, version_timestamp, stagnation_counter, next_monitor_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
                     """
                     await cur.execute(
                         insert_query,
@@ -356,7 +391,6 @@ class Database:
                             state_info.open_time,
                             config.hp_id,
                             config.symbol_info.symbol,
-                            state_info.side.value,
                             config.mode.value,
                             config.price_low,
                             config.price_high,
@@ -370,10 +404,60 @@ class Database:
                     )
                     await conn.commit()
 
-        return self.run_task(_upsert_price_level(position=position))
+        return self.run_task(_upsert_price_level(data=data))
 
-    def upsert_order(self, order: Order, position: HpPositionData) -> None:
-        async def _upsert_order(order: Order, position: HpPositionData) -> None:
+    def upsert_sell_price_level(self, data: HPSellData) -> None:
+        async def _upsert_price_level(
+            data: HPSellData,
+        ) -> None:
+            assert self.pool is not None
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    config: HPSellConfig = data.config
+                    state_info: StateInfo = data.state_info
+                    # Check if a record with the same hp_id, side, and state already exists
+                    await cur.execute(
+                        "SELECT 1 FROM sell_price_levels WHERE hp_id=%s LIMIT 1",
+                        (config.hp_id,),
+                    )
+                    existing_record = await cur.fetchone()
+                    # If no such record exists, proceed with the update and insert
+                    if existing_record:
+                        # Mark the current record as not current
+                        await cur.execute(
+                            "UPDATE sell_price_levels SET is_current=FALSE WHERE hp_id=%s AND is_current=TRUE",
+                            (config.hp_id,),
+                        )
+                    # Insert a new record with the updated values
+                    version_timestamp = datetime.datetime.now().isoformat()
+                    insert_query = """
+                    INSERT INTO sell_price_levels (
+                        open_time, hp_id, symbol, buy_price, sell_price, quantity, end_currency, state,
+                        is_current, version_timestamp, stagnation_counter, next_monitor_time
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    """
+                    await cur.execute(
+                        insert_query,
+                        (
+                            state_info.open_time,
+                            config.hp_id,
+                            config.symbol_info.symbol,
+                            config.buy_price,
+                            config.sell_price,
+                            config.quantity,
+                            config.end_currency,
+                            state_info.state.value,
+                            version_timestamp,
+                            state_info.stagnation_counter,
+                            state_info.next_monitor_time,
+                        ),
+                    )
+                    await conn.commit()
+
+        return self.run_task(_upsert_price_level(data=data))
+
+    def upsert_order(self, order: Order, hp_id: str, side: PositionSide) -> None:
+        async def _upsert_order(order: Order, hp_id: str, side: PositionSide) -> None:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -393,10 +477,10 @@ class Database:
                         insert_query,
                         (
                             order.order_id,
-                            position.config.hp_id,
+                            hp_id,
                             order.quantity,
                             order.price,
-                            position.state_info.side.value,
+                            side.value,
                             order.quantity_stable,
                             order.realized_quantity,
                             order.time_in_force,
@@ -407,7 +491,7 @@ class Database:
                     )
                     await conn.commit()
 
-        return self.run_task(_upsert_order(order=order, position=position))
+        return self.run_task(_upsert_order(order=order, hp_id=hp_id, side=side))
 
     def fetch_active_hp_list(self) -> List[Dict]:
         async def _fetch_active_hp_list() -> List[Dict]:
@@ -421,14 +505,14 @@ class Database:
 
         return self.run_task(_fetch_active_hp_list())
 
-    def fetch_price_levels_for_hp(self, hp_id: str) -> List[Dict]:
-        async def _fetch_price_levels_for_hp(hp_id: str) -> List[Dict]:
+    def fetch_price_levels_for_hp(self, hp_id: str) -> Tuple[Dict, Dict]:
+        async def _fetch_price_levels_for_hp(hp_id: str) -> Tuple[Dict, Dict]:
             """
             Fetch price levels for a given hp_id.
             """
             query = """
             SELECT *
-            FROM price_levels
+            FROM buy_price_levels
             WHERE hp_id = %s
             AND is_current = TRUE
             """
@@ -436,7 +520,23 @@ class Database:
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
                     await cur.execute(query, (hp_id,))
-                    return await cur.fetchall()
+                    buy_level = await cur.fetchall()
+                    logger.info("Fetched buy level for hp %s: %s", hp_id, buy_level)
+
+            query = """
+            SELECT *
+            FROM sell_price_levels
+            WHERE hp_id = %s
+            AND is_current = TRUE
+            """
+            assert self.pool is not None
+            async with self.pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    await cur.execute(query, (hp_id,))
+                    sell_level = await cur.fetchall()
+                    logger.info("Fetched sell level for hp %s: %s", hp_id, sell_level)
+
+            return buy_level, sell_level
 
         return self.run_task(_fetch_price_levels_for_hp(hp_id=hp_id))
 
@@ -467,15 +567,17 @@ class Database:
 
         return self.run_task(_fetch_all_active_strategies())
 
-    def assert_db_price_level_content(
-        self, config: HPConfig, state: State
+    def assert_db_buy_price_level_content(
+        self, config: HPBuyConfig, state_info: StateInfo
     ) -> List[Dict]:
-        async def _assert_db_price_level_content(config: HPConfig, state: State):
+        async def _assert_db_price_level_content(
+            config: HPBuyConfig, state_info: StateInfo
+        ):
             assert self.pool is not None
             async with self.pool.acquire() as conn:
                 async with conn.cursor(aiomysql.cursors.DictCursor) as cur:
                     await cur.execute(
-                        "SELECT * FROM price_levels WHERE price_level_id=%s AND is_current=TRUE",
+                        "SELECT * FROM buy_price_levels WHERE price_level_id=%s AND is_current=TRUE",
                         (config.system_id,),
                     )
                     result = await cur.fetchone()
@@ -483,23 +585,13 @@ class Database:
                     logger.info("Result: %s", result)
                     assert result is not None, "Price level not found in the database"
                     assert result.get("symbol") == config.symbol_info.symbol
-                    assert result.get("side") == config.side.value
+                    assert result.get("side") == state_info.side.value
                     assert result.get("price_low") == config.price_low
                     assert result.get("price_high") == config.price_high
-                    assert result.get("state") == state.value
+                    assert result.get("state") == state_info.state.value
                     assert result.get("budget") == config.budget
                     assert result.get("order_trigger") == config.order_trigger
 
-        return self.run_task(_assert_db_price_level_content(config=config, state=state))
-
-    # async def fetch_all_active_price_levels(self) -> List[Dict]:
-    #     assert self.pool is not None
-    #     async with self.pool.acquire() as conn:
-    #         async with conn.cursor(aiomysql.DictCursor) as cur:
-    #             query = """
-    #             SELECT * FROM price_levels
-    #             WHERE state IN ('NEW', 'OPEN', 'STAGNATED') AND is_current=TRUE
-    #             """
-    #             await cur.execute(query)
-    #             result = await cur.fetchall()
-    #             return result
+        return self.run_task(
+            _assert_db_price_level_content(config=config, state_info=state_info)
+        )

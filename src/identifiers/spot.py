@@ -215,42 +215,6 @@ class Event(NamedTuple):
 
 
 @dataclass
-class HPConfig:
-    symbol_info: SymbolInfo
-    hp_id: str = "0"
-    price_low: float = 0
-    price_high: float = 0
-    order_trigger: float = 0
-    budget: float = 0
-    mode: Mode = Mode.DCA
-
-    def __str__(self):
-        return (
-            f"HPConfig(hp_id={self.hp_id}, symbol_info={self.symbol_info}"
-            f"price_low={self.price_low}, price_high={self.price_high}, "
-            f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
-        )
-
-
-class SubscriptionType(Enum):
-    PRICE = auto()
-    USER = auto()
-
-
-class SubscriptionTarget(Enum):
-    FRONTEND = auto()
-    BACKEND = auto()
-    PORTFOLIO = auto()
-
-
-class SubscriptionInfo(NamedTuple):
-    data_type: SubscriptionType
-    symbol: str
-    target: SubscriptionTarget
-    queue: queue.Queue
-
-
-@dataclass
 class StateInfo:
     state: State = State.NEW
     stagnation_counter: int = 0
@@ -281,36 +245,82 @@ class StateInfo:
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-class HpPositionData(NamedTuple):
-    config: HPConfig
+@dataclass
+class HPBuyConfig:
+    symbol_info: SymbolInfo
+    hp_id: str = "0"
+    price_low: float = 0
+    price_high: float = 0
+    order_trigger: float = 0
+    order_cancel: float = 0
+    budget: float = 0
+    mode: Mode = Mode.DCA
+
+    def __post_init__(self):
+        """Ensure order_cancel is always set correctly based on order_trigger"""
+        if self.order_trigger:
+            self.order_cancel = 2 * self.order_trigger
+
+    def __str__(self):
+        return (
+            f"HPBuyConfig(hp_id={self.hp_id}, symbol_info={self.symbol_info}"
+            f"price_low={self.price_low}, price_high={self.price_high}, "
+            f"order_trigger={self.order_trigger}, budget={self.budget}, mode={self.mode})"
+        )
+
+
+@dataclass
+class HPBuyData:
+    config: HPBuyConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HpNewPosition(config={self.config}, state_info={self.state_info})"
+        return f"HPBuyData(config={self.config}, state_info={self.state_info})"
 
 
-class HpNewPosition(NamedTuple):
-    config: HPConfig
+@dataclass
+class HPSellConfig:
+    symbol_info: SymbolInfo
+    hp_id: str = ""
+    asset: str = ""
+    quantity: float = 0.0
+    buy_price: float = 0.0
+    sell_price: float = 0.0
+    end_currency: str = "USDC"
+
+    def __str__(self):
+        return (
+            f"HPSellConfig(hp_id={self.hp_id}, asset={self.asset}, "
+            f"quantity={self.quantity}, buy_price={self.buy_price}, "
+            f"sell_price={self.sell_price}, end_currency={self.end_currency})"
+        )
+
+
+@dataclass
+class HPSellData:
+    config: HPSellConfig
     state_info: StateInfo
 
     def __str__(self):
-        return f"HpNewPosition(config={self.config}, state_info={self.state_info})"
+        return f"HPSellData(config={self.config}, state_info={self.state_info})"
 
 
-class HpClose(NamedTuple):
-    config: HPConfig
-    state_info: StateInfo
-
-    def __str__(self):
-        return f"HpClose(config={self.config}, state_info={self.state_info})"
+class SubscriptionType(Enum):
+    PRICE = auto()
+    USER = auto()
 
 
-class SellConfig(NamedTuple):
-    config: HPConfig
-    state_info: StateInfo
+class SubscriptionTarget(Enum):
+    FRONTEND = auto()
+    BACKEND = auto()
+    PORTFOLIO = auto()
 
-    def __str__(self):
-        return f"SellConfig(config={self.config}, state_info={self.state_info})"
+
+class SubscriptionInfo(NamedTuple):
+    data_type: SubscriptionType
+    symbol: str
+    target: SubscriptionTarget
+    queue: queue.Queue
 
 
 class RemoveRecord(NamedTuple):

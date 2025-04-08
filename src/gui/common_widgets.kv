@@ -141,7 +141,7 @@
         text: root.state
 
 
-<RecordListItemActive@BoxLayout>:
+<RecordListItemActiveBuy@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
@@ -204,7 +204,7 @@
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
 
 
-<RecordListItemIdle@BoxLayout>:
+<RecordListItemIdleBuy@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
@@ -263,7 +263,7 @@
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
 
 
-<RecordListItemArchive@BoxLayout>:
+<RecordListItemArchiveBuy@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
@@ -316,6 +316,178 @@
     Label:
         text: root.completeness
         size_hint_x: 0.1
+
+<RecordListItemActiveSell@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    open_time: ''
+    system_id: ''
+    symbol: ''
+    side: ''
+    buy_price: ''
+    sell_price: ''
+    quantity: ''
+    end_currency: ''
+    stagnation: ''
+    current_price: ''
+    completeness: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
+
+    Label:
+        text: root.open_time
+        size_hint_x: 0.13
+    Label:
+        text: root.symbol
+        size_hint_x: 0.08
+    Label:
+        text: root.side
+        size_hint_x: 0.05
+    Label:
+        text: root.buy_price
+        size_hint_x: 0.1
+    Label:
+        text: root.sell_price
+        size_hint_x: 0.1
+    Label:
+        text: root.quantity
+        size_hint_x: 0.08
+    Label:
+        text: root.end_currency
+        size_hint_x: 0.1
+    Label:
+        text: root.stagnation
+        size_hint_x: 0.08
+    Label:
+        text: root.current_price
+        size_hint_x: 0.1
+    Label:
+        text: root.completeness
+        size_hint_x: 0.08
+    Button:
+        text: 'Remove'
+        size_hint_x: 0.1
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
+
+
+<RecordListItemIdleSell@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    open_time: ''
+    system_id: ''
+    symbol: ''
+    side: ''
+    buy_price: ''
+    sell_price: ''
+    quantity: ''
+    end_currency: ''
+    stagnation: ''
+    current_price: ''
+    completeness: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
+
+    Label:
+        text: root.open_time
+        size_hint_x: 0.13
+    Label:
+        text: root.symbol
+        size_hint_x: 0.08
+    Label:
+        text: root.side
+        size_hint_x: 0.05
+    Label:
+        text: root.buy_price
+        size_hint_x: 0.1
+    Label:
+        text: root.sell_price
+        size_hint_x: 0.1
+    Label:
+        text: root.quantity
+        size_hint_x: 0.08
+    Label:
+        text: root.end_currency
+        size_hint_x: 0.1
+    Label:
+        text: root.stagnation
+        size_hint_x: 0.08
+    Label:
+        text: root.current_price
+        size_hint_x: 0.1
+    Label:
+        text: root.completeness
+        size_hint_x: 0.08
+    Button:
+        text: 'Remove'
+        size_hint_x: 0.1
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
+
+
+<RecordListItemArchiveSell@BoxLayout>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: '30dp'
+
+    open_time: ''
+    system_id: ''
+    symbol: ''
+    side: ''
+    buy_price: ''
+    sell_price: ''
+    quantity: ''
+    end_currency: ''
+    stagnation: ''
+    current_price: ''
+    completeness: ''
+
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.1  # Background color for distinction
+        Line:
+            points: [self.x, self.y, self.x + self.width, self.y]  # Line under each item
+
+    Label:
+        text: root.open_time
+        size_hint_x: 0.13
+    Label:
+        text: root.symbol
+        size_hint_x: 0.08
+    Label:
+        text: root.side
+        size_hint_x: 0.05
+    Label:
+        text: root.buy_price
+        size_hint_x: 0.1
+    Label:
+        text: root.sell_price
+        size_hint_x: 0.1
+    Label:
+        text: root.quantity
+        size_hint_x: 0.08
+    Label:
+        text: root.end_currency
+        size_hint_x: 0.1
+    Label:
+        text: root.stagnation
+        size_hint_x: 0.08
+    Label:
+        text: root.current_price
+        size_hint_x: 0.1
+    Label:
+        text: root.completeness
+        size_hint_x: 0.08
 
 <CoinListItem@BoxLayout>:
     orientation: "horizontal"

@@ -24,25 +24,24 @@ class SymbolInfo:
 
     def __repr__(self):
         return (
-            f"SymbolInfo(symbol={self.symbol}, min_notional={self.min_notional}, lot_size={self.lot_size}, "
-            f"min_qty={self.min_qty}, max_qty={self.max_qty}, price_filter={self.price_filter}, precision={self.precision}, price_precision={self.price_precision})"
+            f"SymbolInfo(symbol={self.symbol}, min_notional={self.min_notional}, "
+            f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
+            f"price_filter={self.price_filter}, precision={self.precision}, "
+            f"price_precision={self.price_precision})"
         )
 
-    def adjust_quantity(self, quantity):
+    def adjust_quantity(self, quantity: float) -> float:
         return round(quantity, self.precision)
 
-    def adjust_price(self, price):
+    def adjust_price(self, price: float) -> float:
         return round(price, self.price_precision)
 
-    def validate_order(self, price, quantity):
+    def validate_order(self, price: float, quantity: float) -> None:
         notional = price * quantity
         if notional < self.min_notional:
             raise ValueError(
-                "Order notional is below MIN_NOTIONAL, notional: %s, min notional: %s, price: %s, quantity: %s",
-                notional,
-                self.min_notional,
-                price,
-                quantity,
+                f"Order notional is below MIN_NOTIONAL, notional: {notional:.2f}, "
+                "min notional: {self.min_notional:.2f},price: {price:.2f}, quantity: {quantity:.2f}"
             )
 
     @staticmethod
