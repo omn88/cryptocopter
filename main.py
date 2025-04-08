@@ -19,7 +19,7 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.identifiers.common import BinanceClient
-from src.portfolio import fetch_initial_balances
+from src.portfolio.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
