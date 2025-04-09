@@ -43,7 +43,7 @@ class PortfolioManager:
         self.balances = balances
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
-        self.usdt_saldo = 0.0
+        self.usd_saldo = 0.0
         self.price_resolver = price_resolver
         self.symbols_info = symbols_info
 
@@ -191,7 +191,9 @@ async def fetch_initial_balances(
             if total_value >= 1.0:  # Only include balances >= $1 USD
                 balances[asset] = total_balance
             else:
-                logger.info("Skipping asset %s: only worth $%.2f", asset, total_value)
+                logger.warning(
+                    "Skipping asset %s: only worth $%.2f", asset, total_value
+                )
 
         except ValueError:
             logger.warning("Skipping asset %s: no USD price available", asset)

@@ -36,7 +36,7 @@
 #     strategy = await move_to_buy_position_active(strategy=strategy)
 #     sell_config = HPConfig(
 #         hp_id=1000,
-#         symbol_info=SymbolInfo(symbol="BTCUSDT"),
+#         symbol_info=SymbolInfo(symbol="BTCUSDC"),
 #         price_high=4200,
 #         price_low=4200,
 #         mode=Mode.SINGLE,
@@ -95,7 +95,7 @@
 # #     strategy = await move_to_buy_position_active(strategy=strategy)
 # #     sell_config = HPConfig(
 # #         hp_id=1000,
-# #         symbol_info=SymbolInfo(symbol="BTCUSDT"),
+# #         symbol_info=SymbolInfo(symbol="BTCUSDC"),
 # #         price_high=4200,
 # #         price_low=4200,
 # #         mode=Mode.SINGLE,

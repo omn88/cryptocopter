@@ -65,6 +65,10 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
                 "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
             },
             {
+                "symbol": "BTCUSDC",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "10.0"}],
+            },
+            {
                 "symbol": "ETHUSDT",
                 "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
             },
@@ -233,7 +237,8 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             db=MagicMock(),
             ui_queue=queue.Queue(),
             symbols_info={
-                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
+                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+                "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
             },
             test_mode=True,
         )

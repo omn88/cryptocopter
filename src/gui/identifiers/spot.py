@@ -9,7 +9,7 @@ class HPUpdate:
     asset: str = ""
     buy_price: Optional[float] = None
     quantity: Optional[float] = None
-    quantity_usdt: Optional[float] = None
+    quantity_usd: Optional[float] = None
     sell_price: Optional[float] = None
     expected_return: Optional[float] = None
     current_price: Optional[float] = None

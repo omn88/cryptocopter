@@ -65,7 +65,7 @@ class StrategyTab(BoxLayout):
                     return
             if isinstance(data, AccountData):
                 self.strategy_logger.info("PANU  DYS IS update account")
-                # self.balance_label = f"{str(data.balance)} USDT"
+                # self.balance_label = f"{str(data.balance)} USD"
             if isinstance(data, PositionData):
                 self.update_position(data=data)
 

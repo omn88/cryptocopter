@@ -234,8 +234,8 @@ class HpFront(BoxLayout):
                 "quantity": str(update.quantity)
                 if update.quantity is not None
                 else "0.0",
-                "quantity_usdt": str(update.quantity_usdt)
-                if update.quantity_usdt is not None
+                "quantity_usd": str(update.quantity_usd)
+                if update.quantity_usd is not None
                 else "0.0",
                 "sell_price": str(update.sell_price)
                 if update.sell_price is not None
@@ -283,7 +283,7 @@ class HpFront(BoxLayout):
                     if update.state.value:
                         hp["state"] = update.state.value
 
-                    hp["quantity_usdt"] = str(
+                    hp["quantity_usd"] = str(
                         self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
                             float(hp["buy_price"]) * float(hp["quantity"])
                         )
@@ -293,7 +293,7 @@ class HpFront(BoxLayout):
                         "Buy price: %s, Quantity: %s, total: %s",
                         hp["buy_price"],
                         hp["quantity"],
-                        hp["quantity_usdt"],
+                        hp["quantity_usd"],
                     )
 
                     break  # Exit the loop once the correct item is found and processed
@@ -621,7 +621,7 @@ class HpFront(BoxLayout):
                                 round(
                                     1
                                     + (net_percent / 100)
-                                    * float(strategy["quantity_usdt"]),
+                                    * float(strategy["quantity_usd"]),
                                     2,
                                 )
                             )
@@ -666,7 +666,7 @@ class HpFront(BoxLayout):
         self.ids.hp_id_input.text = str(hp_id)
         self.ids.asset_input.text = str(asset)
         self.ids.quantity_input.text = str(quantity)
-        # self.ids.quantity_usdt_label.text = str(
+        # self.ids.quantity_usd_label.text = str(
         #     round(float(quantity) * float(buy_price), 2)
         # )
         self.ids.buy_price_input.text = str(buy_price)
@@ -725,7 +725,7 @@ class HpFront(BoxLayout):
                     self.ids.quantity_input.text = item["quantity"]
                     self.ids.buy_price_input.text = item["buy_price"]
 
-                    # self.ids.quantity_usdt_label.text = str(
+                    # self.ids.quantity_usd_label.text = str(
                     #     round(float(item["quantity"]) * float(item["buy_price"]), 2)
                     # )
 
@@ -747,10 +747,10 @@ class HpFront(BoxLayout):
             self.ids.quantity_input.text = "---"
             self.ids.buy_price_input.text = "---"
             self.ids.sell_price_input.text = ""  # Optional: Clear any sell price input
-            # self.ids.quantity_usdt_label.text = "---"
+            # self.ids.quantity_usd_label.text = "---"
             # self.ids.expected_gain_label.text = "---"
             # self.ids.expected_gain_percent_label.text = "---"
-            # self.ids.total_usdt_value_label.text = ""
+            # self.ids.total_usd_value_label.text = ""
 
     def filter_records(self, tab: str, symbol_filter, side: str) -> None:
         if side == PositionSide.LONG.value:
@@ -1077,7 +1077,7 @@ class HpFront(BoxLayout):
         buy_price = self.ids.buy_price_input.text
         sell_price = self.ids.sell_price_input.text
         quantity = self.ids.quantity_input.text
-        # total_usdt = self.ids.total_usdt_value_label.text
+        # total_usd = self.ids.total_usd_value_label.text
 
         validation_message = ""
         if not asset:
@@ -1088,8 +1088,8 @@ class HpFront(BoxLayout):
             validation_message += "Sell price is required. "
         if not quantity:
             validation_message += "Quantity is required. "
-        # if not total_usdt:
-        #     validation_message += "Total USDT price is required. "
+        # if not total_usd:
+        #     validation_message += "Total USD price is required. "
 
         self.ids.sell_validation_label.text = validation_message
 
@@ -1317,20 +1317,20 @@ class HpFront(BoxLayout):
     #     try:
     #         sell_price_float = float(sell_price)
     #         quantity_float = float(self.ids.quantity_label.text)
-    #         quantity_usdt_float = float(self.ids.quantity_usdt_label.text)
+    #         quantity_usd_float = float(self.ids.quantity_usd_label.text)
     #         buy_price_float = float(self.ids.buy_price_label.text)
 
-    #         # Total USDT value calculation
-    #         total_usdt_value = sell_price_float * quantity_float
+    #         # Total USD value calculation
+    #         total_usd_value = sell_price_float * quantity_float
 
     #         # Expected gain calculations
-    #         expected_gain_usdt = total_usdt_value - quantity_usdt_float
+    #         expected_gain_usd = total_usd_value - quantity_usd_float
     #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
 
     #         # Update labels
-    #         self.ids.expected_gain_label.text = f"{expected_gain_usdt:.2f}"
+    #         self.ids.expected_gain_label.text = f"{expected_gain_usd:.2f}"
     #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
-    #         self.ids.total_usdt_value_label.text = f"{total_usdt_value:.2f}"
+    #         self.ids.total_usd_value_label.text = f"{total_usd_value:.2f}"
 
     #     except ValueError:
     #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
