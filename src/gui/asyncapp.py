@@ -29,17 +29,18 @@ from src.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
 )
-from src.portfolio import PortfolioManager
+from src.portfolio.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
 from src.gui.identifiers.futures import PositionStatus, PriceData, StrategyData
-from src.gui.portfolio import PortfolioUI
+from src.portfolio.portfolio_gui import PortfolioUI
 from src.gui.strategytab import StrategyTab
 from src.futures.trading_system.futures import TradingSystem
 from src.identifiers.common import BinanceClient
 from src.database import Database
 from src.broker import BrokerSpot
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
 
 logger = logging.getLogger("async_app")
@@ -77,6 +78,7 @@ class AsyncApp(App):
         client: BinanceClient,
         db: Database,
         symbols_info: Dict[str, SymbolInfo],
+        price_resolver: UsdPriceResolver,
         balances: Dict[str, float],
         **kwargs,
     ):
@@ -91,6 +93,7 @@ class AsyncApp(App):
         self.client = client
         self.db = db
         self.symbols_info = symbols_info
+        self.price_resolver = price_resolver
         self.balances = balances
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
@@ -120,7 +123,7 @@ class AsyncApp(App):
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
-        Builder.load_file("src/gui/portfolio.kv")
+        Builder.load_file("src/portfolio/portfolio.kv")
 
         # Create a queue for frontend communication
         ui_queue: queue.Queue = queue.Queue()
@@ -140,6 +143,8 @@ class AsyncApp(App):
             broker=self.broker,
             ui_queue=ui_queue,
             balances=self.balances,
+            symbols_info=self.symbols_info,
+            price_resolver=self.price_resolver,
         )
 
         # Set up frontend UI for PortfolioManager

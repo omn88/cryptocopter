@@ -147,7 +147,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     strategy = trading_system_factory(
         hp_config=HPBuyConfig(
             hp_id="0",
-            symbol_info=SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
             price_low=1000,
             price_high=1400,
             order_trigger=1.0,
@@ -167,7 +167,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert buy_cfg.order_trigger == 1
     assert buy_cfg.budget == 1000
     assert buy_cfg.mode == Mode.DCA
-    assert buy_cfg.symbol_info.symbol == "BTCUSDT"
+    assert buy_cfg.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.buy.data.state_info.side == PositionSide.LONG
     assert strategy.buy.data.state_info.state == State.NEW
@@ -185,7 +185,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
 
     assert strategy.sell.data.config.hp_id == "0"
     assert strategy.sell.data.config.sell_price == 0
-    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.data.state_info.side == PositionSide.SHORT
 
@@ -216,7 +216,7 @@ def assert_default_buy_position_data(
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
     assert config.mode == Mode.DCA
-    assert config.symbol_info.symbol == "BTCUSDT"
+    assert config.symbol_info.symbol == "BTCUSDC"
     assert config.symbol_info.precision == 5
     assert config.symbol_info.price_precision == 2
 
@@ -240,7 +240,7 @@ def assert_default_buy_position_data(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
-    assert item["quantity_usdt"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -282,7 +282,7 @@ async def move_to_buy_position_active(
     assert config.order_trigger == 1.0
     assert config.order_cancel == 2.0
     assert config.mode == Mode.DCA
-    assert config.symbol_info.symbol == "BTCUSDT"
+    assert config.symbol_info.symbol == "BTCUSDC"
     assert config.symbol_info.precision == 5
     assert config.symbol_info.price_precision == 2
 
@@ -307,7 +307,7 @@ async def move_to_buy_position_active(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
-    assert item["quantity_usdt"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -360,7 +360,7 @@ async def simulate_partial_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -417,7 +417,7 @@ async def simulate_first_buy_order_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -479,7 +479,7 @@ async def simulate_second_buy_order_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1292.31"
     assert item["quantity"] == "0.52"
-    assert item["quantity_usdt"] == "672.0"
+    assert item["quantity_usd"] == "672.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -557,7 +557,7 @@ async def simulate_third_buy_order_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
-    assert item["quantity_usdt"] == "1002.0"
+    assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -593,7 +593,7 @@ async def simulate_third_buy_order_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
-    assert item["quantity_usdt"] == "1002.0"
+    assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -655,7 +655,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1260.0"
     assert item["quantity"] == "0.4", f"{item['quantity']}"
-    assert item["quantity_usdt"] == "504.0", f"{item['quantity_usdt']}"
+    assert item["quantity_usd"] == "504.0", f"{item['quantity_usd']}"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -733,7 +733,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1142.47"
     assert item["quantity"] == "0.73"
-    assert item["quantity_usdt"] == "834.0"
+    assert item["quantity_usd"] == "834.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -769,7 +769,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1142.47"
     assert item["quantity"] == "0.73"
-    assert item["quantity_usdt"] == "834.0"
+    assert item["quantity_usd"] == "834.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -831,7 +831,7 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1200.0"
     assert item["quantity"] == "0.28"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -909,7 +909,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1091.8"
     assert item["quantity"] == "0.61"
-    assert item["quantity_usdt"] == "666.0"
+    assert item["quantity_usd"] == "666.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -945,7 +945,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1091.8"
     assert item["quantity"] == "0.61"
-    assert item["quantity_usdt"] == "666.0"
+    assert item["quantity_usd"] == "666.0"
     assert item["sell_price"] == sell_price
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1006,7 +1006,7 @@ async def resend_part_bought_first_order_filled(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1069,7 +1069,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1128,7 +1128,7 @@ async def simulate_second_buy_order_partial_fill(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1292.31"
     assert item["quantity"] == "0.26", f"{item['quantity']}"
-    assert item["quantity_usdt"] == "336.0", f"{item['quantity_usdt']}"
+    assert item["quantity_usd"] == "336.0", f"{item['quantity_usd']}"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1195,7 +1195,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1253,7 +1253,7 @@ async def resend_part_bought_first_order_filled_partially(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1321,7 +1321,7 @@ async def cancel_partially_bought_position_first_order_filled(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1363,7 +1363,7 @@ async def send_sell_orders_for_partially_bought_position(
 
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200
-    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.data.state_info.side == PositionSide.SHORT
     assert strategy.sell.data.state_info.state == State.NEW
@@ -1414,7 +1414,7 @@ async def send_sell_orders_for_partially_bought_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1471,7 +1471,7 @@ async def sell_partially_partially_bought_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1532,7 +1532,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usdt"] == "336.0"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1592,7 +1592,7 @@ async def simulate_cancel_sell_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425"
-    assert item["quantity_usdt"] == "501.0"
+    assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1648,7 +1648,7 @@ async def simulate_resend_sell_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425"
-    assert item["quantity_usdt"] == "501.0"
+    assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1720,7 +1720,7 @@ async def send_sell_orders_for_bought_position(
 
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200.0
-    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.data.state_info.side == PositionSide.SHORT
     assert strategy.sell.data.state_info.state == State.NEW
@@ -1773,7 +1773,7 @@ async def send_sell_orders_for_bought_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
-    assert item["quantity_usdt"] == "1002.0"
+    assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -1813,7 +1813,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200
-    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.data.state_info.side == PositionSide.SHORT
     assert strategy.sell.data.state_info.state == State.NEW
@@ -1884,7 +1884,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
 
     assert strategy.sell.data.config.hp_id == "1000"
     assert strategy.sell.data.config.sell_price == 4200
-    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDT"
+    assert strategy.sell.data.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.data.state_info.side == PositionSide.SHORT
     assert strategy.sell.data.state_info.state == State.NEW
@@ -1985,7 +1985,7 @@ async def simulate_partial_fill_sell(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425", f"hp quant: {item['quantity']}"
-    assert item["quantity_usdt"] == "501.0"
+    assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -2087,7 +2087,7 @@ async def cancel_sell_position_part_bought_part_sold(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -2142,7 +2142,7 @@ async def reopen_buy_part_bought_part_sold(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
-    assert item["quantity_usdt"] == "168.0"
+    assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -2195,7 +2195,7 @@ async def reopen_buy_part_bought_sold(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
-    assert item["quantity_usdt"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -2255,7 +2255,7 @@ async def cancel_untouched_buy_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
-    assert item["quantity_usdt"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -2313,7 +2313,7 @@ async def cancel_untouched_sell_position(
     assert item["asset"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
-    assert item["quantity_usdt"] == "1002.0"
+    assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"

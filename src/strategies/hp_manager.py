@@ -22,7 +22,6 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
-    Order,
     Signal,
     SignalUpdate,
     State,
@@ -500,15 +499,6 @@ class HpStrategy:
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_buy(),
             )
-
-        self.logger.info(
-            "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trig price: %s",
-            self.buy.data.config.symbol_info.symbol,
-            self.buy.data.state_info.stagnation_counter,
-            self.buy.data.state_info.stagnation_limit,
-            self.ticker_update.last_price,
-            self.calculate_trigger_cancel_orders_price_buy(),
-        )
 
         return condition
 

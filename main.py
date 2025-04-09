@@ -19,8 +19,9 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.identifiers.common import BinanceClient
-from src.portfolio import fetch_initial_balances
+from src.portfolio.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 os.environ["KIVY_LOG_MODE"] = "MIXED"
 
@@ -72,9 +73,17 @@ async def main():
     )
 
     symbols_info = await fetch_symbol_info(client=client)
-    balances = await fetch_initial_balances(client=client)
+    price_resolver = UsdPriceResolver(client=client, symbols_info=symbols_info)
+    await price_resolver.fetch_all_prices()
+    balances = await fetch_initial_balances(client=client, resolver=price_resolver)
 
-    app = AsyncApp(client=client, db=db, symbols_info=symbols_info, balances=balances)
+    app = AsyncApp(
+        client=client,
+        db=db,
+        symbols_info=symbols_info,
+        balances=balances,
+        price_resolver=price_resolver,
+    )
 
     logger.info("Created %s", app)
 
