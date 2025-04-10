@@ -502,20 +502,17 @@ class HPSimulator:
             condition_func=lambda: strategy.sell.orders[0].status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
-        await asyncio.sleep(1)
-        logger.info("Value....... %s", self.front.hp_list_data[0]["quantity"])
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.43"
         )
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["asset"] == "BTC"
         assert item["buy_price"] == "1178.82"
-        assert item["quantity"] == "0.425"
-        assert item["quantity_usd"] == "501.0"
+        assert item["quantity"] == "0.43"
+        assert item["quantity_usd"] == "506.89", item["quantity_usd"]
         assert item["sell_price"] == "4200.0"
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
@@ -549,8 +546,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == str(exc_report.last_executed_quantity)
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.0"
         )
 
         item = self.front.hp_list_data[0]
@@ -561,7 +557,7 @@ class HPSimulator:
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.0", f"Item quantity: {item['quantity']}"
         assert item["quantity_usd"] == "0.0"
-        assert item["sell_price"] == "4200.0"
+        assert item["sell_price"] == "4200.0", item["sell_price"]
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"

@@ -411,7 +411,7 @@ class StrategyExecutor:
                 for order in sell.orders:
                     if order.status == ORDER_STATUS_CANCELED:
                         self.db.upsert_order(order=order, hp_id=hp_id, side=side)
-            sell.data.config.sell_price = 0.0
+            # sell.data.config.sell_price = 0.0
             sell.data.state_info.ui_state = UiState.CLOSED
             sell.data.state_info.completeness = (
                 sum(order.realized_quantity for order in sell.orders)

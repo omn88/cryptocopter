@@ -911,6 +911,7 @@ class HpStrategy:
         )
         self.db.upsert_sell_price_level(data=self.sell.data)
 
+        self.logger.info("Going to send HPClose")
         self.config_queue.put_nowait(
             HPClose(
                 config=self.sell.data.config,

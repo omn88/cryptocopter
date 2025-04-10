@@ -1,4 +1,4 @@
-import asyncio
+import os
 import datetime
 import logging
 import pytest
@@ -11,7 +11,6 @@ from src.identifiers.spot import State, StateInfo, UiState
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
-
 
 logger = logging.getLogger("hp_e2e_test")
 
@@ -759,54 +758,54 @@ async def test_resend_unfilled_sell_orders(
     await sim.send_sell_orders_for_bought_position()
 
 
-# @pytest.mark.database_integration
-# async def test_sell_position_first_order_filled_partially(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     await sim.simulate_bought_position()
+@pytest.mark.database_integration
+async def test_sell_position_first_order_filled_partially(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
 
-#     await sim.setup_sell_position(
-#         hp_id="1000",
-#         symbol="BTCUSDC",
-#         quantity=0.85,
-#         buy_price=1178.82,
-#         sell_price=4200.0,
-#         end_currency="USDC",
-#         asset="BTC",
-#     )
+    await sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
 
-#     await sim.send_sell_orders_for_bought_position()
+    await sim.send_sell_orders_for_bought_position()
 
-#     await sim.simulate_sell_order_partial_fill()
+    await sim.simulate_sell_order_partial_fill()
 
 
-# @pytest.mark.database_integration
-# async def test_sell_position_first_order_filled(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     await sim.simulate_bought_position()
+@pytest.mark.database_integration
+async def test_sell_position_first_order_filled(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
 
-#     await sim.setup_sell_position(
-#         hp_id="1000",
-#         symbol="BTCUSDC",
-#         quantity=0.85,
-#         buy_price=1178.82,
-#         sell_price=4200.0,
-#         end_currency="USDC",
-#         asset="BTC",
-#     )
+    await sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
 
-#     await sim.send_sell_orders_for_bought_position()
+    await sim.send_sell_orders_for_bought_position()
 
-#     await sim.simulate_sell_order_fill()
+    await sim.simulate_sell_order_fill()
 
 
 # @pytest.mark.database_integration
