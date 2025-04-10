@@ -780,14 +780,22 @@ class HpStrategy:
         condition = (
             self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and self.buy.data.state_info.state == State.BOUGHT
-            and self.ticker_update.last_price <= trigger_send_orders_price
+            and self.ticker_update.last_price >= trigger_send_orders_price
         )
+        assert (
+            self.sell.data.state_info.state == State.PARTIALLY_SOLD
+        ), "sell state is wrong"
+        assert self.buy.data.state_info.state == State.BOUGHT, "buy state is wrong"
+        assert (
+            self.ticker_update.last_price >= trigger_send_orders_price
+        ), f"price condition is wrong, last price: {self.ticker_update.last_price}, trigger: {trigger_send_orders_price}"
+        assert condition
         if condition:
             self.logger.info(
-                "[Resend sell] %s, side: %s, state: %s, balance: %s, price trig: %s last price: %s",
+                "[Resend sell] %s, sell state: %s, state: %s, balance: %s, price trig: %s last price: %s",
                 self.sell.data.config.symbol_info.symbol,
-                self.sell.data.state_info.side,
-                self.state,
+                self.sell.data.state_info.state.value,
+                self.state.value,
                 self.balance,
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
