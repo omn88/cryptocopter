@@ -494,10 +494,7 @@ class HPSimulator:
         logger.info("Put event to the worker: %s", exc_report)
 
         assert strategy.state == State.SELLING
-        logger.info(
-            "Orders..................................................: %s",
-            strategy.sell.orders,
-        )
+
         await wait_for_condition(
             condition_func=lambda: strategy.sell.orders[0].status
             == ORDER_STATUS_PARTIALLY_FILLED

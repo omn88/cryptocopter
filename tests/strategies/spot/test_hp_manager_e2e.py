@@ -808,31 +808,67 @@ async def test_sell_position_first_order_filled(
     await sim.simulate_sell_order_fill()
 
 
-# @pytest.mark.database_integration
-# async def test_cancel_sell_position_first_order_filled_partially(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     hp_list: List[Dict] = []
-#     strategy, hp_list = await simulate_bought_position(
-#         trading_system_factory=trading_system_factory, hp_gui=hp_gui, hp_list=hp_list
-#     )
-#     assert isinstance(strategy, HpStrategy)
+@pytest.mark.database_integration
+async def test_cancel_sell_position_first_order_filled_partially(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
 
-#     strategy, hp_list = await send_sell_orders_for_bought_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
 
-#     strategy, hp_list = await simulate_partial_fill_sell(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.send_sell_orders_for_bought_position()
 
-#     strategy, hp_list = await simulate_cancel_sell_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.simulate_sell_order_partial_fill()
+
+    strategy = back.strategies["1000"]
+
+    strategy.sell.data.state_info.stagnation_counter = (
+        strategy.sell.data.state_info.stagnation_limit
+        )
+    sim.new_price(3864)
+    assert len(strategy.sell.orders) == 1
+
+    await wait_for_condition(
+        condition_func=lambda: strategy.sell.orders[0].status
+        == ORDER_STATUS_CANCELED
+    )
+
+    assert strategy.sell.orders[0].quantity == 0.85
+    assert strategy.sell.orders[0].realized_quantity == 0.42
+
+    assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+    assert strategy.state == State.PARTIALLY_SOLD
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_SOLD"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["asset"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.43"
+    assert item["quantity_usd"] == "506.89", item["quantity_usd"]
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "PARTIALLY_SOLD"
+
+    logger.info("HP List after the update: %s", front.hp_list_data)
 
 # @pytest.mark.database_integration
 # async def test_resend_sell_position_first_order_filled_partially(
