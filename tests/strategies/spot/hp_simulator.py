@@ -874,3 +874,99 @@ class HPSimulator:
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
+
+    async def cancel_sell_position_filled_partially(self):
+        strategy = self.back.strategies["1000"]
+        strategy.sell.data.state_info.stagnation_counter = (
+            strategy.sell.data.state_info.stagnation_limit
+        )
+        self.new_price(3864)
+
+        await wait_for_condition(
+            condition_func=lambda: strategy.sell.sell_order.status
+            == ORDER_STATUS_CANCELED
+        )
+
+        assert strategy.sell.sell_order.quantity == 0.24
+        assert strategy.sell.sell_order.realized_quantity == 0.14
+
+        assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+        assert strategy.state == State.PART_SOLD_PART_BOUGHT
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "PART_SOLD_PART_BOUGHT"
+        )
+
+        item = self.front.hp_list_data[0]
+        assert item["hp_id"] == "1000"
+        assert item["asset"] == "BTC"
+        assert item["buy_price"] == "1400.0"
+        assert item["quantity"] == "0.1", item["quantity"]
+        assert item["quantity_usd"] == "140.0"
+        assert item["sell_price"] == "4200.0"
+        assert item["expected_return"] == "0.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "PART_SOLD_PART_BOUGHT"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+    async def simulate_second_buy_order_partial_fill(
+        self, sell_price: str = "0.0"
+    ) -> HpStrategy:
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+            order_id=445861,
+            last_executed_quantity=0.14,
+            last_executed_price=1200,
+            cumulative_filled_quantity=0.14,
+            price=1200,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.BUYING
+        logger.info("Orders: %s", strategy.buy.orders)
+        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.orders[1].status
+            == ORDER_STATUS_PARTIALLY_FILLED
+        )
+        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+        realized_quantity = str(
+            strategy.buy.orders[0].realized_quantity
+            + strategy.buy.orders[1].realized_quantity
+            - strategy.sell.sell_order.realized_quantity
+        )
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == realized_quantity
+        )
+
+        logger.info(
+            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
+        )
+
+        assert len(self.front.hp_list_data) == 1
+        item = self.front.hp_list_data[0]
+        assert item["hp_id"] == "1000"
+        assert item["asset"] == "BTC"
+        assert item["buy_price"] == "1326.32"
+        assert item["quantity"] == "0.24"
+        assert item["quantity_usd"] == "318.32"
+        assert item["sell_price"] == sell_price, item["sell_price"]
+        assert item["expected_return"] == "0.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "BUYING"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+        return strategy
