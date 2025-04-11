@@ -353,14 +353,13 @@ class HpStrategy:
         ]
 
     def calculate_trigger_send_orders_price_buy(self):
-        price = 0
-
-        for order in self.buy.orders:
-            if order.status != ORDER_STATUS_FILLED:
-                price = max(price, order.price)
-
         return self.buy.data.config.symbol_info.adjust_price(
-            price * (1 + (self.buy.data.config.order_trigger / 100))
+            max(
+                order.price
+                for order in self.buy.orders
+                if order.status != ORDER_STATUS_FILLED
+            )
+            * (1 + (self.buy.data.config.order_trigger / 100))
         )
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
@@ -1531,7 +1530,11 @@ class HpStrategy:
 
     def calculate_trigger_cancel_orders_price_buy(self):
         return self.buy.data.config.symbol_info.adjust_price(
-            self.buy.data.config.price_high
+            max(
+                order.price
+                for order in self.buy.orders
+                if order.status != ORDER_STATUS_FILLED
+            )
             * (1 + (2 * self.buy.data.config.order_trigger / 100))
         )
 
