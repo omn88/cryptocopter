@@ -1249,150 +1249,43 @@ async def test_buy_fully_partially_sold_position(
     )
 
 
-# @pytest.mark.database_integration
-# async def test_sell_fully_partially_bought_position(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+@pytest.mark.database_integration
+async def test_sell_fully_partially_bought_position(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert len(back.strategies) == 0
 
-#     # Path 1: Send buy orders
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.move_to_position_active_buy()
 
-#     # Simulate full order fill
-#     strategy, hp_list = await simulate_first_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
-#     )
+    # Simulate first buy order fill
+    strategy = await sim.simulate_first_buy_order_fill()
 
-#     # Cancel partially bought position
-#     strategy = await cancel_partially_bought_position_first_order_filled(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Cancel partially bought position
+    await sim.cancel_buy_position_after_first_order_filled()
 
-#     strategy, hp_list = await send_sell_order_for_partially_bought_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.setup_sell_position_after_first_buy_order_filled(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=strategy.buy.calculate_realized_quantity(),
+        buy_price=strategy.buy.calculate_avg_buy_price(),
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
 
-#     strategy.execution_report = ExecutionReport(
-#         order_type=ORDER_TYPE_LIMIT,
-#         current_order_status=ORDER_STATUS_FILLED,
-#         order_id=445863,
-#         last_executed_quantity=0.24,
-#         last_executed_price=4200,
-#         cumulative_filled_quantity=0.24,
-#     )
-#     await strategy.process_order()  # type: ignore[attr-defined]
+    await sim.send_sell_order_for_part_bought_position()
 
-#     logger.info("Orders: %s", strategy.sell.orders)
-#     assert strategy.sell.sell_order.status == ORDER_STATUS_FILLED
-#     assert strategy.sell.sell_order.quantity == 0.24
-#     assert strategy.sell.sell_order.realized_quantity == 0.24
-#     assert strategy.state == State.SELLING
-#     assert strategy.sell.data.state_info.state == State.SOLD
-#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    await sim.simulate_sell_order_fill_from_part_bought()
 
-#     assert strategy.ui_queue.qsize() == 1
-
-#     content = strategy.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, HPGuiDataSell)
-#     state_info = content.data.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.state == State.SOLD
-#     assert state_info.stagnation_counter == 0
-#     assert state_info.stagnation_limit == 8
-#     assert state_info.side == PositionSide.SHORT
-#     assert state_info.next_monitor_time
-
-#     assert state_info.ui_state == UiState.CLOSED
-#     assert state_info.completeness == 1.0
-
-#     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-
-#     assert len(hp_list) == 1
-#     item = hp_list[0]
-#     assert item["hp_id"] == "1000"
-#     assert item["asset"] == "BTC"
-#     assert item["buy_price"] == "1400.0"
-#     assert item["quantity"] == "0.0"
-#     assert item["quantity_usd"] == "0.0"
-#     assert item["sell_price"] == "4200"
-#     assert item["expected_return"] == "0.0"
-#     assert item["current_price"] == "0.0"
-#     assert item["net"] == "0.0"
-#     assert item["net_percent"] == "0.0"
-#     assert item["state"] == "SELLING"
-
-#     logger.info("HP List after the update: %s", hp_list)
-
-#     assert strategy.ui_queue.qsize() == 0
-
-#     assert strategy.worker_queue.qsize() == 1
-#     event = strategy.worker_queue.get_nowait()
-
-#     assert isinstance(event, Event)
-#     assert event.name == EventName.SIGNAL
-#     assert isinstance(event.content, SignalUpdate)
-
-#     strategy.signal_update = event.content
-
-#     assert strategy.conditions_for_closing_sold_position_which_is_part_bought()
-
-#     await strategy.process_signal()  # type: ignore[attr-defined]
-
-#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-#     assert strategy.sell.data.state_info.state == State.SOLD
-#     assert strategy.state == State.SOLD_PART_BOUGHT
-
-#     assert strategy.ui_queue.qsize() == 1
-
-#     content = strategy.ui_queue.get_nowait()
-#     logger.info("Content: %s", content)
-#     assert isinstance(content, HPGuiDataSell)
-#     state_info = content.data.state_info
-#     assert isinstance(state_info, StateInfo)
-
-#     assert state_info.state == State.SOLD
-#     assert state_info.stagnation_counter == 0
-#     assert state_info.stagnation_limit == 8
-#     assert state_info.side == PositionSide.SHORT
-#     assert state_info.next_monitor_time
-
-#     assert state_info.ui_state == UiState.CLOSED
-#     assert state_info.completeness == 0.28
-
-#     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-
-#     assert len(hp_list) == 1
-#     item = hp_list[0]
-#     assert item["hp_id"] == "1000"
-#     assert item["asset"] == "BTC"
-#     assert item["buy_price"] == "1400.0"
-#     assert item["quantity"] == "0.0"
-#     assert item["quantity_usd"] == "0.0"
-#     assert item["sell_price"] == "4200"
-#     assert item["expected_return"] == "0.0"
-#     assert item["current_price"] == "0.0"
-#     assert item["net"] == "0.0"
-#     assert item["net_percent"] == "0.0"
-#     assert item["state"] == "SOLD_PART_BOUGHT"
-
-#     logger.info("HP List after the update: %s", hp_list)
-
-#     assert strategy.ui_queue.qsize() == 0
 
 # @pytest.mark.database_integration
 # async def test_buy_fully_partially_bought_position_when_sold_position(
