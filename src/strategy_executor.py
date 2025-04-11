@@ -154,7 +154,7 @@ class StrategyExecutor:
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
 
-        strategy.buy.orders = strategy.buy.prepare_orders()
+        strategy.buy.prepare_orders()
         strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
@@ -454,12 +454,12 @@ class StrategyExecutor:
         )
         self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
-            new_orders = buy_position.prepare_orders()
+            buy_position.prepare_orders()
             self.logger.info(
                 "No orders found in DB, prepared new: %s",
-                new_orders,
+                buy_position.orders,
             )
-            return new_orders
+            return buy_position.orders
 
         order_list: List[Order] = []
         order_list = [

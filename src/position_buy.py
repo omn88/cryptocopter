@@ -44,6 +44,7 @@ class HPPositionBuy:
         self.strategy_logger = strategy_logger
         self.db = db
         self.orders: List[Order] = []
+        self.orders_cancel_price: float = 0
 
     async def open_position(self) -> List[Order]:
         """Send a list of orders concurrently.
@@ -52,6 +53,7 @@ class HPPositionBuy:
             A list of `Order` objects with updated order IDs and statuses.
         """
         logger.info("Entered open position")
+        self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
         results = await asyncio.gather(
             *[
                 self._create_order(order=order)
@@ -163,7 +165,7 @@ class HPPositionBuy:
         logger.info("Completeness: %s", self.data.state_info.completeness)
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 
-    def prepare_orders(self) -> List[Order]:
+    def prepare_orders(self) -> None:
         config = self.data.config
 
         def prepare_single_buy_order():
@@ -222,7 +224,17 @@ class HPPositionBuy:
             pprint.pformat(list(orders)),
             config.symbol_info.symbol,
         )
-        return orders
+        self.orders = orders
+
+    def calculate_trigger_cancel_orders_price(self):
+        return self.data.config.symbol_info.adjust_price(
+            max(
+                order.price
+                for order in self.orders
+                if order.status != ORDER_STATUS_FILLED
+            )
+            * (1 + (2 * self.data.config.order_trigger / 100))
+        )
 
     async def cancel_remaining_limit_orders(
         self, orders: List[Order], symbol: str

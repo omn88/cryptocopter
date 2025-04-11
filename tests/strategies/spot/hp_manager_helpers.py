@@ -1150,7 +1150,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
 
     assert strategy.buy.data.state_info.next_monitor_time
 
-    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
 
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
@@ -1275,7 +1275,7 @@ async def cancel_partially_bought_position_first_order_filled(
 
     assert strategy.buy.data.state_info.next_monitor_time
 
-    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
 
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
@@ -2186,7 +2186,7 @@ async def cancel_untouched_buy_position(
 
     strategy.buy.data.state_info.generate_next_monitor_time()
 
-    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
+    assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0)
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 

@@ -402,7 +402,7 @@ class HpStrategy:
         self.logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
 
-        self.buy.orders = self.buy.prepare_orders()
+        self.buy.prepare_orders()
         self.buy.orders = await self.buy.open_position()
         self.state = State.BUYING
         self.buy.data.state_info.state = State.NEW
@@ -446,8 +446,7 @@ class HpStrategy:
             and self.state == State.BUYING
             and self.buy.data.state_info.stagnation_counter
             >= self.buy.data.state_info.stagnation_limit
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_cancel_orders_price_buy()
+            and self.ticker_update.last_price >= self.buy.orders_cancel_price
             and all(order.status == ORDER_STATUS_NEW for order in self.buy.orders)
         )
         if condition:
@@ -457,7 +456,7 @@ class HpStrategy:
                 self.buy.data.state_info.stagnation_counter,
                 self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
                 self.state,
                 self.buy.data.state_info.state,
             )
@@ -488,8 +487,7 @@ class HpStrategy:
             and self.sell.data.state_info.state == State.NEW
             and self.buy.data.state_info.stagnation_counter
             >= self.buy.data.state_info.stagnation_limit
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_cancel_orders_price_buy()
+            and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             self.logger.info(
@@ -498,7 +496,7 @@ class HpStrategy:
                 self.buy.data.state_info.stagnation_counter,
                 self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
             )
 
         return condition
@@ -999,8 +997,7 @@ class HpStrategy:
             and self.sell.data.state_info.state == State.PARTIALLY_SOLD
             and self.buy.data.state_info.stagnation_counter
             >= self.buy.data.state_info.stagnation_limit
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_cancel_orders_price_buy()
+            and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             self.logger.info(
@@ -1009,7 +1006,7 @@ class HpStrategy:
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
             )
 
         return condition
@@ -1103,8 +1100,7 @@ class HpStrategy:
             and self.sell.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.data.state_info.stagnation_counter
             >= self.sell.data.state_info.stagnation_limit
-            and self.ticker_update.last_price
-            >= self.calculate_trigger_cancel_orders_price_buy()
+            and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             self.logger.info(
@@ -1113,7 +1109,7 @@ class HpStrategy:
                 self.sell.data.state_info.stagnation_counter,
                 self.sell.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
             )
 
         return condition
@@ -1340,7 +1336,7 @@ class HpStrategy:
                 "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
                 self.buy.data.config.hp_id,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
             )
 
         self.buy.data.state_info.generate_next_monitor_time()
@@ -1406,7 +1402,7 @@ class HpStrategy:
                 "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
                 self.sell.data.config.hp_id,
                 self.ticker_update.last_price,
-                self.calculate_trigger_cancel_orders_price_buy(),
+                self.buy.orders_cancel_price,
             )
 
         self.sell.data.state_info.generate_next_monitor_time()
@@ -1527,16 +1523,6 @@ class HpStrategy:
                 self.logger.debug(
                     "Expired order confirmation: %s", self.execution_report.order_id
                 )
-
-    def calculate_trigger_cancel_orders_price_buy(self):
-        return self.buy.data.config.symbol_info.adjust_price(
-            max(
-                order.price
-                for order in self.buy.orders
-                if order.status != ORDER_STATUS_FILLED
-            )
-            * (1 + (2 * self.buy.data.config.order_trigger / 100))
-        )
 
     def calculate_trigger_cancel_orders_price_sell(self):
         return self.sell.data.config.symbol_info.adjust_price(

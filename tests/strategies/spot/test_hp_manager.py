@@ -1261,8 +1261,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
 
     strategy.buy.data.state_info.generate_next_monitor_time()
 
-    assert strategy.calculate_trigger_cancel_orders_price_buy() == 1428.0
-    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    assert strategy.buy.orders_cancel_price == 1224.0
+    strategy.ticker_update = TickerUpdate(last_price=1224.0)
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
     )
