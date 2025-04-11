@@ -154,7 +154,7 @@ class StrategyExecutor:
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
 
-        strategy.buy.orders = strategy.buy.prepare_orders()
+        strategy.buy.prepare_orders()
         strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
@@ -223,14 +223,10 @@ class StrategyExecutor:
             self.logger.info("Sell price set: %s", strategy_data.config.sell_price)
             strategy.sell.data.config = strategy_data.config
             strategy.sell.data.state_info = strategy_data.state_info
-            strategy.sell.orders = strategy.sell.prepare_orders(
-                config=strategy_data.config,
+            strategy.sell.prepare_sell_order(
                 buy_realized_quantity=sum(
                     order.realized_quantity for order in strategy.buy.orders
-                ),
-                sell_realized_quantity=sum(
-                    order.realized_quantity for order in strategy.sell.orders
-                ),
+                )
             )
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
@@ -279,11 +275,7 @@ class StrategyExecutor:
         config = strategy.sell.data.config
         strategy.sell.data.state_info.generate_open_time()
 
-        strategy.sell.orders = strategy.sell.prepare_orders(
-            config=config,
-            buy_realized_quantity=config.quantity,
-            sell_realized_quantity=0,
-        )
+        strategy.sell.prepare_sell_order(buy_realized_quantity=config.quantity)
         self.strategies[config.hp_id] = strategy
 
         assert config.symbol_info.symbol.endswith("USDC"), "Symbol must end with 'USDC'"
@@ -401,23 +393,16 @@ class StrategyExecutor:
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
-                sell.orders = await sell.cancel_remaining_limit_orders(
-                    symbol=sell.data.config.symbol_info.symbol,
-                    orders=sell.orders,
-                )
+                await sell.cancel_remaining_order()
                 # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
                 # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
                 strategy.state = buy.data.state_info.state
-                for order in sell.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(order=order, hp_id=hp_id, side=side)
-            sell.data.config.sell_price = 0.0
+                if sell.sell_order.status == ORDER_STATUS_CANCELED:
+                    self.db.upsert_order(order=sell.sell_order, hp_id=hp_id, side=side)
+            # sell.data.config.sell_price = 0.0
             sell.data.state_info.ui_state = UiState.CLOSED
-            sell.data.state_info.completeness = (
-                sum(order.realized_quantity for order in sell.orders)
-                / sum(order.quantity for order in sell.orders)
-                if sell.orders
-                else 0
+            sell.data.state_info.completeness = round(
+                sell.sell_order.realized_quantity / sell.sell_order.quantity, 2
             )
             self.send_sell_position_to_ui(
                 config=strategy.sell.data.config,
@@ -469,12 +454,12 @@ class StrategyExecutor:
         )
         self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
-            new_orders = buy_position.prepare_orders()
+            buy_position.prepare_orders()
             self.logger.info(
                 "No orders found in DB, prepared new: %s",
-                new_orders,
+                buy_position.orders,
             )
-            return new_orders
+            return buy_position.orders
 
         order_list: List[Order] = []
         order_list = [
@@ -727,7 +712,7 @@ class StrategyExecutor:
                 )
 
                 sell_config = strategy.sell.data.config
-                strategy.sell.orders = await self.restore_sell_orders(
+                [strategy.sell.sell_order] = await self.restore_sell_orders(
                     sell_config=sell_config, worker_queue=worker_queue
                 )
                 strategy.sell.data.state_info.generate_next_monitor_time()
@@ -737,10 +722,10 @@ class StrategyExecutor:
                     if strategy.state in [State.BUYING, State.SELLING]
                     else UiState.STAGNATED
                 )
-                if strategy.sell.orders:
+                if strategy.sell.sell_order:
                     strategy.sell.data.state_info.completeness = round(
-                        sum(order.realized_quantity for order in strategy.sell.orders)
-                        / sum(order.quantity for order in strategy.sell.orders),
+                        strategy.sell.sell_order.realized_quantity
+                        / strategy.sell.sell_order.quantity,
                         2,
                     )
                 else:
