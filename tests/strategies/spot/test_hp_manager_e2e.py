@@ -1003,44 +1003,43 @@ async def test_fill_orders_for_previously_partially_bought_position(
     await sim.simulate_third_buy_order_fill(sell_price="4200.0")
 
 
-# @pytest.mark.database_integration
-# async def test_sell_partially_partially_bought_position(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     # Path 0: Default buy position
-#     hp_list: List[Dict] = []
-#     strategy: HpStrategy = get_default_buy_position(trading_system_factory)
+@pytest.mark.database_integration
+async def test_sell_partially_partially_bought_position(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     strategy, hp_list = assert_default_buy_position_data(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    assert len(back.strategies) == 0
 
-#     # Path 1: Send buy orders
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     strategy, hp_list = await move_to_buy_position_active(
-#         strategy=strategy, trigger_price=1414, hp_gui=hp_gui, hp_list=hp_list
-#     )
-#     # Simulate full order fill
-#     strategy, hp_list = await simulate_first_buy_order_fill(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
-#     )
+    await sim.move_to_position_active_buy()
 
-#     # Cancel partially bought position
-#     strategy = await cancel_partially_bought_position_first_order_filled(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Simulate first buy order fill
+    strategy = await sim.simulate_first_buy_order_fill()
 
-#     strategy, hp_list = await send_sell_order_for_partially_bought_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    # Cancel partially bought position
+    await sim.cancel_buy_position_after_first_order_filled()
 
-#     strategy, hp_list = await sell_partially_partially_bought_position(
-#         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
-#     )
+    await sim.setup_sell_position_after_first_buy_order_filled(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=strategy.buy.calculate_realized_quantity(),
+        buy_price=strategy.buy.calculate_avg_buy_price(),
+        sell_price=4200.0,
+        end_currency="USDC",
+        asset="BTC",
+    )
+
+    await sim.send_sell_order_for_part_bought_position()
+
+    await sim.simulate_sell_order_partial_fill_from_part_bought()
+
 
 # @pytest.mark.database_integration
 # async def test_buy_partially_partially_sold_position(
