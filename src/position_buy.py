@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import pprint
-import queue
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -18,13 +17,11 @@ from binance.exceptions import (
 )
 
 from logging_config import StrategyLogger
-from src.identifiers.common import BinanceClient, Mode, PositionSide
-from src.common.symbol_info import SymbolInfo
+from src.identifiers.common import BinanceClient, Mode
 
 from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
-    HPBuyConfig,
     HPBuyData,
     Order,
     UiState,
@@ -158,14 +155,12 @@ class HPPositionBuy:
         self.data.state_info.stagnation_counter = 0
         self.data.state_info.generate_next_monitor_time()
 
-        completeness = round(
+        self.data.state_info.completeness = round(
             sum(order.realized_quantity for order in self.orders)
             / sum(order.quantity for order in self.orders),
             2,
         )
-
-        self.data.state_info.completeness = completeness
-        logger.info("Completeness: %s", completeness)
+        logger.info("Completeness: %s", self.data.state_info.completeness)
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 
     def prepare_orders(self) -> List[Order]:
@@ -248,6 +243,50 @@ class HPPositionBuy:
                 logger.info("Cancelled new order with id: %s", order.order_id)
 
         return orders
+
+    def calculate_avg_buy_price(self) -> float:
+        """
+        Calculates the weighted average buy price based on realized quantities.
+
+        Args:
+            orders (List[Dict]): Each dict has 'price', 'realized_quantity', and 'total_quantity'
+
+        Returns:
+            float: Weighted average buy price or 0.0 if no realized quantity
+        """
+        total_realized_quantity = 0.0
+        total_cost = 0.0
+
+        for order in self.orders:
+            total_realized_quantity += order.realized_quantity
+            total_cost += order.realized_quantity * order.price
+
+        if total_realized_quantity == 0:
+            return 0.0  # Avoid division by zero
+
+        return self.data.config.symbol_info.adjust_price(
+            total_cost / total_realized_quantity
+        )
+
+    def calculate_realized_quantity(self) -> float:
+        """
+        Calculates the weighted average buy price based on realized quantities.
+
+        Args:
+            orders (List[Dict]): Each dict has 'price', 'realized_quantity', and 'total_quantity'
+
+        Returns:
+            float: Weighted average buy price or 0.0 if no realized quantity
+        """
+        total_realized_quantity = 0.0
+
+        for order in self.orders:
+            total_realized_quantity += order.realized_quantity
+
+        if total_realized_quantity == 0:
+            return 0.0  # Avoid division by zero
+
+        return self.data.config.symbol_info.adjust_quantity(total_realized_quantity)
 
     async def _create_order(self, order: Order) -> Order:
         max_retries = 10

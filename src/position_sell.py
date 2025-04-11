@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import pprint
-from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -23,7 +21,6 @@ from src.common.symbol_info import SymbolInfo
 from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
-    HPSellConfig,
     HPSellData,
     Order,
     UiState,
@@ -45,40 +42,28 @@ class HPPositionSell:
         self.data = data
         self.strategy_logger = strategy_logger
         self.db = db
-        self.orders: List[Order] = []
+        self.sell_order: Order = Order(quantity=0, precision=0, price_precision=0)
 
-    def prepare_orders(
-        self,
-        config: HPSellConfig,
-        buy_realized_quantity: float,
-        sell_realized_quantity: float,
-    ) -> List[Order]:
-        orders = []
-        quantity = buy_realized_quantity - sell_realized_quantity
+    def prepare_sell_order(self, buy_realized_quantity: float) -> None:
+        config = self.data.config
+        quantity = buy_realized_quantity - self.sell_order.realized_quantity
         quantity_stable = round(quantity * config.sell_price, 2)
 
-        orders.append(
-            Order(
-                quantity=config.symbol_info.adjust_quantity(quantity),
-                price=config.symbol_info.adjust_price(config.sell_price),
-                quantity_stable=quantity_stable,
-                precision=config.symbol_info.precision,
-                price_precision=config.symbol_info.price_precision,
-            )
+        self.sell_order = Order(
+            quantity=config.symbol_info.adjust_quantity(quantity),
+            price=config.symbol_info.adjust_price(config.sell_price),
+            quantity_stable=quantity_stable,
+            precision=config.symbol_info.precision,
+            price_precision=config.symbol_info.price_precision,
         )
+
         logger.info(
-            "Sell orders prepared:\n%s\n for position: %s",
-            pprint.pformat(list(orders)),
+            "Sell order prepared:\n%s\n for position: %s",
+            self.sell_order,
             config.symbol_info.symbol,
         )
-        return orders
 
-    async def open_position(
-        self,
-        side: PositionSide,
-        orders: List[Order],
-        symbol_info: SymbolInfo,
-    ) -> List[Order]:
+    async def open_position(self) -> None:
         """Send a list of orders concurrently.
 
         Args:
@@ -89,23 +74,20 @@ class HPPositionSell:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        results = await asyncio.gather(
-            *[
-                self._create_order(side=side, order=order, symbol_info=symbol_info)
-                for order in orders
-                if order.status != ORDER_STATUS_FILLED
-            ]
-        )
-        for order in results:
+        if self.sell_order.status != ORDER_STATUS_FILLED:
+            self.sell_order = await self._create_order(
+                side=self.data.state_info.side,
+                order=self.sell_order,
+                symbol_info=self.data.config.symbol_info,
+            )
             logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                side.value,
-                symbol_info.symbol,
-                order.price,
-                order.quantity_stable,
-                order.order_id,
+                self.data.state_info.side.value,
+                self.data.config.symbol_info.symbol,
+                self.sell_order.price,
+                self.sell_order.quantity_stable,
+                self.sell_order.order_id,
             )
-        return results
 
     async def cancel_position(self) -> None:
         assert isinstance(self.data, HPSellData)
@@ -117,22 +99,16 @@ class HPPositionSell:
         )
         self.data.state_info.stagnation_counter = 0
 
-        self.orders = await self.cancel_remaining_limit_orders(
-            symbol=self.data.config.symbol_info.symbol,
-            orders=self.orders,
-        )
-        for order in self.orders:
-            if order.status == ORDER_STATUS_CANCELED:
-                self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
+        await self.cancel_remaining_order()
+        if self.sell_order.status == ORDER_STATUS_CANCELED:
+            self.db.upsert_order(
+                order=self.sell_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
 
         self.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
+            self.sell_order.realized_quantity / self.sell_order.quantity, 2
         )
         self.data.state_info.ui_state = UiState.STAGNATED
 
@@ -141,86 +117,85 @@ class HPPositionSell:
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
     ) -> None:
-        for order in self.orders:
-            if execution_report.order_id == order.order_id:
-                order.status = execution_report.current_order_status
-                order.realized_quantity = execution_report.cumulative_filled_quantity
-                order.quantity_stable -= (
-                    execution_report.last_executed_price
-                    * execution_report.last_executed_quantity
-                )
-                order.price = execution_report.last_executed_price
+        if execution_report.order_id == self.sell_order.order_id:
+            self.sell_order.status = execution_report.current_order_status
+            self.sell_order.realized_quantity = (
+                execution_report.cumulative_filled_quantity
+            )
+            self.sell_order.quantity_stable -= (
+                execution_report.last_executed_price
+                * execution_report.last_executed_quantity
+            )
+            self.sell_order.price = execution_report.last_executed_price
 
-                self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
-                logger.info("Order: %s partially filled", order.order_id)
+            self.db.upsert_order(
+                order=self.sell_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
+            logger.info("Order: %s partially filled", self.sell_order.order_id)
 
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
         self.data.state_info.stagnation_counter = 0
         self.data.state_info.generate_next_monitor_time()
         self.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
+            self.sell_order.realized_quantity / self.sell_order.quantity, 2
         )
         self.data.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        for order in self.orders:
-            if execution_report.order_id == order.order_id:
-                order.status = execution_report.current_order_status
-                order.price = execution_report.last_executed_price
-                order.realized_quantity = execution_report.cumulative_filled_quantity
-                logger.info(
-                    "Order: %s filled, symbol: %s, price: %s, status: %s",
-                    order.order_id,
-                    execution_report.symbol,
-                    order.price,
-                    order.status,
-                )
+        if execution_report.order_id == self.sell_order.order_id:
+            self.sell_order.status = execution_report.current_order_status
+            self.sell_order.price = execution_report.last_executed_price
+            self.sell_order.realized_quantity = (
+                execution_report.cumulative_filled_quantity
+            )
+            logger.info(
+                "Order: %s filled, symbol: %s, price: %s, status: %s",
+                self.sell_order.order_id,
+                execution_report.symbol,
+                self.sell_order.price,
+                self.sell_order.status,
+            )
 
-                self.db.upsert_order(
-                    order=order,
-                    hp_id=self.data.config.hp_id,
-                    side=self.data.state_info.side,
-                )
+            self.db.upsert_order(
+                order=self.sell_order,
+                hp_id=self.data.config.hp_id,
+                side=self.data.state_info.side,
+            )
 
         self.data.state_info.ui_state = UiState.OPEN
         self.data.state_info.stagnation_counter = 0
         self.data.state_info.generate_next_monitor_time()
 
-        completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
+        self.data.state_info.completeness = round(
+            self.sell_order.realized_quantity / self.sell_order.quantity, 2
         )
 
-        self.data.state_info.completeness = completeness
-        logger.info("Completeness: %s", completeness)
+        logger.info("Completeness: %s", self.data.state_info.completeness)
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 
-    async def cancel_remaining_limit_orders(
-        self, orders: List[Order], symbol: str
-    ) -> List[Order]:
-        logger.info("Cancelling remaining limit orders: %s", orders)
-        assert orders
-        for order in orders:
-            if order.status == ORDER_STATUS_PARTIALLY_FILLED and order.order_id:
-                await self._cancel_order(order_id=order.order_id, symbol=symbol)
-                order.status = ORDER_STATUS_CANCELED
+    async def cancel_remaining_order(self) -> None:
+        if (
+            self.sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
+            and self.sell_order.order_id
+        ):
+            await self._cancel_order(
+                order_id=self.sell_order.order_id,
+                symbol=self.data.config.symbol_info.symbol,
+            )
+            self.sell_order.status = ORDER_STATUS_CANCELED
 
-                logger.info(
-                    "Cancelled partially filled order with id: %s", order.order_id
-                )
-            elif order.status == ORDER_STATUS_NEW and order.order_id:
-                await self._cancel_order(order_id=order.order_id, symbol=symbol)
-                order.status = ORDER_STATUS_CANCELED
-                logger.info("Cancelled new order with id: %s", order.order_id)
-
-        return orders
+            logger.info(
+                "Cancelled partially filled order with id: %s", self.sell_order.order_id
+            )
+        elif self.sell_order.status == ORDER_STATUS_NEW and self.sell_order.order_id:
+            await self._cancel_order(
+                order_id=self.sell_order.order_id,
+                symbol=self.data.config.symbol_info.symbol,
+            )
+            self.sell_order.status = ORDER_STATUS_CANCELED
+            logger.info("Cancelled new order with id: %s", self.sell_order.order_id)
 
     async def _create_order(
         self, side: PositionSide, order: Order, symbol_info: SymbolInfo
