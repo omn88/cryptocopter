@@ -54,15 +54,15 @@ class UsdPriceResolver:
             and "BTCUSDC" in self.latest_prices
         ):
             raw_price = self.latest_prices[f"{coin}BTC"] * self.latest_prices["BTCUSDC"]
-            logger.info(
-                "Coin %s has pair to BTC and BTC has USDC, resolved price: %s",
-                coin,
-                raw_price,
-            )
-        elif coin in delisted_coins:
-            logger.info(
-                "Coin %s is delisted, skipping BTC and exotic pair resolution", coin
-            )
+        #     logger.info(
+        #         "Coin %s has pair to BTC and BTC has USDC, resolved price: %s",
+        #         coin,
+        #         raw_price,
+        #     )
+        # elif coin in delisted_coins:
+        #     logger.info(
+        #         "Coin %s is delisted, skipping BTC and exotic pair resolution", coin
+        #     )
 
         # Priority 3: Exotic pairs like coinTRY + TRYUSDC
         elif coin not in delisted_coins:
@@ -71,28 +71,28 @@ class UsdPriceResolver:
                     quote = pair.replace(coin, "")
                     usdc_pair = f"{quote}USDC"
                     if quote in delisted_coins:
-                        logger.info(
-                            "Coin %s has pair to %s, but %s is delisted — skipping",
-                            coin,
-                            quote,
-                            quote,
-                        )
+                        # logger.info(
+                        #     "Coin %s has pair to %s, but %s is delisted — skipping",
+                        #     coin,
+                        #     quote,
+                        #     quote,
+                        # )
                         continue
                     if usdc_pair in self.latest_prices:
                         raw_price = price * self.latest_prices[usdc_pair]
-                        logger.info(
-                            "Coin %s has pair to %s and %s has USDC, resolved price: %s",
-                            coin,
-                            quote,
-                            quote,
-                            raw_price,
-                        )
+                        # logger.info(
+                        #     "Coin %s has pair to %s and %s has USDC, resolved price: %s",
+                        #     coin,
+                        #     quote,
+                        #     quote,
+                        #     raw_price,
+                        # )
                         break
 
         # Priority 4: Fallback to coinUSDT ONLY
         if raw_price is None and f"{coin}USDT" in self.latest_prices:
             raw_price = self.latest_prices[f"{coin}USDT"]
-            logger.info("Coin %s uses fallback to USDT, price: %s", coin, raw_price)
+            # logger.info("Coin %s uses fallback to USDT, price: %s", coin, raw_price)
 
         if raw_price is None:
             logger.error("Cannot resolve USD price for coin: %s", coin)
@@ -102,8 +102,8 @@ class UsdPriceResolver:
         try:
             symbol_info = self.symbols_info[f"{coin}USDT"]
             price = symbol_info.adjust_price(raw_price)
-            logger.info("Adjusted price for coin %s using symbol info: %s", coin, price)
+            # logger.info("Adjusted price for coin %s using symbol info: %s", coin, price)
             return price
         except KeyError:
-            logger.error("Key error while adjusting price for coin: %s", coin)
+            # logger.error("Key error while adjusting price for coin: %s", coin)
             return round(raw_price, 6)
