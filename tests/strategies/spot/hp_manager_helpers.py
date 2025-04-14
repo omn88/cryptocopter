@@ -237,7 +237,7 @@ def assert_default_buy_position_data(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -304,7 +304,7 @@ async def move_to_buy_position_active(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -357,7 +357,7 @@ async def simulate_partial_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -414,7 +414,7 @@ async def simulate_first_buy_order_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -476,7 +476,7 @@ async def simulate_second_buy_order_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.52"
     assert item["quantity_usd"] == "672.0"
@@ -554,7 +554,7 @@ async def simulate_third_buy_order_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -590,7 +590,7 @@ async def simulate_third_buy_order_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -652,7 +652,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.4", item["quantity"]
     assert item["quantity_usd"] == "516.92", item["quantity_usd"]
@@ -730,7 +730,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82", item["buy_price"]
     assert item["quantity"] == "0.73"
     assert item["quantity_usd"] == "860.54", item["quantity_usd"]
@@ -766,7 +766,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.73"
     assert item["quantity_usd"] == "860.54"
@@ -828,7 +828,7 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.28"
     assert item["quantity_usd"] == "361.85"
@@ -906,7 +906,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.61"
     assert item["quantity_usd"] == "719.08"
@@ -942,7 +942,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.61"
     assert item["quantity_usd"] == "719.08"
@@ -1003,7 +1003,7 @@ async def resend_part_bought_first_order_filled(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -1066,7 +1066,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -1125,7 +1125,7 @@ async def simulate_second_buy_order_partial_fill(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1326.32", f"{item['buy_price']}"
     assert item["quantity"] == "0.26", f"{item['quantity']}"
     assert item["quantity_usd"] == "344.84", f"{item['quantity_usd']}"
@@ -1192,7 +1192,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -1250,7 +1250,7 @@ async def resend_part_bought_first_order_filled_partially(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -1318,7 +1318,7 @@ async def cancel_partially_bought_position_first_order_filled(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -1404,7 +1404,7 @@ async def send_sell_order_for_partially_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -1461,7 +1461,7 @@ async def sell_partially_partially_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -1520,7 +1520,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -1578,7 +1578,7 @@ async def simulate_cancel_sell_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425"
     assert item["quantity_usd"] == "501.0"
@@ -1636,7 +1636,7 @@ async def simulate_resend_sell_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425"
     assert item["quantity_usd"] == "501.0"
@@ -1755,7 +1755,7 @@ async def send_sell_order_for_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -1953,7 +1953,7 @@ async def simulate_partial_fill_sell(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.425", f"hp quant: {item['quantity']}"
     assert item["quantity_usd"] == "501.0"
@@ -2053,7 +2053,7 @@ async def cancel_sell_position_part_bought_part_sold(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -2108,7 +2108,7 @@ async def reopen_buy_part_bought_part_sold(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -2161,7 +2161,7 @@ async def reopen_buy_part_bought_sold(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -2221,7 +2221,7 @@ async def cancel_untouched_buy_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -2277,7 +2277,7 @@ async def cancel_untouched_sell_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"

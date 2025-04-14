@@ -69,6 +69,7 @@ class StrategyExecutor:
         self.strategies: Dict[str, HpStrategy] = {}
         self.symbols_info = symbols_info
         self.balances = balances
+        self.supported_quotes = ["USDC", "PLN", "BTC", "BNB"]
         self.test_mode = test_mode  # Add a test_mode parameter
 
         self.loop = None
@@ -98,6 +99,7 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPBuyData):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
                 if isinstance(strategy_data, HPSellData):
+                    self.determine_sell_strategy()
                     if not strategy_data.config.hp_id:
                         await self.setup_sell_position_with_new_hp(
                             strategy_data=strategy_data
@@ -112,6 +114,89 @@ class StrategyExecutor:
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    def determine_sell_strategy(self, coin: str, end_currency: str) -> List[SymbolInfo]:
+        delisted_coins = {
+            "USDT",
+            "FDUSD",
+            "TUSD",
+            "USDP",
+            "DAI",
+            "AEUR",
+            "UST",
+            "USTC",
+            "PAXG",
+        }
+
+        strategy = []
+
+        if end_currency == "PLN":
+            # Priority 1: Direct pair to PLN
+            if f"{coin}PLN" in self.symbols_info:
+                strategy.append(self.symbols_info[f"{coin}PLN"])
+                return strategy
+
+            # Priority 2: coinUSDC + USDCPLN
+            if f"{coin}USDC" in self.symbols_info and "USDCPLN" in self.symbols_info:
+                strategy.append(self.symbols_info[f"{coin}USDC"])
+                strategy.append(self.symbols_info["USDCPLN"])
+                return strategy
+
+            # Priority 3: coinBTC + BTCPLN
+            if (
+                coin not in delisted_coins
+                and f"{coin}BTC" in self.symbols_info
+                and "BTCPLN" in self.symbols_info
+            ):
+                strategy.append(self.symbols_info[f"{coin}BTC"])
+                strategy.append(self.symbols_info["BTCPLN"])
+                return strategy
+
+            # Priority 4: coinBNB + BNBPLN
+            if (
+                coin not in delisted_coins
+                and f"{coin}BNB" in self.symbols_info
+                and "BNBPLN" in self.symbols_info
+            ):
+                strategy.append(self.symbols_info[f"{coin}BNB"])
+                strategy.append(self.symbols_info["BNBPLN"])
+                return strategy
+
+            logger.warning("No valid sell path to PLN for coin: %s", coin)
+            return []
+
+        else:
+            # Default end_currency: USDC
+
+            # Priority 1: coinUSDC
+            if f"{coin}USDC" in self.symbols_info:
+                strategy.append(self.symbols_info[f"{coin}USDC"])
+                return strategy
+
+            # Priority 2: coinBTC + BTCUSDC
+            if (
+                coin not in delisted_coins
+                and f"{coin}BTC" in self.symbols_info
+                and "BTCUSDC" in self.symbols_info
+            ):
+                strategy.append(self.symbols_info[f"{coin}BTC"])
+                strategy.append(self.symbols_info["BTCUSDC"])
+                return strategy
+
+            # Priority 3: Exotic coinXYZ + XYZUSDC
+            if coin not in delisted_coins:
+                for pair in self.symbols_info:
+                    if pair.startswith(coin):
+                        quote = pair.replace(coin, "")
+                        if quote in delisted_coins:
+                            continue
+                        if f"{quote}USDC" in self.symbols_info:
+                            strategy.append(self.symbols_info[pair])
+                            strategy.append(self.symbols_info[f"{quote}USDC"])
+                            return strategy
+
+            logger.warning("No valid sell path to USDC for coin: %s", coin)
+            return []
 
     def stop(self):
         logger.info("Stopping strategy executor, stop event SET.")
@@ -195,7 +280,7 @@ class StrategyExecutor:
                 data=HPBuyData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    asset=config.symbol_info.symbol[:-4],
+                    coin=config.symbol_info.symbol[:-4],
                     state=State.NEW,
                 ),
             )
@@ -211,7 +296,7 @@ class StrategyExecutor:
                     hp_id=config.hp_id,
                     buy_price=config.buy_price,
                     sell_price=config.sell_price,
-                    asset=config.symbol_info.symbol[:-4],
+                    coin=config.symbol_info.symbol[:-4],
                     state=state,
                 ),
             )
@@ -278,7 +363,9 @@ class StrategyExecutor:
         strategy.sell.prepare_sell_order(buy_realized_quantity=config.quantity)
         self.strategies[config.hp_id] = strategy
 
-        assert config.symbol_info.symbol.endswith("USDC"), "Symbol must end with 'USDC'"
+        assert config.symbol_info.symbol.endswith(
+            tuple(self.supported_quotes)
+        ), f"Symbol must end with one of {self.supported_quotes}"
         self.send_sell_position_to_ui(
             config=strategy.sell.data.config,
             state_info=strategy.sell.data.state_info,
@@ -614,7 +701,7 @@ class StrategyExecutor:
             hp_update=HPUpdate(
                 hp_id=buy_position.data.config.hp_id,
                 buy_price=buy_price,
-                asset=buy_position.data.config.symbol_info.symbol[:-4],
+                coin=buy_position.data.config.symbol_info.symbol[:-4],
                 state=strategy_state,
             ),
         )
@@ -739,7 +826,7 @@ class StrategyExecutor:
                     hp_update=HPUpdate(
                         hp_id=sell_config.hp_id,
                         sell_price=sell_config.sell_price,
-                        asset=sell_config.symbol_info.symbol[:-4],
+                        coin=sell_config.symbol_info.symbol[:-4],
                         state=strategy.state,
                     ),
                 )

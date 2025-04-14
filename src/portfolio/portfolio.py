@@ -124,12 +124,12 @@ class PortfolioManager:
         logger.info("Handling account position update.")
 
         for balance in account_position.balances:
-            asset = balance.asset
+            coin = balance.asscoinet
             total_balance = balance.free + balance.locked
 
             # Update the balance only if there's a change
-            if total_balance != self.balances.get(asset, 0.0):
-                self.balances[asset] = total_balance
+            if total_balance != self.balances.get(coin, 0.0):
+                self.balances[coin] = total_balance
 
         self.ui_queue.put_nowait(
             Event(name=EventName.ACCOUNT_POSITION, content=account_position)
@@ -145,13 +145,13 @@ class PortfolioManager:
             self.price_resolver.update_price(symbol, price)
 
         # Calculate USD-equivalent prices for known balances
-        for asset in self.balances:
+        for coin in self.balances:
             try:
-                usd_price = self.price_resolver.resolve_usd(asset)
-                self.price_updates[asset] = usd_price
+                usd_price = self.price_resolver.resolve_usd(coin)
+                self.price_updates[coin] = usd_price
 
             except ValueError:
-                logger.info("Errror to find price for asset: %s", asset)
+                logger.info("Errror to find price for coin: %s", coin)
         if "BTC" not in self.balances:
             usd_price = self.price_resolver.resolve_usd("BTC")
             self.price_updates["BTC"] = usd_price
@@ -172,7 +172,7 @@ async def fetch_initial_balances(
     account_info = await client.get_account()
 
     for balance_info in account_info["balances"]:
-        asset = balance_info["asset"]
+        coin = balance_info["coin"]
         free = float(balance_info["free"])
         locked = float(balance_info["locked"])
         total_balance = free + locked
@@ -180,23 +180,23 @@ async def fetch_initial_balances(
         if total_balance <= 0:
             continue
 
-        logger.info("Coin with balance bigger than zero: %s - %s", asset, total_balance)
+        logger.info("Coin with balance bigger than zero: %s - %s", coin, total_balance)
 
         try:
-            price_in_usd = resolver.resolve_usd(asset)
-            logger.info("Coin: %s price in usd: %s", asset, price_in_usd)
+            price_in_usd = resolver.resolve_usd(coin)
+            logger.info("Coin: %s price in usd: %s", coin, price_in_usd)
 
             total_value = price_in_usd * total_balance
 
             if total_value >= 1.0:  # Only include balances >= $1 USD
-                balances[asset] = total_balance
+                balances[coin] = total_balance
             else:
                 logger.warning(
-                    "Skipping asset %s: only worth $%.2f", asset, total_value
+                    "Skipping coin %s: only worth $%.2f", coin, total_value
                 )
 
         except ValueError:
-            logger.warning("Skipping asset %s: no USD price available", asset)
+            logger.warning("Skipping coin %s: no USD price available", coin)
 
     logger.info("Initial balances fetched: %s", balances)
     return balances

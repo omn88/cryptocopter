@@ -539,7 +539,7 @@
             width: 1.2
 
     hp_id: ''
-    asset: ''
+    coin: ''
     buy_price: ''
     quantity: ''
     quantity_usd: ''
@@ -556,7 +556,7 @@
         font_size: '14sp'
 
     Label:
-        text: root.asset
+        text: root.coin
         size_hint_x: 0.05
         font_size: '14sp'
 
@@ -610,6 +610,6 @@
         text: "SELL HP" if root.sell_price == "0.0" else "CANCEL"
         size_hint_x: 0.1
         on_release:
-            if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.asset, root.quantity, root.buy_price)
-            else: root.hp_manager.cancel_sell(root.hp_id, root.asset)
+            if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
+            else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
         disabled: root.state == "SOLD"

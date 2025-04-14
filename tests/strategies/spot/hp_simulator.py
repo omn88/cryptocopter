@@ -129,7 +129,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "0.0"
         assert item["quantity"] == "0.0"
         assert item["quantity_usd"] == "0.0"
@@ -170,7 +170,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.12"
         assert item["quantity_usd"] == "168.0"
@@ -215,7 +215,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "336.0"
@@ -271,7 +271,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1292.31"
         assert item["quantity"] == "0.52"
         assert item["quantity_usd"] == "672.0"
@@ -323,7 +323,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
@@ -358,12 +358,12 @@ class HPSimulator:
         buy_price: float,
         sell_price: float,
         end_currency: str,
-        asset: str,
+        coin: str,
     ):
         sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=hp_id,
-                asset=asset,
+                coin=coin,
                 buy_price=buy_price,
                 sell_price=sell_price,
                 quantity=quantity,
@@ -381,7 +381,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82", item["buy_price"]
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
@@ -411,7 +411,7 @@ class HPSimulator:
         item = self.front.hp_list_data[0]
 
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
@@ -466,7 +466,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
@@ -507,7 +507,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.43"
         assert item["quantity_usd"] == "506.89", item["quantity_usd"]
@@ -552,7 +552,7 @@ class HPSimulator:
         logger.info("Iteeeeeeeeeeem: %s", item)
 
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.0", f"Item quantity: {item['quantity']}"
         assert item["quantity_usd"] == "0.0"
@@ -593,7 +593,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.43"
         assert item["quantity_usd"] == "506.89", item["quantity_usd"]
@@ -621,7 +621,7 @@ class HPSimulator:
         item = self.front.hp_list_data[0]
 
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.43"
         assert item["quantity_usd"] == "506.89", item["quantity_usd"]
@@ -669,7 +669,7 @@ class HPSimulator:
         item = self.front.hp_list_data[0]
 
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0", f"Item buy price: {item['buy_price']}"
         assert item["quantity"] == "0.24", f"Item quantity: {item['quantity']}"
         assert item["quantity_usd"] == "336.0"
@@ -708,12 +708,12 @@ class HPSimulator:
         buy_price: float,
         sell_price: float,
         end_currency: str,
-        asset: str,
+        coin: str,
     ):
         sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=hp_id,
-                asset=asset,
+                coin=coin,
                 buy_price=buy_price,
                 sell_price=sell_price,
                 quantity=quantity,
@@ -731,7 +731,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0", item["buy_price"]
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "336.0"
@@ -784,7 +784,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "336.0"
@@ -822,7 +822,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "336.0"
@@ -863,7 +863,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.1"
         assert item["quantity_usd"] == "140.0", item["quantity_usd"]
@@ -903,7 +903,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.1", item["quantity"]
         assert item["quantity_usd"] == "140.0"
@@ -959,7 +959,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1326.32"
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "318.32"
@@ -1000,7 +1000,7 @@ class HPSimulator:
         assert len(hp_list) == 1
         item = hp_list[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1326.32"
         assert item["quantity"] == "0.24"
         assert item["quantity_usd"] == "318.32"
@@ -1053,7 +1053,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1292.31"
         assert item["quantity"] == "0.38"
         assert item["quantity_usd"] == "491.08"
@@ -1111,7 +1111,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.71"
         assert item["quantity_usd"] == "836.96"
@@ -1154,7 +1154,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.0", item["quantity"]
         assert item["quantity_usd"] == "0.0", item["quantity_usd"]
@@ -1211,7 +1211,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1292.31"
         assert item["quantity"] == "0.28"
         assert item["quantity_usd"] == "361.85"
@@ -1269,7 +1269,7 @@ class HPSimulator:
         assert len(self.front.hp_list_data) == 1
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["asset"] == "BTC"
+        assert item["coin"] == "BTC"
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.61"
         assert item["quantity_usd"] == "719.08"

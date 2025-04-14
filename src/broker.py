@@ -331,7 +331,7 @@ class BrokerSpot:
 
     def create_account_position(self, msg) -> AccountPosition:
         balances = [
-            Balance(asset=b["a"], free=float(b["f"]), locked=float(b["l"]))
+            Balance(coin=b["a"], free=float(b["f"]), locked=float(b["l"]))
             for b in msg["B"]
         ]
         return AccountPosition(

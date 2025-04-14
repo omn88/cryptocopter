@@ -227,7 +227,7 @@ class HpFront(BoxLayout):
             hp_record = {
                 "hp_manager": self,
                 "hp_id": str(update.hp_id),
-                "asset": str(update.asset),
+                "coin": str(update.coin),
                 "buy_price": str(update.buy_price)
                 if update.buy_price is not None
                 else "0.0",
@@ -272,7 +272,7 @@ class HpFront(BoxLayout):
                         hp["buy_price"] = str(update.buy_price)
                     if update.quantity is not None:
                         hp["quantity"] = str(
-                            self.symbols_info[f"{hp['asset']}USDT"].adjust_quantity(
+                            self.symbols_info[f"{hp['coin']}USDT"].adjust_quantity(
                                 update.quantity
                             )
                         )
@@ -284,7 +284,7 @@ class HpFront(BoxLayout):
                         hp["state"] = update.state.value
 
                     hp["quantity_usd"] = str(
-                        self.symbols_info[f"{hp['asset']}USDT"].adjust_price(
+                        self.symbols_info[f"{hp['coin']}USDT"].adjust_price(
                             float(hp["buy_price"]) * float(hp["quantity"])
                         )
                     )
@@ -605,7 +605,7 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
-                    if symbol == f"{strategy['asset']}USDT":
+                    if symbol == f"{strategy['coin']}USDT":
                         current_price = self.symbols_info[symbol].adjust_price(
                             price=float(ticker["c"])
                         )
@@ -634,7 +634,7 @@ class HpFront(BoxLayout):
         sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
-                asset=self.ids.asset_input.text,
+                coin=self.ids.coin_input.text,
                 buy_price=float(self.ids.buy_price_input.text),
                 sell_price=float(self.ids.sell_price_input.text),
                 quantity=float(self.ids.quantity_input.text),
@@ -648,14 +648,14 @@ class HpFront(BoxLayout):
 
         self.filter_records("idle", "All", side="SELL")
 
-    def sell_hp_button(self, hp_id, asset, quantity, buy_price):
+    def sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """
-        Moves to the Sell tab and fills the HP data (HP ID, asset, quantity).
+        Moves to the Sell tab and fills the HP data (HP ID, coin, quantity).
 
         Args:
         - hp_id: The ID of the HP to sell.
-        - asset: The asset involved in the HP.
-        - quantity: The amount of the asset to sell.
+        - coin: The coin involved in the HP.
+        - quantity: The amount of the coin to sell.
         """
         # Move to the "Sell" tab
         self.ids.hp_tabbed_panel.switch_to(
@@ -664,7 +664,7 @@ class HpFront(BoxLayout):
 
         # Populate the fields in the Sell tab
         self.ids.hp_id_input.text = str(hp_id)
-        self.ids.asset_input.text = str(asset)
+        self.ids.coin_input.text = str(coin)
         self.ids.quantity_input.text = str(quantity)
         # self.ids.quantity_usd_label.text = str(
         #     round(float(quantity) * float(buy_price), 2)
@@ -678,15 +678,15 @@ class HpFront(BoxLayout):
         self.ids.sell_price_input.focus = True
 
         logger.info(
-            "Moved to 'Sell' tab for HP ID: %s, Asset: %s, Quantity: %s",
+            "Moved to 'Sell' tab for HP ID: %s, coin: %s, Quantity: %s",
             hp_id,
-            asset,
+            coin,
             quantity,
         )
 
-    def cancel_sell(self, hp_id: str, asset: str):
+    def cancel_sell(self, hp_id: str, coin: str):
         config = HPSellConfig(
-            hp_id=hp_id, symbol_info=self.symbols_info[f"{asset}USDT"]
+            hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"]
         )
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
@@ -721,7 +721,7 @@ class HpFront(BoxLayout):
                 if int(item["hp_id"]) == int(hp_id):
                     # Populate the fields in the Sell tab
                     self.ids.hp_id_input.text = str(hp_id)
-                    self.ids.asset_input.text = item["asset"]
+                    self.ids.coin_input.text = item["coin"]
                     self.ids.quantity_input.text = item["quantity"]
                     self.ids.buy_price_input.text = item["buy_price"]
 
@@ -743,7 +743,7 @@ class HpFront(BoxLayout):
         except ValueError:
             # Reset all fields to '---' if HP ID is not found or any error occurs
             logger.error(f"HP ID {hp_id} not found in hp_list_data, resetting fields.")
-            self.ids.asset_input.text = "---"
+            self.ids.coin_input.text = "---"
             self.ids.quantity_input.text = "---"
             self.ids.buy_price_input.text = "---"
             self.ids.sell_price_input.text = ""  # Optional: Clear any sell price input
@@ -1073,15 +1073,15 @@ class HpFront(BoxLayout):
             self.ids.archive_filter_input_sell.values = sorted(list(symbols))
 
     def _validate_sell_inputs(self) -> bool:
-        asset = self.ids.asset_input.text
+        coin = self.ids.coin_input.text
         buy_price = self.ids.buy_price_input.text
         sell_price = self.ids.sell_price_input.text
         quantity = self.ids.quantity_input.text
         # total_usd = self.ids.total_usd_value_label.text
 
         validation_message = ""
-        if not asset:
-            validation_message += "Asset is required. "
+        if not coin:
+            validation_message += "Coin is required. "
         if not buy_price:
             validation_message += "Buy price is required. "
         if not sell_price:
@@ -1145,7 +1145,7 @@ class HpFront(BoxLayout):
             padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
         )
 
-        # **Row 1: HP ID, Asset, Quantity**
+        # **Row 1: HP ID, coin, Quantity**
         row1 = BoxLayout(
             orientation="horizontal",
             spacing=25,
@@ -1157,7 +1157,7 @@ class HpFront(BoxLayout):
             self._create_labeled_input_with_hint("HP ID:", "hp_id_input", "")
         )
         row1.add_widget(
-            self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
+            self._create_labeled_input_with_hint("coin:", "coin_input", "BTC")
         )
         row1.add_widget(
             self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
@@ -1209,7 +1209,7 @@ class HpFront(BoxLayout):
             padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
         )
 
-        # **Row 1: HP ID, Asset, Quantity**
+        # **Row 1: HP ID, coin, Quantity**
         row1 = BoxLayout(
             orientation="horizontal",
             spacing=25,

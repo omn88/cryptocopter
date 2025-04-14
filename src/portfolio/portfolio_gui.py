@@ -140,10 +140,10 @@ class PortfolioUI(BoxLayout):
         logger.info("Updating coin list based on AccountPosition updates.")
 
         for balance in account_position.balances:
-            symbol = balance.asset
+            symbol = balance.coin
             total_balance = balance.free + balance.locked
 
-            # Check if the asset exists in the current coin list
+            # Check if the coin exists in the current coin list
             found = False
             for coin in self.coin_list_data:
                 if coin["symbol"] == symbol:

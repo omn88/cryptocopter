@@ -211,7 +211,7 @@ def trading_system_factory(mock_AsyncClient):
             data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
             hp_update=HPUpdate(
                 hp_id=hp_config.hp_id,
-                asset=hp_config.symbol_info.symbol[:-4],
+                coin=hp_config.symbol_info.symbol[:-4],
                 state=State.NEW,
             ),
         )

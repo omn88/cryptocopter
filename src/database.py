@@ -99,7 +99,7 @@ CREATE_HPLIST_TABLE = """
 CREATE TABLE IF NOT EXISTS hp_list (
     id INT AUTO_INCREMENT PRIMARY KEY,
     hp_id INT NOT NULL,
-    asset VARCHAR(20) NOT NULL,
+    coin VARCHAR(20) NOT NULL,
     buy_price FLOAT NOT NULL,
     quantity FLOAT NOT NULL,
     quantity_usd FLOAT NOT NULL,
@@ -304,11 +304,11 @@ class Database:
             query_check = "SELECT id FROM hp_list WHERE hp_id=%s"
             query_update = """
             UPDATE hp_list
-            SET asset=%s, buy_price=%s, quantity=%s, quantity_usd=%s, sell_price=%s, expected_return=%s, net=%s, net_percent=%s, state=%s, version_timestamp=CURRENT_TIMESTAMP
+            SET coin=%s, buy_price=%s, quantity=%s, quantity_usd=%s, sell_price=%s, expected_return=%s, net=%s, net_percent=%s, state=%s, version_timestamp=CURRENT_TIMESTAMP
             WHERE hp_id=%s
             """
             query_insert = """
-            INSERT INTO hp_list (hp_id, asset, buy_price, quantity, quantity_usd, sell_price, expected_return, net, net_percent, state)
+            INSERT INTO hp_list (hp_id, coin, buy_price, quantity, quantity_usd, sell_price, expected_return, net, net_percent, state)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             assert self.pool
@@ -321,7 +321,7 @@ class Database:
                         await cur.execute(
                             query_update,
                             (
-                                hp_record["asset"],
+                                hp_record["coin"],
                                 hp_record["buy_price"],
                                 hp_record["quantity"],
                                 hp_record["quantity_usd"],
@@ -338,7 +338,7 @@ class Database:
                             query_insert,
                             (
                                 hp_record["hp_id"],
-                                hp_record["asset"],
+                                hp_record["coin"],
                                 hp_record["buy_price"],
                                 hp_record["quantity"],
                                 hp_record["quantity_usd"],

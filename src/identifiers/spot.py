@@ -146,12 +146,12 @@ class ExecutionReport:
 
 @dataclass
 class Balance:
-    asset: str = ""
+    coin: str = ""
     free: float = 0.0
     locked: float = 0.0
 
     def __str__(self):
-        return f"Balance(asset={self.asset}, free={self.free}, locked={self.locked})"
+        return f"Balance(coin={self.coin}, free={self.free}, locked={self.locked})"
 
 
 @dataclass
@@ -282,7 +282,7 @@ class HPBuyData:
 class HPSellConfig:
     symbol_info: SymbolInfo
     hp_id: str = ""
-    asset: str = ""
+    coin: str = ""
     quantity: float = 0.0
     buy_price: float = 0.0
     sell_price: float = 0.0
@@ -290,7 +290,7 @@ class HPSellConfig:
 
     def __str__(self):
         return (
-            f"HPSellConfig(hp_id={self.hp_id}, asset={self.asset}, "
+            f"HPSellConfig(hp_id={self.hp_id}, coin={self.coin}, "
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
             f"sell_price={self.sell_price}, end_currency={self.end_currency})"
         )

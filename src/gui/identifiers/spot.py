@@ -6,7 +6,7 @@ from src.identifiers.spot import HPBuyData, HPSellConfig, HPSellData, State, Sta
 @dataclass
 class HPUpdate:
     hp_id: str
-    asset: str = ""
+    coin: str = ""
     buy_price: Optional[float] = None
     quantity: Optional[float] = None
     quantity_usd: Optional[float] = None
