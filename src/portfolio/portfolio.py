@@ -172,7 +172,7 @@ async def fetch_initial_balances(
     account_info = await client.get_account()
 
     for balance_info in account_info["balances"]:
-        coin = balance_info["coin"]
+        coin = balance_info["asset"]
         free = float(balance_info["free"])
         locked = float(balance_info["locked"])
         total_balance = free + locked
