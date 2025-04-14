@@ -30,47 +30,80 @@ class UsdPriceResolver:
     def resolve_usd(self, coin: str) -> float:
         raw_price = None
 
+        delisted_coins = {
+            "USDT",
+            "FDUSD",
+            "TUSD",
+            "USDP",
+            "DAI",
+            "AEUR",
+            "UST",
+            "USTC",
+            "PAXG",
+        }
+
         # Priority 1: coinUSDC
         if f"{coin}USDC" in self.latest_prices:
             raw_price = self.latest_prices[f"{coin}USDC"]
-            # logger.info("Coin %s has pair to USDC, price: %s", coin, raw_price)
+            # logger.info("Coin %s has direct pair to USDC, price: %s", coin, raw_price)
 
-        # Priority 2: coinBTC + BTCUSDC
-        elif f"{coin}BTC" in self.latest_prices and "BTCUSDC" in self.latest_prices:
+        # Priority 2: coinBTC + BTCUSDC — only if coin is NOT delisted
+        elif (
+            coin not in delisted_coins
+            and f"{coin}BTC" in self.latest_prices
+            and "BTCUSDC" in self.latest_prices
+        ):
             raw_price = self.latest_prices[f"{coin}BTC"] * self.latest_prices["BTCUSDC"]
-            # logger.info("Coin %s has pair to BTC, price: %s", coin, raw_price)
+            logger.info(
+                "Coin %s has pair to BTC and BTC has USDC, resolved price: %s",
+                coin,
+                raw_price,
+            )
+        elif coin in delisted_coins:
+            logger.info(
+                "Coin %s is delisted, skipping BTC and exotic pair resolution", coin
+            )
 
         # Priority 3: Exotic pairs like coinTRY + TRYUSDC
-        else:
+        elif coin not in delisted_coins:
             for pair, price in self.latest_prices.items():
                 if pair.startswith(coin):
                     quote = pair.replace(coin, "")
                     usdc_pair = f"{quote}USDC"
+                    if quote in delisted_coins:
+                        logger.info(
+                            "Coin %s has pair to %s, but %s is delisted — skipping",
+                            coin,
+                            quote,
+                            quote,
+                        )
+                        continue
                     if usdc_pair in self.latest_prices:
                         raw_price = price * self.latest_prices[usdc_pair]
-                        # logger.info(
-                        #     "Coin %s has pair to %s, which has pair to USDC price: %s",
-                        #     coin,
-                        #     quote,
-                        #     raw_price,
-                        # )
+                        logger.info(
+                            "Coin %s has pair to %s and %s has USDC, resolved price: %s",
+                            coin,
+                            quote,
+                            quote,
+                            raw_price,
+                        )
                         break
 
-        # Priority 4: Fallback to USDT pricing (if available)
+        # Priority 4: Fallback to coinUSDT ONLY
         if raw_price is None and f"{coin}USDT" in self.latest_prices:
             raw_price = self.latest_prices[f"{coin}USDT"]
-            # logger.info(
-            #     "Coin %s has no proper pair and must be converted: %s", coin, raw_price
-            # )
+            logger.info("Coin %s uses fallback to USDT, price: %s", coin, raw_price)
 
         if raw_price is None:
+            logger.error("Cannot resolve USD price for coin: %s", coin)
             raise ValueError(f"Cannot resolve USD price for {coin}")
 
-        # Attempt to apply adjustment using symbol info (usually symbolUSDT)
+        # Apply adjustment using symbol info if available
         try:
             symbol_info = self.symbols_info[f"{coin}USDT"]
             price = symbol_info.adjust_price(raw_price)
+            logger.info("Adjusted price for coin %s using symbol info: %s", coin, price)
             return price
         except KeyError:
-            logger.error("Key error for coin: %s", coin)
-            return round(raw_price, 6)  # Fallback rounding
+            logger.error("Key error while adjusting price for coin: %s", coin)
+            return round(raw_price, 6)
