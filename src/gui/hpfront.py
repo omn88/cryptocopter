@@ -685,9 +685,7 @@ class HpFront(BoxLayout):
         )
 
     def cancel_sell(self, hp_id: str, coin: str):
-        config = HPSellConfig(
-            hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"]
-        )
+        config = HPSellConfig(hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"])
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
         )
@@ -1223,7 +1221,7 @@ class HpFront(BoxLayout):
             )
         )
         row1.add_widget(
-            self._create_labeled_input_with_hint("Asset:", "asset_input", "BTC")
+            self._create_labeled_input_with_hint("coin:", "coin_input", "BTC")
         )
         row1.add_widget(
             self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")

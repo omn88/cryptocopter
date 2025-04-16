@@ -99,13 +99,19 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPBuyData):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
                 if isinstance(strategy_data, HPSellData):
-                    self.determine_sell_strategy()
+                    sell_strategy = self.determine_sell_strategy(
+                        strategy_data=strategy_data
+                    )
                     if not strategy_data.config.hp_id:
-                        await self.setup_sell_position_with_new_hp(
-                            strategy_data=strategy_data
+                        asyncio.create_task(
+                            self.setup_sell_position_with_new_hp(
+                                strategy_data=strategy_data, sell_strategy=sell_strategy
+                            )
                         )
                     else:
-                        await self.setup_sell_position(strategy_data=strategy_data)
+                        await self.setup_sell_position(
+                            strategy_data=strategy_data, sell_strategy=sell_strategy
+                        )
 
                 if isinstance(strategy_data, RemoveRecord):
                     await self.remove_record(
@@ -115,7 +121,7 @@ class StrategyExecutor:
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
-    def determine_sell_strategy(self, coin: str, end_currency: str) -> List[SymbolInfo]:
+    def determine_sell_strategy(self, strategy_data: HPSellData) -> List[SymbolInfo]:
         delisted_coins = {
             "USDT",
             "FDUSD",
@@ -129,6 +135,8 @@ class StrategyExecutor:
         }
 
         strategy = []
+        coin = strategy_data.config.coin
+        end_currency = strategy_data.config.end_currency
 
         if end_currency == "PLN":
             # Priority 1: Direct pair to PLN
@@ -165,9 +173,7 @@ class StrategyExecutor:
             logger.warning("No valid sell path to PLN for coin: %s", coin)
             return []
 
-        else:
-            # Default end_currency: USDC
-
+        if end_currency == "USDC":
             # Priority 1: coinUSDC
             if f"{coin}USDC" in self.symbols_info:
                 strategy.append(self.symbols_info[f"{coin}USDC"])
@@ -197,6 +203,7 @@ class StrategyExecutor:
 
             logger.warning("No valid sell path to USDC for coin: %s", coin)
             return []
+        return []
 
     def stop(self):
         logger.info("Stopping strategy executor, stop event SET.")
@@ -302,8 +309,11 @@ class StrategyExecutor:
             )
         )
 
-    async def setup_sell_position(self, strategy_data: HPSellData) -> None:
+    async def setup_sell_position(
+        self, strategy_data: HPSellData, sell_strategy: List[SymbolInfo]
+    ) -> None:
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
+        strategy.sell.sell_strategy = sell_strategy
         if strategy_data.state_info.state == State.NEW:
             self.logger.info("Sell price set: %s", strategy_data.config.sell_price)
             strategy.sell.data.config = strategy_data.config
@@ -329,7 +339,9 @@ class StrategyExecutor:
         )
         logger.debug("Sell position setup exit")
 
-    async def setup_sell_position_with_new_hp(self, strategy_data: HPSellData) -> None:
+    async def setup_sell_position_with_new_hp(
+        self, strategy_data: HPSellData, sell_strategy: List[SymbolInfo]
+    ) -> None:
         self.logger.info(
             "Setting up new SELL position with config: %s", strategy_data.config
         )
@@ -354,6 +366,7 @@ class StrategyExecutor:
         strategy.state = State.BOUGHT
 
         strategy.sell.data = strategy_data
+        strategy.sell.sell_strategy = sell_strategy
         strategy.sell.data.config.hp_id = generate_hp_id(
             hp_list=list(self.strategies.keys())
         )

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -36,6 +37,7 @@ class HPPositionSell:
         client: BinanceClient,
         strategy_logger: StrategyLogger,
         data: HPSellData,
+        sell_strategy: List[SymbolInfo],
         db: Database,
     ):
         self.client = client
@@ -43,6 +45,61 @@ class HPPositionSell:
         self.strategy_logger = strategy_logger
         self.db = db
         self.sell_order: Order = Order(quantity=0, precision=0, price_precision=0)
+        self.sell_strategy = sell_strategy
+
+    async def _handle_conversion_required(self) -> None:
+        # This would involve a conversion via swap API, bridge, etc. — not implemented yet.
+        logger.info(
+            "Conversion flow required for symbol: %s (no valid trade path)",
+            self.data.config.symbol_info.symbol,
+        )
+        # TODO: implement conversion logic here
+
+    async def _handle_single_leg_sell(self, buy_realized_quantity: float) -> None:
+        # This reuses your existing sell logic
+        config = self.data.config
+        symbol_info = self.sell_strategy[0]  # single sell
+        quantity = buy_realized_quantity - self.sell_order.realized_quantity
+        quantity_stable = round(quantity * config.sell_price, 2)
+
+        self.sell_order = Order(
+            quantity=symbol_info.adjust_quantity(quantity),
+            price=symbol_info.adjust_price(config.sell_price),
+            quantity_stable=quantity_stable,
+            precision=symbol_info.precision,
+            price_precision=symbol_info.price_precision,
+        )
+
+        logger.info(
+            "Prepared single-leg sell order:\n%s\n for position: %s",
+            self.sell_order,
+            symbol_info.symbol,
+        )
+
+        if self.sell_order.status != ORDER_STATUS_FILLED:
+            self.sell_order = await self._create_order(
+                side=self.data.state_info.side,
+                order=self.sell_order,
+                symbol_info=symbol_info,
+            )
+            logger.info(
+                "New %s order sent for %s at price: %s and quantity: %s [id: %s]",
+                self.data.state_info.side.value,
+                symbol_info.symbol,
+                self.sell_order.price,
+                self.sell_order.quantity_stable,
+                self.sell_order.order_id,
+            )
+
+    async def _handle_dual_leg_sell(self, buy_realized_quantity: float) -> None:
+        logger.info(
+            "Dual-leg sell initiated for symbol: %s",
+            self.data.config.symbol_info.symbol,
+        )
+        # TODO: Implement logic for two-legged sell path
+        symbol_1 = self.sell_strategy[0]
+        symbol_2 = self.sell_strategy[1]
+        logger.info("First leg: %s, Second leg: %s", symbol_1.symbol, symbol_2.symbol)
 
     def prepare_sell_order(self, buy_realized_quantity: float) -> None:
         config = self.data.config

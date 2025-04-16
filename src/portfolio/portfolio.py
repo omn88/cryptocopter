@@ -124,7 +124,7 @@ class PortfolioManager:
         logger.info("Handling account position update.")
 
         for balance in account_position.balances:
-            coin = balance.asscoinet
+            coin = balance.coin
             total_balance = balance.free + balance.locked
 
             # Update the balance only if there's a change
@@ -191,9 +191,7 @@ async def fetch_initial_balances(
             if total_value >= 1.0:  # Only include balances >= $1 USD
                 balances[coin] = total_balance
             else:
-                logger.warning(
-                    "Skipping coin %s: only worth $%.2f", coin, total_value
-                )
+                logger.warning("Skipping coin %s: only worth $%.2f", coin, total_value)
 
         except ValueError:
             logger.warning("Skipping coin %s: no USD price available", coin)

@@ -152,7 +152,7 @@ class PortfolioUI(BoxLayout):
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
                     break
 
-            # If the asset is not in the current coin list, add it
+            # If the coin is not in the current coin list, add it
             if not found:
                 logger.info(f"Adding new symbol {symbol} to the coin list.")
 

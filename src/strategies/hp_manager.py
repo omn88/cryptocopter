@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime
 import queue
-from typing import List
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -23,7 +22,6 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
-    Order,
     Signal,
     SignalUpdate,
     State,
@@ -79,6 +77,7 @@ class HpStrategy:
                 state_info=StateInfo(side=PositionSide.SHORT),
             ),
             db=db,
+            sell_strategy=[],
         )
 
         # Initialize any other common attributes

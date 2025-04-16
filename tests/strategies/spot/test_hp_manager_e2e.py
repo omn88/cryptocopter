@@ -101,7 +101,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -190,7 +190,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -278,7 +278,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -366,7 +366,7 @@ async def test_stagnation_counter_increase_buy(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -438,7 +438,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -525,7 +525,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -579,7 +579,7 @@ async def test_setup_sell_position_for_bought_position(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
 
@@ -599,7 +599,7 @@ async def test_send_sell_order_for_bought_position(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     strategy = back.strategies["1000"]
@@ -614,7 +614,7 @@ async def test_send_sell_order_for_bought_position(
     )
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -663,7 +663,7 @@ async def test_sell_orders_stagnation_increase(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -692,7 +692,7 @@ async def test_sell_orders_stagnation_increase(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -723,7 +723,7 @@ async def test_cancel_unfilled_sell_orders(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -749,7 +749,7 @@ async def test_resend_unfilled_sell_orders(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -777,7 +777,7 @@ async def test_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -802,7 +802,7 @@ async def test_sell_position_first_order_filled(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -827,7 +827,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -854,7 +854,7 @@ async def test_resend_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -896,7 +896,7 @@ async def test_send_sell_order_for_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -932,7 +932,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -970,7 +970,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1033,7 +1033,7 @@ async def test_sell_partially_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1071,7 +1071,7 @@ async def test_buy_partially_partially_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1138,7 +1138,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1208,7 +1208,7 @@ async def test_buy_fully_partially_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1279,7 +1279,7 @@ async def test_sell_fully_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1317,7 +1317,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
