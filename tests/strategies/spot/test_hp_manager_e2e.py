@@ -605,7 +605,7 @@ async def test_send_sell_order_for_bought_position(
     strategy = back.strategies["1000"]
 
     strategy.client.create_order.side_effect = get_new_orders(
-        [strategy.sell.sell_order]
+        [strategy.sell.current_position.sell_order]
     )
     sim.new_price(price=4156)
 
@@ -626,10 +626,11 @@ async def test_send_sell_order_for_bought_position(
     assert item["state"] == "SELLING"
 
     await wait_for_condition(
-        condition_func=lambda: strategy.sell.sell_order.status == ORDER_STATUS_NEW
+        condition_func=lambda: strategy.sell.current_position.sell_order.status
+        == ORDER_STATUS_NEW
     )
-    assert strategy.sell.sell_order.quantity == 0.85
-    assert strategy.sell.sell_order.realized_quantity == 0.0
+    assert strategy.sell.current_position.sell_order.quantity == 0.85
+    assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
     active_sell_item = front.active_records_sell[0]
 
@@ -670,23 +671,25 @@ async def test_sell_orders_stagnation_increase(
 
     strategy = back.strategies["1000"]
 
-    assert strategy.sell.data.state_info.stagnation_counter == 0
-    assert strategy.sell.data.state_info.stagnation_limit == 8
+    assert strategy.sell.current_position.state_info.stagnation_counter == 0
+    assert strategy.sell.current_position.state_info.stagnation_limit == 8
 
     time = datetime.datetime.now()
-    strategy.sell.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
+    strategy.sell.current_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
-    assert strategy.sell.data.state_info.next_monitor_time == time.strftime(
+    assert strategy.sell.current_position.state_info.next_monitor_time == time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.conditions_for_position_stagnation_sell()
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.sell.data.state_info.stagnation_counter == 1
-    assert strategy.sell.data.state_info.stagnation_limit == 8
+    assert strategy.sell.current_position.state_info.stagnation_counter == 1
+    assert strategy.sell.current_position.state_info.stagnation_limit == 8
 
-    assert strategy.sell.data.state_info.next_monitor_time != time.strftime(
+    assert strategy.sell.current_position.state_info.next_monitor_time != time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 

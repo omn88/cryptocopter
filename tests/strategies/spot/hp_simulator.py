@@ -447,8 +447,8 @@ class HPSimulator:
 
     async def cancel_unfilled_sell_position(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.data.state_info.stagnation_counter = (
-            strategy.sell.data.state_info.stagnation_limit
+        strategy.sell.current_position.state_info.stagnation_counter = (
+            strategy.sell.current_position.state_info.stagnation_limit
         )
         self.new_price(3864)
 
@@ -460,7 +460,7 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.85
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-        assert strategy.sell.data.state_info.state == State.NEW
+        assert strategy.sell.current_position.state_info.state == State.NEW
         assert strategy.state == State.BOUGHT
 
         await wait_for_condition(
@@ -573,8 +573,8 @@ class HPSimulator:
     async def cancel_partially_sold_position(self):
         strategy = self.back.strategies["1000"]
 
-        strategy.sell.data.state_info.stagnation_counter = (
-            strategy.sell.data.state_info.stagnation_limit
+        strategy.sell.current_position.state_info.stagnation_counter = (
+            strategy.sell.current_position.state_info.stagnation_limit
         )
         self.new_price(3864)
 
@@ -586,7 +586,7 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.85
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
-        assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+        assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PARTIALLY_SOLD
 
         await wait_for_condition(
@@ -806,8 +806,8 @@ class HPSimulator:
 
     async def cancel_unfilled_sell_position_from_part_filled_buy(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.data.state_info.stagnation_counter = (
-            strategy.sell.data.state_info.stagnation_limit
+        strategy.sell.current_position.state_info.stagnation_counter = (
+            strategy.sell.current_position.state_info.stagnation_limit
         )
         self.new_price(3864)
 
@@ -819,7 +819,7 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.24
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-        assert strategy.sell.data.state_info.state == State.NEW
+        assert strategy.sell.current_position.state_info.state == State.NEW
         assert strategy.state == State.PARTIALLY_BOUGHT
 
         await wait_for_condition(
@@ -887,8 +887,8 @@ class HPSimulator:
 
     async def cancel_sell_position_filled_partially(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.data.state_info.stagnation_counter = (
-            strategy.sell.data.state_info.stagnation_limit
+        strategy.sell.current_position.state_info.stagnation_counter = (
+            strategy.sell.current_position.state_info.stagnation_limit
         )
         self.new_price(3864)
 
@@ -900,7 +900,7 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.24
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.14
 
-        assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
+        assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
 
         await wait_for_condition(

@@ -102,19 +102,22 @@ class StrategyExecutor:
                 self.logger.info("New config for strategy executor: %s", strategy_data)
                 if isinstance(strategy_data, HPBuyData):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
-                if isinstance(strategy_data, SellPosition):
+                if isinstance(strategy_data, HPSellData):
                     sell_strategy = self.determine_sell_strategy(
-                        strategy_data=strategy_data
+                        config=strategy_data.config
+                    )
+                    sell_position = SellPosition(
+                        sell_order=Order(quantity=0),
+                        config=strategy_data.config,
+                        state_info=strategy_data.state_info,
                     )
                     if not strategy_data.config.hp_id:
-                        asyncio.create_task(
-                            self.setup_sell_position_with_new_hp(
-                                strategy_data=strategy_data, sell_strategy=sell_strategy
-                            )
+                        await self.setup_sell_position_with_new_hp(
+                            strategy_data=sell_position, sell_strategy=sell_strategy
                         )
                     else:
                         await self.setup_sell_position(
-                            strategy_data=strategy_data, sell_strategy=sell_strategy
+                            strategy_data=sell_position, sell_strategy=sell_strategy
                         )
 
                 if isinstance(strategy_data, RemoveRecord):
@@ -125,7 +128,7 @@ class StrategyExecutor:
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
-    def determine_sell_strategy(self, strategy_data: SellPosition) -> List[SymbolInfo]:
+    def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
         delisted_coins = {
             "USDT",
             "FDUSD",
@@ -139,8 +142,8 @@ class StrategyExecutor:
         }
 
         strategy = []
-        coin = strategy_data.config.coin
-        end_currency = strategy_data.config.end_currency
+        coin = config.coin
+        end_currency = config.end_currency
 
         if end_currency == "PLN":
             # Priority 1: Direct pair to PLN
@@ -366,7 +369,7 @@ class StrategyExecutor:
             logger=self.logger,
             buy_data=HPBuyData(
                 config=HPBuyConfig(symbol_info=strategy_data.config.symbol_info),
-                state_info=StateInfo(side=PositionSide.SHORT),
+                state_info=StateInfo(),
             ),
             balance=self.balances["USDC"],
             db=self.db,
