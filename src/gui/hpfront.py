@@ -25,7 +25,9 @@ from src.identifiers.spot import (
     Event,
     EventName,
     HPSellData,
+    Order,
     RemoveRecord,
+    SellPosition,
     State,
     StateInfo,
     UiState,
@@ -631,7 +633,7 @@ class HpFront(BoxLayout):
         if not self._validate_sell_inputs():
             return
 
-        sell_config = HPSellData(
+        sell_config = SellPosition(
             config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
                 coin=self.ids.coin_input.text,
@@ -642,6 +644,7 @@ class HpFront(BoxLayout):
                 symbol_info=self.symbols_info[self.ids.sell_symbol_input.text],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(quantity=0),
         )
         self.config_queue.put_nowait(sell_config)
         logger.info("Sell config added to the queue: %s", sell_config.config)
@@ -691,9 +694,8 @@ class HpFront(BoxLayout):
         )
 
         self.config_queue.put_nowait(
-            HPSellData(
-                config=config,
-                state_info=state_info,
+            SellPosition(
+                config=config, state_info=state_info, sell_order=Order(quantity=0)
             )
         )
 

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List
+from typing import List, Optional
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -22,10 +22,15 @@ from src.common.symbol_info import SymbolInfo
 from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
+    HPSellConfig,
     HPSellData,
     Order,
+    SellPosition,
+    SellType,
+    StateInfo,
     UiState,
 )
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 
 logger = logging.getLogger("pos_handler")
@@ -39,74 +44,141 @@ class HPPositionSell:
         data: HPSellData,
         sell_strategy: List[SymbolInfo],
         db: Database,
+        price_resolver: UsdPriceResolver,
     ):
         self.client = client
-        self.data = data
+        self.original_sell_data = data
         self.strategy_logger = strategy_logger
         self.db = db
-        self.sell_order: Order = Order(quantity=0, precision=0, price_precision=0)
         self.sell_strategy = sell_strategy
 
-    async def _handle_conversion_required(self) -> None:
-        # This would involve a conversion via swap API, bridge, etc. — not implemented yet.
-        logger.info(
-            "Conversion flow required for symbol: %s (no valid trade path)",
-            self.data.config.symbol_info.symbol,
+        self.price_resolver = price_resolver
+
+        self.sell_positions: List[SellPosition] = []
+        self.current_position: SellPosition = SellPosition(
+            Order(quantity=0),
+            config=HPSellConfig(symbol_info=SymbolInfo()),
+            state_info=StateInfo(side=PositionSide.SHORT),
+            sell_type=SellType.DIRECT,
         )
-        # TODO: implement conversion logic here
+        if self.sell_strategy:
+            self._initialize_positions()
 
-    async def _handle_single_leg_sell(self, buy_realized_quantity: float) -> None:
-        # This reuses your existing sell logic
-        config = self.data.config
-        symbol_info = self.sell_strategy[0]  # single sell
-        quantity = buy_realized_quantity - self.sell_order.realized_quantity
-        quantity_stable = round(quantity * config.sell_price, 2)
+    def _initialize_positions(self) -> None:
+        """Initializes sell positions and sets the current active position."""
+        self.sell_positions = self._build_sell_positions()
 
-        self.sell_order = Order(
-            quantity=symbol_info.adjust_quantity(quantity),
-            price=symbol_info.adjust_price(config.sell_price),
-            quantity_stable=quantity_stable,
+        self.current_position = self.sell_positions[0]
+
+    def _build_sell_positions(self) -> List[SellPosition]:
+        if not self.sell_strategy:
+            return []
+
+        assert len(self.sell_strategy) <= 2, "Only 1 or 2-hop strategies are supported."
+
+        if len(self.sell_strategy) == 1:
+            return self._build_1hop_position(self.sell_strategy[0])
+        return self._build_2hop_positions(self.sell_strategy)
+
+    def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
+        if not symbol_info.symbol.endswith("USDT"):
+            return [
+                SellPosition(
+                    config=self.original_sell_data.config,
+                    state_info=self.original_sell_data.state_info,
+                    sell_order=self._generate_order(
+                        symbol_info,
+                        quantity=self.original_sell_data.config.quantity,
+                        price=self.original_sell_data.config.sell_price,
+                    ),
+                    sell_type=SellType.DIRECT,
+                )
+            ]
+        return [
+            SellPosition(
+                config=self.original_sell_data.config,
+                state_info=self.original_sell_data.state_info,
+                sell_order=self._generate_order(
+                    symbol_info,
+                    quantity=self.original_sell_data.config.quantity,
+                    price=self.original_sell_data.config.sell_price,
+                ),
+                sell_type=SellType.CONVERT,
+            )
+        ]
+
+    def _build_2hop_positions(
+        self, sell_strategy: List[SymbolInfo]
+    ) -> List[SellPosition]:
+        original = self.original_sell_data
+        sell_price = original.config.sell_price
+        quantity = original.config.quantity
+
+        leg1_info = sell_strategy[0]
+        leg2_info = sell_strategy[1]
+
+        leg2_price = self.price_resolver.latest_prices.get(leg2_info.symbol)
+        if not leg2_price:
+            raise ValueError(f"{leg2_info.symbol} price is missing from feed")
+
+        # Convert target sell_price in USDC to quote token of leg1 (e.g. BTC)
+        price_in_quote = sell_price / leg2_info.adjust_price(leg2_price)
+
+        leg1_price = leg1_info.adjust_price(price_in_quote)
+        leg1_quantity = leg1_info.adjust_quantity(quantity)
+        leg1_quantity_stable = round(leg1_quantity * leg1_price, 8)
+
+        leg2_price_adjusted = leg2_info.adjust_price(
+            self.price_resolver.latest_prices[leg2_info.symbol]
+        )
+        leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+
+        return [
+            SellPosition(
+                config=HPSellConfig(
+                    symbol_info=leg1_info, quantity=leg1_quantity, sell_price=leg1_price
+                ),
+                state_info=StateInfo(side=PositionSide.SHORT),
+                sell_order=self._generate_order(
+                    symbol_info=leg1_info,
+                    quantity=leg1_quantity,
+                    price=leg1_price,
+                ),
+                sell_type=SellType.TWOHOPS,
+            ),
+            SellPosition(
+                config=HPSellConfig(
+                    symbol_info=leg2_info, quantity=leg2_quantity, sell_price=leg2_price
+                ),
+                state_info=StateInfo(side=PositionSide.SHORT),
+                sell_order=self._generate_order(
+                    symbol_info=leg2_info,
+                    quantity=leg2_info.adjust_quantity(leg1_quantity_stable),
+                    price=leg2_price_adjusted,
+                ),
+                sell_type=SellType.TWOHOPS,
+            ),
+        ]
+
+    def _generate_order(
+        self, symbol_info: SymbolInfo, price: float, quantity: float
+    ) -> Order:
+        return Order(
+            quantity=symbol_info.adjust_quantity(quantity=quantity),
+            price=symbol_info.adjust_price(price=price),
             precision=symbol_info.precision,
             price_precision=symbol_info.price_precision,
+            quantity_stable=symbol_info.adjust_price(price * quantity),
         )
-
-        logger.info(
-            "Prepared single-leg sell order:\n%s\n for position: %s",
-            self.sell_order,
-            symbol_info.symbol,
-        )
-
-        if self.sell_order.status != ORDER_STATUS_FILLED:
-            self.sell_order = await self._create_order(
-                side=self.data.state_info.side,
-                order=self.sell_order,
-                symbol_info=symbol_info,
-            )
-            logger.info(
-                "New %s order sent for %s at price: %s and quantity: %s [id: %s]",
-                self.data.state_info.side.value,
-                symbol_info.symbol,
-                self.sell_order.price,
-                self.sell_order.quantity_stable,
-                self.sell_order.order_id,
-            )
-
-    async def _handle_dual_leg_sell(self, buy_realized_quantity: float) -> None:
-        logger.info(
-            "Dual-leg sell initiated for symbol: %s",
-            self.data.config.symbol_info.symbol,
-        )
-        # TODO: Implement logic for two-legged sell path
-        symbol_1 = self.sell_strategy[0]
-        symbol_2 = self.sell_strategy[1]
-        logger.info("First leg: %s, Second leg: %s", symbol_1.symbol, symbol_2.symbol)
 
     def prepare_sell_order(self, buy_realized_quantity: float) -> None:
-        config = self.data.config
-        quantity = buy_realized_quantity - self.sell_order.realized_quantity
+        config = self.current_position.config
+        quantity = (
+            buy_realized_quantity - self.current_position.sell_order.realized_quantity
+        )
         quantity_stable = round(quantity * config.sell_price, 2)
 
-        self.sell_order = Order(
+        self.current_position.sell_order = Order(
             quantity=config.symbol_info.adjust_quantity(quantity),
             price=config.symbol_info.adjust_price(config.sell_price),
             quantity_stable=quantity_stable,
@@ -116,7 +188,7 @@ class HPPositionSell:
 
         logger.info(
             "Sell order prepared:\n%s\n for position: %s",
-            self.sell_order,
+            self.current_position.sell_order,
             config.symbol_info.symbol,
         )
 
@@ -131,128 +203,157 @@ class HPPositionSell:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        if self.sell_order.status != ORDER_STATUS_FILLED:
-            self.sell_order = await self._create_order(
-                side=self.data.state_info.side,
-                order=self.sell_order,
-                symbol_info=self.data.config.symbol_info,
+        if self.current_position.sell_order.status != ORDER_STATUS_FILLED:
+            self.current_position.sell_order = await self._create_order(
+                side=self.current_position.state_info.side,
+                order=self.current_position.sell_order,
+                symbol_info=self.current_position.config.symbol_info,
             )
             logger.info(
                 "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                self.data.state_info.side.value,
-                self.data.config.symbol_info.symbol,
-                self.sell_order.price,
-                self.sell_order.quantity_stable,
-                self.sell_order.order_id,
+                self.current_position.state_info.side.value,
+                self.current_position.config.symbol_info.symbol,
+                self.current_position.sell_order.price,
+                self.current_position.sell_order.quantity_stable,
+                self.current_position.sell_order.order_id,
             )
 
     async def cancel_position(self) -> None:
-        assert isinstance(self.data, HPSellData)
+        assert isinstance(self.current_position, SellPosition)
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
-            self.data.config.symbol_info.symbol,
-            self.data.state_info.side,
-            self.data.config.hp_id,
+            self.current_position.config.symbol_info.symbol,
+            self.current_position.state_info.side,
+            self.current_position.config.hp_id,
         )
-        self.data.state_info.stagnation_counter = 0
+        self.current_position.state_info.stagnation_counter = 0
 
         await self.cancel_remaining_order()
-        if self.sell_order.status == ORDER_STATUS_CANCELED:
+        if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
             self.db.upsert_order(
-                order=self.sell_order,
-                hp_id=self.data.config.hp_id,
-                side=self.data.state_info.side,
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
             )
 
-        self.data.state_info.completeness = round(
-            self.sell_order.realized_quantity / self.sell_order.quantity, 2
+        self.current_position.state_info.completeness = round(
+            self.current_position.sell_order.realized_quantity
+            / self.current_position.sell_order.quantity,
+            2,
         )
-        self.data.state_info.ui_state = UiState.STAGNATED
+        self.current_position.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_sell_price_level(data=self.data)
+        self.db.upsert_sell_price_level(data=self.current_position)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
     ) -> None:
-        if execution_report.order_id == self.sell_order.order_id:
-            self.sell_order.status = execution_report.current_order_status
-            self.sell_order.realized_quantity = (
+        if execution_report.order_id == self.current_position.sell_order.order_id:
+            self.current_position.sell_order.status = (
+                execution_report.current_order_status
+            )
+            self.current_position.sell_order.realized_quantity = (
                 execution_report.cumulative_filled_quantity
             )
-            self.sell_order.quantity_stable -= (
+            self.current_position.sell_order.quantity_stable -= (
                 execution_report.last_executed_price
                 * execution_report.last_executed_quantity
             )
-            self.sell_order.price = execution_report.last_executed_price
+            self.current_position.sell_order.price = (
+                execution_report.last_executed_price
+            )
 
             self.db.upsert_order(
-                order=self.sell_order,
-                hp_id=self.data.config.hp_id,
-                side=self.data.state_info.side,
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
             )
-            logger.info("Order: %s partially filled", self.sell_order.order_id)
+            logger.info(
+                "Order: %s partially filled", self.current_position.sell_order.order_id
+            )
 
-        logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
-        self.data.state_info.stagnation_counter = 0
-        self.data.state_info.generate_next_monitor_time()
-        self.data.state_info.completeness = round(
-            self.sell_order.realized_quantity / self.sell_order.quantity, 2
+        logger.info(
+            "Stagnation counter reset for system: %s",
+            self.current_position.config.hp_id,
         )
-        self.data.state_info.ui_state = UiState.OPEN
+        self.current_position.state_info.stagnation_counter = 0
+        self.current_position.state_info.generate_next_monitor_time()
+        self.current_position.state_info.completeness = round(
+            self.current_position.sell_order.realized_quantity
+            / self.current_position.sell_order.quantity,
+            2,
+        )
+        self.current_position.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
-        if execution_report.order_id == self.sell_order.order_id:
-            self.sell_order.status = execution_report.current_order_status
-            self.sell_order.price = execution_report.last_executed_price
-            self.sell_order.realized_quantity = (
+        if execution_report.order_id == self.current_position.sell_order.order_id:
+            self.current_position.sell_order.status = (
+                execution_report.current_order_status
+            )
+            self.current_position.sell_order.price = (
+                execution_report.last_executed_price
+            )
+            self.current_position.sell_order.realized_quantity = (
                 execution_report.cumulative_filled_quantity
             )
             logger.info(
                 "Order: %s filled, symbol: %s, price: %s, status: %s",
-                self.sell_order.order_id,
+                self.current_position.sell_order.order_id,
                 execution_report.symbol,
-                self.sell_order.price,
-                self.sell_order.status,
+                self.current_position.sell_order.price,
+                self.current_position.sell_order.status,
             )
 
             self.db.upsert_order(
-                order=self.sell_order,
-                hp_id=self.data.config.hp_id,
-                side=self.data.state_info.side,
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
             )
 
-        self.data.state_info.ui_state = UiState.OPEN
-        self.data.state_info.stagnation_counter = 0
-        self.data.state_info.generate_next_monitor_time()
+        self.current_position.state_info.ui_state = UiState.OPEN
+        self.current_position.state_info.stagnation_counter = 0
+        self.current_position.state_info.generate_next_monitor_time()
 
-        self.data.state_info.completeness = round(
-            self.sell_order.realized_quantity / self.sell_order.quantity, 2
+        self.current_position.state_info.completeness = round(
+            self.current_position.sell_order.realized_quantity
+            / self.current_position.sell_order.quantity,
+            2,
         )
 
-        logger.info("Completeness: %s", self.data.state_info.completeness)
-        logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
+        logger.info("Completeness: %s", self.current_position.state_info.completeness)
+        logger.info(
+            "Stagnation counter reset for system: %s",
+            self.current_position.config.hp_id,
+        )
 
     async def cancel_remaining_order(self) -> None:
         if (
-            self.sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
-            and self.sell_order.order_id
+            self.current_position.sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
+            and self.current_position.sell_order.order_id
         ):
             await self._cancel_order(
-                order_id=self.sell_order.order_id,
-                symbol=self.data.config.symbol_info.symbol,
+                order_id=self.current_position.sell_order.order_id,
+                symbol=self.current_position.config.symbol_info.symbol,
             )
-            self.sell_order.status = ORDER_STATUS_CANCELED
+            self.current_position.sell_order.status = ORDER_STATUS_CANCELED
 
             logger.info(
-                "Cancelled partially filled order with id: %s", self.sell_order.order_id
+                "Cancelled partially filled order with id: %s",
+                self.current_position.sell_order.order_id,
             )
-        elif self.sell_order.status == ORDER_STATUS_NEW and self.sell_order.order_id:
+        elif (
+            self.current_position.sell_order.status == ORDER_STATUS_NEW
+            and self.current_position.sell_order.order_id
+        ):
             await self._cancel_order(
-                order_id=self.sell_order.order_id,
-                symbol=self.data.config.symbol_info.symbol,
+                order_id=self.current_position.sell_order.order_id,
+                symbol=self.current_position.config.symbol_info.symbol,
             )
-            self.sell_order.status = ORDER_STATUS_CANCELED
-            logger.info("Cancelled new order with id: %s", self.sell_order.order_id)
+            self.current_position.sell_order.status = ORDER_STATUS_CANCELED
+            logger.info(
+                "Cancelled new order with id: %s",
+                self.current_position.sell_order.order_id,
+            )
 
     async def _create_order(
         self, side: PositionSide, order: Order, symbol_info: SymbolInfo

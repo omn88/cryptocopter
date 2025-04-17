@@ -193,6 +193,7 @@ class AsyncApp(App):
             broker=self.broker,
             ui_queue=ui_queue,
             balances=self.portfolio.balances,
+            price_resolver=self.price_resolver,
         )
 
         self.trading_systems.append(back_end)

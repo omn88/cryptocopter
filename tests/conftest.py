@@ -2,6 +2,7 @@ import os
 
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
@@ -111,6 +112,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
         symbols_info=symbols_info,
         balances=balances,
         test_mode=True,
+        price_resolver=UsdPriceResolver(client=mock_AsyncClient, symbols_info={}),
     )
     executor.client = mock_AsyncClient
 
@@ -203,6 +205,7 @@ def trading_system_factory(mock_AsyncClient):
             db=test_database,
             worker_queue=queue.Queue(),
             buy_data=HPBuyData(config=hp_config, state_info=StateInfo()),
+            price_resolver=UsdPriceResolver(client=mock_AsyncClient, symbols_info={}),
         )
         hp_config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy.prepare_orders()

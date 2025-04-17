@@ -393,14 +393,16 @@ class HPSimulator:
         assert item["state"] == "BOUGHT"
 
         await wait_for_condition(
-            condition_func=lambda: self.back.strategies["1000"].sell.sell_order
+            condition_func=lambda: self.back.strategies[
+                "1000"
+            ].sell.current_position.sell_order
         )
 
     async def send_sell_order_for_bought_position(self):
         strategy = self.back.strategies["1000"]
-        logger.info("Sell order: %s", strategy.sell.sell_order)
+        logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
         strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.sell_order]
+            [strategy.sell.current_position.sell_order]
         )
         self.new_price(price=4156)
 
@@ -423,10 +425,11 @@ class HPSimulator:
         assert item["state"] == "SELLING"
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status == ORDER_STATUS_NEW
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_NEW
         )
-        assert strategy.sell.sell_order.quantity == 0.85
-        assert strategy.sell.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         active_sell_item = self.front.active_records_sell[0]
 
@@ -450,12 +453,12 @@ class HPSimulator:
         self.new_price(3864)
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.sell_order.quantity == 0.85
-        assert strategy.sell.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         assert strategy.sell.data.state_info.state == State.NEW
         assert strategy.state == State.BOUGHT
@@ -497,7 +500,7 @@ class HPSimulator:
         assert strategy.state == State.SELLING
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
 
@@ -538,9 +541,9 @@ class HPSimulator:
         logger.info("Put event to the worker: %s", exc_report)
 
         assert strategy.state == State.SELLING
-        logger.info("Sell order: %s", strategy.sell.sell_order)
+        logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_FILLED
         )
 
@@ -576,12 +579,12 @@ class HPSimulator:
         self.new_price(3864)
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.sell_order.quantity == 0.85
-        assert strategy.sell.sell_order.realized_quantity == 0.42
+        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
         assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PARTIALLY_SOLD
@@ -608,9 +611,9 @@ class HPSimulator:
 
     async def resend_sell_order_for_partially_sold_position(self):
         strategy = self.back.strategies["1000"]
-        logger.info("Sell orders: %s", strategy.sell.sell_order)
+        logger.info("Sell orders: %s", strategy.sell.current_position.sell_order)
         strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.sell_order]
+            [strategy.sell.current_position.sell_order]
         )
         self.new_price(price=4156.0)
 
@@ -633,10 +636,11 @@ class HPSimulator:
         assert item["state"] == "SELLING"
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status == ORDER_STATUS_NEW
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_NEW
         )
-        assert strategy.sell.sell_order.quantity == 0.85
-        assert strategy.sell.sell_order.realized_quantity == 0.42
+        assert strategy.sell.current_position.sell_order.quantity == 0.85
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
         active_sell_item = self.front.active_records_sell[0]
 
@@ -656,9 +660,9 @@ class HPSimulator:
 
     async def send_sell_order_for_part_bought_position(self):
         strategy = self.back.strategies["1000"]
-        logger.info("Sell orders: %s", strategy.sell.sell_order)
+        logger.info("Sell orders: %s", strategy.sell.current_position.sell_order)
         strategy.client.create_order.side_effect = get_new_orders(
-            [strategy.sell.sell_order]
+            [strategy.sell.current_position.sell_order]
         )
         self.new_price(price=4156)
 
@@ -681,10 +685,11 @@ class HPSimulator:
         assert item["state"] == "SELLING"
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status == ORDER_STATUS_NEW
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_NEW
         )
-        assert strategy.sell.sell_order.quantity == 0.24
-        assert strategy.sell.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == 0.24
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         active_sell_item = self.front.active_records_sell[0]
 
@@ -743,7 +748,9 @@ class HPSimulator:
         assert item["state"] == "PARTIALLY_BOUGHT"
 
         await wait_for_condition(
-            condition_func=lambda: self.back.strategies["1000"].sell.sell_order
+            condition_func=lambda: self.back.strategies[
+                "1000"
+            ].sell.current_position.sell_order
         )
 
     async def cancel_buy_position_after_first_order_filled(self):
@@ -805,12 +812,12 @@ class HPSimulator:
         self.new_price(3864)
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.sell_order.quantity == 0.24
-        assert strategy.sell.sell_order.realized_quantity == 0.0
+        assert strategy.sell.current_position.sell_order.quantity == 0.24
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         assert strategy.sell.data.state_info.state == State.NEW
         assert strategy.state == State.PARTIALLY_BOUGHT
@@ -853,7 +860,7 @@ class HPSimulator:
         assert strategy.state == State.SELLING
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_PARTIALLY_FILLED
         )
 
@@ -886,12 +893,12 @@ class HPSimulator:
         self.new_price(3864)
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_CANCELED
         )
 
-        assert strategy.sell.sell_order.quantity == 0.24
-        assert strategy.sell.sell_order.realized_quantity == 0.14
+        assert strategy.sell.current_position.sell_order.quantity == 0.24
+        assert strategy.sell.current_position.sell_order.realized_quantity == 0.14
 
         assert strategy.sell.data.state_info.state == State.PARTIALLY_SOLD
         assert strategy.state == State.PART_SOLD_PART_BOUGHT
@@ -945,7 +952,7 @@ class HPSimulator:
         realized_quantity = str(
             strategy.buy.orders[0].realized_quantity
             + strategy.buy.orders[1].realized_quantity
-            - strategy.sell.sell_order.realized_quantity
+            - strategy.sell.current_position.sell_order.realized_quantity
         )
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
@@ -1039,7 +1046,7 @@ class HPSimulator:
         realized_quantity = str(
             strategy.buy.orders[0].realized_quantity
             + strategy.buy.orders[1].realized_quantity
-            - strategy.sell.sell_order.realized_quantity
+            - strategy.sell.current_position.sell_order.realized_quantity
         )
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
@@ -1097,7 +1104,7 @@ class HPSimulator:
             round(
                 (
                     sum(order.realized_quantity for order in strategy.buy.orders)
-                    - strategy.sell.sell_order.realized_quantity
+                    - strategy.sell.current_position.sell_order.realized_quantity
                 ),
                 2,
             )
@@ -1144,7 +1151,7 @@ class HPSimulator:
         assert strategy.state == State.SELLING
 
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.sell_order.status
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_FILLED
         )
 
@@ -1197,7 +1204,7 @@ class HPSimulator:
         realized_quantity = str(
             strategy.buy.orders[0].realized_quantity
             + strategy.buy.orders[1].realized_quantity
-            - strategy.sell.sell_order.realized_quantity
+            - strategy.sell.current_position.sell_order.realized_quantity
         )
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
@@ -1255,7 +1262,7 @@ class HPSimulator:
             round(
                 (
                     sum(order.realized_quantity for order in strategy.buy.orders)
-                    - strategy.sell.sell_order.realized_quantity
+                    - strategy.sell.current_position.sell_order.realized_quantity
                 ),
                 2,
             )

@@ -71,8 +71,8 @@ class UiState(Enum):
 @dataclass
 class Order:
     quantity: float
-    precision: int
-    price_precision: int
+    precision: int = 0
+    price_precision: int = 0
     price: float = 0
     quantity_stable: float = 0
     order_id: int = 0
@@ -294,6 +294,20 @@ class HPSellConfig:
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
             f"sell_price={self.sell_price}, end_currency={self.end_currency})"
         )
+
+
+class SellType(Enum):
+    DIRECT = auto()
+    TWOHOPS = auto()
+    CONVERT = auto()
+
+
+@dataclass
+class SellPosition:
+    sell_order: Order
+    config: HPSellConfig
+    state_info: StateInfo
+    sell_type: SellType = SellType.DIRECT
 
 
 @dataclass

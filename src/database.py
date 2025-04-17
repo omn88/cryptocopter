@@ -14,6 +14,7 @@ from src.identifiers.spot import (
     HPSellConfig,
     HPSellData,
     Order,
+    SellPosition,
     StateInfo,
 )
 
@@ -406,9 +407,9 @@ class Database:
 
         return self.run_task(_upsert_price_level(data=data))
 
-    def upsert_sell_price_level(self, data: HPSellData) -> None:
+    def upsert_sell_price_level(self, data: SellPosition) -> None:
         async def _upsert_price_level(
-            data: HPSellData,
+            data: SellPosition,
         ) -> None:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
