@@ -311,7 +311,7 @@ class HPPositionBuy:
                     order.quantity - order.realized_quantity
                 )
                 symbol_info.validate_order(price=price, quantity=quantity)
-                logger.info("Before sending order..........")
+                logger.debug("Before sending order..........")
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
@@ -320,7 +320,7 @@ class HPPositionBuy:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
-                logger.info("Resp..........")
+                logger.debug("Resp..........")
             except (
                 BinanceAPIException,
                 BinanceOrderException,

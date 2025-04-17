@@ -106,6 +106,7 @@ class StrategyExecutor:
                     sell_strategy = self.determine_sell_strategy(
                         config=strategy_data.config
                     )
+                    logger.info("Sell strategy determined: %s", sell_strategy)
                     sell_position = SellPosition(
                         sell_order=Order(quantity=0),
                         config=strategy_data.config,

@@ -218,10 +218,10 @@ class HpFront(BoxLayout):
         self._log_all_records_sell()
 
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
-        logger.info("Entering update hp list")
+        logger.debug("Entering update hp list")
 
         list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
-        logger.info("List of HP IDs: %s", list_of_hp_ids)
+        logger.debug("List of HP IDs: %s", list_of_hp_ids)
 
         logger.info("update: %s", update)
 
@@ -260,11 +260,11 @@ class HpFront(BoxLayout):
             hp_list.append(hp_record)
             logger.info("Added new HP %s to %s", hp_record, hp_list)
         else:
-            logger.info("HP is already in the list, time to update")
+            logger.debug("HP is already in the list, time to update")
             for index, hp in enumerate(hp_list):
-                logger.info("Checking item %s, %s", index, hp)
+                logger.debug("Checking item %s, %s", index, hp)
                 if str(hp["hp_id"]) == str(update.hp_id):
-                    logger.info(
+                    logger.debug(
                         "Found a match with hp id: %s, quantity: %s",
                         update.hp_id,
                         update.quantity,
@@ -306,7 +306,7 @@ class HpFront(BoxLayout):
         )
         if updated_hp:
             self.db.upsert_hp_record(updated_hp)
-            logger.info("Sent updated HP record to DB: %s", updated_hp)
+            logger.debug("Sent updated HP record to DB: %s", updated_hp)
 
         return hp_list
 
@@ -319,7 +319,7 @@ class HpFront(BoxLayout):
                 str(position["hp_id"]) == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
-                logger.info(
+                logger.debug(
                     "Going to update active position %s %s",
                     position["hp_id"],
                     position["side"],
@@ -396,7 +396,7 @@ class HpFront(BoxLayout):
     ) -> None:
         for position in self.active_records_sell:
             if str(position["hp_id"]) == str(data.config.hp_id):
-                logger.info(
+                logger.debug(
                     "Going to update active position %s %s",
                     position["hp_id"],
                     position["side"],
@@ -465,7 +465,7 @@ class HpFront(BoxLayout):
                 position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
-                logger.info(
+                logger.debug(
                     "Going to update idle position %s %s",
                     position["hp_id"],
                     position["side"],
@@ -537,7 +537,7 @@ class HpFront(BoxLayout):
                 position["hp_id"] == str(data.config.hp_id)
                 and position["side"] == data.state_info.side.value
             ):
-                logger.info(
+                logger.debug(
                     "Going to update idle position %s %s",
                     position["hp_id"],
                     position["side"],
