@@ -248,6 +248,7 @@ class StateInfo:
 @dataclass
 class HPBuyConfig:
     symbol_info: SymbolInfo
+    coin: str
     hp_id: str = "0"
     price_low: float = 0
     price_high: float = 0

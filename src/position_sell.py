@@ -82,20 +82,7 @@ class HPPositionSell:
 
     def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
         if not symbol_info.symbol.endswith("USDT"):
-            return [
-                SellPosition(
-                    config=self.original_sell_data.config,
-                    state_info=self.original_sell_data.state_info,
-                    sell_order=self._generate_order(
-                        symbol_info,
-                        quantity=self.original_sell_data.config.quantity,
-                        price=self.original_sell_data.config.sell_price,
-                    ),
-                    sell_type=SellType.DIRECT,
-                )
-            ]
-        return [
-            SellPosition(
+            sell_position = SellPosition(
                 config=self.original_sell_data.config,
                 state_info=self.original_sell_data.state_info,
                 sell_order=self._generate_order(
@@ -103,9 +90,23 @@ class HPPositionSell:
                     quantity=self.original_sell_data.config.quantity,
                     price=self.original_sell_data.config.sell_price,
                 ),
-                sell_type=SellType.CONVERT,
+                sell_type=SellType.DIRECT,
             )
-        ]
+            self.current_position = sell_position
+            return [sell_position]
+
+        sell_position = SellPosition(
+            config=self.original_sell_data.config,
+            state_info=self.original_sell_data.state_info,
+            sell_order=self._generate_order(
+                symbol_info,
+                quantity=self.original_sell_data.config.quantity,
+                price=self.original_sell_data.config.sell_price,
+            ),
+            sell_type=SellType.CONVERT,
+        )
+        self.current_position = sell_position
+        return [sell_position]
 
     def _build_2hop_positions(
         self, sell_strategy: List[SymbolInfo]
@@ -133,10 +134,13 @@ class HPPositionSell:
         )
         leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
 
-        return [
+        sell_positions = [
             SellPosition(
                 config=HPSellConfig(
-                    symbol_info=leg1_info, quantity=leg1_quantity, sell_price=leg1_price
+                    symbol_info=leg1_info,
+                    quantity=leg1_quantity,
+                    sell_price=leg1_price,
+                    coin=self.original_sell_data.config.coin,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -159,6 +163,8 @@ class HPPositionSell:
                 sell_type=SellType.TWOHOPS,
             ),
         ]
+        self.current_position = sell_positions[0]
+        return sell_positions
 
     def _generate_order(
         self, symbol_info: SymbolInfo, price: float, quantity: float

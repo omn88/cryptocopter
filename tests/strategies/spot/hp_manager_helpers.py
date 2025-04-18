@@ -147,6 +147,7 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     strategy = trading_system_factory(
         hp_config=HPBuyConfig(
             hp_id="0",
+            coin="BTC",
             symbol_info=SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
             price_low=1000,
             price_high=1400,

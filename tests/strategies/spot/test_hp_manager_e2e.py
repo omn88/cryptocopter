@@ -1,3 +1,4 @@
+import asyncio
 import os
 import datetime
 import logging
@@ -7,7 +8,15 @@ from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
 from src.gui.identifiers.spot import HPGuiDataBuy
 from src.identifiers.common import PositionSide
-from src.identifiers.spot import State, StateInfo, UiState
+from src.identifiers.spot import (
+    HPSellConfig,
+    HPSellData,
+    Order,
+    SellPosition,
+    State,
+    StateInfo,
+    UiState,
+)
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
@@ -1356,3 +1365,44 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     await sim.simulate_third_buy_order_fill_after_selling_first_order(
         sell_price="4200.0"
     )
+
+
+@pytest.mark.database_integration
+async def test_start_new_sell_position_for_two_hop_testing(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    coin = "AXL"
+
+    sell_config = HPSellData(
+        config=HPSellConfig(
+            hp_id="",
+            coin=coin,
+            buy_price=0.2928,
+            sell_price=1.14,
+            quantity=1000,
+            end_currency="PLN",
+            symbol_info=back.symbols_info[f"{coin}USDT"],
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+    logger.info("Sell config added to the queue: %s", sell_config.config)
+
+    await wait_for_condition(condition_func=lambda: len(front.hp_list_data) == 1)
+    strategy = back.strategies["1000"]
+    assert len(strategy.sell.sell_strategy) == 2
+    assert strategy.sell.sell_strategy[0].symbol == f"{coin}BTC"
+    assert (
+        strategy.sell.sell_strategy[1].symbol == f"BTC{sell_config.config.end_currency}"
+    )
+
+    assert front.hp_list_data[0]["state"] == State.BOUGHT.value
+    assert front.hp_list_data[0]["coin"] == coin
+    # await sim.simulate_bought_position_for_two_hop_testing(symbol="AXLBTC")

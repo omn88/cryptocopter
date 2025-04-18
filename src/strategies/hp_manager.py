@@ -34,7 +34,6 @@ from src.identifiers.common import (
     PositionSide,
 )
 from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
-from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 
@@ -45,14 +44,15 @@ class HpStrategy:
     def __init__(
         self,
         client: BinanceClient,
-        buy_data: HPBuyData,
         logger: StrategyLogger,
         balance: float,
         ui_queue: queue.Queue,
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
         db: Database,
-        price_resolver: UsdPriceResolver,
+        buy_position: HPPositionBuy,
+        sell_position: HPPositionSell,
+        initial_state: State = State.NEW,
     ):
         self.client = client
         self.logger = logger
@@ -62,26 +62,8 @@ class HpStrategy:
         self.worker_queue = worker_queue
         self.config_queue = config_queue
         self.ui_queue = ui_queue
-        self.buy = HPPositionBuy(
-            client=client,
-            strategy_logger=logger,
-            data=buy_data,
-            db=db,
-        )
-        self.sell: HPPositionSell = HPPositionSell(
-            client=client,
-            strategy_logger=logger,
-            data=HPSellData(
-                config=HPSellConfig(
-                    hp_id=self.buy.data.config.hp_id,
-                    symbol_info=self.buy.data.config.symbol_info,
-                ),
-                state_info=StateInfo(side=PositionSide.SHORT),
-            ),
-            db=db,
-            sell_strategy=[],
-            price_resolver=price_resolver,
-        )
+        self.buy = buy_position
+        self.sell = sell_position
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -89,7 +71,7 @@ class HpStrategy:
         self.ticker_update: TickerUpdate = TickerUpdate()
         self.account_position: AccountPosition = AccountPosition()
 
-        self.state = State.NEW
+        self.state = initial_state
         self.states = [
             State.NEW,
             State.BUYING,

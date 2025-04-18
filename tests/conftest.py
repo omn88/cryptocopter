@@ -2,7 +2,10 @@ import os
 
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
+from src.identifiers.common import PositionSide
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.position_buy import HPPositionBuy
+from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
@@ -30,7 +33,14 @@ from src.identifiers.futures import (
     Signal,
     SignalUpdate,
 )
-from src.identifiers.spot import HPBuyConfig, HPBuyData, State, StateInfo
+from src.identifiers.spot import (
+    HPBuyConfig,
+    HPBuyData,
+    HPSellConfig,
+    HPSellData,
+    State,
+    StateInfo,
+)
 from src.identifiers.futures import StrategyConfig as ConfigFutures
 from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
 from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
@@ -73,6 +83,10 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
                 "symbol": "ETHUSDT",
                 "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
             },
+            {
+                "symbol": "AXLUSDT",
+                "filters": [{"filterType": "MIN_NOTIONAL", "minNotional": "5.0"}],
+            },
         ]
     }
 
@@ -101,9 +115,17 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=2),
+        "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
+        "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
     }
 
     # Create the StrategyExecutor instance
+    price_resolver = UsdPriceResolver(
+        client=mock_AsyncClient, symbols_info=symbols_info
+    )
+    price_resolver.latest_prices["BTCPLN"] = 10000.0
+
     executor = StrategyExecutor(
         strategy_logger=strategy_logger,
         db=test_db,
@@ -112,7 +134,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
         symbols_info=symbols_info,
         balances=balances,
         test_mode=True,
-        price_resolver=UsdPriceResolver(client=mock_AsyncClient, symbols_info={}),
+        price_resolver=price_resolver,
     )
     executor.client = mock_AsyncClient
 
@@ -144,7 +166,6 @@ async def frontend_backend_setup(
     for strategy in strategy_executor_fixture.strategies.values():
         strategy.stop_event.set()
         await wait_for_condition(condition_func=lambda: not strategy.worker_active)
-    logger.info("Front Back teardown finished.")
 
     # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
@@ -204,8 +225,25 @@ def trading_system_factory(mock_AsyncClient):
             logger=StrategyLogger(name="test"),
             db=test_database,
             worker_queue=queue.Queue(),
-            buy_data=HPBuyData(config=hp_config, state_info=StateInfo()),
-            price_resolver=UsdPriceResolver(client=mock_AsyncClient, symbols_info={}),
+            buy_position=HPPositionBuy(
+                client=mock_AsyncClient,
+                strategy_logger=StrategyLogger(name="test"),
+                db=test_database,
+                data=HPBuyData(config=hp_config, state_info=StateInfo()),
+            ),
+            sell_position=HPPositionSell(
+                sell_strategy=[],
+                price_resolver=UsdPriceResolver(
+                    client=mock_AsyncClient, symbols_info={}
+                ),
+                client=mock_AsyncClient,
+                strategy_logger=StrategyLogger("test"),
+                db=test_database,
+                data=HPSellData(
+                    config=HPSellConfig(symbol_info=SymbolInfo()),
+                    state_info=StateInfo(side=PositionSide.SHORT),
+                ),
+            ),
         )
         hp_config.hp_id = generate_hp_id(hp_list=[])
         strategy.buy.prepare_orders()
@@ -214,7 +252,7 @@ def trading_system_factory(mock_AsyncClient):
             data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
             hp_update=HPUpdate(
                 hp_id=hp_config.hp_id,
-                coin=hp_config.symbol_info.symbol[:-4],
+                coin=hp_config.coin,
                 state=State.NEW,
             ),
         )

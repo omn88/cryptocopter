@@ -121,13 +121,22 @@ class HpFront(BoxLayout):
             asyncio.create_task(self._refresh_ui())
         asyncio.create_task(self.process_ui_queue())
 
+    def extract_coin_from_symbol(self, symbol: str) -> str:
+        known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
+        for quote in known_quote_currencies:
+            if symbol.endswith(quote):
+                return symbol[: -len(quote)]
+        raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
+
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
             return
 
+        symbol = self.symbol_input.selected_value
         new_hp = HPBuyData(
             config=HPBuyConfig(
-                symbol_info=self.symbols_info[self.symbol_input.selected_value],
+                coin=self.extract_coin_from_symbol(symbol=symbol),
+                symbol_info=self.symbols_info[symbol],
                 price_low=float(self.symbol_input.price_low_input.text),
                 price_high=float(self.symbol_input.price_high_input.text),
                 budget=float(self.ids.budget_input.text),

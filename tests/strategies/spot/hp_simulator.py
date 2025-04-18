@@ -60,6 +60,7 @@ class HPSimulator:
                 order_trigger=order_trigger,
                 budget=budget,
                 mode=mode,
+                coin="BTC",
             ),
             state_info=StateInfo(),
         )
@@ -338,9 +339,9 @@ class HPSimulator:
 
         return strategy
 
-    async def simulate_bought_position(self):
+    async def simulate_bought_position(self, symbol="BTCUSDC"):
         # Get default buy position
-        self.simulate_buy_position(symbol="BTCUSDC")
+        self.simulate_buy_position(symbol=symbol)
         await self.assert_default_buy_position()
 
         await self.move_to_position_active_buy()
@@ -1290,3 +1291,9 @@ class HPSimulator:
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
+
+    # async def simulate_bought_position_for_two_hop_testing(self, symbol: str):
+
+    #     await self.simulate_bought_position(symbol=symbol)
+    # NoT NEEDED, I WOULD RATHER SETUP START CONFIG WITH DESIRED STATE AND THEN TEST RATHER THAN GOING THROUGHT THE HOLE PRODEDURE!!!!!
+    # THEN NO ISSUE THAT IM BUYING AXLBTC.
