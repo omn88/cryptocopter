@@ -124,7 +124,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     price_resolver = UsdPriceResolver(
         client=mock_AsyncClient, symbols_info=symbols_info
     )
-    price_resolver.latest_prices["BTCPLN"] = 10000.0
+    price_resolver.latest_prices["BTCPLN"] = 320000.0
 
     executor = StrategyExecutor(
         strategy_logger=strategy_logger,

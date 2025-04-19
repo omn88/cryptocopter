@@ -133,6 +133,14 @@ class HPPositionSell:
             self.price_resolver.latest_prices[leg2_info.symbol]
         )
         leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+        logger.info("Original sell data: %s", original)
+        logger.info("Sell price: %s", sell_price)
+        logger.info("Leg2 price: %s", leg2_price)
+        logger.info("price in quote: %s", price_in_quote)
+
+        logger.info("leg1_price: %s", leg1_price)
+        logger.info("leg1_quantity: %s", leg1_quantity)
+        logger.info("leg2_quantity: %s", leg2_quantity)
 
         sell_positions = [
             SellPosition(
@@ -164,6 +172,7 @@ class HPPositionSell:
             ),
         ]
         self.current_position = sell_positions[0]
+        logger.info("Current position set to: %s", self.current_position)
         return sell_positions
 
     def _generate_order(

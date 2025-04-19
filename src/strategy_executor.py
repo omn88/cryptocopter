@@ -289,7 +289,12 @@ class StrategyExecutor:
             "USDC"
         ), "Symbol must end with 'USDC'"
 
-        self.send_buy_position_to_ui(config=new_hp.config, state_info=new_hp.state_info)
+        self.send_buy_position_to_ui(
+            config=new_hp.config,
+            state_info=new_hp.state_info,
+            state=strategy.state,
+            buy_orders=strategy.buy.orders,
+        )
 
         self.broker.subscribe(
             system_id=str(new_hp.config.hp_id),
@@ -315,14 +320,22 @@ class StrategyExecutor:
         asyncio.create_task(strategy.worker())
         self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
-    def send_buy_position_to_ui(self, config: HPBuyConfig, state_info: StateInfo):
+    def send_buy_position_to_ui(
+        self,
+        config: HPBuyConfig,
+        state_info: StateInfo,
+        state: State,
+        buy_orders: List[Order],
+    ):
+        total_quant = sum(order.realized_quantity for order in buy_orders)
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
                 data=HPBuyData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     coin=config.coin,
-                    state=State.NEW,
+                    state=state,
+                    quantity=float(total_quant) if total_quant else None,
                 ),
             )
         )
@@ -339,6 +352,10 @@ class StrategyExecutor:
                     sell_price=config.sell_price,
                     coin=config.coin,
                     state=state,
+                    quantity=config.quantity,
+                    quantity_usd=config.symbol_info.adjust_quantity(
+                        config.quantity * config.buy_price
+                    ),
                 ),
             )
         )
@@ -406,12 +423,8 @@ class StrategyExecutor:
                 client=self.client,
                 strategy_logger=self.logger,
                 data=HPSellData(
-                    config=HPSellConfig(
-                        hp_id=strategy_data.config.hp_id,
-                        symbol_info=strategy_data.config.symbol_info,
-                        coin=strategy_data.config.coin,
-                    ),
-                    state_info=StateInfo(side=PositionSide.SHORT),
+                    config=strategy_data.config,
+                    state_info=strategy_data.state_info,
                 ),
                 db=self.db,
                 sell_strategy=sell_strategy,
@@ -427,6 +440,9 @@ class StrategyExecutor:
         strategy.sell.current_position.config.hp_id = generate_hp_id(
             hp_list=list(self.strategies.keys())
         )
+        strategy.sell.original_sell_data.config.hp_id = (
+            strategy.sell.current_position.config.hp_id
+        )
         config = strategy.sell.current_position.config
         strategy.sell.current_position.state_info.generate_open_time()
 
@@ -439,8 +455,8 @@ class StrategyExecutor:
             tuple(self.supported_quotes)
         ), f"Symbol must end with one of {self.supported_quotes}"
         self.send_sell_position_to_ui(
-            config=strategy.sell.current_position.config,
-            state_info=strategy.sell.current_position.state_info,
+            config=strategy.sell.original_sell_data.config,
+            state_info=strategy.sell.original_sell_data.state_info,
             state=strategy.state,
         )
 
@@ -518,6 +534,8 @@ class StrategyExecutor:
             self.send_buy_position_to_ui(
                 config=strategy.buy.data.config,
                 state_info=strategy.buy.data.state_info,
+                state=strategy.state,
+                buy_orders=strategy.buy.orders,
             )
 
             self.logger.info(f"Removed strategy {hp_id}.")
@@ -546,6 +564,8 @@ class StrategyExecutor:
             self.send_buy_position_to_ui(
                 config=strategy.buy.data.config,
                 state_info=strategy.buy.data.state_info,
+                state=strategy.state,
+                buy_orders=strategy.buy.orders,
             )
 
             self.db.upsert_buy_price_level(data=buy.data)

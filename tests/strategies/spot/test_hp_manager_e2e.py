@@ -1368,7 +1368,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
 
 @pytest.mark.database_integration
-async def test_start_new_sell_position_for_two_hop_testing(
+async def test_start_new_sell_position_for_two_hop_trade(
     frontend_backend_setup,
 ):
     front, back = frontend_backend_setup
@@ -1386,7 +1386,7 @@ async def test_start_new_sell_position_for_two_hop_testing(
             coin=coin,
             buy_price=0.2928,
             sell_price=1.14,
-            quantity=1000,
+            quantity=1000.0,
             end_currency="PLN",
             symbol_info=back.symbols_info[f"{coin}USDT"],
         ),
@@ -1405,4 +1405,13 @@ async def test_start_new_sell_position_for_two_hop_testing(
 
     assert front.hp_list_data[0]["state"] == State.BOUGHT.value
     assert front.hp_list_data[0]["coin"] == coin
+    assert front.hp_list_data[0]["hp_id"] == "1000"
+    assert front.hp_list_data[0]["buy_price"] == "0.2928"
+    assert front.hp_list_data[0]["quantity"] == "1000.0"
+    assert front.hp_list_data[0]["quantity_usd"] == "292.8"
+    assert front.hp_list_data[0]["sell_price"] == "1.14"
+    assert front.hp_list_data[0]["expected_return"] == "0.0"
+    assert front.hp_list_data[0]["current_price"] == "0.0"
+    assert front.hp_list_data[0]["net"] == "0.0"
+
     # await sim.simulate_bought_position_for_two_hop_testing(symbol="AXLBTC")
