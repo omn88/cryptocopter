@@ -1,21 +1,16 @@
-import asyncio
-import os
 import datetime
 import logging
 import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
-from src.gui.identifiers.spot import HPGuiDataBuy
 from src.identifiers.common import PositionSide
 from src.identifiers.spot import (
     HPSellConfig,
     HPSellData,
-    Order,
-    SellPosition,
     State,
     StateInfo,
-    UiState,
 )
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
@@ -1397,11 +1392,14 @@ async def test_start_new_sell_position_for_two_hop_trade(
 
     await wait_for_condition(condition_func=lambda: len(front.hp_list_data) == 1)
     strategy = back.strategies["1000"]
+    assert isinstance(strategy, HpStrategy)
+
     assert len(strategy.sell.sell_strategy) == 2
     assert strategy.sell.sell_strategy[0].symbol == f"{coin}BTC"
     assert (
         strategy.sell.sell_strategy[1].symbol == f"BTC{sell_config.config.end_currency}"
     )
+    assert strategy.sell.original_sell_data.config.symbol_info.symbol == f"{coin}USDT"
 
     assert front.hp_list_data[0]["state"] == State.BOUGHT.value
     assert front.hp_list_data[0]["coin"] == coin
@@ -1414,4 +1412,14 @@ async def test_start_new_sell_position_for_two_hop_trade(
     assert front.hp_list_data[0]["current_price"] == "0.0"
     assert front.hp_list_data[0]["net"] == "0.0"
 
-    # await sim.simulate_bought_position_for_two_hop_testing(symbol="AXLBTC")
+    sell_order = strategy.sell.current_position.sell_order
+
+    assert sell_order.quantity == 1000
+    assert sell_order.price == 0.00000356
+    assert sell_order.realized_quantity == 0.0
+    assert sell_order.order_id == 0
+
+    assert strategy.state == State.BOUGHT
+
+    await wait_for_condition(condition_func=lambda: not front.active_records_sell)
+    await wait_for_condition(condition_func=lambda: front.idle_records_sell)
