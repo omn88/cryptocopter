@@ -591,11 +591,12 @@ class HpStrategy:
             "Sending %s SELL", self.sell.current_position.config.symbol_info.symbol
         )
 
-        self.sell.prepare_sell_order(
-            buy_realized_quantity=sum(
-                order.realized_quantity for order in self.buy.orders
-            ),
-        )
+        if self.buy.orders:
+            self.sell.prepare_sell_order(
+                buy_realized_quantity=sum(
+                    order.realized_quantity for order in self.buy.orders
+                ),
+            )
 
         await self.sell.open_position()
         self.state = State.SELLING

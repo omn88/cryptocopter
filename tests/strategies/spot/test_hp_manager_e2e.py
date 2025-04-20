@@ -1371,55 +1371,38 @@ async def test_start_new_sell_position_for_two_hop_trade(
     assert isinstance(back, StrategyExecutor)
     sim = HPSimulator(front=front, back=back)
 
-    assert len(back.strategies) == 0
+    await sim.open_first_sell_position_from_two_hop_trade()
 
-    coin = "AXL"
 
-    sell_config = HPSellData(
-        config=HPSellConfig(
-            hp_id="",
-            coin=coin,
-            buy_price=0.2928,
-            sell_price=1.14,
-            quantity=1000.0,
-            end_currency="PLN",
-            symbol_info=back.symbols_info[f"{coin}USDT"],
-        ),
-        state_info=StateInfo(side=PositionSide.SHORT),
-    )
-    front.config_queue.put_nowait(sell_config)
-    logger.info("Sell config added to the queue: %s", sell_config.config)
+@pytest.mark.database_integration
+async def test_send_order_for_first_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-    await wait_for_condition(condition_func=lambda: len(front.hp_list_data) == 1)
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    # Open position and send orders
     strategy = back.strategies["1000"]
-    assert isinstance(strategy, HpStrategy)
-
-    assert len(strategy.sell.sell_strategy) == 2
-    assert strategy.sell.sell_strategy[0].symbol == f"{coin}BTC"
-    assert (
-        strategy.sell.sell_strategy[1].symbol == f"BTC{sell_config.config.end_currency}"
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=[strategy.sell.current_position.sell_order]
     )
-    assert strategy.sell.original_sell_data.config.symbol_info.symbol == f"{coin}USDT"
-
-    assert front.hp_list_data[0]["state"] == State.BOUGHT.value
-    assert front.hp_list_data[0]["coin"] == coin
-    assert front.hp_list_data[0]["hp_id"] == "1000"
-    assert front.hp_list_data[0]["buy_price"] == "0.2928"
-    assert front.hp_list_data[0]["quantity"] == "1000.0"
-    assert front.hp_list_data[0]["quantity_usd"] == "292.8"
-    assert front.hp_list_data[0]["sell_price"] == "1.14"
-    assert front.hp_list_data[0]["expected_return"] == "0.0"
-    assert front.hp_list_data[0]["current_price"] == "0.0"
-    assert front.hp_list_data[0]["net"] == "0.0"
+    sim.new_price(price=1.1)
 
     sell_order = strategy.sell.current_position.sell_order
 
+    # Assert new opened position data
+    await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
+    await wait_for_condition(condition_func=lambda: front.active_records_sell)
+    await wait_for_condition(condition_func=lambda: not front.idle_records_sell)
+    assert strategy.sell.current_position.state_info.state == State.NEW
+    assert sell_order.order_id == 12345
+    assert sell_order.status == ORDER_STATUS_NEW
     assert sell_order.quantity == 1000
     assert sell_order.price == 0.00000356
     assert sell_order.realized_quantity == 0.0
-    assert sell_order.order_id == 0
-
-    assert strategy.state == State.BOUGHT
-
-    await wait_for_condition(condition_func=lambda: not front.active_records_sell)
-    await wait_for_condition(condition_func=lambda: front.idle_records_sell)
+    logger.info("Active records: %s", front.active_records_sell)
+    logger.info("Idle records: %s", front.idle_records_sell)

@@ -115,6 +115,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
         "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=2),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
@@ -161,6 +162,7 @@ async def frontend_backend_setup(
     # Ensure frontend has the correct reference to the backend's queue
     hp_gui.config_queue = strategy_executor_fixture.config_queue
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
+    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
     for strategy in strategy_executor_fixture.strategies.values():

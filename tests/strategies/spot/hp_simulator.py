@@ -489,7 +489,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=5617834,
+            order_id=12345,
             last_executed_quantity=0.42,
             last_executed_price=4200,
             cumulative_filled_quantity=0.42,
@@ -532,7 +532,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=5617834,
+            order_id=12345,
             last_executed_quantity=0.85,
             last_executed_price=4200,
             cumulative_filled_quantity=0.85,
@@ -849,7 +849,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=5617834,
+            order_id=12345,
             last_executed_quantity=0.14,
             last_executed_price=4200,
             cumulative_filled_quantity=0.14,
@@ -1140,7 +1140,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=5617834,
+            order_id=12345,
             last_executed_quantity=0.24,
             last_executed_price=4200,
             cumulative_filled_quantity=0.24,
@@ -1292,8 +1292,63 @@ class HPSimulator:
 
         return strategy
 
-    # async def simulate_bought_position_for_two_hop_testing(self, symbol: str):
+    async def open_first_sell_position_from_two_hop_trade(self):
+        assert len(self.back.strategies) == 0
 
-    #     await self.simulate_bought_position(symbol=symbol)
-    # NoT NEEDED, I WOULD RATHER SETUP START CONFIG WITH DESIRED STATE AND THEN TEST RATHER THAN GOING THROUGHT THE HOLE PRODEDURE!!!!!
-    # THEN NO ISSUE THAT IM BUYING AXLBTC.
+        coin = "AXL"
+
+        sell_config = HPSellData(
+            config=HPSellConfig(
+                hp_id="",
+                coin=coin,
+                buy_price=0.2928,
+                sell_price=1.14,
+                quantity=1000.0,
+                end_currency="PLN",
+                symbol_info=self.back.symbols_info[f"{coin}USDT"],
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.front.config_queue.put_nowait(sell_config)
+        logger.info("Sell config added to the queue: %s", sell_config.config)
+
+        await wait_for_condition(
+            condition_func=lambda: len(self.front.hp_list_data) == 1
+        )
+        strategy = self.back.strategies["1000"]
+        assert isinstance(strategy, HpStrategy)
+
+        assert len(strategy.sell.sell_strategy) == 2
+        assert strategy.sell.sell_strategy[0].symbol == f"{coin}BTC"
+        assert (
+            strategy.sell.sell_strategy[1].symbol
+            == f"BTC{sell_config.config.end_currency}"
+        )
+        assert (
+            strategy.sell.original_sell_data.config.symbol_info.symbol == f"{coin}USDT"
+        )
+
+        assert self.front.hp_list_data[0]["state"] == State.BOUGHT.value
+        assert self.front.hp_list_data[0]["coin"] == coin
+        assert self.front.hp_list_data[0]["hp_id"] == "1000"
+        assert self.front.hp_list_data[0]["buy_price"] == "0.2928"
+        assert self.front.hp_list_data[0]["quantity"] == "1000.0"
+        assert self.front.hp_list_data[0]["quantity_usd"] == "292.8"
+        assert self.front.hp_list_data[0]["sell_price"] == "1.14"
+        assert self.front.hp_list_data[0]["expected_return"] == "0.0"
+        assert self.front.hp_list_data[0]["current_price"] == "0.0"
+        assert self.front.hp_list_data[0]["net"] == "0.0"
+
+        sell_order = strategy.sell.current_position.sell_order
+
+        assert sell_order.quantity == 1000
+        assert sell_order.price == 0.00000356
+        assert sell_order.realized_quantity == 0.0
+        assert sell_order.order_id == 0
+
+        assert strategy.state == State.BOUGHT
+
+        await wait_for_condition(
+            condition_func=lambda: not self.front.active_records_sell
+        )
+        await wait_for_condition(condition_func=lambda: self.front.idle_records_sell)

@@ -1431,7 +1431,7 @@ async def sell_partially_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1909,7 +1909,7 @@ async def simulate_first_sell_order_fill(strategy: HpStrategy) -> HpStrategy:
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.1,
         last_executed_price=4200,
         cumulative_filled_quantity=0.85,
@@ -1928,7 +1928,7 @@ async def simulate_partial_fill_sell(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.425,
         last_executed_price=4200,
         cumulative_filled_quantity=0.425,
@@ -1939,7 +1939,7 @@ async def simulate_partial_fill_sell(
     assert (
         strategy.sell.current_position.sell_order.status
         == ORDER_STATUS_PARTIALLY_FILLED
-    )
+    ), f"The status is................................: {strategy.sell.current_position.sell_order.status}"
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
 

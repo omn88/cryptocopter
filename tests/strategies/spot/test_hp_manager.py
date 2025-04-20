@@ -742,7 +742,7 @@ async def test_sell_position_first_order_filled(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.85,
         last_executed_price=4200.0,
         cumulative_filled_quantity=0.85,
@@ -1189,7 +1189,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1347,7 +1347,7 @@ async def test_buy_fully_partially_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1469,7 +1469,7 @@ async def test_sell_fully_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,
@@ -1611,7 +1611,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=5617834,
+        order_id=12345,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,

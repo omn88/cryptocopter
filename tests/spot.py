@@ -19,13 +19,14 @@ def get_new_orders(orders: List[Order]):
 
             order_list.append(
                 {
-                    "orderId": first_order_id + item,
+                    "orderId": (first_order_id + item) if len(orders) > 1 else 12345,
                     "price": order.price,
                     "quantity": quantity,
                     "status": ORDER_STATUS_NEW,
                     "updateTime": 1566818724722,
                 }
             )
+    logger.info("ORDER LIST........................: %s", order_list)
     return order_list
 
 
