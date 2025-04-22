@@ -1386,7 +1386,7 @@ class HPSimulator:
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
             order_id=12345,
             last_executed_quantity=500,
-            last_executed_price=1.14,
+            last_executed_price=0.00000365,
             cumulative_filled_quantity=500,
             price=0.00000365,
         )

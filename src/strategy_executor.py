@@ -447,6 +447,8 @@ class StrategyExecutor:
             strategy.sell.current_position.config.hp_id
         )
         config = strategy.sell.current_position.config
+        strategy.buy.data.config.hp_id = config.hp_id
+        strategy.buy.data.config.coin = config.coin
         strategy.sell.current_position.state_info.generate_open_time()
 
         logger.info("Current position: %s", strategy.sell.current_position)

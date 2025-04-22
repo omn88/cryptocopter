@@ -350,10 +350,6 @@ class HpStrategy:
         self.logger.info(".........how many? %s", len(self.sell.sell_positions))
 
         if len(self.sell.sell_positions) == 1:
-            self.logger.info(
-                "................................sell order realized quanttiy: %s",
-                self.sell.sell_positions[0].sell_order.realized_quantity,
-            )
             sold = self.sell.sell_positions[0].sell_order.realized_quantity
         elif len(self.sell.sell_positions) == 2:
             # Placeholding logic: use second leg’s executed quantity as final sold
@@ -367,17 +363,11 @@ class HpStrategy:
 
     def _calculate_from_sell_only(self) -> float:
         # Used when sell is started independently
-        if len(self.sell.sell_positions) == 1:
-            return (
-                self.sell.sell_positions[0].config.quantity
-                - self.sell.sell_positions[0].sell_order.realized_quantity
-            )
-        elif len(self.sell.sell_positions) == 2:
-            return (
-                self.sell.sell_positions[1].config.quantity
-                - self.sell.sell_positions[1].sell_order.realized_quantity
-            )
-        return 0.0
+
+        return (
+            self.sell.sell_positions[0].config.quantity
+            - self.sell.sell_positions[0].sell_order.realized_quantity
+        )
 
     def build_hp_update_from_orders(
         self,

@@ -251,7 +251,7 @@ class HPPositionSell:
             self.current_position.sell_order.realized_quantity = (
                 execution_report.cumulative_filled_quantity
             )
-            self.current_position.sell_order.quantity_stable -= (
+            self.current_position.sell_order.quantity_stable = (
                 execution_report.last_executed_price
                 * execution_report.last_executed_quantity
             )
