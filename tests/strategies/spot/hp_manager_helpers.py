@@ -14,6 +14,7 @@ from binance.enums import (
 from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
 from src.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
+from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
 from src.identifiers.spot import (
@@ -22,6 +23,7 @@ from src.identifiers.spot import (
     ExecutionReport,
     HPBuyConfig,
     HPSellConfig,
+    HPSellData,
     SignalUpdate,
     StateInfo,
     TickerUpdate,
@@ -311,7 +313,7 @@ async def move_to_buy_position_active(
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
-    assert item["quantity"] == "0.0"
+    assert item["quantity"] == "0.0", f"Quantity equals {item['quantity']}"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
@@ -1075,7 +1077,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1134,7 +1136,7 @@ async def simulate_second_buy_order_partial_fill(
     assert item["buy_price"] == "1326.32", f"{item['buy_price']}"
     assert item["quantity"] == "0.26", f"{item['quantity']}"
     assert item["quantity_usd"] == "344.84", f"{item['quantity_usd']}"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1346,21 +1348,30 @@ async def send_sell_order_for_partially_bought_position(
         sum(order.realized_quantity for order in strategy.buy.orders), 2
     )
 
-    strategy.sell.current_position.config = HPSellConfig(
+    config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
         symbol_info=strategy.buy.data.config.symbol_info,
-        sell_price=4200,
+        sell_price=4200.0,
         quantity=buy_realized_quantity,
     )
-    strategy.sell.current_position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.prepare_sell_order(buy_realized_quantity=buy_realized_quantity)
+    strategy.sell = HPPositionSell(
+        client=strategy.client,
+        strategy_logger=strategy.logger,
+        data=HPSellData(
+            config=config,
+            state_info=StateInfo(side=PositionSide.SHORT),
+        ),
+        db=strategy.db,
+        sell_strategy=[config.symbol_info],
+        price_resolver=strategy.sell.price_resolver,
+    )
 
     strategy.client.create_order.side_effect = get_new_orders(
         orders=[strategy.sell.current_position.sell_order]
     )
 
     assert strategy.sell.current_position.config.hp_id == "1000"
-    assert strategy.sell.current_position.config.sell_price == 4200
+    assert strategy.sell.current_position.config.sell_price == 4200.0
     assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
 
     assert strategy.sell.current_position.state_info.side == PositionSide.SHORT
@@ -1413,7 +1424,7 @@ async def send_sell_order_for_partially_bought_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1473,7 +1484,7 @@ async def sell_partially_partially_bought_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1532,7 +1543,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1699,14 +1710,23 @@ async def send_sell_order_for_bought_position(
     buy_realized_quantity = round(
         sum(order.realized_quantity for order in strategy.buy.orders), 2
     )
-    strategy.sell.current_position.config = HPSellConfig(
+    config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
         symbol_info=strategy.buy.data.config.symbol_info,
         sell_price=4200.0,
         quantity=buy_realized_quantity,
     )
-    strategy.sell.current_position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.prepare_sell_order(buy_realized_quantity=buy_realized_quantity)
+    strategy.sell = HPPositionSell(
+        client=strategy.client,
+        strategy_logger=strategy.logger,
+        data=HPSellData(
+            config=config,
+            state_info=StateInfo(side=PositionSide.SHORT),
+        ),
+        db=strategy.db,
+        sell_strategy=[config.symbol_info],
+        price_resolver=strategy.sell.price_resolver,
+    )
 
     strategy.client.create_order.side_effect = get_new_orders(
         [strategy.sell.current_position.sell_order]
@@ -1720,7 +1740,11 @@ async def send_sell_order_for_bought_position(
     assert strategy.sell.current_position.state_info.state == State.NEW
     assert strategy.sell.current_position.state_info.stagnation_counter == 0
     assert strategy.sell.current_position.state_info.stagnation_limit == 8
-
+    logger.info(
+        "buy realized quantity: %s, sell order quantity: %s",
+        buy_realized_quantity,
+        strategy.sell.current_position.sell_order.quantity,
+    )
     assert strategy.sell.current_position.sell_order.quantity == buy_realized_quantity
     assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
 
@@ -1731,6 +1755,8 @@ async def send_sell_order_for_bought_position(
     assert strategy.conditions_for_sending_sell_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
+
+    logger.info("Sell positions: %s", len(strategy.sell.sell_positions))
 
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.NEW
@@ -1788,15 +1814,22 @@ async def simulate_move_to_sell_from_partially_bought_position(
         sum(order.realized_quantity for order in strategy.buy.orders), 2
     )
 
-    strategy.sell.current_position.config = HPSellConfig(
+    config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
         symbol_info=strategy.buy.data.config.symbol_info,
         sell_price=4200,
         quantity=buy_realized_quantity,
     )
-    strategy.sell.current_position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.prepare_sell_order(
-        buy_realized_quantity=buy_realized_quantity,
+    strategy.sell = HPPositionSell(
+        client=strategy.client,
+        strategy_logger=strategy.logger,
+        data=HPSellData(
+            config=config,
+            state_info=StateInfo(side=PositionSide.SHORT),
+        ),
+        db=strategy.db,
+        sell_strategy=[config.symbol_info],
+        price_resolver=strategy.sell.price_resolver,
     )
 
     assert strategy.sell.current_position.config.hp_id == "1000"
@@ -1848,19 +1881,27 @@ async def simulate_move_to_sell_from_partially_bought_position(
 
 
 async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
-    buy_realized_quantity = round(
-        sum(order.realized_quantity for order in strategy.buy.orders), 2
-    )
-    strategy.sell.current_position.config = HPSellConfig(
+    config = HPSellConfig(
         hp_id=strategy.buy.data.config.hp_id,
         symbol_info=strategy.buy.data.config.symbol_info,
-        sell_price=4200,
+        sell_price=4200.0,
     )
+
+    strategy.sell = HPPositionSell(
+        client=strategy.client,
+        strategy_logger=strategy.logger,
+        data=HPSellData(
+            config=config,
+            state_info=StateInfo(side=PositionSide.SHORT),
+        ),
+        db=strategy.db,
+        sell_strategy=[config.symbol_info],
+        price_resolver=strategy.sell.price_resolver,
+    )
+
     strategy.client.create_order.side_effect = get_sell_order(
         sell_price=strategy.sell.current_position.config.sell_price
     )
-    strategy.sell.current_position.state_info = StateInfo(side=PositionSide.SHORT)
-    strategy.sell.prepare_sell_order(buy_realized_quantity=buy_realized_quantity)
 
     assert strategy.sell.current_position.config.hp_id == "1000"
     assert strategy.sell.current_position.config.sell_price == 4200
@@ -2068,7 +2109,7 @@ async def cancel_sell_position_part_bought_part_sold(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -2123,7 +2164,7 @@ async def reopen_buy_part_bought_part_sold(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -2176,7 +2217,7 @@ async def reopen_buy_part_bought_sold(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"

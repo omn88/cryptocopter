@@ -9,7 +9,7 @@ from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.database import Database
-from src.identifiers.common import BinanceClient, Mode, PositionSide
+from src.identifiers.common import BinanceClient, PositionSide
 from src.identifiers.spot import (
     Event,
     EventName,
@@ -367,15 +367,18 @@ class StrategyExecutor:
             "Setting up sell position for existing HP: %s", strategy_data.config.hp_id
         )
         strategy: HpStrategy = self.strategies[strategy_data.config.hp_id]
-        strategy.sell.sell_strategy = sell_strategy
+        assert self.client
         if strategy_data.state_info.state == State.NEW:
-            self.logger.info("Sell price set: %s", strategy_data.config.sell_price)
-            strategy.sell.current_position.config = strategy_data.config
-            strategy.sell.current_position.state_info = strategy_data.state_info
-            strategy.sell.prepare_sell_order(
-                buy_realized_quantity=sum(
-                    order.realized_quantity for order in strategy.buy.orders
-                )
+            strategy.sell = HPPositionSell(
+                client=self.client,
+                strategy_logger=self.logger,
+                data=HPSellData(
+                    config=strategy_data.config,
+                    state_info=strategy_data.state_info,
+                ),
+                db=self.db,
+                sell_strategy=sell_strategy,
+                price_resolver=self.price_resolver,
             )
         if strategy_data.state_info.state == State.CLOSED:
             self.logger.info("Closing sell position")
@@ -448,7 +451,6 @@ class StrategyExecutor:
 
         logger.info("Current position: %s", strategy.sell.current_position)
 
-        # strategy.sell.prepare_sell_order(buy_realized_quantity=config.quantity)
         self.strategies[config.hp_id] = strategy
 
         assert config.symbol_info.symbol.endswith(

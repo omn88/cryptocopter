@@ -1057,14 +1057,14 @@ async def test_fill_orders_for_previously_partially_bought_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200",
+        sell_price="4200.0",
     )
     strategy, hp_list = await simulate_third_buy_order_fill(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200",
+        sell_price="4200.0",
     )
 
 
@@ -1234,7 +1234,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1303,7 +1303,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["buy_price"] == "1326.32"
     assert item["quantity"] == "0.26"
     assert item["quantity_usd"] == "344.84"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1392,7 +1392,7 @@ async def test_buy_fully_partially_sold_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1421,7 +1421,7 @@ async def test_buy_fully_partially_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200",
+        sell_price="4200.0",
     )
     (
         strategy,
@@ -1431,7 +1431,7 @@ async def test_buy_fully_partially_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200",
+        sell_price="4200.0",
     )
 
 
@@ -1510,7 +1510,7 @@ async def test_sell_fully_partially_bought_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1564,7 +1564,7 @@ async def test_sell_fully_partially_bought_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1652,7 +1652,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1706,7 +1706,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200"
+    assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -1734,7 +1734,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200",
+        sell_price="4200.0",
     )
     (
         strategy,
@@ -1744,5 +1744,5 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200",
+        sell_price="4200.0",
     )

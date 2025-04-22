@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Optional
+from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -61,24 +61,26 @@ class HPPositionSell:
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_type=SellType.DIRECT,
         )
-        if self.sell_strategy:
-            self._initialize_positions()
+
+        self._initialize_positions()
 
     def _initialize_positions(self) -> None:
         """Initializes sell positions and sets the current active position."""
-        self.sell_positions = self._build_sell_positions()
+        self._build_sell_positions()
 
-        self.current_position = self.sell_positions[0]
+        if self.sell_positions:
+            self.current_position = self.sell_positions[0]
 
-    def _build_sell_positions(self) -> List[SellPosition]:
+    def _build_sell_positions(self) -> None:
         if not self.sell_strategy:
-            return []
+            self.sell_positions = []
 
         assert len(self.sell_strategy) <= 2, "Only 1 or 2-hop strategies are supported."
 
         if len(self.sell_strategy) == 1:
-            return self._build_1hop_position(self.sell_strategy[0])
-        return self._build_2hop_positions(self.sell_strategy)
+            self.sell_positions = self._build_1hop_position(self.sell_strategy[0])
+        if len(self.sell_strategy) == 2:
+            self.sell_positions = self._build_2hop_positions(self.sell_strategy)
 
     def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
         if not symbol_info.symbol.endswith("USDT"):
@@ -92,7 +94,6 @@ class HPPositionSell:
                 ),
                 sell_type=SellType.DIRECT,
             )
-            self.current_position = sell_position
             return [sell_position]
 
         sell_position = SellPosition(
@@ -105,7 +106,6 @@ class HPPositionSell:
             ),
             sell_type=SellType.CONVERT,
         )
-        self.current_position = sell_position
         return [sell_position]
 
     def _build_2hop_positions(
@@ -145,6 +145,7 @@ class HPPositionSell:
         sell_positions = [
             SellPosition(
                 config=HPSellConfig(
+                    hp_id=self.original_sell_data.config.hp_id,
                     symbol_info=leg1_info,
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
@@ -160,7 +161,10 @@ class HPPositionSell:
             ),
             SellPosition(
                 config=HPSellConfig(
-                    symbol_info=leg2_info, quantity=leg2_quantity, sell_price=leg2_price
+                    hp_id=self.original_sell_data.config.hp_id,
+                    symbol_info=leg2_info,
+                    quantity=leg2_quantity,
+                    sell_price=leg2_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -171,8 +175,6 @@ class HPPositionSell:
                 sell_type=SellType.TWOHOPS,
             ),
         ]
-        self.current_position = sell_positions[0]
-        logger.info("Current position set to: %s", self.current_position)
         return sell_positions
 
     def _generate_order(
@@ -184,27 +186,6 @@ class HPPositionSell:
             precision=symbol_info.precision,
             price_precision=symbol_info.price_precision,
             quantity_stable=symbol_info.adjust_price(price * quantity),
-        )
-
-    def prepare_sell_order(self, buy_realized_quantity: float) -> None:
-        config = self.current_position.config
-        quantity = (
-            buy_realized_quantity - self.current_position.sell_order.realized_quantity
-        )
-        quantity_stable = round(quantity * config.sell_price, 2)
-
-        self.current_position.sell_order = Order(
-            quantity=config.symbol_info.adjust_quantity(quantity),
-            price=config.symbol_info.adjust_price(config.sell_price),
-            quantity_stable=quantity_stable,
-            precision=config.symbol_info.precision,
-            price_precision=config.symbol_info.price_precision,
-        )
-
-        logger.info(
-            "Sell order prepared:\n%s\n for position: %s",
-            self.current_position.sell_order,
-            config.symbol_info.symbol,
         )
 
     async def open_position(self) -> None:
@@ -288,8 +269,9 @@ class HPPositionSell:
             )
 
         logger.info(
-            "Stagnation counter reset for system: %s",
+            "Stagnation counter reset for system: %s, realized sell quantity: %s",
             self.current_position.config.hp_id,
+            self.current_position.sell_order.realized_quantity,
         )
         self.current_position.state_info.stagnation_counter = 0
         self.current_position.state_info.generate_next_monitor_time()

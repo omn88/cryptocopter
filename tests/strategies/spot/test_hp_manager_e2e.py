@@ -1385,24 +1385,20 @@ async def test_send_order_for_first_sell_position_in_two_hop_trade(
 
     await sim.open_first_sell_position_from_two_hop_trade()
 
-    # Open position and send orders
-    strategy = back.strategies["1000"]
-    strategy.client.create_order.side_effect = get_new_orders(
-        orders=[strategy.sell.current_position.sell_order]
-    )
-    sim.new_price(price=1.1)
+    await sim.send_orders_for_first_position_from_two_hop_trade()
 
-    sell_order = strategy.sell.current_position.sell_order
 
-    # Assert new opened position data
-    await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
-    await wait_for_condition(condition_func=lambda: front.active_records_sell)
-    await wait_for_condition(condition_func=lambda: not front.idle_records_sell)
-    assert strategy.sell.current_position.state_info.state == State.NEW
-    assert sell_order.order_id == 12345
-    assert sell_order.status == ORDER_STATUS_NEW
-    assert sell_order.quantity == 1000
-    assert sell_order.price == 0.00000356
-    assert sell_order.realized_quantity == 0.0
-    logger.info("Active records: %s", front.active_records_sell)
-    logger.info("Idle records: %s", front.idle_records_sell)
+# @pytest.mark.database_integration
+# async def test_fill_partially_first_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_partial_fill_in_first_hop()

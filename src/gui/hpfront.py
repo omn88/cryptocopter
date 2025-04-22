@@ -271,7 +271,6 @@ class HpFront(BoxLayout):
         else:
             logger.debug("HP is already in the list, time to update")
             for index, hp in enumerate(hp_list):
-                logger.debug("Checking item %s, %s", index, hp)
                 if str(hp["hp_id"]) == str(update.hp_id):
                     logger.debug(
                         "Found a match with hp id: %s, quantity: %s",
