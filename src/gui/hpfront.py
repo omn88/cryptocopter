@@ -358,14 +358,6 @@ class HpFront(BoxLayout):
                     )
                     self.archive_records_buy.append(archived_position.to_dict())
                     logger.info("Archiving price level: %s", archived_position)
-                    if data.state_info.completeness == 1.0:
-                        self.config_queue.put_nowait(
-                            RemoveRecord(
-                                hp_id=str(data.config.hp_id),
-                                symbol=data.config.symbol_info.symbol,
-                                side=data.state_info.side,
-                            )
-                        )
 
                 if data.state_info.ui_state == UiState.STAGNATED:
                     trigger_price = data.config.symbol_info.adjust_price(
@@ -434,14 +426,6 @@ class HpFront(BoxLayout):
                     )
                     self.archive_records_sell.append(archived_position.to_dict())
                     logger.info("Archiving price level: %s", archived_position)
-                    if data.state_info.completeness == 1.0:
-                        self.config_queue.put_nowait(
-                            RemoveRecord(
-                                hp_id=str(data.config.hp_id),
-                                symbol=data.config.symbol_info.symbol,
-                                side=data.state_info.side,
-                            )
-                        )
 
                 if data.state_info.ui_state == UiState.STAGNATED:
                     self.active_records_sell.remove(position)

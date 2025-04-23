@@ -911,13 +911,22 @@ class HpStrategy:
         self.send_sell_position_to_ui()
         self.db.upsert_sell_price_level(data=self.sell.current_position)
 
-        self.logger.info("Going to send HPClose")
-        self.config_queue.put_nowait(
-            HPClose(
-                config=self.sell.current_position.config,
-                state_info=self.sell.current_position.state_info,
+        if len(self.sell.sell_positions) == 1:
+            self.logger.info("Going to send HPClose")
+            self.config_queue.put_nowait(
+                HPClose(
+                    config=self.sell.current_position.config,
+                    state_info=self.sell.current_position.state_info,
+                )
             )
-        )
+        if len(self.sell.sell_positions) == 2:
+            self.logger.info(
+                "First sell position from two hop trade closed, assigning second one as current one."
+            )
+            self.sell.current_position = self.sell.sell_positions[1]
+            self.state = State.BOUGHT
+
+            # Generate he4re config for new stuff for strategy executor to run new strategt with new HP 1001
 
     def conditions_for_cancelling_partially_sold_and_bought_orders_sell_position(
         self, *args, **kwargs
