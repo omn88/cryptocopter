@@ -287,9 +287,7 @@ class HPSimulator:
 
         return strategy
 
-    async def simulate_third_buy_order_fill(
-        self, sell_price: str = "0.0"
-    ) -> HpStrategy:
+    async def simulate_third_buy_order_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
         exc_report = ExecutionReport(
@@ -328,7 +326,7 @@ class HPSimulator:
         assert item["buy_price"] == "1178.82"
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
-        assert item["sell_price"] == sell_price
+        assert item["sell_price"] == "0.0"
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
@@ -387,7 +385,9 @@ class HPSimulator:
         assert item["quantity"] == "0.85"
         assert item["quantity_usd"] == "1002.0"
         assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
-        assert item["expected_return"] == "0.0"
+        assert (
+            item["expected_return"] == "2568.0"
+        ), f"Item ER: {item['expected_return']}"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
@@ -1313,7 +1313,7 @@ class HPSimulator:
         logger.info("Sell config added to the queue: %s", sell_config.config)
 
         await wait_for_condition(
-            condition_func=lambda: len(self.front.hp_list_data) == 1
+            condition_func=lambda: len(self.front.hp_list_data) == 3
         )
         strategy = self.back.strategies["1000"]
         assert isinstance(strategy, HpStrategy)
@@ -1335,7 +1335,11 @@ class HPSimulator:
         assert self.front.hp_list_data[0]["quantity"] == "1000.0"
         assert self.front.hp_list_data[0]["quantity_usd"] == "292.8"
         assert self.front.hp_list_data[0]["sell_price"] == "1.14"
-        assert self.front.hp_list_data[0]["expected_return"] == "0.0"
+
+        logger.info("HP LIST: %s", self.front.hp_list_data)
+        assert (
+            self.front.hp_list_data[0]["expected_return"] == "847.2"
+        ), f"ER: {self.front.hp_list_data[0]['expected_return']}"
         assert self.front.hp_list_data[0]["current_price"] == "0.0"
         assert self.front.hp_list_data[0]["net"] == "0.0"
 
@@ -1408,7 +1412,7 @@ class HPSimulator:
         assert item["hp_id"] == "1000"
         assert item["coin"] == "AXL"
         assert item["hp_id"] == "1000"
-        assert item["buy_price"] == "0.2928"
+        assert item["buy_price"] == "0.2928", f"buy price: {item['buy_price']}"
         assert item["quantity"] == "500.0"
         assert item["quantity_usd"] == "146.4"
         assert item["sell_price"] == "1.14", f"Sell price: {item['sell_price']}"
@@ -1438,21 +1442,72 @@ class HPSimulator:
         assert strategy.state == State.SELLING
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.0"
+            condition_func=lambda: self.front.hp_list_data[0]["coin"] == "BTC"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.00356"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["buy_price"] == "320000.0"
         )
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
-        assert item["coin"] == "AXL"
+        assert item["coin"] == "BTC"
         assert item["hp_id"] == "1000"
-        assert item["buy_price"] == "0.2928"
-        assert item["quantity"] == "0.0"
-        assert item["quantity_usd"] == "0.0"
-        assert item["sell_price"] == "1.14", f"Sell price: {item['sell_price']}"
+        assert item["quantity"] == "0.00356", f"quantity to: {item['quantity']}"
+        assert item["buy_price"] == "320000.0", f"buy price to: {item['buy_price']}"
+        assert item["quantity_usd"] == "1139.2"
+        assert item["sell_price"] == "320000.0"
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "SOLD"
+        assert item["state"] == "BOUGHT"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+    async def open_second_sell_position_from_two_hop_trade(self):
+        strategy = self.back.strategies["1000"]
+
+        await wait_for_condition(
+            condition_func=lambda: strategy.sell.current_position.config.symbol_info.symbol
+            == "BTCPLN"
+        )
+        sell_order = strategy.sell.current_position.sell_order
+
+        assert sell_order.quantity == 0.00356
+        assert sell_order.price == 320000.0
+        assert sell_order.realized_quantity == 0.0
+        assert sell_order.order_id == 0
+
+        assert strategy.state == State.BOUGHT
+
+        await wait_for_condition(
+            condition_func=lambda: not self.front.active_records_sell
+        )
+        await wait_for_condition(condition_func=lambda: self.front.idle_records_sell)
+        logger.info(
+            "HP: %s, crnt pos: %s",
+            self.front.hp_list_data[0]["coin"],
+            strategy.sell.current_position.config.coin,
+        )
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["coin"]
+            == strategy.sell.current_position.config.coin
+        )
+        assert self.front.hp_list_data[0]["state"] == State.BOUGHT.value
+        assert (
+            self.front.hp_list_data[0]["coin"]
+            == strategy.sell.current_position.config.coin
+        )
+        assert self.front.hp_list_data[0]["hp_id"] == "1000"
+        assert self.front.hp_list_data[0]["buy_price"] == "320000.0"
+        assert self.front.hp_list_data[0]["quantity"] == "0.00356"
+        assert self.front.hp_list_data[0]["quantity_usd"] == "292.8"
+        assert self.front.hp_list_data[0]["sell_price"] == "320000.0"
+        assert self.front.hp_list_data[0]["expected_return"] == "0.0"
+        assert self.front.hp_list_data[0]["current_price"] == "0.0"
+        assert self.front.hp_list_data[0]["net"] == "0.0"

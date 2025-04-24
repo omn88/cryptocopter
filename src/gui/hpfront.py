@@ -14,6 +14,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
+from kivy.logger import Logger
 from logging_config import StrategyLogger
 from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
@@ -28,6 +29,7 @@ from src.identifiers.spot import (
     Order,
     RemoveRecord,
     SellPosition,
+    SellType,
     State,
     StateInfo,
     UiState,
@@ -103,6 +105,7 @@ class HpFront(BoxLayout):
         self.bind(active_records_sell=self._update_active_symbols_sell)
         self.bind(idle_records_sell=self._update_idle_symbols_sell)
         self.bind(archive_records_sell=self._update_archive_symbols_sell)
+        self.bind(hp_list_data=self._update_hp_list_view)
         self.symbols = [symbol for symbol, info in self.symbols_info.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
@@ -121,13 +124,6 @@ class HpFront(BoxLayout):
             asyncio.create_task(self._refresh_ui())
         asyncio.create_task(self.process_ui_queue())
 
-    def extract_coin_from_symbol(self, symbol: str) -> str:
-        known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
-        for quote in known_quote_currencies:
-            if symbol.endswith(quote):
-                return symbol[: -len(quote)]
-        raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
-
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
             return
@@ -135,7 +131,7 @@ class HpFront(BoxLayout):
         symbol = self.symbol_input.selected_value
         new_hp = HPBuyData(
             config=HPBuyConfig(
-                coin=self.extract_coin_from_symbol(symbol=symbol),
+                coin=self.symbols_info[symbol].extract_coin_from_symbol(symbol=symbol),
                 symbol_info=self.symbols_info[symbol],
                 price_low=float(self.symbol_input.price_low_input.text),
                 price_high=float(self.symbol_input.price_high_input.text),
@@ -212,6 +208,11 @@ class HpFront(BoxLayout):
 
         hp_id = str(data.data.config.hp_id)
 
+        if not data.data.config.hp_id.endswith(
+            ("a", "b")
+        ) and data.data.config.symbol_info.symbol.endswith("USDT"):
+            return  # Don't show this in idle/active/archive
+
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records_sell, hp_id):
             logger.info("Record %s found in active records", hp_id)
@@ -226,97 +227,183 @@ class HpFront(BoxLayout):
 
         self._log_all_records_sell()
 
+    # def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
+    #     logger.debug("Entering update hp list")
+
+    #     list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
+    #     logger.debug("List of HP IDs: %s", list_of_hp_ids)
+
+    #     logger.info("update: %s", update)
+
+    #     if int(update.hp_id) not in list_of_hp_ids:
+    #         hp_record = {
+    #             "hp_manager": self,
+    #             "hp_id": str(update.hp_id),
+    #             "coin": str(update.coin),
+    #             "buy_price": str(update.buy_price)
+    #             if update.buy_price is not None
+    #             else "0.0",
+    #             "quantity": str(update.quantity)
+    #             if update.quantity is not None
+    #             else "0.0",
+    #             "quantity_usd": str(update.quantity_usd)
+    #             if update.quantity_usd is not None
+    #             else "0.0",
+    #             "sell_price": str(update.sell_price)
+    #             if update.sell_price is not None
+    #             else "0.0",
+    #             "expected_return": str(update.expected_return)
+    #             if update.expected_return is not None
+    #             else "0.0",
+    #             "current_price": str(update.current_price)
+    #             if update.current_price is not None
+    #             else "0.0",  # Include current price
+    #             "net": str(update.net)
+    #             if update.net is not None
+    #             else "0.0",  # Include net value
+    #             "net_percent": str(update.net_percent)
+    #             if update.net_percent is not None
+    #             else "0.0",  # Include net percentage
+    #             "state": str(update.state.value),  # Include the state of the position
+    #         }
+
+    #         hp_list.append(hp_record)
+    #         logger.info("Added new HP %s to %s", hp_record, hp_list)
+    #     else:
+    #         logger.debug("HP is already in the list, time to update")
+    #         for index, hp in enumerate(hp_list):
+    #             if str(hp["hp_id"]) == str(update.hp_id):
+    #                 logger.debug(
+    #                     "Found a match with hp id: %s, quantity: %s",
+    #                     update.hp_id,
+    #                     update.quantity,
+    #                 )
+    #                 # Update hp fields
+    #                 if update.coin is not None:
+    #                     hp["coin"] = str(update.coin)
+    #                 if update.buy_price is not None:
+    #                     hp["buy_price"] = str(update.buy_price)
+    #                 if update.quantity is not None:
+    #                     hp["quantity"] = str(
+    #                         self.symbols_info[f"{hp['coin']}USDT"].adjust_quantity(
+    #                             update.quantity
+    #                         )
+    #                     )
+    #                 if update.sell_price is not None:
+    #                     hp["sell_price"] = str(update.sell_price)
+    #                 if update.expected_return is not None:
+    #                     hp["expected_return"] = str(update.expected_return)
+    #                 if update.state.value:
+    #                     hp["state"] = update.state.value
+
+    #                 hp["quantity_usd"] = str(
+    #                     self.symbols_info[f"{hp['coin']}USDT"].adjust_price(
+    #                         float(hp["buy_price"]) * float(hp["quantity"])
+    #                     )
+    #                 )
+
+    #                 logger.info(
+    #                     "Buy price: %s, Quantity: %s, total: %s",
+    #                     hp["buy_price"],
+    #                     hp["quantity"],
+    #                     hp["quantity_usd"],
+    #                 )
+
+    #                 break  # Exit the loop once the correct item is found and processed
+
+    #     # Find the updated record and send it to the DB
+    #     updated_hp = next(
+    #         (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
+    #     )
+    #     if updated_hp:
+    #         self.db.upsert_hp_record(updated_hp)
+    #         logger.debug("Sent updated HP record to DB: %s", updated_hp)
+
+    #     return hp_list
+
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
-        logger.debug("Entering update hp list")
+        hp_id = update.hp_id
+        is_child = hp_id[-1].isalpha()  # True if ends with 'a', 'b', etc.
+        parent_id = hp_id[:-1] if is_child else hp_id
 
-        list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
-        logger.debug("List of HP IDs: %s", list_of_hp_ids)
+        hp_map: Dict[str, Dict] = {}
+        new_record: Dict = {}
 
-        logger.info("update: %s", update)
+        # Create a map for fast lookup
+        hp_map = {item["hp_id"]: item for item in hp_list}
 
-        if int(update.hp_id) not in list_of_hp_ids:
-            hp_record = {
-                "hp_manager": self,
-                "hp_id": str(update.hp_id),
-                "coin": str(update.coin),
-                "buy_price": str(update.buy_price)
-                if update.buy_price is not None
-                else "0.0",
-                "quantity": str(update.quantity)
-                if update.quantity is not None
-                else "0.0",
-                "quantity_usd": str(update.quantity_usd)
-                if update.quantity_usd is not None
-                else "0.0",
-                "sell_price": str(update.sell_price)
-                if update.sell_price is not None
-                else "0.0",
-                "expected_return": str(update.expected_return)
-                if update.expected_return is not None
-                else "0.0",
-                "current_price": str(update.current_price)
-                if update.current_price is not None
-                else "0.0",  # Include current price
-                "net": str(update.net)
-                if update.net is not None
-                else "0.0",  # Include net value
-                "net_percent": str(update.net_percent)
-                if update.net_percent is not None
-                else "0.0",  # Include net percentage
-                "state": str(update.state.value),  # Include the state of the position
-            }
+        logger.info("ER w HP FRONT: %s", update.expected_return)
 
-            hp_list.append(hp_record)
-            logger.info("Added new HP %s to %s", hp_record, hp_list)
+        # Prepare record
+        new_record = {
+            "hp_id": hp_id,
+            "coin": update.coin,
+            "buy_price": str(update.buy_price)
+            if update.buy_price is not None
+            else "0.0",
+            "quantity": str(update.quantity) if update.quantity is not None else "0.0",
+            "quantity_usd": str(update.quantity_usd)
+            if update.quantity_usd is not None
+            else "0.0",
+            "sell_price": str(update.sell_price)
+            if update.sell_price is not None
+            else "0.0",
+            "expected_return": str(update.expected_return)
+            if update.expected_return is not None
+            else "0.0",
+            "current_price": str(update.current_price)
+            if update.current_price is not None
+            else "0.0",
+            "net": str(update.net) if update.current_price is not None else "0.0",
+            "net_percent": str(update.net_percent)
+            if update.net_percent is not None
+            else "0.0",
+            "state": update.state.value,
+            "is_child": is_child,
+        }
+
+        logger.info("NEw record w HP FRONT: %s", new_record)
+
+        if is_child:
+            new_record["parent_hp_id"] = parent_id
+
+            # Add or update child
+            hp_map[hp_id] = new_record
+
+            # Make sure parent exists
+            if parent_id not in hp_map:
+                hp_map[parent_id] = {
+                    "hp_id": parent_id,
+                    "coin": update.coin,
+                    "state": "CHILD_ACTIVE",  # Default state until updated
+                    "buy_price": "0.0",
+                    "quantity": "0.0",
+                    "quantity_usd": "0.0",
+                    "sell_price": "0.0",
+                    "expected_return": "0.0",
+                    "current_price": "0.0",
+                    "net": "0.0",
+                    "net_percent": "0.0",
+                    "is_child": False,
+                    "children": [hp_id],
+                }
+            else:
+                # Add to children if not there
+                parent = hp_map[parent_id]
+                parent.setdefault("children", [])
+                if hp_id not in parent["children"]:
+                    parent["children"].append(hp_id)
+
         else:
-            logger.debug("HP is already in the list, time to update")
-            for index, hp in enumerate(hp_list):
-                if str(hp["hp_id"]) == str(update.hp_id):
-                    logger.debug(
-                        "Found a match with hp id: %s, quantity: %s",
-                        update.hp_id,
-                        update.quantity,
-                    )
-                    # Update hp fields
-                    if update.buy_price is not None:
-                        hp["buy_price"] = str(update.buy_price)
-                    if update.quantity is not None:
-                        hp["quantity"] = str(
-                            self.symbols_info[f"{hp['coin']}USDT"].adjust_quantity(
-                                update.quantity
-                            )
-                        )
-                    if update.sell_price is not None:
-                        hp["sell_price"] = str(update.sell_price)
-                    if update.expected_return is not None:
-                        hp["expected_return"] = str(update.expected_return)
-                    if update.state.value:
-                        hp["state"] = update.state.value
+            # Add or update parent
+            if hp_id in hp_map:
+                hp_map[hp_id].update(new_record)
+            else:
+                new_record["children"] = []
+                hp_map[hp_id] = new_record
 
-                    hp["quantity_usd"] = str(
-                        self.symbols_info[f"{hp['coin']}USDT"].adjust_price(
-                            float(hp["buy_price"]) * float(hp["quantity"])
-                        )
-                    )
-
-                    logger.info(
-                        "Buy price: %s, Quantity: %s, total: %s",
-                        hp["buy_price"],
-                        hp["quantity"],
-                        hp["quantity_usd"],
-                    )
-
-                    break  # Exit the loop once the correct item is found and processed
-
-        # Find the updated record and send it to the DB
-        updated_hp = next(
-            (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
-        )
-        if updated_hp:
-            self.db.upsert_hp_record(updated_hp)
-            logger.debug("Sent updated HP record to DB: %s", updated_hp)
-
-        return hp_list
+        # Return as list
+        return list(hp_map.values())
 
     def update_active_position_buy(
         self,
@@ -1329,3 +1416,25 @@ class HpFront(BoxLayout):
     #         logger.error("Error in calculating expected gain. Invalid input detected.")
     #         self.ids.expected_gain_label.text = "---"
     #         self.ids.expected_gain_percent_label.text = "---"
+
+    def _get_sorted_hp_list(self):
+        parents = [hp for hp in self.hp_list_data if not hp.get("is_child", False)]
+        children = [hp for hp in self.hp_list_data if hp.get("is_child", False)]
+
+        sorted_list = []
+        for parent in sorted(parents, key=lambda x: int(x["hp_id"])):
+            sorted_list.append(parent)
+            for child in sorted(
+                [c for c in children if c.get("parent_hp_id") == parent["hp_id"]],
+                key=lambda x: x["hp_id"],
+            ):
+                sorted_list.append(child)
+        return sorted_list
+
+    def _update_hp_list_view(self, *args):
+        if "hp_list_view" not in self.ids:
+            Logger.warning(
+                "Tried to update hp_list_view, but it's not yet initialized."
+            )
+            return
+        self.ids.hp_list_view.data = self._get_sorted_hp_list()

@@ -343,6 +343,18 @@ class StrategyExecutor:
     def send_sell_position_to_ui(
         self, config: HPSellConfig, state_info: StateInfo, state: State
     ):
+        expected_return = None
+        if config.buy_price is not None and config.sell_price is not None:
+            expected_return = config.symbol_info.adjust_price(
+                (config.sell_price - config.buy_price) * config.quantity
+            )
+        quantity_usd = config.symbol_info.adjust_price(
+            config.quantity * config.buy_price
+        )
+
+        logger.info(
+            "......................Quantity usd equaaaaaaaaaaaaaaals %s", quantity_usd
+        )
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
@@ -353,9 +365,8 @@ class StrategyExecutor:
                     coin=config.coin,
                     state=state,
                     quantity=config.quantity,
-                    quantity_usd=config.symbol_info.adjust_quantity(
-                        config.quantity * config.buy_price
-                    ),
+                    quantity_usd=quantity_usd,
+                    expected_return=expected_return,
                 ),
             )
         )
@@ -401,6 +412,8 @@ class StrategyExecutor:
     async def setup_sell_position_with_new_hp(
         self, strategy_data: SellPosition, sell_strategy: List[SymbolInfo]
     ) -> None:
+        parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
+        strategy_data.config.hp_id = parent_hp_id
         self.logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
@@ -415,6 +428,7 @@ class StrategyExecutor:
                 strategy_logger=self.logger,
                 data=HPBuyData(
                     config=HPBuyConfig(
+                        hp_id=parent_hp_id,
                         symbol_info=strategy_data.config.symbol_info,
                         coin=strategy_data.config.coin,
                     ),
@@ -440,20 +454,12 @@ class StrategyExecutor:
             config_queue=self.config_queue,
             initial_state=State.BOUGHT,
         )
-        strategy.sell.current_position.config.hp_id = generate_hp_id(
-            hp_list=list(self.strategies.keys())
-        )
-        strategy.sell.original_sell_data.config.hp_id = (
-            strategy.sell.current_position.config.hp_id
-        )
         config = strategy.sell.current_position.config
-        strategy.buy.data.config.hp_id = config.hp_id
-        strategy.buy.data.config.coin = config.coin
         strategy.sell.current_position.state_info.generate_open_time()
 
         logger.info("Current position: %s", strategy.sell.current_position)
 
-        self.strategies[config.hp_id] = strategy
+        self.strategies[parent_hp_id] = strategy
 
         assert config.symbol_info.symbol.endswith(
             tuple(self.supported_quotes)
@@ -464,8 +470,14 @@ class StrategyExecutor:
             state=strategy.state,
         )
 
+        for position in strategy.sell.sell_positions:
+            self.send_sell_position_to_ui(
+                config=position.config,
+                state_info=position.state_info,
+                state=strategy.state,
+            )
         self.broker.subscribe(
-            system_id=str(config.hp_id),
+            system_id=str(parent_hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.USER,
                 symbol=config.symbol_info.symbol,
@@ -474,7 +486,7 @@ class StrategyExecutor:
             ),
         )
         self.broker.subscribe(
-            system_id=str(config.hp_id),
+            system_id=str(parent_hp_id),
             subscription_info=SubscriptionInfo(
                 data_type=SubscriptionType.PRICE,
                 symbol=config.symbol_info.symbol,
@@ -483,10 +495,10 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
 
         asyncio.create_task(strategy.worker())
-        self.logger.info("System with ID %s initialized.", config.hp_id)
+        self.logger.info("System with ID %s initialized.", parent_hp_id)
 
     async def remove_record(self, hp_id: str, side: PositionSide) -> None:
         self.logger.info(
@@ -775,38 +787,6 @@ class StrategyExecutor:
                         "No changes detected for order %s.", order.order_id
                     )
         return order_list
-
-    def send_buy_position_data_to_ui(
-        self, buy_position: HPPositionBuy, strategy_state: State
-    ) -> None:
-        # Send buy position data
-        avg_realized_total = sum_realized_quant = 0.0
-
-        for order in buy_position.orders:
-            avg_realized_total += order.realized_quantity * order.price
-            sum_realized_quant += order.realized_quantity
-
-        buy_price = (
-            buy_position.data.config.symbol_info.adjust_price(
-                avg_realized_total / sum_realized_quant
-            )
-            if sum_realized_quant
-            else 0
-        )
-
-        buy_pos_data = HPGuiDataBuy(
-            data=HPBuyData(
-                buy_position.data.config, state_info=buy_position.data.state_info
-            ),
-            hp_update=HPUpdate(
-                hp_id=buy_position.data.config.hp_id,
-                buy_price=buy_price,
-                coin=buy_position.data.config.symbol_info.symbol[:-4],
-                state=strategy_state,
-            ),
-        )
-        self.ui_queue.put_nowait(buy_pos_data)
-        self.logger.info("Buy PositionData send to UI: %s.", buy_pos_data)
 
     def extract_coin_from_symbol(self, symbol: str) -> str:
         known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]

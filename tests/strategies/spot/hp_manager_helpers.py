@@ -314,7 +314,7 @@ async def move_to_buy_position_active(
     assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0", f"Quantity equals {item['quantity']}"
-    assert item["quantity_usd"] == "0.0"
+    assert item["quantity_usd"] == "0.0", f"Quantity equals {item['quantity_usd']}"
     assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
@@ -442,7 +442,6 @@ async def simulate_second_buy_order_fill(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -487,7 +486,7 @@ async def simulate_second_buy_order_fill(
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.52"
     assert item["quantity_usd"] == "672.0"
-    assert item["sell_price"] == sell_price
+    assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -504,7 +503,6 @@ async def simulate_third_buy_order_fill(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -565,7 +563,7 @@ async def simulate_third_buy_order_fill(
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
-    assert item["sell_price"] == sell_price
+    assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
@@ -601,8 +599,182 @@ async def simulate_third_buy_order_fill(
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
-    assert item["sell_price"] == sell_price
+    assert item["sell_price"] == "0.0"
     assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BOUGHT"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
+
+
+async def simulate_second_buy_order_fill_with_sell_price(
+    strategy: HpStrategy,
+    hp_gui: HpFront,
+    hp_list: List[Dict],
+    order_id: int,
+) -> Tuple[HpStrategy, List[Dict]]:
+    # Simulate full order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=order_id,
+        last_executed_quantity=0.28,
+        last_executed_price=1200,
+        cumulative_filled_quantity=0.28,
+        price=1200,
+    )
+    await strategy.process_order()  # type: ignore[attr-defined]
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy.orders)
+    assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+    assert strategy.ui_queue.qsize() == 1
+    content = strategy.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, HPGuiDataBuy)
+
+    state_info = content.data.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.next_monitor_time
+
+    assert state_info.ui_state == UiState.OPEN
+    assert content.data.config.order_cancel == 2.0
+    assert state_info.completeness == 0.61
+
+    assert strategy.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTC"
+    assert item["buy_price"] == "1292.31", item["buy_price"]
+    assert item["quantity"] == "0.52"
+    assert item["quantity_usd"] == "672.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "1512.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    return strategy, hp_list
+
+
+async def simulate_third_buy_order_fill_with_sell_price(
+    strategy: HpStrategy,
+    hp_gui: HpFront,
+    hp_list: List[Dict],
+    order_id: int,
+) -> Tuple[HpStrategy, List[Dict]]:
+    # Simulate full order fill
+    strategy.execution_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=order_id,
+        last_executed_quantity=0.33,
+        last_executed_price=1000,
+        cumulative_filled_quantity=0.33,
+        price=1000,
+    )
+    await strategy.process_order()  # type: ignore[attr-defined]
+    assert strategy.state == State.BUYING
+    logger.info("Orders: %s", strategy.buy.orders)
+    assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+    assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
+    assert strategy.buy.orders[2].status == ORDER_STATUS_FILLED
+
+    assert strategy.worker_queue.qsize() == 1
+    event = strategy.worker_queue.get_nowait()
+
+    assert isinstance(event, Event)
+    assert event.name == EventName.SIGNAL
+    assert isinstance(event.content, SignalUpdate)
+
+    strategy.signal_update = event.content
+
+    await strategy.process_signal()  # type: ignore[attr-defined]
+
+    assert strategy.buy.data.state_info.state == State.BOUGHT
+    assert strategy.state == State.BOUGHT
+
+    assert strategy.worker_queue.qsize() == 0
+
+    assert strategy.ui_queue.qsize() == 2
+    content = strategy.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, HPGuiDataBuy)
+
+    state_info = content.data.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.BOUGHT
+    assert state_info.next_monitor_time
+
+    assert state_info.ui_state == UiState.CLOSED
+    assert content.data.config.order_cancel == 2.0
+    assert state_info.completeness == 1.00
+
+    assert strategy.ui_queue.qsize() == 1
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usd"] == "1002.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BUYING"
+
+    logger.info("HP List after the update: %s", hp_list)
+
+    assert strategy.ui_queue.qsize() == 1
+
+    content = strategy.ui_queue.get_nowait()
+    logger.info("Content: %s", content)
+    assert isinstance(content, HPGuiDataBuy)
+
+    state_info = content.data.state_info
+    assert isinstance(state_info, StateInfo)
+
+    assert state_info.state == State.BOUGHT
+    assert state_info.next_monitor_time
+
+    assert state_info.ui_state == UiState.CLOSED
+    assert content.data.config.order_cancel == 2.0
+    assert state_info.completeness == 1.00
+
+    assert strategy.ui_queue.qsize() == 0
+
+    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
+
+    assert len(hp_list) == 1
+    item = hp_list[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTC"
+    assert item["buy_price"] == "1178.82"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usd"] == "1002.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -618,7 +790,6 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -663,8 +834,8 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.4", item["quantity"]
     assert item["quantity_usd"] == "516.92", item["quantity_usd"]
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "1512.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -680,7 +851,6 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -741,8 +911,8 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert item["buy_price"] == "1178.82", item["buy_price"]
     assert item["quantity"] == "0.73"
     assert item["quantity_usd"] == "860.54", item["quantity_usd"]
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -777,8 +947,8 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.73"
     assert item["quantity_usd"] == "860.54"
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -794,7 +964,6 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -839,8 +1008,8 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     assert item["buy_price"] == "1292.31", item["buy_price"]
     assert item["quantity"] == "0.28"
     assert item["quantity_usd"] == "361.85"
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "1512.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -856,7 +1025,6 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     hp_gui: HpFront,
     hp_list: List[Dict],
     order_id: int,
-    sell_price: str = "0.0",
 ) -> Tuple[HpStrategy, List[Dict]]:
     # Simulate full order fill
     strategy.execution_report = ExecutionReport(
@@ -917,8 +1085,8 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.61"
     assert item["quantity_usd"] == "719.08"
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -953,8 +1121,8 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.61"
     assert item["quantity_usd"] == "719.08"
-    assert item["sell_price"] == sell_price
-    assert item["expected_return"] == "0.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1078,7 +1246,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1137,7 +1305,7 @@ async def simulate_second_buy_order_partial_fill(
     assert item["quantity"] == "0.26", f"{item['quantity']}"
     assert item["quantity_usd"] == "344.84", f"{item['quantity_usd']}"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "1092.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1425,7 +1593,7 @@ async def send_sell_order_for_partially_bought_position(
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1485,7 +1653,7 @@ async def sell_partially_partially_bought_position(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1544,7 +1712,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1602,7 +1770,7 @@ async def simulate_cancel_sell_position(
     assert item["quantity"] == "0.425"
     assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1660,7 +1828,7 @@ async def simulate_resend_sell_position(
     assert item["quantity"] == "0.425"
     assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1794,7 +1962,7 @@ async def send_sell_order_for_bought_position(
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -2010,7 +2178,7 @@ async def simulate_partial_fill_sell(
     assert item["quantity"] == "0.425", f"hp quant: {item['quantity']}"
     assert item["quantity_usd"] == "501.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -2110,7 +2278,7 @@ async def cancel_sell_position_part_bought_part_sold(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -2165,7 +2333,7 @@ async def reopen_buy_part_bought_part_sold(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -2218,7 +2386,7 @@ async def reopen_buy_part_bought_sold(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -2334,7 +2502,7 @@ async def cancel_untouched_sell_position(
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"

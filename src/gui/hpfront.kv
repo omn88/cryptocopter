@@ -647,16 +647,12 @@
                         font_size: '16sp'
                         bold: True
 
-                # RecycleView for displaying HP List items
                 RecycleView:
-                    id: hp_list
-                    viewclass: 'HPListItem'
-                    data: root.hp_list_data
+                    id: hp_list_view
+                    viewclass: "HPRow"
                     RecycleBoxLayout:
-                        default_size: None, dp(56)
-                        default_size: None, dp(50)
+                        default_size: None, dp(32)
                         default_size_hint: 1, None
                         size_hint_y: None
                         height: self.minimum_height
-                        orientation: 'vertical'
-                        spacing: 10  # Space between list items
+                        orientation: "vertical"

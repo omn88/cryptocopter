@@ -66,6 +66,7 @@ class HPPositionSell:
 
     def _initialize_positions(self) -> None:
         """Initializes sell positions and sets the current active position."""
+
         self._build_sell_positions()
 
         if self.sell_positions:
@@ -133,6 +134,7 @@ class HPPositionSell:
             self.price_resolver.latest_prices[leg2_info.symbol]
         )
         leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+
         logger.info("Original sell data: %s", original)
         logger.info("Sell price: %s", sell_price)
         logger.info("Leg2 price: %s", leg2_price)
@@ -145,11 +147,14 @@ class HPPositionSell:
         sell_positions = [
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=self.original_sell_data.config.hp_id,
+                    hp_id=f"{self.original_sell_data.config.hp_id}a",
+                    is_child=True,
+                    parent_hp_id=self.original_sell_data.config.hp_id,
                     symbol_info=leg1_info,
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
                     coin=self.original_sell_data.config.coin,
+                    buy_price=self.original_sell_data.config.buy_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -161,10 +166,14 @@ class HPPositionSell:
             ),
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=self.original_sell_data.config.hp_id,
+                    hp_id=f"{self.original_sell_data.config.hp_id}b",
+                    is_child=True,
+                    parent_hp_id=self.original_sell_data.config.hp_id,
                     symbol_info=leg2_info,
                     quantity=leg2_quantity,
                     sell_price=leg2_price,
+                    coin=leg2_info.extract_coin_from_symbol(leg2_info.symbol),
+                    buy_price=leg2_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(

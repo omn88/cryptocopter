@@ -288,6 +288,8 @@ class HPSellConfig:
     buy_price: float = 0.0
     sell_price: float = 0.0
     end_currency: str = "USDC"
+    is_child: bool = False
+    parent_hp_id: Optional[str] = None
 
     def __str__(self):
         return (

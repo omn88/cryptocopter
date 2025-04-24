@@ -1,8 +1,7 @@
 import asyncio
 from datetime import datetime
 import queue
-import logging
-from typing import List, Optional
+from typing import Optional
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -14,6 +13,7 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from logging_config import StrategyLogger
+from src.common.symbol_info import SymbolInfo
 from src.database import Database
 from src.identifiers.spot import (
     AccountPosition,
@@ -24,7 +24,6 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
-    Order,
     Signal,
     SignalUpdate,
     State,
@@ -365,24 +364,28 @@ class HpStrategy:
         # Used when sell is started independently
 
         return (
-            self.sell.sell_positions[0].config.quantity
-            - self.sell.sell_positions[0].sell_order.realized_quantity
+            self.sell.current_position.config.quantity
+            - self.sell.current_position.sell_order.realized_quantity
         )
 
     def build_hp_update_from_orders(
         self,
+        symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
         buy_price = (
             self.buy.calculate_avg_buy_price()
             if self.buy.orders
-            else self.sell.original_sell_data.config.buy_price
+            else self.sell.current_position.config.buy_price
         )
-        quantity = self.calculate_remaining_quantity()
-        quantity_usd = quantity * buy_price if buy_price else 0
+        quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
+        quantity_usd = symbol_info.adjust_price(
+            quantity * buy_price if buy_price else 0.0
+        )
 
         self.logger.info(
-            "......................buy price: %s, quantity: %s, quantity usd: %s",
+            "......................COIN: %s, buy price: %s, quantity: %s, quantity usd: %s",
+            self.buy.data.config.coin,
             buy_price,
             quantity,
             quantity_usd,
@@ -394,17 +397,50 @@ class HpStrategy:
             net = current_price * quantity
             net_percent = (current_price / buy_price) * 100
 
+        hp_id = (
+            self.sell.current_position.config.hp_id
+            if not self.buy.orders
+            else self.buy.data.config.hp_id
+        )
+        coin = (
+            self.sell.current_position.config.coin
+            if not self.buy.orders
+            else self.buy.data.config.coin
+        )
+
+        total_quantity = (
+            sum(order.realized_quantity for order in self.buy.orders)
+            if self.buy.orders
+            else self.sell.current_position.config.quantity
+        )
+
+        expected_return = None
+        if buy_price and self.sell.current_position.config.sell_price:
+            expected_return = symbol_info.adjust_price(
+                (self.sell.current_position.config.sell_price - buy_price)
+                * total_quantity
+            )
+
+        self.logger.info(
+            "Expected return calculated: %s, buy_price: %s, sell price: %s, quant: %s",
+            expected_return,
+            buy_price,
+            self.sell.current_position.config.sell_price,
+            total_quantity,
+        )
+
         return HPUpdate(
-            hp_id=self.buy.data.config.hp_id,
-            coin=self.buy.data.config.coin,
+            hp_id=hp_id,
+            coin=coin,
             quantity=quantity,
             quantity_usd=quantity_usd,
             buy_price=buy_price,
-            sell_price=self.sell.original_sell_data.config.sell_price,
+            sell_price=self.sell.current_position.config.sell_price,
             current_price=current_price,
             net=net,
             net_percent=net_percent,
             state=self.state,
+            expected_return=expected_return,
         )
 
     def send_buy_position_to_ui(self):
@@ -413,7 +449,9 @@ class HpStrategy:
                 data=HPBuyData(
                     config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
-                hp_update=self.build_hp_update_from_orders(),
+                hp_update=self.build_hp_update_from_orders(
+                    symbol_info=self.buy.data.config.symbol_info
+                ),
             )
         )
 
@@ -424,7 +462,9 @@ class HpStrategy:
                     config=self.sell.current_position.config,
                     state_info=self.sell.current_position.state_info,
                 ),
-                hp_update=self.build_hp_update_from_orders(),
+                hp_update=self.build_hp_update_from_orders(
+                    symbol_info=self.sell.current_position.config.symbol_info
+                ),
             )
         )
 
@@ -896,7 +936,6 @@ class HpStrategy:
         self.logger.info("All order filled, archiving position")
 
         self.sell.current_position.state_info.state = State.SOLD
-
         self.sell.current_position.state_info.completeness = (
             round(
                 self.sell.current_position.sell_order.realized_quantity
@@ -907,10 +946,8 @@ class HpStrategy:
             else 0
         )
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
-
-        self.send_sell_position_to_ui()
         self.db.upsert_sell_price_level(data=self.sell.current_position)
-
+        self.send_sell_position_to_ui()
         if len(self.sell.sell_positions) == 1:
             self.logger.info("Going to send HPClose")
             self.config_queue.put_nowait(
@@ -919,14 +956,19 @@ class HpStrategy:
                     state_info=self.sell.current_position.state_info,
                 )
             )
+
         if len(self.sell.sell_positions) == 2:
             self.logger.info(
                 "First sell position from two hop trade closed, assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
+            self.buy.orders = []
+            self.logger.info(
+                "crnt pos coin: %s", self.sell.current_position.config.coin
+            )
+            self.buy.data.config.coin = self.sell.current_position.config.coin
             self.state = State.BOUGHT
-
-            # Generate he4re config for new stuff for strategy executor to run new strategt with new HP 1001
+            self.send_sell_position_to_ui()
 
     def conditions_for_cancelling_partially_sold_and_bought_orders_sell_position(
         self, *args, **kwargs

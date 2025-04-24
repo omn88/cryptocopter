@@ -55,10 +55,12 @@ from tests.strategies.spot.hp_manager_helpers import (
     simulate_second_buy_order_fill,
     simulate_second_buy_order_fill_after_selling_first_order,
     simulate_second_buy_order_fill_after_selling_half_of_first_order,
+    simulate_second_buy_order_fill_with_sell_price,
     simulate_second_buy_order_partial_fill,
     simulate_third_buy_order_fill,
     simulate_third_buy_order_fill_after_selling_first_order,
     simulate_third_buy_order_fill_after_selling_half_of_first_order,
+    simulate_third_buy_order_fill_with_sell_price,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -610,7 +612,7 @@ async def test_sell_orders_stagnation_increase(
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -698,7 +700,7 @@ async def test_resend_unfilled_sell_orders(
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -780,7 +782,7 @@ async def test_sell_position_first_order_filled(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -825,7 +827,7 @@ async def test_sell_position_first_order_filled(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1052,19 +1054,17 @@ async def test_fill_orders_for_previously_partially_bought_position(
         hp_list=hp_list,
     )
 
-    strategy, hp_list = await simulate_second_buy_order_fill(
+    strategy, hp_list = await simulate_second_buy_order_fill_with_sell_price(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200.0",
     )
-    strategy, hp_list = await simulate_third_buy_order_fill(
+    strategy, hp_list = await simulate_third_buy_order_fill_with_sell_price(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200.0",
     )
 
 
@@ -1235,7 +1235,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1304,7 +1304,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["quantity"] == "0.26"
     assert item["quantity_usd"] == "344.84"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "1092.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1393,7 +1393,7 @@ async def test_buy_fully_partially_sold_position(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1421,7 +1421,6 @@ async def test_buy_fully_partially_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200.0",
     )
     (
         strategy,
@@ -1431,7 +1430,6 @@ async def test_buy_fully_partially_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200.0",
     )
 
 
@@ -1511,7 +1509,7 @@ async def test_sell_fully_partially_bought_position(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1565,7 +1563,7 @@ async def test_sell_fully_partially_bought_position(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1653,7 +1651,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1707,7 +1705,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -1734,7 +1732,6 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445861,
-        sell_price="4200.0",
     )
     (
         strategy,
@@ -1744,5 +1741,4 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         hp_gui=hp_gui,
         hp_list=hp_list,
         order_id=445862,
-        sell_price="4200.0",
     )
