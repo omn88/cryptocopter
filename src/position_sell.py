@@ -27,6 +27,7 @@ from src.identifiers.spot import (
     Order,
     SellPosition,
     SellType,
+    State,
     StateInfo,
     UiState,
 )
@@ -154,7 +155,7 @@ class HPPositionSell:
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
                     coin=self.original_sell_data.config.coin,
-                    buy_price=self.original_sell_data.config.buy_price,
+                    buy_price=self.original_sell_data.config.buy_price / leg2_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -175,7 +176,9 @@ class HPPositionSell:
                     coin=leg2_info.extract_coin_from_symbol(leg2_info.symbol),
                     buy_price=leg2_price,
                 ),
-                state_info=StateInfo(side=PositionSide.SHORT),
+                state_info=StateInfo(
+                    side=PositionSide.SHORT, state=State.WAITING_CHILD
+                ),
                 sell_order=self._generate_order(
                     symbol_info=leg2_info,
                     quantity=leg2_info.adjust_quantity(leg1_quantity_stable),
@@ -234,12 +237,12 @@ class HPPositionSell:
         self.current_position.state_info.stagnation_counter = 0
 
         await self.cancel_remaining_order()
-        if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
-            self.db.upsert_order(
-                order=self.current_position.sell_order,
-                hp_id=self.current_position.config.hp_id,
-                side=self.current_position.state_info.side,
-            )
+        # if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
+        #     self.db.upsert_order(
+        #         order=self.current_position.sell_order,
+        #         hp_id=self.current_position.config.hp_id,
+        #         side=self.current_position.state_info.side,
+        #     )
 
         self.current_position.state_info.completeness = round(
             self.current_position.sell_order.realized_quantity
@@ -248,7 +251,7 @@ class HPPositionSell:
         )
         self.current_position.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_sell_price_level(data=self.current_position)
+        # self.db.upsert_sell_price_level(data=self.current_position)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
@@ -268,11 +271,11 @@ class HPPositionSell:
                 execution_report.last_executed_price
             )
 
-            self.db.upsert_order(
-                order=self.current_position.sell_order,
-                hp_id=self.current_position.config.hp_id,
-                side=self.current_position.state_info.side,
-            )
+            # self.db.upsert_order(
+            #     order=self.current_position.sell_order,
+            #     hp_id=self.current_position.config.hp_id,
+            #     side=self.current_position.state_info.side,
+            # )
             logger.info(
                 "Order: %s partially filled", self.current_position.sell_order.order_id
             )
@@ -310,11 +313,11 @@ class HPPositionSell:
                 self.current_position.sell_order.status,
             )
 
-            self.db.upsert_order(
-                order=self.current_position.sell_order,
-                hp_id=self.current_position.config.hp_id,
-                side=self.current_position.state_info.side,
-            )
+            # self.db.upsert_order(
+            #     order=self.current_position.sell_order,
+            #     hp_id=self.current_position.config.hp_id,
+            #     side=self.current_position.state_info.side,
+            # )
 
         self.current_position.state_info.ui_state = UiState.OPEN
         self.current_position.state_info.stagnation_counter = 0

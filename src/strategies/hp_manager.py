@@ -712,12 +712,12 @@ class HpStrategy:
 
         self.sell.current_position.state_info.ui_state = UiState.OPEN
 
-        self.db.upsert_order(
-            order=self.sell.current_position.sell_order,
-            side=self.sell.current_position.state_info.side,
-            hp_id=self.sell.current_position.config.hp_id,
-        )
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_order(
+        #     order=self.sell.current_position.sell_order,
+        #     side=self.sell.current_position.state_info.side,
+        #     hp_id=self.sell.current_position.config.hp_id,
+        # )
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
         self.logger.info(
             "........................In send sell orders, order price: %s",
@@ -946,7 +946,7 @@ class HpStrategy:
             else 0
         )
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
         if len(self.sell.sell_positions) == 1:
             self.logger.info("Going to send HPClose")
@@ -962,6 +962,7 @@ class HpStrategy:
                 "First sell position from two hop trade closed, assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
+            self.sell.current_position.state_info.state = State.BOUGHT
             self.buy.orders = []
             self.logger.info(
                 "crnt pos coin: %s", self.sell.current_position.config.coin
@@ -1120,7 +1121,7 @@ class HpStrategy:
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
 
         self.send_sell_position_to_ui()
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs
@@ -1254,7 +1255,7 @@ class HpStrategy:
 
         await self.sell.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
         self.send_sell_position_to_ui()
 
@@ -1297,7 +1298,7 @@ class HpStrategy:
 
         self.logger.info("Sell order: %s", self.sell.current_position.sell_order)
 
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
 
     def conditions_for_position_stagnation_buy(self, *args, **kwargs) -> bool:
@@ -1412,7 +1413,7 @@ class HpStrategy:
             else 0
         )
         self.send_sell_position_to_ui()
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         condition = (

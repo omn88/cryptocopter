@@ -227,100 +227,6 @@ class HpFront(BoxLayout):
 
         self._log_all_records_sell()
 
-    # def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
-    #     logger.debug("Entering update hp list")
-
-    #     list_of_hp_ids = [int(item["hp_id"]) for item in hp_list]
-    #     logger.debug("List of HP IDs: %s", list_of_hp_ids)
-
-    #     logger.info("update: %s", update)
-
-    #     if int(update.hp_id) not in list_of_hp_ids:
-    #         hp_record = {
-    #             "hp_manager": self,
-    #             "hp_id": str(update.hp_id),
-    #             "coin": str(update.coin),
-    #             "buy_price": str(update.buy_price)
-    #             if update.buy_price is not None
-    #             else "0.0",
-    #             "quantity": str(update.quantity)
-    #             if update.quantity is not None
-    #             else "0.0",
-    #             "quantity_usd": str(update.quantity_usd)
-    #             if update.quantity_usd is not None
-    #             else "0.0",
-    #             "sell_price": str(update.sell_price)
-    #             if update.sell_price is not None
-    #             else "0.0",
-    #             "expected_return": str(update.expected_return)
-    #             if update.expected_return is not None
-    #             else "0.0",
-    #             "current_price": str(update.current_price)
-    #             if update.current_price is not None
-    #             else "0.0",  # Include current price
-    #             "net": str(update.net)
-    #             if update.net is not None
-    #             else "0.0",  # Include net value
-    #             "net_percent": str(update.net_percent)
-    #             if update.net_percent is not None
-    #             else "0.0",  # Include net percentage
-    #             "state": str(update.state.value),  # Include the state of the position
-    #         }
-
-    #         hp_list.append(hp_record)
-    #         logger.info("Added new HP %s to %s", hp_record, hp_list)
-    #     else:
-    #         logger.debug("HP is already in the list, time to update")
-    #         for index, hp in enumerate(hp_list):
-    #             if str(hp["hp_id"]) == str(update.hp_id):
-    #                 logger.debug(
-    #                     "Found a match with hp id: %s, quantity: %s",
-    #                     update.hp_id,
-    #                     update.quantity,
-    #                 )
-    #                 # Update hp fields
-    #                 if update.coin is not None:
-    #                     hp["coin"] = str(update.coin)
-    #                 if update.buy_price is not None:
-    #                     hp["buy_price"] = str(update.buy_price)
-    #                 if update.quantity is not None:
-    #                     hp["quantity"] = str(
-    #                         self.symbols_info[f"{hp['coin']}USDT"].adjust_quantity(
-    #                             update.quantity
-    #                         )
-    #                     )
-    #                 if update.sell_price is not None:
-    #                     hp["sell_price"] = str(update.sell_price)
-    #                 if update.expected_return is not None:
-    #                     hp["expected_return"] = str(update.expected_return)
-    #                 if update.state.value:
-    #                     hp["state"] = update.state.value
-
-    #                 hp["quantity_usd"] = str(
-    #                     self.symbols_info[f"{hp['coin']}USDT"].adjust_price(
-    #                         float(hp["buy_price"]) * float(hp["quantity"])
-    #                     )
-    #                 )
-
-    #                 logger.info(
-    #                     "Buy price: %s, Quantity: %s, total: %s",
-    #                     hp["buy_price"],
-    #                     hp["quantity"],
-    #                     hp["quantity_usd"],
-    #                 )
-
-    #                 break  # Exit the loop once the correct item is found and processed
-
-    #     # Find the updated record and send it to the DB
-    #     updated_hp = next(
-    #         (hp for hp in hp_list if hp["hp_id"] == str(update.hp_id)), None
-    #     )
-    #     if updated_hp:
-    #         self.db.upsert_hp_record(updated_hp)
-    #         logger.debug("Sent updated HP record to DB: %s", updated_hp)
-
-    #     return hp_list
-
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         hp_id = update.hp_id
         is_child = hp_id[-1].isalpha()  # True if ends with 'a', 'b', etc.
@@ -998,6 +904,11 @@ class HpFront(BoxLayout):
 
     def _add_new_record_sell(self, data: HPSellData) -> None:
         hp_id = str(data.config.hp_id)
+
+        if data.state_info.state == State.WAITING_CHILD:
+            logger.warning("Skipping WAITING_CHILD record %s", hp_id)
+            return
+
         if data.state_info.ui_state in [UiState.NEW, UiState.STAGNATED]:
             logger.info("New position added to Idle, system id: %s", hp_id)
             self.idle_records_sell.append(
