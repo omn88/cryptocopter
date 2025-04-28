@@ -1,13 +1,17 @@
-import os
 import datetime
 import logging
 import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
-from src.gui.identifiers.spot import HPGuiDataBuy
 from src.identifiers.common import PositionSide
-from src.identifiers.spot import State, StateInfo, UiState
+from src.identifiers.spot import (
+    HPSellConfig,
+    HPSellData,
+    State,
+    StateInfo,
+)
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
@@ -101,7 +105,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -190,7 +194,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -278,7 +282,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -366,7 +370,7 @@ async def test_stagnation_counter_increase_buy(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "0.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -438,7 +442,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -525,7 +529,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -579,7 +583,7 @@ async def test_setup_sell_position_for_bought_position(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
 
@@ -599,13 +603,13 @@ async def test_send_sell_order_for_bought_position(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     strategy = back.strategies["1000"]
 
     strategy.client.create_order.side_effect = get_new_orders(
-        [strategy.sell.sell_order]
+        [strategy.sell.current_position.sell_order]
     )
     sim.new_price(price=4156)
 
@@ -614,22 +618,23 @@ async def test_send_sell_order_for_bought_position(
     )
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
     assert item["state"] == "SELLING"
 
     await wait_for_condition(
-        condition_func=lambda: strategy.sell.sell_order.status == ORDER_STATUS_NEW
+        condition_func=lambda: strategy.sell.current_position.sell_order.status
+        == ORDER_STATUS_NEW
     )
-    assert strategy.sell.sell_order.quantity == 0.85
-    assert strategy.sell.sell_order.realized_quantity == 0.0
+    assert strategy.sell.current_position.sell_order.quantity == 0.85
+    assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
     active_sell_item = front.active_records_sell[0]
 
@@ -663,41 +668,43 @@ async def test_sell_orders_stagnation_increase(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
 
     strategy = back.strategies["1000"]
 
-    assert strategy.sell.data.state_info.stagnation_counter == 0
-    assert strategy.sell.data.state_info.stagnation_limit == 8
+    assert strategy.sell.current_position.state_info.stagnation_counter == 0
+    assert strategy.sell.current_position.state_info.stagnation_limit == 8
 
     time = datetime.datetime.now()
-    strategy.sell.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
+    strategy.sell.current_position.state_info.next_monitor_time = time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
-    assert strategy.sell.data.state_info.next_monitor_time == time.strftime(
+    assert strategy.sell.current_position.state_info.next_monitor_time == time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     assert strategy.conditions_for_position_stagnation_sell()
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
-    assert strategy.sell.data.state_info.stagnation_counter == 1
-    assert strategy.sell.data.state_info.stagnation_limit == 8
+    assert strategy.sell.current_position.state_info.stagnation_counter == 1
+    assert strategy.sell.current_position.state_info.stagnation_limit == 8
 
-    assert strategy.sell.data.state_info.next_monitor_time != time.strftime(
+    assert strategy.sell.current_position.state_info.next_monitor_time != time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["asset"] == "BTC"
+    assert item["coin"] == "BTC"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
@@ -723,7 +730,7 @@ async def test_cancel_unfilled_sell_orders(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -749,7 +756,7 @@ async def test_resend_unfilled_sell_orders(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -777,7 +784,7 @@ async def test_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -802,7 +809,7 @@ async def test_sell_position_first_order_filled(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -827,7 +834,7 @@ async def test_cancel_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -854,7 +861,7 @@ async def test_resend_sell_position_first_order_filled_partially(
         buy_price=1178.82,
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_bought_position()
@@ -896,7 +903,7 @@ async def test_send_sell_order_for_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -932,7 +939,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -970,7 +977,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -999,8 +1006,8 @@ async def test_fill_orders_for_previously_partially_bought_position(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    await sim.simulate_second_buy_order_fill(sell_price="4200.0")
-    await sim.simulate_third_buy_order_fill(sell_price="4200.0")
+    await sim.simulate_second_buy_order_fill_with_sell_price()
+    await sim.simulate_third_buy_order_fill_with_sell_price()
 
 
 @pytest.mark.database_integration
@@ -1033,7 +1040,7 @@ async def test_sell_partially_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1071,7 +1078,7 @@ async def test_buy_partially_partially_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1105,7 +1112,7 @@ async def test_buy_partially_partially_sold_position(
     )
 
     # Buy partially second order
-    await sim.simulate_second_buy_order_partial_fill(sell_price="4200.0")
+    await sim.simulate_second_buy_order_partial_fill()
 
 
 @pytest.mark.database_integration
@@ -1138,7 +1145,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1172,7 +1179,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     )
 
     # Buy partially second order
-    await sim.simulate_second_buy_order_partial_fill(sell_price="4200.0")
+    await sim.simulate_second_buy_order_partial_fill()
 
     # Cancel Buy orders
     await sim.cancel_buy_position_filled_partially_sold_partially()
@@ -1208,7 +1215,7 @@ async def test_buy_fully_partially_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1241,12 +1248,8 @@ async def test_buy_fully_partially_sold_position(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    await sim.simulate_second_buy_order_fill_after_selling_half_of_first_order(
-        sell_price="4200.0"
-    )
-    await sim.simulate_third_buy_order_fill_after_selling_half_of_first_order(
-        sell_price="4200.0"
-    )
+    await sim.simulate_second_buy_order_fill_after_selling_half_of_first_order()
+    await sim.simulate_third_buy_order_fill_after_selling_half_of_first_order()
 
 
 @pytest.mark.database_integration
@@ -1279,7 +1282,7 @@ async def test_sell_fully_partially_bought_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1317,7 +1320,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         buy_price=strategy.buy.calculate_avg_buy_price(),
         sell_price=4200.0,
         end_currency="USDC",
-        asset="BTC",
+        coin="BTC",
     )
 
     await sim.send_sell_order_for_part_bought_position()
@@ -1347,9 +1350,81 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    await sim.simulate_second_buy_order_fill_after_selling_first_order(
-        sell_price="4200.0"
-    )
-    await sim.simulate_third_buy_order_fill_after_selling_first_order(
-        sell_price="4200.0"
-    )
+    await sim.simulate_second_buy_order_fill_after_selling_first_order()
+    await sim.simulate_third_buy_order_fill_after_selling_first_order()
+
+
+@pytest.mark.database_integration
+async def test_start_new_sell_position_for_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+
+@pytest.mark.database_integration
+async def test_send_order_for_first_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+
+
+@pytest.mark.database_integration
+async def test_fill_partially_first_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+
+    await sim.simulate_sell_order_partial_fill_in_first_hop()
+
+
+@pytest.mark.database_integration
+async def test_fill_first_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+
+    await sim.simulate_sell_order_fill_in_first_hop()
+
+
+@pytest.mark.database_integration
+async def test_start_second_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+
+    await sim.simulate_sell_order_fill_in_first_hop()
+
+    await sim.open_second_sell_position_from_two_hop_trade()

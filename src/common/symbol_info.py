@@ -44,6 +44,13 @@ class SymbolInfo:
                 "min notional: {self.min_notional:.2f},price: {price:.2f}, quantity: {quantity:.2f}"
             )
 
+    def extract_coin_from_symbol(self, symbol: str) -> str:
+        known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
+        for quote in known_quote_currencies:
+            if symbol.endswith(quote):
+                return symbol[: -len(quote)]
+        raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
+
     @staticmethod
     def calculate_precision(step_size):
         step_size_str = str(step_size).rstrip("0")

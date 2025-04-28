@@ -24,7 +24,7 @@ class State(Enum):
     PART_SOLD_PART_BOUGHT = "PART_SOLD_PART_BOUGHT"
     SOLD_PART_BOUGHT = "SOLD_PART_BOUGHT"
     CLOSED = "CLOSED"
-    RECOVERING = "RECOVERING"
+    WAITING_CHILD = "WAITING_CHILD"
     NONE = ""
 
 
@@ -71,8 +71,8 @@ class UiState(Enum):
 @dataclass
 class Order:
     quantity: float
-    precision: int
-    price_precision: int
+    precision: int = 0
+    price_precision: int = 0
     price: float = 0
     quantity_stable: float = 0
     order_id: int = 0
@@ -146,12 +146,12 @@ class ExecutionReport:
 
 @dataclass
 class Balance:
-    asset: str = ""
+    coin: str = ""
     free: float = 0.0
     locked: float = 0.0
 
     def __str__(self):
-        return f"Balance(asset={self.asset}, free={self.free}, locked={self.locked})"
+        return f"Balance(coin={self.coin}, free={self.free}, locked={self.locked})"
 
 
 @dataclass
@@ -248,6 +248,7 @@ class StateInfo:
 @dataclass
 class HPBuyConfig:
     symbol_info: SymbolInfo
+    coin: str
     hp_id: str = "0"
     price_low: float = 0
     price_high: float = 0
@@ -282,18 +283,34 @@ class HPBuyData:
 class HPSellConfig:
     symbol_info: SymbolInfo
     hp_id: str = ""
-    asset: str = ""
+    coin: str = ""
     quantity: float = 0.0
     buy_price: float = 0.0
     sell_price: float = 0.0
     end_currency: str = "USDC"
+    is_child: bool = False
+    parent_hp_id: Optional[str] = None
 
     def __str__(self):
         return (
-            f"HPSellConfig(hp_id={self.hp_id}, asset={self.asset}, "
+            f"HPSellConfig(hp_id={self.hp_id}, coin={self.coin}, "
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
             f"sell_price={self.sell_price}, end_currency={self.end_currency})"
         )
+
+
+class SellType(Enum):
+    DIRECT = auto()
+    TWOHOPS = auto()
+    CONVERT = auto()
+
+
+@dataclass
+class SellPosition:
+    sell_order: Order
+    config: HPSellConfig
+    state_info: StateInfo
+    sell_type: SellType = SellType.DIRECT
 
 
 @dataclass
