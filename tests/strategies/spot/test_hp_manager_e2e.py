@@ -1428,3 +1428,23 @@ async def test_start_second_sell_position_in_two_hop_trade(
     await sim.simulate_sell_order_fill_in_first_hop()
 
     await sim.open_second_sell_position_from_two_hop_trade()
+
+
+@pytest.mark.database_integration
+async def test_send_orders_for_second_sell_position_in_two_hop_trade(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+
+    await sim.simulate_sell_order_fill_in_first_hop()
+
+    await sim.open_second_sell_position_from_two_hop_trade()
+
+    await sim.send_orders_for_second_position_from_two_hop_trade()
