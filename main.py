@@ -23,8 +23,6 @@ from src.portfolio.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
-os.environ["KIVY_LOG_MODE"] = "MIXED"
-
 from kivy.core.window import Window
 from src.gui.asyncapp import AsyncApp
 from src.database import Database

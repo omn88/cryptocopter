@@ -17,7 +17,6 @@ from kivy.uix.tabbedpanel import TabbedPanelItem
 from kivy.uix.spinner import Spinner
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from logging_config import StrategyLogger, setup_logging_handler
 from src.identifiers.futures import (
     Event,
     EventName,
@@ -173,7 +172,6 @@ class AsyncApp(App):
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
         Builder.load_file("src/gui/hpfront.kv")
-        strategy_logger = StrategyLogger(name="HPManager")
         ui_queue: queue.Queue = queue.Queue()
 
         self.broker.subscribe(
@@ -187,7 +185,6 @@ class AsyncApp(App):
         )
         assert self.portfolio is not None
         back_end = StrategyExecutor(
-            strategy_logger=strategy_logger,
             symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker,
@@ -200,7 +197,6 @@ class AsyncApp(App):
 
         logger.info("Await before HP manager starts")
         front_end = HpFront(
-            strategy_logger=strategy_logger,
             client=self.client,
             strategy_id=strategy_id,
             symbols_info=symbols_info,
@@ -214,11 +210,6 @@ class AsyncApp(App):
         tab = TabbedPanelItem(
             text="HPManager",
             content=front_end,
-        )
-        # Set up a logging handler for the strategy
-        setup_logging_handler(
-            strategy_logger=strategy_logger,
-            log_display_widget=tab.content.log_display,
         )
         # Store a reference to the tab
         self.strategies["HPManager"] = tab
@@ -266,18 +257,14 @@ class AsyncApp(App):
                     "Starting new strategy: %s on pair %s", config.name, config.symbol
                 )
 
-                strategy_logger = StrategyLogger(name=config.name)
-
                 gui_handler = GuiHandlerFutures(
                     main_ui_queue=self.main_ui_queue,
                     ui_queue=asyncio.Queue(),
-                    logger=strategy_logger,
                 )
 
                 trading_system = TradingSystem(
                     client=self.client,
                     gui_handler=gui_handler,
-                    strategy_logger=strategy_logger,
                     config=config,
                 )
                 await trading_system.initialize()
@@ -289,7 +276,6 @@ class AsyncApp(App):
                         trading_system=trading_system,
                         strategy_name=config.name,
                         symbol=config.symbol,
-                        strategy_logger=strategy_logger,
                         gui_handler=gui_handler,
                     ),
                 )
@@ -302,12 +288,6 @@ class AsyncApp(App):
                 await gui_handler.update_strategy(
                     strategy_name=config.name,
                     position=Position(symbol=config.symbol, leverage=config.leverage),
-                )
-
-                # Set up a logging handler for the strategy
-                setup_logging_handler(
-                    strategy_logger=strategy_logger,
-                    log_display_widget=tab.content.log_display,
                 )
 
                 logger.info(

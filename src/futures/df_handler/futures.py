@@ -1,10 +1,10 @@
 import asyncio
+import logging
 from typing import List, Union
 import numpy
 
 import btalib
 import pandas
-from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.identifiers.common import BinanceClient
 from src.identifiers.futures import (
@@ -16,18 +16,17 @@ from src.identifiers.futures import (
     StrategyConfig,
 )
 
+logger = logging.getLogger("DF")
+
 
 class DfHandler:
-    def __init__(
-        self, client: BinanceClient, config: StrategyConfig, logger: StrategyLogger
-    ):
+    def __init__(self, client: BinanceClient, config: StrategyConfig):
         self.client = client
         self.config: StrategyConfig = config
         self.raw_data: List = []
         self.df: pandas.DataFrame = pandas.DataFrame()
         self.signals: List = [Signal.LONG, Signal.SHORT]
         self.conditions: List = []
-        self.logger: StrategyLogger = logger
 
     async def initialize(self):
         self.raw_data = await self.get_futures_historical_data(
@@ -77,12 +76,12 @@ class DfHandler:
         )
 
     def print_last_n_rows(self, rows: int = 5):
-        self.logger.info(
+        logger.info(
             "Last %s rows from main df: %s", rows, self.df.tail(rows).to_string()
         )
 
     async def determine_start_position(self, queue: asyncio.Queue):
-        self.logger.info("Start determining strategy start position.")
+        logger.info("Start determining strategy start position.")
         signal = Signal.NULL
         price = 0
         signal_index = 0
@@ -106,11 +105,11 @@ class DfHandler:
         try:
             assert signal_index <= len(self.df.index)
             self.df = self.df.iloc[len(self.df.index) - signal_index : :]
-            self.logger.debug(
+            logger.debug(
                 "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
             )
         except AssertionError:
-            self.logger.info(
+            logger.info(
                 "Last signal almost on top of df, leaving df as is: \n%s",
                 self.df.to_string(),
             )
@@ -123,7 +122,7 @@ class DfHandler:
         )
 
     async def spot_determine_start_position(self, queue: asyncio.Queue):
-        self.logger.info("Start determining strategy start position.")
+        logger.info("Start determining strategy start position.")
         signal = Signal.NULL
         price = 0
         signal_index = 0
@@ -147,11 +146,11 @@ class DfHandler:
         try:
             assert signal_index <= len(self.df.index)
             self.df = self.df.iloc[len(self.df.index) - signal_index : :]
-            self.logger.debug(
+            logger.debug(
                 "New DF shortened to last signal + 3 rows: \n%s", self.df.to_string()
             )
         except AssertionError:
-            self.logger.info(
+            logger.info(
                 "Last signal almost on top of df, leaving df as is: \n%s",
                 self.df.to_string(),
             )

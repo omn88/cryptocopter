@@ -1524,7 +1524,6 @@ async def send_sell_order_for_partially_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        strategy_logger=strategy.logger,
         data=HPSellData(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
@@ -1886,7 +1885,6 @@ async def send_sell_order_for_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        strategy_logger=strategy.logger,
         data=HPSellData(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
@@ -1990,7 +1988,6 @@ async def simulate_move_to_sell_from_partially_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        strategy_logger=strategy.logger,
         data=HPSellData(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
@@ -2057,7 +2054,6 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
 
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        strategy_logger=strategy.logger,
         data=HPSellData(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),

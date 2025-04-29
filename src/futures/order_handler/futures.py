@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List
 from binance.enums import (
     FUTURE_ORDER_TYPE_LIMIT,
@@ -13,7 +14,6 @@ from binance.exceptions import (
     BinanceRequestException,
 )
 
-from logging_config import StrategyLogger
 from src.common.common import convert_time
 from src.identifiers.futures import (
     Position,
@@ -22,18 +22,18 @@ from src.identifiers.futures import (
 from src.gui.gui_handler.futures import GuiHandler, Order
 from src.identifiers.common import BinanceClient, PositionSide
 
+logger = logging.getLogger("OrderHandler")
+
 
 class OrderHandler:
     MAX_RETRIES = 10
 
     def __init__(
         self,
-        strategy_logger: StrategyLogger,
         client: BinanceClient,
         order_quantity_stable: float,
         gui_handler: GuiHandler,
     ):
-        self.strategy_logger = strategy_logger
         self.client = client
         self.order_quantity_stable = order_quantity_stable
         self.gui_handler = gui_handler
@@ -71,7 +71,7 @@ class OrderHandler:
             for order in range(number_of_orders)
         ]
 
-        self.strategy_logger.info("Prepared orders: %s", orders)
+        logger.info("Prepared orders: %s", orders)
         return orders
 
     async def create_orders(
@@ -96,7 +96,7 @@ class OrderHandler:
                 for order in orders
             ]
         )
-        self.strategy_logger.info("Orders created: %s", list(orders))
+        logger.info("Orders created: %s", list(orders))
 
         await self.gui_handler.create_orders(
             orders=results,
@@ -185,7 +185,7 @@ class OrderHandler:
                 BinanceRequestException,
             ) as exception:
                 last_exception = exception
-                self.strategy_logger.error(
+                logger.error(
                     "Failed to create order due to %s: %s",
                     type(exception).__name__,
                     exception,
@@ -193,10 +193,10 @@ class OrderHandler:
                 await asyncio.sleep(1)  # wait for a second before retrying
                 continue
             else:
-                self.strategy_logger.info("RESP: %s", resp)
+                logger.info("RESP: %s", resp)
                 order.order_id = int(resp["orderId"])
                 order.status = resp["status"]
-                self.strategy_logger.info("New: %s", order)
+                logger.info("New: %s", order)
                 order.open_time = convert_time(resp["updateTime"])
 
                 return order
@@ -209,9 +209,7 @@ class OrderHandler:
         order: Order,
         symbol: str,
     ) -> Order:
-        self.strategy_logger.info(
-            "Enter cancel order: %s, symbol: %s", order.order_id, symbol
-        )
+        logger.info("Enter cancel order: %s, symbol: %s", order.order_id, symbol)
         last_exception = None
 
         for _ in range(self.MAX_RETRIES):
@@ -228,14 +226,14 @@ class OrderHandler:
                 BinanceRequestException,
             ) as exception:
                 last_exception = exception
-                self.strategy_logger.error(
+                logger.error(
                     "Failed to cancel order order due to %s: %s",
                     type(exception).__name__,
                     exception,
                 )
                 await asyncio.sleep(1)  # wait for a second before retrying
             else:
-                self.strategy_logger.info("Exit cancel order")
+                logger.info("Exit cancel order")
                 return order
 
         # if we've exhausted all retries and still have an exception, raise it
@@ -266,7 +264,7 @@ class OrderHandler:
                 BinanceRequestException,
             ) as exception:
                 last_exception = exception
-                self.strategy_logger.error(
+                logger.error(
                     "Failed to send market order due to %s: %s",
                     type(exception).__name__,
                     exception,
@@ -280,7 +278,7 @@ class OrderHandler:
                     price=0,
                     quantity=quantity,
                 )
-                self.strategy_logger.info(
+                logger.info(
                     "%s order, type: %s send: %s",
                     side,
                     order_type,
@@ -295,7 +293,7 @@ class OrderHandler:
     async def cancel_remaining_limit_orders(
         self, orders: List[Order], symbol: str, side: PositionSide
     ) -> List[Order]:
-        self.strategy_logger.info("Cancelling remaining limit orders")
+        logger.info("Cancelling remaining limit orders")
         assert orders
         for order in orders:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED:
@@ -304,12 +302,10 @@ class OrderHandler:
                     order=order, symbol=symbol, side=side
                 )
 
-                self.strategy_logger.info(
-                    "Cancelled partially filled order_id: %s", order.order_id
-                )
+                logger.info("Cancelled partially filled order_id: %s", order.order_id)
             elif order.status == ORDER_STATUS_NEW:
                 order = await self.cancel_order(order=order, symbol=symbol)
-                self.strategy_logger.info("Cancelled new order_id: %s", order.order_id)
+                logger.info("Cancelled new order_id: %s", order.order_id)
 
         return orders
 

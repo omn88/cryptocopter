@@ -1,10 +1,10 @@
 import asyncio
+import logging
 from typing import Optional
 from binance import BinanceSocketManager
 from transitions.extensions.asyncio import AsyncMachine
-from logging_config import StrategyLogger
 from src.common.common import futures_get_balance
-from src.identifiers.common import BinanceClient
+from src.identifiers.common import BinanceClient, SentinelUpdate
 from src.identifiers.futures import Event, EventName, StrategyConfig
 from src.common.initialize_trading_environment import (
     change_margin_type,
@@ -20,7 +20,7 @@ from src.futures import worker_futures
 from src.futures.strategies.futures.rsi_extended import RsiExtended
 from src.futures.strategies.futures.rsi_special import RsiSpecial
 
-# logger = logging.getLogger("trading_system")
+logger = logging.getLogger("base")
 
 STRATEGY_MAP = {
     "HP Manager": HpFront,
@@ -36,15 +36,11 @@ class TradingSystem:
         client: BinanceClient,
         gui_handler: GuiHandler,
         config: StrategyConfig,
-        strategy_logger: StrategyLogger,
     ):
         self.client: BinanceClient = client
         self.config: StrategyConfig = config
         self.gui_handler: GuiHandler = gui_handler
-        self.df_handler: DfHandler = DfHandler(
-            client=client, config=config, logger=strategy_logger
-        )
-        self.strategy_logger: StrategyLogger = strategy_logger
+        self.df_handler: DfHandler = DfHandler(client=client, config=config)
         self.binance_socket_manager = BinanceSocketManager(client=client)
         self.stop_producers_event = asyncio.Event()
         self.balance = None
@@ -73,7 +69,7 @@ class TradingSystem:
             df_handler=self.df_handler,
             config=self.config,
             gui_handler=self.gui_handler,
-            logger=self.strategy_logger,
+            logger=logger,
         )
 
         # Trading State Machine initialization
@@ -98,11 +94,11 @@ class TradingSystem:
         await asyncio.sleep(5)
         await self.df_handler.determine_start_position(queue=self.strategy.queue)
 
-    async def prepare_worker(self, logger: StrategyLogger):
+    async def prepare_worker(self):
         # is this sleep needed?
         await asyncio.sleep(5)
         if self.state_machine:
-            await worker_futures.worker(state_machine=self.state_machine, logger=logger)
+            await worker_futures.worker(state_machine=self.state_machine)
 
     async def start_trading(self):
         await asyncio.gather(
@@ -114,7 +110,7 @@ class TradingSystem:
                 gui_handler=self.gui_handler,
                 symbol=self.config.symbol,
             ),
-            asyncio.create_task(self.prepare_worker(logger=self.strategy_logger)),
+            asyncio.create_task(self.prepare_worker()),
             asyncio.create_task(self.determine_start_position()),
             return_exceptions=True,
         )
@@ -122,7 +118,7 @@ class TradingSystem:
     async def stop(self):
         # This method stops the trading. You'll have to implement this based on how your strategy can be stopped.
         # It might involve cancelling the tasks that were started in `start`.
-        self.strategy_logger.info("Trading system STOP initiated properly")
+        logger.info("Trading system STOP initiated properly")
         await self.strategy.queue.put(
             Event(EventName.SENTINEL, content=SentinelUpdate(sentinel="sentinel"))
         )
@@ -137,4 +133,4 @@ class TradingSystem:
         )
         await asyncio.sleep(5)
         self.stop_producers_event.set()
-        self.strategy_logger.info("Sentinel should be send.")
+        logger.info("Sentinel should be send.")

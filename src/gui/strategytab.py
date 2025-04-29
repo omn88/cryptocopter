@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List, Tuple
 
 from binance.enums import (
@@ -13,7 +14,6 @@ from kivy.properties import (
     ObjectProperty,
 )
 from kivy.uix.boxlayout import BoxLayout
-from logging_config import StrategyLogger
 from src.identifiers.futures import EventName, Event
 from src.gui.gui_handler.futures import GuiHandler
 from src.gui.identifiers.futures import (
@@ -25,6 +25,9 @@ from src.gui.identifiers.futures import (
 )
 
 from src.futures.trading_system.futures import TradingSystem
+
+
+logger = logging.getLogger("base")
 
 
 class StrategyTab(BoxLayout):
@@ -42,16 +45,11 @@ class StrategyTab(BoxLayout):
     log_display = ObjectProperty(None)
 
     def __init__(
-        self,
-        trading_system: TradingSystem,
-        gui_handler: GuiHandler,
-        strategy_logger: StrategyLogger,
-        **kwargs
+        self, trading_system: TradingSystem, gui_handler: GuiHandler, **kwargs
     ):
         super().__init__(**kwargs)
         self.trading_system = trading_system
         self.gui_handler = gui_handler
-        self.strategy_logger = strategy_logger
         asyncio.create_task(self.update_ui())
 
     async def update_ui(self):
@@ -60,11 +58,11 @@ class StrategyTab(BoxLayout):
             # Update the UI based on data
             if isinstance(data, Event):
                 if data.name == EventName.SENTINEL:
-                    self.strategy_logger.info("SENTINEL -> Exiting UI updates.")
+                    logger.info("SENTINEL -> Exiting UI updates.")
                     await asyncio.sleep(3)
                     return
             if isinstance(data, AccountData):
-                self.strategy_logger.info("PANU  DYS IS update account")
+                logger.info("PANU  DYS IS update account")
                 # self.balance_label = f"{str(data.balance)} USD"
             if isinstance(data, PositionData):
                 self.update_position(data=data)
@@ -136,7 +134,7 @@ class StrategyTab(BoxLayout):
         return new_positions
 
     def add_new_position(self, symbol: str, data: PositionData):
-        self.strategy_logger.info("Creating a new position: %s", symbol)
+        logger.info("Creating a new position: %s", symbol)
         # If the position does not exist, create it
         self.position_count += 1
         self.open_positions.append(
@@ -154,9 +152,7 @@ class StrategyTab(BoxLayout):
             }
         )
 
-        self.strategy_logger.info(
-            "Open Positions after adding position: %s", self.open_positions
-        )
+        logger.info("Open Positions after adding position: %s", self.open_positions)
 
     def update_existing_position(self, data: PositionData):
         for position in self.open_positions:
@@ -173,27 +169,27 @@ class StrategyTab(BoxLayout):
                 position["margin"] = str(round(data.margin, 2))
 
                 if position["status"] == PositionStatus.CLOSED:
-                    self.strategy_logger.info("Position status: %s", data.status)
-                    self.strategy_logger.info(
+                    logger.info("Position status: %s", data.status)
+                    logger.info(
                         "Length of open positions: %s", len(self.open_positions)
                     )
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of closed positions: %s",
                         len(self.closed_positions),
                     )
                     self.closed_positions.append(position)
                     self.open_positions.remove(position)
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of open positions after removal: %s",
                         len(self.open_positions),
                     )
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of closed positions after appending: %s",
                         len(self.closed_positions),
                     )
                     self.position_count -= 1
 
-                self.strategy_logger.info("Updated positions: %s", self.open_positions)
+                logger.info("Updated positions: %s", self.open_positions)
 
     def add_new_order(self, open_orders, data):
         self.order_count += 1
@@ -210,7 +206,7 @@ class StrategyTab(BoxLayout):
                 "status": data.status,
             }
         )
-        self.strategy_logger.info("Open Orders after adding order: %s", open_orders)
+        logger.info("Open Orders after adding order: %s", open_orders)
 
         return open_orders
 
@@ -234,28 +230,24 @@ class StrategyTab(BoxLayout):
                     ORDER_STATUS_CANCELED,
                     ORDER_STATUS_EXPIRED,
                 ]:
-                    self.strategy_logger.info("Order Status: %s", data.status)
+                    logger.info("Order Status: %s", data.status)
 
-                    self.strategy_logger.info(
-                        "Length of open orders: %s", len(open_orders)
-                    )
-                    self.strategy_logger.info(
-                        "Length of closed orders: %s", len(self.closed_orders)
-                    )
+                    logger.info("Length of open orders: %s", len(open_orders))
+                    logger.info("Length of closed orders: %s", len(self.closed_orders))
                     closed_orders.append(order)
                     open_orders.remove(order)
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of open orders after removal: %s",
                         len(open_orders),
                     )
-                    self.strategy_logger.info(
+                    logger.info(
                         "Length of closed orders after appending: %s",
                         len(closed_orders),
                     )
 
                     self.order_count -= 1
 
-                self.strategy_logger.info("Updated Orders: %s", open_orders)
+                logger.info("Updated Orders: %s", open_orders)
 
         return open_orders, closed_orders
 
@@ -263,7 +255,7 @@ class StrategyTab(BoxLayout):
         self,
         data: PositionData,
     ) -> None:
-        self.strategy_logger.info(
+        logger.info(
             "Entering update position, len open positions: %s", len(self.open_positions)
         )
         symbol = data.symbol
@@ -291,14 +283,14 @@ class StrategyTab(BoxLayout):
 
     def on_strategy_change(self, instance, value):
         self.trading_system.strategy_name = value
-        self.strategy_logger.info("Strategy: Chosen strategy is %s", value)
+        logger.info("Strategy: Chosen strategy is %s", value)
 
     def on_start_trading(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.start_trading())
-        self.strategy_logger.info("App: Start button pressed.")
+        logger.info("App: Start button pressed.")
 
     def on_cancel(self):
         loop = asyncio.get_event_loop()
         loop.create_task(self.trading_system.stop())
-        self.strategy_logger.info("App: Cancel button pressed.")
+        logger.info("App: Cancel button pressed.")

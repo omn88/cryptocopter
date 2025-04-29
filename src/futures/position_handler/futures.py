@@ -1,7 +1,7 @@
+import logging
 from typing import List
 import uuid
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_STATUS_FILLED
-from logging_config import StrategyLogger
 from src.common.common import signal_to_state
 from src.identifiers.common import (
     BinanceClient,
@@ -19,12 +19,13 @@ from src.identifiers.futures import (
 from src.gui.gui_handler.futures import GuiHandler
 from src.futures.order_handler.futures import OrderHandler
 
+logger = logging.getLogger("PH")
+
 
 class PositionHandler:
     def __init__(
         self,
         client: BinanceClient,
-        strategy_logger: StrategyLogger,
         config: StrategyConfig,
         gui_handler: GuiHandler,
     ):
@@ -33,13 +34,11 @@ class PositionHandler:
         self.closed_positions: List[Position] = []
         self.order_handler = OrderHandler(
             client=client,
-            strategy_logger=strategy_logger,
             order_quantity_stable=(
                 self.config.budget / (2 * self.config.number_of_orders)
             ),
             gui_handler=gui_handler,
         )
-        self.strategy_logger = strategy_logger
         self.gui_handler: GuiHandler = gui_handler
 
     async def open_position(
@@ -56,7 +55,7 @@ class PositionHandler:
             entry_price=signal_update.price,
             leverage=config.leverage,
         )
-        self.strategy_logger.info("Position created: %s", self.position)
+        logger.info("Position created: %s", self.position)
         self.position.orders = self.order_handler.prepare_orders(
             side=side,
             mode=mode,
@@ -75,18 +74,14 @@ class PositionHandler:
         await self.gui_handler.update_strategy(
             strategy_name=self.config.name, position=self.position
         )
-        self.strategy_logger.info("Position opened successfully.")
+        logger.info("Position opened successfully.")
 
     async def close_position(self) -> None:
-        self.strategy_logger.info(
-            "Enter close position, quant: %s", self.position.quantity
-        )
+        logger.info("Enter close position, quant: %s", self.position.quantity)
         if self.position.quantity:
             self.position.status = PositionStatus.CLOSING
             close_side = SIDE_BUY if self.position.quantity < 0 else SIDE_SELL
-            self.strategy_logger.info(
-                "Entering position close, trying to market %s", close_side
-            )
+            logger.info("Entering position close, trying to market %s", close_side)
             self.position.market_order = await self.order_handler.create_market_order(
                 quantity=self.position.quantity,
                 side=close_side,
@@ -102,7 +97,7 @@ class PositionHandler:
                 side=self.position.side,
                 symbol=self.position.symbol,
             )
-            self.strategy_logger.info("Cancelled take profit order")
+            logger.info("Cancelled take profit order")
 
         self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
             symbol=self.position.symbol,
@@ -118,25 +113,21 @@ class PositionHandler:
 
         self.closed_positions.append(self.position)
 
-        self.strategy_logger.debug(
-            "Number of closed positions: %s", len(self.closed_positions)
-        )
+        logger.debug("Number of closed positions: %s", len(self.closed_positions))
         self.position = Position()
 
     async def position_liquidation(
         self,
         balance: float,
     ) -> float:
-        self.strategy_logger.info("Position liquidation")
+        logger.info("Position liquidation")
 
         self.position.status = PositionStatus.CLOSED
 
         loss = 0.0
         assert self.position.orders is not None
         for order in self.position.orders:
-            self.strategy_logger.info(
-                "quantity: %s, price: %s", order.quantity, order.price
-            )
+            logger.info("quantity: %s, price: %s", order.quantity, order.price)
             loss += order.quantity_stable
 
         balance -= round(loss, 2)
@@ -171,7 +162,7 @@ class PositionHandler:
         self,
         order_update: OrderUpdate,
     ) -> None:
-        self.strategy_logger.info(
+        logger.info(
             "Position liquidation in progress, order status: %s!",
             order_update.status,
         )
@@ -181,7 +172,7 @@ class PositionHandler:
         order_update: OrderUpdate,
         balance: float,
     ) -> float:
-        self.strategy_logger.info("Take profit order filled partially")
+        logger.info("Take profit order filled partially")
 
         assert isinstance(self.position.take_profit_order, Order)
 
@@ -192,7 +183,7 @@ class PositionHandler:
         )
         self.position.quantity -= order_update.last_filled_quantity
 
-        self.strategy_logger.info(
+        logger.info(
             "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
             order_update.quantity,
             order_update.last_filled_quantity,
@@ -210,7 +201,7 @@ class PositionHandler:
 
         balance += realized_position
 
-        self.strategy_logger.info("Earned: %s", round(realized_position, 2))
+        logger.info("Earned: %s", round(realized_position, 2))
 
         await self.gui_handler.update_order(
             order=self.position.take_profit_order,
@@ -225,7 +216,7 @@ class PositionHandler:
         return balance
 
     async def target_reached(self, order_update: OrderUpdate, balance: float) -> float:
-        self.strategy_logger.info("Take profit order filled")
+        logger.info("Take profit order filled")
 
         self.position.status = PositionStatus.CLOSING
 
@@ -237,7 +228,7 @@ class PositionHandler:
         )
         self.position.quantity -= order_update.last_filled_quantity
 
-        self.strategy_logger.info(
+        logger.info(
             "Original quantity: %s, last filled quantity: %s, realized quantity: %s, remaining quantity: %s",
             order_update.quantity,
             order_update.last_filled_quantity,
@@ -255,7 +246,7 @@ class PositionHandler:
 
         balance += realized_position
 
-        self.strategy_logger.info("Earned: %s", round(realized_position, 2))
+        logger.info("Earned: %s", round(realized_position, 2))
 
         self.position.orders = await self.order_handler.cancel_remaining_limit_orders(
             orders=self.position.orders,
@@ -295,7 +286,7 @@ class PositionHandler:
                 symbol=self.position.symbol,
                 side=self.position.side,
             )
-            self.strategy_logger.info(
+            logger.info(
                 "Cancelled take profit order with id: %s",
                 self.position.take_profit_order.order_id,
             )
@@ -314,7 +305,7 @@ class PositionHandler:
                 order.price = order_update.price
                 order.quantity = order_update.quantity
                 order.realized_quantity = order_update.realized_quantity
-                self.strategy_logger.info("Order: %s partially filled", order.order_id)
+                logger.info("Order: %s partially filled", order.order_id)
                 self.position.margin += round(
                     (
                         order_update.last_filled_quantity
@@ -344,7 +335,7 @@ class PositionHandler:
         self.position.entry_price = round(float(resp[0]["entryPrice"]), 1)
         self.position.quantity = float(resp[0]["positionAmt"])
 
-        self.strategy_logger.info("Position update: %s", resp)
+        logger.info("Position update: %s", resp)
 
     async def handle_order_filled(self, order_update: OrderUpdate) -> None:
         await self.get_position_info()
@@ -355,7 +346,7 @@ class PositionHandler:
                 order=self.position.take_profit_order,
                 symbol=self.position.symbol,
             )
-            self.strategy_logger.info(
+            logger.info(
                 "Cancelled take profit order with id: %s",
                 self.position.take_profit_order.order_id,
             )
@@ -366,7 +357,7 @@ class PositionHandler:
                 else PositionSide.LONG,
                 symbol=self.position.symbol,
             )
-            self.strategy_logger.info("GUI order updated")
+            logger.info("GUI order updated")
 
         # create new take profit
         self.position.take_profit_order = (
@@ -380,9 +371,7 @@ class PositionHandler:
         for order in self.position.orders:
             if order_update.order_id == order.order_id:
                 if order.status == ORDER_STATUS_FILLED:
-                    self.strategy_logger.info(
-                        "Order: %s already filled", order.order_id
-                    )
+                    logger.info("Order: %s already filled", order.order_id)
                 else:
                     order.status = order_update.status
                     order.price = order_update.price
@@ -399,7 +388,7 @@ class PositionHandler:
 
                 filled_order = order
 
-        self.strategy_logger.info("Order: %s filled", filled_order.order_id)
+        logger.info("Order: %s filled", filled_order.order_id)
 
         await self.gui_handler.update_order(
             order=filled_order,
