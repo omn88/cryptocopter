@@ -16,7 +16,6 @@ from binance.exceptions import (
     BinanceRequestException,
 )
 
-from logging_config import StrategyLogger
 from src.identifiers.common import BinanceClient, Mode
 
 from src.database import Database
@@ -35,13 +34,11 @@ class HPPositionBuy:
     def __init__(
         self,
         client: BinanceClient,
-        strategy_logger: StrategyLogger,
         data: HPBuyData,
         db: Database,
     ):
         self.client = client
         self.data = data
-        self.strategy_logger = strategy_logger
         self.db = db
         self.orders: List[Order] = []
         self.orders_cancel_price: float = 0

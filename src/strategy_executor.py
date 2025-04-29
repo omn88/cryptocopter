@@ -6,7 +6,6 @@ import threading
 from typing import Dict, List, Optional, Tuple
 from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
-from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.database import Database
 from src.identifiers.common import BinanceClient, PositionSide
@@ -55,7 +54,6 @@ logger = logging.getLogger("strategy_executor")
 class StrategyExecutor:
     def __init__(
         self,
-        strategy_logger: StrategyLogger,
         db: Database,
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
@@ -65,7 +63,6 @@ class StrategyExecutor:
         test_mode: bool = False,
     ):
         self.client: Optional[BinanceClient] = None
-        self.logger = strategy_logger
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
@@ -89,7 +86,7 @@ class StrategyExecutor:
         self.loop.run_until_complete(self.run())
 
     async def run(self) -> None:
-        self.logger.info("Strategy executor ready to retrieve the first config")
+        logger.info("Strategy executor ready to retrieve the first config")
         if not self.test_mode:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
@@ -100,7 +97,7 @@ class StrategyExecutor:
         while not self.stop_event.is_set():
             try:
                 strategy_data = self.config_queue.get_nowait()
-                self.logger.info("New config for strategy executor: %s", strategy_data)
+                logger.info("New config for strategy executor: %s", strategy_data)
                 if isinstance(strategy_data, HPBuyData):
                     asyncio.create_task(self.setup_buy_position(new_hp=strategy_data))
                 if isinstance(strategy_data, HPSellData):
@@ -239,7 +236,7 @@ class StrategyExecutor:
         self,
         new_hp: HPBuyData,
     ) -> None:
-        self.logger.info("Setting up new position with config: %s", new_hp.config)
+        logger.info("Setting up new position with config: %s", new_hp.config)
 
         new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         new_hp.state_info.generate_open_time()
@@ -250,20 +247,17 @@ class StrategyExecutor:
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            logger=self.logger,
             balance=self.balances["USDC"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
             buy_position=HPPositionBuy(
                 client=self.client,
-                strategy_logger=self.logger,
                 data=new_hp,
                 db=self.db,
             ),
             sell_position=HPPositionSell(
                 client=self.client,
-                strategy_logger=self.logger,
                 data=HPSellData(
                     config=HPSellConfig(
                         hp_id=new_hp.config.hp_id,
@@ -318,7 +312,7 @@ class StrategyExecutor:
         self.db.upsert_buy_price_level(data=strategy.buy.data)
 
         asyncio.create_task(strategy.worker())
-        self.logger.info("System with ID %s initialized.", new_hp.config.hp_id)
+        logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
     def send_buy_position_to_ui(
         self,
@@ -382,7 +376,6 @@ class StrategyExecutor:
         if strategy_data.state_info.state == State.NEW:
             strategy.sell = HPPositionSell(
                 client=self.client,
-                strategy_logger=self.logger,
                 data=HPSellData(
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
@@ -392,7 +385,7 @@ class StrategyExecutor:
                 price_resolver=self.price_resolver,
             )
         if strategy_data.state_info.state == State.CLOSED:
-            self.logger.info("Closing sell position")
+            logger.info("Closing sell position")
             if strategy.state == State.SELLING:
                 await strategy.sell.cancel_position()
 
@@ -414,7 +407,7 @@ class StrategyExecutor:
     ) -> None:
         parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
         strategy_data.config.hp_id = parent_hp_id
-        self.logger.info(
+        logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
         assert self.client is not None
@@ -425,7 +418,6 @@ class StrategyExecutor:
             ui_queue=self.ui_queue,
             buy_position=HPPositionBuy(
                 client=self.client,
-                strategy_logger=self.logger,
                 data=HPBuyData(
                     config=HPBuyConfig(
                         hp_id=parent_hp_id,
@@ -438,7 +430,6 @@ class StrategyExecutor:
             ),
             sell_position=HPPositionSell(
                 client=self.client,
-                strategy_logger=self.logger,
                 data=HPSellData(
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
@@ -447,7 +438,6 @@ class StrategyExecutor:
                 sell_strategy=sell_strategy,
                 price_resolver=self.price_resolver,
             ),
-            logger=self.logger,
             balance=self.balances["USDC"],
             db=self.db,
             worker_queue=worker_queue,
@@ -498,21 +488,19 @@ class StrategyExecutor:
         # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
 
         asyncio.create_task(strategy.worker())
-        self.logger.info("System with ID %s initialized.", parent_hp_id)
+        logger.info("System with ID %s initialized.", parent_hp_id)
 
     async def remove_record(self, hp_id: str, side: PositionSide) -> None:
-        self.logger.info(
+        logger.info(
             "Entering remove record, id: %s to system: %s", hp_id, self.strategies
         )
 
         if hp_id not in self.strategies:
-            self.logger.info("HP %s NOT in running strategies", hp_id)
+            logger.info("HP %s NOT in running strategies", hp_id)
             return
 
         strategy: HpStrategy = self.strategies[hp_id]
-        self.logger.info(
-            "Found strategy with hp id: %s, side to remove: %s", hp_id, side
-        )
+        logger.info("Found strategy with hp id: %s, side to remove: %s", hp_id, side)
         buy = strategy.buy
         sell = strategy.sell
 
@@ -521,7 +509,7 @@ class StrategyExecutor:
             and sell.current_position.state_info.state == State.NEW
             and buy.data.state_info.state == State.NEW
         ):
-            self.logger.info("Entered trading system removal!")
+            logger.info("Entered trading system removal!")
             self.broker.unsubscribe(system_id=hp_id)
             strategy.state = State.CLOSED
             buy.data.state_info.state = State.CLOSED
@@ -554,7 +542,7 @@ class StrategyExecutor:
                 buy_orders=strategy.buy.orders,
             )
 
-            self.logger.info(f"Removed strategy {hp_id}.")
+            logger.info(f"Removed strategy {hp_id}.")
             return
 
         if (
@@ -651,10 +639,10 @@ class StrategyExecutor:
         orders = self.db.fetch_orders_for_price_level(
             hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
-        self.logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
+        logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
             buy_position.prepare_orders()
-            self.logger.info(
+            logger.info(
                 "No orders found in DB, prepared new: %s",
                 buy_position.orders,
             )
@@ -674,7 +662,7 @@ class StrategyExecutor:
             )
             for order in orders
         ]
-        self.logger.info("Buy orders restored from DB: %s.", order_list)
+        logger.info("Buy orders restored from DB: %s.", order_list)
 
         # Confirm buy position state with the exchange
         for order in order_list:
@@ -706,15 +694,13 @@ class StrategyExecutor:
                             content=ex_report,
                         )
                     )
-                    self.logger.info(
+                    logger.info(
                         "Order %s has been modified, execution report send: %s",
                         order.order_id,
                         ex_report,
                     )
                 else:
-                    self.logger.info(
-                        "No changes detected for order %s.", order.order_id
-                    )
+                    logger.info("No changes detected for order %s.", order.order_id)
 
         return order_list
 
@@ -728,7 +714,7 @@ class StrategyExecutor:
             side=PositionSide.SHORT.value,
         )
         if not orders:
-            self.logger.info("No sell orders found in DB")
+            logger.info("No sell orders found in DB")
             return []
 
         order_list = [
@@ -744,7 +730,7 @@ class StrategyExecutor:
             )
             for order in orders
         ]
-        self.logger.info("Sell orders restored from DB: %s.", order_list)
+        logger.info("Sell orders restored from DB: %s.", order_list)
 
         for order in order_list:
             if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
@@ -777,15 +763,13 @@ class StrategyExecutor:
                             content=ex_report,
                         )
                     )
-                    self.logger.info(
+                    logger.info(
                         "Order %s has been modified, execution report send: %s",
                         order.order_id,
                         ex_report,
                     )
                 else:
-                    self.logger.info(
-                        "No changes detected for order %s.", order.order_id
-                    )
+                    logger.info("No changes detected for order %s.", order.order_id)
         return order_list
 
     def extract_coin_from_symbol(self, symbol: str) -> str:
@@ -832,7 +816,7 @@ class StrategyExecutor:
     #         strategy = HpStrategy(
     #             client=self.client,
     #             ui_queue=self.ui_queue,
-    #             logger=self.logger,
+    #             logger=logger,
     #             buy_data=HPBuyData(
     #                 config=buy_config,
     #                 state_info=StateInfo(
@@ -847,7 +831,7 @@ class StrategyExecutor:
     #             config_queue=self.config_queue,
     #             buy_position=HPPositionBuy(
     #             client=self.client,
-    #             strategy_logger=self.logger,
+    #             strategy_logger=logger,
     #             data=HPBuyData(
     #                 config=HPBuyConfig(
     #                     symbol_info=buy_config.symbol_info,
@@ -861,7 +845,7 @@ class StrategyExecutor:
     #         proper sell config to be added here...
     #         sell_position=HPPositionSell(
     #             client=self.client,
-    #             strategy_logger=self.logger,
+    #             strategy_logger=logger,
     #             data=HPSellData(
     #                 config=HPSellConfig(
     #                     hp_id=strategy_data.config.hp_id,
@@ -881,7 +865,7 @@ class StrategyExecutor:
     #             config=strategy.sell.original_sell_data.config
     #         )
 
-    #         self.logger.info("Entering strategy recovery.")
+    #         logger.info("Entering strategy recovery.")
 
     #         strategy.state = State(hp["state"])
 
@@ -955,8 +939,8 @@ class StrategyExecutor:
     #                 ),
     #             )
     #             strategy.ui_queue.put_nowait(sell_pos_data)
-    #             self.logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
-    #         self.logger.info("Strategy position(s) restored")
+    #             logger.info("Sell PositionData send to UI: %s.", sell_pos_data)
+    #         logger.info("Strategy position(s) restored")
 
     #         asyncio.create_task(strategy.worker())
-    #         self.logger.info("HP %s restored.", buy_config.hp_id)
+    #         logger.info("HP %s restored.", buy_config.hp_id)

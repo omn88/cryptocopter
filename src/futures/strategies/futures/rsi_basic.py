@@ -1,5 +1,5 @@
+import logging
 import numpy
-from logging_config import StrategyLogger
 from src.identifiers.common import BinanceClient
 from src.identifiers.futures import (
     Event,
@@ -12,13 +12,16 @@ from src.futures.df_handler.futures import DfHandler
 from src.gui.gui_handler.futures import GuiHandler
 from src.futures.strategies.futures.base import BaseFuturesStrategy
 
+import logging
+
+logger = logging.getLogger("base")
+
 
 class RsiBasic(BaseFuturesStrategy):
     def __init__(
         self,
         client: BinanceClient,
         balance: float,
-        logger: StrategyLogger,
         config: StrategyConfig,
         gui_handler: GuiHandler,
         df_handler: DfHandler,
@@ -28,7 +31,6 @@ class RsiBasic(BaseFuturesStrategy):
             balance=balance,
             config=config,
             gui_handler=gui_handler,
-            logger=logger,
             df_handler=df_handler,
         )
         self.df_handler.df = self.add_columns_for_rsi_basic(df=self.df_handler.df)
@@ -56,7 +58,7 @@ class RsiBasic(BaseFuturesStrategy):
         ]
 
     async def handle_kline(self, *args, **kwargs):
-        self.logger.info("Entering handle kline")
+        logger.info("Entering handle kline")
 
         expected_index = int(self.df_handler.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -88,7 +90,7 @@ class RsiBasic(BaseFuturesStrategy):
         )
 
         await self.queue.put(Event(name=EventName.SIGNAL, content=signal_update))
-        self.logger.info(
+        logger.info(
             "Added to queue, signal: %s, price: %s",
             signal_update.signal,
             signal_update.price,

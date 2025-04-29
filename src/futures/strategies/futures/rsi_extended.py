@@ -1,7 +1,5 @@
 import numpy
 
-from logging_config import StrategyLogger
-
 from src.identifiers.common import BinanceClient
 from src.identifiers.futures import (
     State,
@@ -15,6 +13,10 @@ from src.futures.df_handler.futures import DfHandler
 from src.gui.gui_handler.futures import GuiHandler
 from src.futures.strategies.futures.rsi_basic import RsiBasic
 
+import logging
+
+logger = logging.getLogger("base")
+
 
 class RsiExtended(RsiBasic):
     def __init__(
@@ -22,7 +24,6 @@ class RsiExtended(RsiBasic):
         client: BinanceClient,
         balance: float,
         gui_handler: GuiHandler,
-        logger: StrategyLogger,
         config: StrategyConfig,
         df_handler: DfHandler,
     ):
@@ -30,7 +31,6 @@ class RsiExtended(RsiBasic):
             client=client,
             balance=balance,
             gui_handler=gui_handler,
-            logger=logger,
             config=config,
             df_handler=df_handler,
         )
@@ -163,7 +163,7 @@ class RsiExtended(RsiBasic):
         ]
 
     async def handle_kline(self, *args, **kwargs):
-        self.logger.info("Entering handle kline")
+        logger.info("Entering handle kline")
 
         expected_index = int(self.df_handler.raw_data[-1][0]) + 900000
         # I need historical data here, then add the kline, generate temp dataframe, then copy last
@@ -205,7 +205,7 @@ class RsiExtended(RsiBasic):
             await self.queue.put(
                 Event(name=EventName.SIGNAL, content=self.signal_update)
             )
-            self.logger.info(
+            logger.info(
                 "Added to queue, signal: %s, price: %s",
                 self.signal_update.signal,
                 self.signal_update.price,
@@ -288,6 +288,6 @@ class RsiExtended(RsiBasic):
         )
 
     async def change_position_state(self, *args, **kwargs):
-        self.logger.info("Changing status to %s", self.signal_update.signal)
+        logger.info("Changing status to %s", self.signal_update.signal)
         self.position_handler.position.state = State(self.signal_update.signal.value)
         self.df_handler.update_position_in_df(self.position_handler.position.state)

@@ -1,5 +1,6 @@
 import os
 
+os.environ["KIVY_NO_CONSOLELOG"] = "1"
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.identifiers.common import PositionSide
@@ -22,7 +23,6 @@ from transitions.extensions.asyncio import AsyncMachine
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
-from logging_config import StrategyLogger
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
@@ -111,7 +111,6 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
-    strategy_logger = StrategyLogger(name="test_strategy_executor")
     balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
@@ -128,7 +127,6 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     price_resolver.latest_prices["BTCPLN"] = 320000.0
 
     executor = StrategyExecutor(
-        strategy_logger=strategy_logger,
         db=test_db,
         broker=mock_broker,
         ui_queue=ui_queue,
@@ -224,12 +222,10 @@ def trading_system_factory(mock_AsyncClient):
             balance=balance,
             config_queue=MagicMock(),
             ui_queue=ui_queue,
-            logger=StrategyLogger(name="test"),
             db=test_database,
             worker_queue=queue.Queue(),
             buy_position=HPPositionBuy(
                 client=mock_AsyncClient,
-                strategy_logger=StrategyLogger(name="test"),
                 db=test_database,
                 data=HPBuyData(config=hp_config, state_info=StateInfo()),
             ),
@@ -239,7 +235,6 @@ def trading_system_factory(mock_AsyncClient):
                     client=mock_AsyncClient, symbols_info={}
                 ),
                 client=mock_AsyncClient,
-                strategy_logger=StrategyLogger("test"),
                 db=test_database,
                 data=HPSellData(
                     config=HPSellConfig(symbol_info=SymbolInfo()),
@@ -274,7 +269,6 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
 
         gui = HpFront(
             client=mock_AsyncClient,
-            strategy_logger=MagicMock(),
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=MagicMock(),
@@ -306,8 +300,7 @@ async def base(mock_AsyncClient):
         number_of_orders=4,
         budget=400,
     )
-    logger = StrategyLogger(name="RBASE_BTCUSDT")
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
 
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
@@ -318,9 +311,8 @@ async def base(mock_AsyncClient):
         df_handler=df_handler,
         config=config,
         gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
         ),
-        logger=logger,
     )
 
     # Trading State Machine initialization
@@ -353,8 +345,7 @@ async def basic_rsi(mock_AsyncClient):
         number_of_orders=4,
         budget=400,
     )
-    logger = StrategyLogger(name="RB_BTCUSDT")
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
@@ -364,10 +355,9 @@ async def basic_rsi(mock_AsyncClient):
         balance=1000,
         df_handler=df_handler,
         gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
         ),
         config=config,
-        logger=logger,
     )
 
     # Trading State Machine initialization
@@ -397,23 +387,19 @@ async def extended_rsi(mock_AsyncClient):
         number_of_orders=4,
         budget=400,
     )
-    logger = StrategyLogger(name="RE_BTCUSDT")
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
-
-    logger = StrategyLogger(name="RE_BTCUSDT")
 
     strategy = RsiExtended(
         client=mock_AsyncClient,
         balance=1000,
         df_handler=df_handler,
         gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
         ),
         config=config,
-        logger=logger,
     )
 
     # Trading State Machine initialization
@@ -442,8 +428,7 @@ async def special_rsi(mock_AsyncClient):
         number_of_orders=4,
         budget=400,
     )
-    logger = StrategyLogger(name="RS_BTCUSDT")
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config, logger=logger)
+    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
     df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
     df_handler.df = df_handler.insert_to_pandas()
     df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
@@ -453,9 +438,8 @@ async def special_rsi(mock_AsyncClient):
         balance=1000,
         df_handler=df_handler,
         gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue(), logger=logger
+            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
         ),
-        logger=logger,
         config=config,
     )
 

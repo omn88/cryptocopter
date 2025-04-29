@@ -14,8 +14,6 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
-from kivy.logger import Logger
-from logging_config import StrategyLogger
 from src.database import Database
 from src.identifiers.common import BinanceClient, Mode, PositionSide
 from src.identifiers.spot import (
@@ -49,7 +47,7 @@ from src.gui.identifiers.spot import (
 from src.gui.searchable_drop_down import SearchableDropDown
 
 
-logger = logging.getLogger("HP_GUI")
+logger = logging.getLogger("HPFront")
 
 
 class HpFront(BoxLayout):
@@ -82,7 +80,6 @@ class HpFront(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
-        strategy_logger: StrategyLogger,
         strategy_id: str,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
@@ -96,7 +93,6 @@ class HpFront(BoxLayout):
         self.client = client
         self.strategy_id = strategy_id
         self.ui_queue = ui_queue
-        self.strategy_logger = strategy_logger
         self.config_queue = config_queue
         self.db = db
         self.bind(active_records_buy=self._update_active_symbols_buy)
@@ -1344,7 +1340,7 @@ class HpFront(BoxLayout):
 
     def _update_hp_list_view(self, *args):
         if "hp_list_view" not in self.ids:
-            Logger.warning(
+            logger.warning(
                 "Tried to update hp_list_view, but it's not yet initialized."
             )
             return
