@@ -806,13 +806,13 @@ class HpStrategy:
                 self.sell.current_position.state_info.state,
             )
         logger.info(
-                "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s",
-                condition,
-                self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.side,
-                self.sell.current_position.state_info.state,
-            )
+            "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s",
+            condition,
+            self.sell.current_position.config.hp_id,
+            self.sell.current_position.config.symbol_info.symbol,
+            self.sell.current_position.state_info.side,
+            self.sell.current_position.state_info.state,
+        )
 
         return condition
 
@@ -949,10 +949,15 @@ class HpStrategy:
             if self.sell.current_position.sell_order
             else 0
         )
+        self.state = State.SOLD
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
-        if len(self.sell.sell_positions) == 1:
+        if (
+            len(self.sell.sell_positions) == 1
+            or len(self.sell.sell_positions) == 2
+            and self.sell.current_position is self.sell.sell_positions[1]
+        ):
             logger.info("Going to send HPClose")
             self.config_queue.put_nowait(
                 HPClose(
@@ -961,7 +966,10 @@ class HpStrategy:
                 )
             )
 
-        if len(self.sell.sell_positions) == 2:
+        if (
+            len(self.sell.sell_positions) == 2
+            and self.sell.current_position is self.sell.sell_positions[0]
+        ):
             logger.info(
                 "First sell position from two hop trade closed, assigning second one as current one."
             )
