@@ -805,14 +805,6 @@ class HpStrategy:
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
-        logger.info(
-            "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s",
-            condition,
-            self.sell.current_position.config.hp_id,
-            self.sell.current_position.config.symbol_info.symbol,
-            self.sell.current_position.state_info.side,
-            self.sell.current_position.state_info.state,
-        )
 
         return condition
 
