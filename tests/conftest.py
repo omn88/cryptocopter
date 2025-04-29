@@ -1,5 +1,6 @@
 import os
 
+os.environ["KIVY_NO_CONSOLELOG"] = "1"
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.identifiers.common import PositionSide

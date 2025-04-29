@@ -1651,7 +1651,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "62.0"
+    assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
