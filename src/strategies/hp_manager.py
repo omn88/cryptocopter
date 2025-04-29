@@ -788,11 +788,11 @@ class HpStrategy:
         self.send_sell_position_to_ui()
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
+        logger.info("..............In DA CONDITION")
         assert isinstance(self.buy.data.config, HPBuyConfig)
         assert isinstance(self.sell.current_position.config, HPSellConfig)
         condition = (
-            self.buy.data.state_info.state in [State.BOUGHT, State.PARTIALLY_BOUGHT]
-            and self.sell.current_position.state_info.state == State.NEW
+            self.sell.current_position.state_info.state == State.NEW
             and self.sell.current_position.config.sell_price
             and self.ticker_update.last_price
             >= self.calculate_trigger_send_orders_price_sell()
@@ -941,10 +941,15 @@ class HpStrategy:
             if self.sell.current_position.sell_order
             else 0
         )
+        self.state = State.SOLD
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
-        if len(self.sell.sell_positions) == 1:
+        if (
+            len(self.sell.sell_positions) == 1
+            or len(self.sell.sell_positions) == 2
+            and self.sell.current_position is self.sell.sell_positions[1]
+        ):
             logger.info("Going to send HPClose")
             self.config_queue.put_nowait(
                 HPClose(
@@ -953,16 +958,19 @@ class HpStrategy:
                 )
             )
 
-        if len(self.sell.sell_positions) == 2:
+        if (
+            len(self.sell.sell_positions) == 2
+            and self.sell.current_position is self.sell.sell_positions[0]
+        ):
             logger.info(
                 "First sell position from two hop trade closed, assigning second one as current one."
             )
             self.sell.current_position = self.sell.sell_positions[1]
-            self.sell.current_position.state_info.state = State.BOUGHT
+            self.sell.current_position.state_info.state = State.NEW
+            self.state = State.BOUGHT
             self.buy.orders = []
             logger.info("crnt pos coin: %s", self.sell.current_position.config.coin)
             self.buy.data.config.coin = self.sell.current_position.config.coin
-            self.state = State.BOUGHT
             self.send_sell_position_to_ui()
 
     def conditions_for_cancelling_partially_sold_and_bought_orders_sell_position(

@@ -1605,3 +1605,134 @@ class HPSimulator:
         assert self.front.hp_list_data[2]["expected_return"] == "0.0"
         assert self.front.hp_list_data[2]["current_price"] == "0.0"
         assert self.front.hp_list_data[2]["net"] == "0.0"
+        assert self.front.hp_list_data[2]["state"] == "BOUGHT"
+
+    async def send_orders_for_second_position_from_two_hop_trade(self) -> None:
+        strategy = self.back.strategies["1000"]
+
+        # Mock sending the sell order
+        strategy.client.create_order.side_effect = get_new_orders(
+            orders=[strategy.sell.current_position.sell_order]
+        )
+
+        # Now simulate price moving BELOW to trigger the SELL (e.g., from 320000 to 319000 PLN)
+        self.new_price(price=319000)
+
+        sell_order = strategy.sell.current_position.sell_order
+
+        # Wait until the strategy moves to SELLING state and the front panel updates
+        await wait_for_condition(lambda: strategy.state == State.SELLING)
+        await wait_for_condition(lambda: self.front.active_records_sell)
+        await wait_for_condition(lambda: not self.front.idle_records_sell)
+
+        # Validate the order details
+        assert strategy.sell.current_position.state_info.state == State.NEW
+        assert sell_order.order_id == 12345
+        assert sell_order.status == ORDER_STATUS_NEW
+        assert sell_order.quantity == 0.00356
+        assert sell_order.price == 320000
+        assert sell_order.realized_quantity == 0.0
+
+        assert self.front.hp_list_data[2]["hp_id"] == "1000b"
+        assert self.front.hp_list_data[2]["buy_price"] == "320000.0"
+        assert self.front.hp_list_data[2]["quantity"] == "0.00356"
+        assert self.front.hp_list_data[2]["quantity_usd"] == "1139.2"
+        assert self.front.hp_list_data[2]["sell_price"] == "320000.0"
+        assert self.front.hp_list_data[2]["expected_return"] == "0.0"
+        assert self.front.hp_list_data[2]["current_price"] == "0.0"
+        assert self.front.hp_list_data[2]["net"] == "0.0"
+        assert self.front.hp_list_data[2]["state"] == "SELLING"
+
+    async def simulate_sell_order_partial_fill_in_second_hop(self):
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+            order_id=12345,
+            last_executed_quantity=0.00178,
+            last_executed_price=320000.0,
+            cumulative_filled_quantity=0.00178,
+            price=320000.0,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.SELLING
+
+        await wait_for_condition(
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_PARTIALLY_FILLED
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["quantity"] == "0.00178"
+        )
+
+        item = self.front.hp_list_data[2]
+        assert item["hp_id"] == "1000b"
+        assert item["coin"] == "BTC"
+        assert item["buy_price"] == "320000.0", f"buy price: {item['buy_price']}"
+        assert item["quantity"] == "0.00178"
+        assert item["quantity_usd"] == "569.6"
+        assert item["sell_price"] == "320000.0", f"Sell price: {item['sell_price']}"
+        assert item["expected_return"] == "0.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "SELLING"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+    async def simulate_sell_order_fill_in_second_hop(self) -> None:
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=12345,
+            last_executed_quantity=0.00356,
+            last_executed_price=320000.0,
+            cumulative_filled_quantity=0.00356,
+            price=320000.0,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.SELLING
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["coin"] == "BTC"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_FILLED
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["quantity"] == "0.0"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["buy_price"] == "320000.0"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["state"] == "SOLD"
+        )
+
+        item = self.front.hp_list_data[2]
+        assert item["hp_id"] == "1000b"
+        assert item["coin"] == "BTC"
+        assert item["quantity"] == "0.0", f"quantity to: {item['quantity']}"
+        assert item["buy_price"] == "320000.0", f"buy price to: {item['buy_price']}"
+        assert item["quantity_usd"] == "0.0"
+        assert item["sell_price"] == "320000.0"
+        assert item["expected_return"] == "0.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "SOLD"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)

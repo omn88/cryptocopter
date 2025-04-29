@@ -622,7 +622,7 @@ class HpFront(BoxLayout):
                 sell_price=float(self.ids.sell_price_input.text),
                 quantity=float(self.ids.quantity_input.text),
                 end_currency=self.ids.end_currency_spinner.text,
-                symbol_info=self.symbols_info[self.ids.sell_symbol_input.text],
+                symbol_info=self.symbols_info[f"{self.ids.coin_input.text}USDT"],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
             sell_order=Order(quantity=0),
@@ -980,14 +980,19 @@ class HpFront(BoxLayout):
 
     async def _refresh_ui(self):
         while True:
-            # Reassign the data to trigger the UI update
-            self.ids.buy_active_records_list.refresh_from_data()
-            self.ids.sell_active_records_list.refresh_from_data()
-            self.ids.buy_idle_records_list.refresh_from_data()
-            self.ids.sell_idle_records_list.refresh_from_data()
-            self.ids.buy_archive_records_list.refresh_from_data()
-            self.ids.sell_archive_records_list.refresh_from_data()
-            self.ids.hp_list.refresh_from_data()
+            # Update all records, but NOT hp_list_view (it is updated elsewhere manually)
+            if "buy_active_records_list" in self.ids:
+                self.ids.buy_active_records_list.refresh_from_data()
+            if "sell_active_records_list" in self.ids:
+                self.ids.sell_active_records_list.refresh_from_data()
+            if "buy_idle_records_list" in self.ids:
+                self.ids.buy_idle_records_list.refresh_from_data()
+            if "sell_idle_records_list" in self.ids:
+                self.ids.sell_idle_records_list.refresh_from_data()
+            if "buy_archive_records_list" in self.ids:
+                self.ids.buy_archive_records_list.refresh_from_data()
+            if "sell_archive_records_list" in self.ids:
+                self.ids.sell_archive_records_list.refresh_from_data()
             await asyncio.sleep(0.1)
 
     def _validate_buy_inputs(self) -> bool:
