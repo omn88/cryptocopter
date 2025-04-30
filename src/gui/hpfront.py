@@ -614,18 +614,19 @@ class HpFront(BoxLayout):
         if not self._validate_sell_inputs():
             return
 
-        sell_config = SellPosition(
+        coin = str(self.ids.coin_input.text).upper()
+
+        sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=self.ids.hp_id_input.text,
-                coin=self.ids.coin_input.text,
+                coin=coin,
                 buy_price=float(self.ids.buy_price_input.text),
                 sell_price=float(self.ids.sell_price_input.text),
                 quantity=float(self.ids.quantity_input.text),
                 end_currency=self.ids.end_currency_spinner.text,
-                symbol_info=self.symbols_info[f"{self.ids.coin_input.text}USDT"],
+                symbol_info=self.symbols_info[f"{coin}USDT"],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
-            sell_order=Order(quantity=0),
         )
         self.config_queue.put_nowait(sell_config)
         logger.info("Sell config added to the queue: %s", sell_config.config)
@@ -1349,4 +1350,27 @@ class HpFront(BoxLayout):
                 "Tried to update hp_list_view, but it's not yet initialized."
             )
             return
-        self.ids.hp_list_view.data = self._get_sorted_hp_list()
+
+        valid_keys = {
+            "hp_id",
+            "coin",
+            "buy_price",
+            "quantity",
+            "quantity_usd",
+            "sell_price",
+            "expected_return",
+            "current_price",
+            "net",
+            "net_percent",
+            "state",
+            "is_child",
+        }
+
+        cleaned_data = []
+        for item in self._get_sorted_hp_list():
+            filtered = {k: item.get(k, "") for k in valid_keys}
+            # Kivy's RecycleView needs everything as strings or primitives
+            filtered["is_child"] = bool(item.get("is_child", False))
+            cleaned_data.append(filtered)
+
+        self.ids.hp_list_view.data = cleaned_data
