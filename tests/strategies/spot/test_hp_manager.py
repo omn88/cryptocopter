@@ -801,7 +801,7 @@ async def test_sell_position_first_order_filled(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.ui_queue.qsize() == 3
+    assert strategy.ui_queue.qsize() == 1
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
@@ -815,9 +815,7 @@ async def test_sell_position_first_order_filled(
     assert state_info.ui_state == UiState.CLOSED
     assert state_info.completeness == 1.00
 
-    assert strategy.ui_queue.qsize() == 2
-
-    # TODO: get the remaining two items from the queue and assert what are they
+    assert strategy.ui_queue.qsize() == 0
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 

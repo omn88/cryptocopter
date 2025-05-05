@@ -986,8 +986,7 @@ class HpStrategy:
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
         if (
-            len(self.sell.sell_positions) == 1
-            or len(self.sell.sell_positions) == 2
+            len(self.sell.sell_positions) == 2
             and self.sell.current_position is self.sell.sell_positions[1]
         ):
             self.state = State.SOLD
