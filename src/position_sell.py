@@ -208,20 +208,29 @@ class HPPositionSell:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        if self.current_position.sell_order.status != ORDER_STATUS_FILLED:
-            self.current_position.sell_order = await self._create_order(
-                side=self.current_position.state_info.side,
-                order=self.current_position.sell_order,
-                symbol_info=self.current_position.config.symbol_info,
-            )
-            logger.info(
-                "New %s order send for %s at price: %s and quantity: %s [id: %s]",
-                self.current_position.state_info.side.value,
-                self.current_position.config.symbol_info.symbol,
-                self.current_position.sell_order.price,
-                self.current_position.sell_order.quantity_stable,
-                self.current_position.sell_order.order_id,
-            )
+        try:
+            if self.current_position.sell_order.status != ORDER_STATUS_FILLED:
+                logger.info(
+                    "Trying to send sell order: %s, side: %s, symbol info: %s",
+                    self.current_position.sell_order,
+                    self.current_position.state_info.side,
+                    self.current_position.config.symbol_info,
+                )
+                self.current_position.sell_order = await self._create_order(
+                    side=self.current_position.state_info.side,
+                    order=self.current_position.sell_order,
+                    symbol_info=self.current_position.config.symbol_info,
+                )
+                logger.info(
+                    "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+                    self.current_position.state_info.side.value,
+                    self.current_position.config.symbol_info.symbol,
+                    self.current_position.sell_order.price,
+                    self.current_position.sell_order.quantity_stable,
+                    self.current_position.sell_order.order_id,
+                )
+        except AssertionError as error:
+            logger.error("Error: %s", error)
 
     async def cancel_position(self) -> None:
         assert isinstance(self.current_position, SellPosition)

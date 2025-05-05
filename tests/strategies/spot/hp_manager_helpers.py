@@ -95,7 +95,7 @@ def assert_gui_position_data_content_buy(
 
 async def process_ticker(strategy: HpStrategy, last_price: float):
     logger.info("Processing ticker with last price: %s", last_price)
-    strategy.ticker_update = TickerUpdate(last_price=last_price)
+    strategy.ticker_update = TickerUpdate(last_price=last_price, symbol="BTCUSDC")
 
     await strategy.process_ticker()  # type: ignore[attr-defined]  # type: ignore
 
@@ -262,7 +262,7 @@ async def move_to_buy_position_active(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict], trigger_price: float
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == trigger_price
-    strategy.ticker_update = TickerUpdate(last_price=trigger_price)
+    strategy.ticker_update = TickerUpdate(last_price=trigger_price, symbol="BTCUSDC")
 
     assert strategy.conditions_for_sending_buy_orders()
 
@@ -1137,7 +1137,7 @@ async def resend_part_bought_first_order_filled(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
-    strategy.ticker_update = TickerUpdate(last_price=1212)
+    strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
@@ -1198,7 +1198,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
-    strategy.ticker_update = TickerUpdate(last_price=1212)
+    strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
     strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1326,7 +1326,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.buy.orders_cancel_price == 1428.0
-    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
     assert strategy.conditions_for_cancelling_partially_bought_orders()
@@ -1387,7 +1387,7 @@ async def resend_part_bought_first_order_filled_partially(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1414
-    strategy.ticker_update = TickerUpdate(last_price=1414)
+    strategy.ticker_update = TickerUpdate(last_price=1414, symbol="BTCUSDC")
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
 
@@ -1451,7 +1451,7 @@ async def cancel_partially_bought_position_first_order_filled(
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.buy.orders_cancel_price == 1428.0
-    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_cancelling_unfilled_buy_orders()
     assert strategy.conditions_for_cancelling_partially_bought_orders()
@@ -1553,7 +1553,7 @@ async def send_sell_order_for_partially_bought_position(
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    strategy.ticker_update = TickerUpdate(last_price=4032.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders_for_partially_bought_position()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1673,7 +1673,7 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
     strategy.sell.current_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
-    strategy.ticker_update = TickerUpdate(last_price=3864.0)
+    strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert (
         strategy.conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position()
     )
@@ -1732,7 +1732,7 @@ async def simulate_cancel_sell_position(
     strategy.sell.current_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
-    strategy.ticker_update = TickerUpdate(last_price=3864.0)
+    strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_partially_sold_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -1787,7 +1787,7 @@ async def simulate_resend_sell_position(
     assert strategy.state == State.PARTIALLY_SOLD
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
 
-    strategy.ticker_update = TickerUpdate(last_price=4032.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert not strategy.conditions_for_sending_sell_orders()
     assert strategy.conditions_for_resending_partially_sold_orders()
 
@@ -1917,7 +1917,7 @@ async def send_sell_order_for_bought_position(
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032
     assert strategy.state == State.BOUGHT
 
-    strategy.ticker_update = TickerUpdate(last_price=4032.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -2012,7 +2012,7 @@ async def simulate_move_to_sell_from_partially_bought_position(
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.PARTIALLY_BOUGHT
 
-    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    strategy.ticker_update = TickerUpdate(last_price=4158.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -2081,7 +2081,7 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
     assert strategy.calculate_trigger_send_orders_price_sell() == 4158
     assert strategy.state == State.BOUGHT
 
-    strategy.ticker_update = TickerUpdate(last_price=4158.0)
+    strategy.ticker_update = TickerUpdate(last_price=4158.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -2193,7 +2193,7 @@ async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
     strategy.sell.current_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
-    strategy.ticker_update = TickerUpdate(last_price=4116.0)
+    strategy.ticker_update = TickerUpdate(last_price=4116.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_partially_sold_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -2231,7 +2231,7 @@ async def cancel_sell_position_part_bought_part_sold(
     )
     strategy.sell.current_position.state_info.generate_next_monitor_time()
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
-    strategy.ticker_update = TickerUpdate(last_price=3864.0)
+    strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_sell_position()
     )
@@ -2289,7 +2289,7 @@ async def reopen_buy_part_bought_part_sold(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
-    strategy.ticker_update = TickerUpdate(last_price=1212)
+    strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_sending_buy_orders()
     assert (
@@ -2344,7 +2344,7 @@ async def reopen_buy_part_bought_sold(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
     assert strategy.calculate_trigger_send_orders_price_buy() == 1212
-    strategy.ticker_update = TickerUpdate(last_price=1212)
+    strategy.ticker_update = TickerUpdate(last_price=1212, symbol="BTCUSDC")
 
     assert not strategy.conditions_for_sending_buy_orders()
     assert strategy.conditions_for_resending_buy_orders_for_sold_position()
@@ -2403,7 +2403,7 @@ async def cancel_untouched_buy_position(
     strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.buy.orders_cancel_price == 1428.0
-    strategy.ticker_update = TickerUpdate(last_price=1428.0)
+    strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]
@@ -2461,7 +2461,7 @@ async def cancel_untouched_sell_position(
     strategy.sell.current_position.state_info.generate_next_monitor_time()
 
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
-    strategy.ticker_update = TickerUpdate(last_price=3864.0)
+    strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_unfilled_sell_orders()
 
     await strategy.process_ticker()  # type: ignore[attr-defined]

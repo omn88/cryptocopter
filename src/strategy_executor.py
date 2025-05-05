@@ -28,7 +28,7 @@ from src.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
@@ -475,15 +475,16 @@ class StrategyExecutor:
                 queue=worker_queue,
             ),
         )
-        self.broker.subscribe(
-            system_id=str(parent_hp_id),
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=config.symbol_info.symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
-        )
+        for symbol_info in sell_strategy:
+            self.broker.subscribe(
+                system_id=str(parent_hp_id),
+                subscription_info=SubscriptionInfo(
+                    data_type=SubscriptionType.PRICE,
+                    symbol=symbol_info.symbol,
+                    target=SubscriptionTarget.BACKEND,
+                    queue=worker_queue,
+                ),
+            )
 
         # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
 
@@ -542,7 +543,7 @@ class StrategyExecutor:
                 buy_orders=strategy.buy.orders,
             )
 
-            logger.info(f"Removed strategy {hp_id}.")
+            logger.info("Removed strategy %s.", hp_id)
             return
 
         if (

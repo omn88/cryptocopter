@@ -657,7 +657,7 @@ async def test_resend_unfilled_sell_orders(
     )
 
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032
-    strategy.ticker_update = TickerUpdate(last_price=4032.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
     strategy.client.create_order.side_effect = get_new_orders(
@@ -1267,7 +1267,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.buy.orders_cancel_price == 1224.0
-    strategy.ticker_update = TickerUpdate(last_price=1224.0)
+    strategy.ticker_update = TickerUpdate(last_price=1224.0, symbol="BTCUSDC")
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
     )
