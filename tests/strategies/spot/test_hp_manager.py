@@ -657,7 +657,7 @@ async def test_resend_unfilled_sell_orders(
     )
 
     assert strategy.calculate_trigger_send_orders_price_sell() == 4032
-    strategy.ticker_update = TickerUpdate(last_price=4032.0)
+    strategy.ticker_update = TickerUpdate(last_price=4032.0, symbol="BTCUSDC")
     assert strategy.conditions_for_sending_sell_orders()
 
     strategy.client.create_order.side_effect = get_new_orders(
@@ -801,7 +801,7 @@ async def test_sell_position_first_order_filled(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 3
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataSell)
@@ -815,7 +815,9 @@ async def test_sell_position_first_order_filled(
     assert state_info.ui_state == UiState.CLOSED
     assert state_info.completeness == 1.00
 
-    assert strategy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 2
+
+    # TODO: get the remaining two items from the queue and assert what are they
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1267,7 +1269,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.buy.orders_cancel_price == 1224.0
-    strategy.ticker_update = TickerUpdate(last_price=1224.0)
+    strategy.ticker_update = TickerUpdate(last_price=1224.0, symbol="BTCUSDC")
     assert (
         strategy.conditions_for_cancelling_partially_sold_and_bought_orders_buy_position()
     )

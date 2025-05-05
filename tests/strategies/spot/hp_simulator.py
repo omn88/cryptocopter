@@ -18,6 +18,8 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    Order,
+    SellPosition,
     State,
     StateInfo,
     TickerUpdate,
@@ -35,9 +37,9 @@ class HPSimulator:
         self.front = front
         self.back = back
 
-    def new_price(self, price: float):
+    def new_price(self, price: float, symbol: str = "BTCUSDC"):
         ticker_event = Event(
-            name=EventName.TICKER, content=TickerUpdate(last_price=price)
+            name=EventName.TICKER, content=TickerUpdate(last_price=price, symbol=symbol)
         )
         self.back.strategies["1000"].worker_queue.put_nowait(ticker_event)
         logger.info("Put event to the worker: %s", ticker_event)
@@ -89,7 +91,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             orders=strategy.buy.orders
         )
-        self.new_price(price=1410)
+        self.new_price(price=1410, symbol="BTCUSDC")
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -111,7 +113,7 @@ class HPSimulator:
         strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.buy.orders_cancel_price == 1428.0
-        self.new_price(price=1428)
+        self.new_price(price=1428, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: all(
@@ -507,7 +509,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=4156)
+        self.new_price(price=4156, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"] == "SELLING"
@@ -553,7 +555,7 @@ class HPSimulator:
         strategy.sell.current_position.state_info.stagnation_counter = (
             strategy.sell.current_position.state_info.stagnation_limit
         )
-        self.new_price(3864)
+        self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
@@ -683,7 +685,7 @@ class HPSimulator:
         strategy.sell.current_position.state_info.stagnation_counter = (
             strategy.sell.current_position.state_info.stagnation_limit
         )
-        self.new_price(3864)
+        self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
@@ -722,7 +724,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=4156.0)
+        self.new_price(price=4156.0, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"] == "SELLING"
@@ -771,7 +773,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=4156)
+        self.new_price(price=4156, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"] == "SELLING"
@@ -869,7 +871,7 @@ class HPSimulator:
         assert strategy.buy.data.state_info.next_monitor_time
 
         assert strategy.buy.orders_cancel_price == 1428.0
-        self.new_price(price=1428.0)
+        self.new_price(price=1428.0, symbol="BTCUSDC")
 
         assert len(strategy.buy.orders) == 3
 
@@ -916,7 +918,7 @@ class HPSimulator:
         strategy.sell.current_position.state_info.stagnation_counter = (
             strategy.sell.current_position.state_info.stagnation_limit
         )
-        self.new_price(3864)
+        self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
@@ -997,7 +999,7 @@ class HPSimulator:
         strategy.sell.current_position.state_info.stagnation_counter = (
             strategy.sell.current_position.state_info.stagnation_limit
         )
-        self.new_price(3864)
+        self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
@@ -1467,7 +1469,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             orders=[strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=1.1)
+        self.new_price(price=1.1, symbol="AXLUSDT")
 
         sell_order = strategy.sell.current_position.sell_order
 
@@ -1575,6 +1577,11 @@ class HPSimulator:
     async def open_second_sell_position_from_two_hop_trade(self):
         strategy = self.back.strategies["1000"]
 
+        # Mock sending the sell order
+        strategy.client.create_order.side_effect = get_new_orders(
+            orders=[strategy.sell.current_position.sell_order]
+        )
+
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.config.symbol_info.symbol
             == "BTCPLN"
@@ -1584,55 +1591,22 @@ class HPSimulator:
         assert sell_order.quantity == 0.00356
         assert sell_order.price == 320000.0
         assert sell_order.realized_quantity == 0.0
-        assert sell_order.order_id == 0
-
-        assert strategy.state == State.BOUGHT
+        assert sell_order.order_id == 12345
+        await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
+        assert strategy.state == State.SELLING, f"State to: {strategy.state}"
 
         await wait_for_condition(
-            condition_func=lambda: not self.front.active_records_sell
+            condition_func=lambda: not self.front.idle_records_sell
         )
-        await wait_for_condition(condition_func=lambda: self.front.idle_records_sell)
-        assert self.front.hp_list_data[2]["state"] == State.BOUGHT.value
+        await wait_for_condition(condition_func=lambda: self.front.active_records_sell)
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[2]["state"]
+            == State.SELLING.value
+        )
         assert (
             self.front.hp_list_data[2]["coin"]
             == strategy.sell.current_position.config.coin
         )
-        assert self.front.hp_list_data[2]["hp_id"] == "1000b"
-        assert self.front.hp_list_data[2]["buy_price"] == "320000.0"
-        assert self.front.hp_list_data[2]["quantity"] == "0.00356"
-        assert self.front.hp_list_data[2]["quantity_usd"] == "1139.2"
-        assert self.front.hp_list_data[2]["sell_price"] == "320000.0"
-        assert self.front.hp_list_data[2]["expected_return"] == "0.0"
-        assert self.front.hp_list_data[2]["current_price"] == "0.0"
-        assert self.front.hp_list_data[2]["net"] == "0.0"
-        assert self.front.hp_list_data[2]["state"] == "BOUGHT"
-
-    async def send_orders_for_second_position_from_two_hop_trade(self) -> None:
-        strategy = self.back.strategies["1000"]
-
-        # Mock sending the sell order
-        strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.current_position.sell_order]
-        )
-
-        # Now simulate price moving BELOW to trigger the SELL (e.g., from 320000 to 319000 PLN)
-        self.new_price(price=319000)
-
-        sell_order = strategy.sell.current_position.sell_order
-
-        # Wait until the strategy moves to SELLING state and the front panel updates
-        await wait_for_condition(lambda: strategy.state == State.SELLING)
-        await wait_for_condition(lambda: self.front.active_records_sell)
-        await wait_for_condition(lambda: not self.front.idle_records_sell)
-
-        # Validate the order details
-        assert strategy.sell.current_position.state_info.state == State.NEW
-        assert sell_order.order_id == 12345
-        assert sell_order.status == ORDER_STATUS_NEW
-        assert sell_order.quantity == 0.00356
-        assert sell_order.price == 320000
-        assert sell_order.realized_quantity == 0.0
-
         assert self.front.hp_list_data[2]["hp_id"] == "1000b"
         assert self.front.hp_list_data[2]["buy_price"] == "320000.0"
         assert self.front.hp_list_data[2]["quantity"] == "0.00356"
@@ -1704,7 +1678,10 @@ class HPSimulator:
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[2]["coin"] == "BTC"
         )
-
+        assert isinstance(
+            strategy.sell.current_position.sell_order, Order
+        ), f"..... it is: {type(strategy.sell.current_position.sell_order)}"
+        logger.info("DUPA")
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_FILLED
@@ -1736,3 +1713,12 @@ class HPSimulator:
         assert item["state"] == "SOLD"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+        main_item = self.front.hp_list_data[0]
+        first_leg = self.front.hp_list_data[1]
+        second_leg = self.front.hp_list_data[2]
+
+        await wait_for_condition(condition_func=lambda: main_item["state"] == "SOLD")
+        assert main_item["state"] == "SOLD"
+        assert first_leg["state"] == "SOLD"
+        assert second_leg["state"] == "SOLD"
