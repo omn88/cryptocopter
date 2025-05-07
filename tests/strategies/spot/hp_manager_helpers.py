@@ -151,10 +151,10 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
             hp_id="0",
             coin="BTC",
             symbol_info=SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-            price_low=1000,
-            price_high=1400,
+            price_low=1000.0,
+            price_high=1400.0,
             order_trigger=1.0,
-            budget=1000,
+            budget=1000.0,
         ),
     )
 
@@ -245,7 +245,7 @@ def assert_default_buy_position_data(
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
@@ -312,7 +312,7 @@ async def move_to_buy_position_active(
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0", f"Quantity equals {item['quantity']}"
     assert item["quantity_usd"] == "0.0", f"Quantity equals {item['quantity_usd']}"
     assert item["sell_price"] == "0.0"
@@ -2438,7 +2438,7 @@ async def cancel_untouched_buy_position(
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"

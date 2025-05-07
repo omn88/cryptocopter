@@ -262,11 +262,10 @@ class HpFront(BoxLayout):
             "is_child": is_child,
         }
 
-        logger.info("NEw record w HP FRONT: %s", new_record)
+        # logger.info("NEw record w HP FRONT: %s", new_record)
 
         if is_child:
             new_record["parent_hp_id"] = parent_id
-
             # Add or update child
             hp_map[hp_id] = new_record
 
@@ -302,8 +301,12 @@ class HpFront(BoxLayout):
                 new_record["children"] = []
                 hp_map[hp_id] = new_record
 
-        # Return as list
-        return list(hp_map.values())
+        self.hp_list = list(hp_map.values())  # this is likely already present
+
+        # Trigger visual refresh
+        self._update_hp_list_view()
+
+        return self.hp_list
 
     def update_active_position_buy(
         self,
@@ -586,7 +589,10 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
-                    if symbol == f"{strategy['coin']}USDT":
+                    if symbol == f"{strategy['coin']}USDC":
+                        logger.info(
+                            "Symbol: %s, strategy coin: %s", symbol, strategy["coin"]
+                        )
                         current_price = self.symbols_info[symbol].adjust_price(
                             price=float(ticker["c"])
                         )
@@ -607,6 +613,8 @@ class HpFront(BoxLayout):
                                 )
                             )
                             strategy["net_percent"] = str(net_percent)
+        # Trigger visual refresh
+        self._update_hp_list_view()
 
     def trigger_sell_position(self, *args) -> None:
         if not self._validate_sell_inputs():
@@ -617,7 +625,7 @@ class HpFront(BoxLayout):
         sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=str(self.ids.hp_id_input.text).strip(),
-                coin=coin,
+                coin=f"{coin}USD",
                 buy_price=float(str(self.ids.buy_price_input.text).strip()),
                 sell_price=float(str(self.ids.sell_price_input.text).strip()),
                 quantity=float(str(self.ids.quantity_input.text).strip()),
@@ -1337,11 +1345,12 @@ class HpFront(BoxLayout):
         for item in self._get_sorted_hp_list():
             filtered = {k: item.get(k, "") for k in valid_keys}
             # Kivy's RecycleView needs everything as strings or primitives
-            filtered["is_child"] = str(bool(item.get("is_child", False)))
+            filtered["is_child"] = bool(item.get("is_child", False))
             filtered["hp_manager"] = self
             cleaned_data.append(filtered)
 
         self.ids.hp_list_view.data = cleaned_data
+        self.ids.hp_list_view.refresh_from_data()
 
     # def calculate_expected_gain(self, sell_price):
     #     """

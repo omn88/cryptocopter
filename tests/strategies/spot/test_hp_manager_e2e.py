@@ -106,7 +106,7 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
@@ -371,7 +371,7 @@ async def test_stagnation_counter_increase_buy(
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"

@@ -373,11 +373,16 @@ class HpStrategy:
         symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
-        buy_price = (
-            self.buy.calculate_avg_buy_price()
-            if self.buy.orders
-            else self.sell.current_position.config.buy_price
-        )
+        if self.buy.orders:
+            if all(order.realized_quantity == 0.0 for order in self.buy.orders):
+                buy_price = self.buy.data.config.price_high
+            else:
+                buy_price = self.buy.calculate_avg_buy_price()
+        else:
+            buy_price = self.sell.current_position.config.buy_price
+
+        logger.info("BUY PRICE: %s", buy_price)
+
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
         quantity_usd = symbol_info.adjust_price(
             quantity * buy_price if buy_price else 0.0

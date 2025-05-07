@@ -329,6 +329,7 @@ class StrategyExecutor:
                     hp_id=config.hp_id,
                     coin=config.coin,
                     state=state,
+                    buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
                 ),
             )

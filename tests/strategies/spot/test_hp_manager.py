@@ -452,7 +452,7 @@ async def test_stagnation_counter_increase_buy(
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"

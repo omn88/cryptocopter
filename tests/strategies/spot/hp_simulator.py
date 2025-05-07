@@ -48,9 +48,9 @@ class HPSimulator:
         self,
         symbol: str,
         mode: Mode = Mode.DCA,
-        budget: float = 1000,
-        price_low: float = 1000,
-        price_high: float = 1400,
+        budget: float = 1000.0,
+        price_low: float = 1000.0,
+        price_high: float = 1400.0,
         order_trigger: float = 1.0,
     ):
         hp = HPBuyData(
@@ -91,7 +91,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             orders=strategy.buy.orders
         )
-        self.new_price(price=1410, symbol="BTCUSDC")
+        self.new_price(price=1410.0, symbol="BTCUSDC")
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
@@ -113,7 +113,7 @@ class HPSimulator:
         strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.buy.orders_cancel_price == 1428.0
-        self.new_price(price=1428, symbol="BTCUSDC")
+        self.new_price(price=1428.0, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: all(
@@ -133,7 +133,7 @@ class HPSimulator:
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTC"
-        assert item["buy_price"] == "0.0"
+        assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.0"
         assert item["quantity_usd"] == "0.0"
         assert item["sell_price"] == "0.0"
@@ -509,7 +509,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=4156, symbol="BTCUSDC")
+        self.new_price(price=4156.0, symbol="BTCUSDC")
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"] == "SELLING"

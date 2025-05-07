@@ -251,6 +251,7 @@ def trading_system_factory(mock_AsyncClient):
                 hp_id=hp_config.hp_id,
                 coin=hp_config.coin,
                 state=State.NEW,
+                buy_price=hp_config.price_high,
             ),
         )
         logger.debug("Going to send hpguidatabuy to ui queue: %s", hp_gui_data_buy)
