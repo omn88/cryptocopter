@@ -49,7 +49,7 @@ class HPPositionBuy:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        logger.info("Entered open position")
+        logger.debug("Entered open position")
         self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
         results = await asyncio.gather(
             *[
@@ -308,7 +308,6 @@ class HPPositionBuy:
                     order.quantity - order.realized_quantity
                 )
                 symbol_info.validate_order(price=price, quantity=quantity)
-                logger.debug("Before sending order..........")
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
@@ -317,7 +316,7 @@ class HPPositionBuy:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
-                logger.debug("Resp..........")
+                logger.debug("Order create response: %s", resp)
             except (
                 BinanceAPIException,
                 BinanceOrderException,

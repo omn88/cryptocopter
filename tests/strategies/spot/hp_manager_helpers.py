@@ -2144,7 +2144,7 @@ async def simulate_partial_fill_sell(
     assert (
         strategy.sell.current_position.sell_order.status
         == ORDER_STATUS_PARTIALLY_FILLED
-    ), f"The status is................................: {strategy.sell.current_position.sell_order.status}"
+    ), f"The status is: {strategy.sell.current_position.sell_order.status}"
     assert strategy.state == State.SELLING
     assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
 

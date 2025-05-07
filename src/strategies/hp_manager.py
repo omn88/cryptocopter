@@ -348,7 +348,7 @@ class HpStrategy:
     def _calculate_from_buy_and_sell(self) -> float:
         total_bought = sum(order.realized_quantity for order in self.buy.orders)
 
-        logger.info(".........how many? %s", len(self.sell.sell_positions))
+        logger.info("Number of sell positions: %s", len(self.sell.sell_positions))
 
         if len(self.sell.sell_positions) == 1:
             sold = self.sell.sell_positions[0].sell_order.realized_quantity
@@ -357,8 +357,6 @@ class HpStrategy:
             sold = self.sell.sell_positions[1].sell_order.realized_quantity
         else:
             sold = 0
-
-        logger.info("total bought: %s, sold: %s", total_bought, sold)
 
         return max(0.0, total_bought - sold)
 
@@ -383,14 +381,6 @@ class HpStrategy:
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
         quantity_usd = symbol_info.adjust_price(
             quantity * buy_price if buy_price else 0.0
-        )
-
-        logger.info(
-            "......................COIN: %s, buy price: %s, quantity: %s, quantity usd: %s",
-            self.buy.data.config.coin,
-            buy_price,
-            quantity,
-            quantity_usd,
         )
 
         net = None
@@ -423,15 +413,7 @@ class HpStrategy:
                 * total_quantity
             )
 
-        logger.info(
-            "Expected return calculated: %s, buy_price: %s, sell price: %s, quant: %s",
-            expected_return,
-            buy_price,
-            self.sell.current_position.config.sell_price,
-            total_quantity,
-        )
-
-        return HPUpdate(
+        hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
             quantity=quantity,
@@ -444,6 +426,10 @@ class HpStrategy:
             state=self.state,
             expected_return=expected_return,
         )
+
+        logger.info("HP Update: %s", hp_update)
+
+        return hp_update
 
     def send_buy_position_to_ui(self):
         self.ui_queue.put_nowait(
@@ -728,11 +714,6 @@ class HpStrategy:
         # )
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
-        logger.info(
-            "........................In send sell orders, checking why data wrong: %s",
-            self.sell.current_position,
-        )
-
         self.send_sell_position_to_ui()
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
@@ -800,7 +781,6 @@ class HpStrategy:
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
         trig_ord_price: float = self.calculate_trigger_send_orders_price_sell()
-        logger.info("..............In DA CONDITION, trig price: %s", trig_ord_price)
 
         assert isinstance(self.buy.data.config, HPBuyConfig)
         assert isinstance(self.sell.current_position.config, HPSellConfig)
@@ -824,15 +804,6 @@ class HpStrategy:
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
-
-        logger.info(
-            "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s",
-            condition,
-            self.sell.current_position.config.hp_id,
-            self.sell.current_position.config.symbol_info.symbol,
-            self.sell.current_position.state_info.side,
-            self.sell.current_position.state_info.state,
-        )
 
         return condition
 

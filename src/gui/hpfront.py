@@ -234,8 +234,6 @@ class HpFront(BoxLayout):
         # Create a map for fast lookup
         hp_map = {item["hp_id"]: item for item in hp_list}
 
-        logger.info("ER w HP FRONT: %s", update.expected_return)
-
         # Prepare record
         new_record = {
             "hp_id": hp_id,
@@ -614,15 +612,15 @@ class HpFront(BoxLayout):
         if not self._validate_sell_inputs():
             return
 
-        coin = str(self.ids.coin_input.text).upper()
+        coin = str(self.ids.coin_input.text).strip().upper()
 
         sell_config = HPSellData(
             config=HPSellConfig(
-                hp_id=self.ids.hp_id_input.text,
+                hp_id=str(self.ids.hp_id_input.text).strip(),
                 coin=coin,
-                buy_price=float(self.ids.buy_price_input.text),
-                sell_price=float(self.ids.sell_price_input.text),
-                quantity=float(self.ids.quantity_input.text),
+                buy_price=float(str(self.ids.buy_price_input.text).strip()),
+                sell_price=float(str(self.ids.sell_price_input.text).strip()),
+                quantity=float(str(self.ids.quantity_input.text).strip()),
                 end_currency=self.ids.end_currency_spinner.text,
                 symbol_info=self.symbols_info[f"{coin}USDT"],
             ),
@@ -1299,37 +1297,6 @@ class HpFront(BoxLayout):
 
         return box
 
-    # def calculate_expected_gain(self, sell_price):
-    #     """
-    #     Calculate the expected gain and gain percentage based on the sell price.
-
-    #     Args:
-    #     - sell_price: The entered sell price.
-    #     """
-    #     try:
-    #         sell_price_float = float(sell_price)
-    #         quantity_float = float(self.ids.quantity_label.text)
-    #         quantity_usd_float = float(self.ids.quantity_usd_label.text)
-    #         buy_price_float = float(self.ids.buy_price_label.text)
-
-    #         # Total USD value calculation
-    #         total_usd_value = sell_price_float * quantity_float
-
-    #         # Expected gain calculations
-    #         expected_gain_usd = total_usd_value - quantity_usd_float
-    #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
-
-    #         # Update labels
-    #         self.ids.expected_gain_label.text = f"{expected_gain_usd:.2f}"
-    #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
-    #         self.ids.total_usd_value_label.text = f"{total_usd_value:.2f}"
-
-    #     except ValueError:
-    #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
-    #         logger.error("Error in calculating expected gain. Invalid input detected.")
-    #         self.ids.expected_gain_label.text = "---"
-    #         self.ids.expected_gain_percent_label.text = "---"
-
     def _get_sorted_hp_list(self):
         parents = [hp for hp in self.hp_list_data if not hp.get("is_child", False)]
         children = [hp for hp in self.hp_list_data if hp.get("is_child", False)]
@@ -1371,6 +1338,38 @@ class HpFront(BoxLayout):
             filtered = {k: item.get(k, "") for k in valid_keys}
             # Kivy's RecycleView needs everything as strings or primitives
             filtered["is_child"] = str(bool(item.get("is_child", False)))
+            filtered["hp_manager"] = self
             cleaned_data.append(filtered)
 
         self.ids.hp_list_view.data = cleaned_data
+
+    # def calculate_expected_gain(self, sell_price):
+    #     """
+    #     Calculate the expected gain and gain percentage based on the sell price.
+
+    #     Args:
+    #     - sell_price: The entered sell price.
+    #     """
+    #     try:
+    #         sell_price_float = float(sell_price)
+    #         quantity_float = float(self.ids.quantity_label.text)
+    #         quantity_usd_float = float(self.ids.quantity_usd_label.text)
+    #         buy_price_float = float(self.ids.buy_price_label.text)
+
+    #         # Total USD value calculation
+    #         total_usd_value = sell_price_float * quantity_float
+
+    #         # Expected gain calculations
+    #         expected_gain_usd = total_usd_value - quantity_usd_float
+    #         expected_gain_percent = ((sell_price_float / buy_price_float) - 1) * 100
+
+    #         # Update labels
+    #         self.ids.expected_gain_label.text = f"{expected_gain_usd:.2f}"
+    #         self.ids.expected_gain_percent_label.text = f"{expected_gain_percent:.2f}%"
+    #         self.ids.total_usd_value_label.text = f"{total_usd_value:.2f}"
+
+    #     except ValueError:
+    #         # Handle potential conversion errors (e.g., if the inputs are not valid floats)
+    #         logger.error("Error in calculating expected gain. Invalid input detected.")
+    #         self.ids.expected_gain_label.text = "---"
+    #         self.ids.expected_gain_percent_label.text = "---"

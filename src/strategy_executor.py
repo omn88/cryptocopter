@@ -345,10 +345,6 @@ class StrategyExecutor:
         quantity_usd = config.symbol_info.adjust_price(
             config.quantity * config.buy_price
         )
-
-        logger.info(
-            "......................Quantity usd equaaaaaaaaaaaaaaals %s", quantity_usd
-        )
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),

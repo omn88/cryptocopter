@@ -1412,7 +1412,6 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )
 
-    logger.info("Some orders..........................: %s", strategy.buy.orders)
     (
         strategy,
         hp_list,
