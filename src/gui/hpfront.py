@@ -1370,7 +1370,7 @@ class HpFront(BoxLayout):
         for item in self._get_sorted_hp_list():
             filtered = {k: item.get(k, "") for k in valid_keys}
             # Kivy's RecycleView needs everything as strings or primitives
-            filtered["is_child"] = bool(item.get("is_child", False))
+            filtered["is_child"] = str(bool(item.get("is_child", False)))
             cleaned_data.append(filtered)
 
         self.ids.hp_list_view.data = cleaned_data

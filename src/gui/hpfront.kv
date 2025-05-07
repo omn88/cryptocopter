@@ -595,7 +595,7 @@
 
                     Label:
                         text: "Quantity"
-                        size_hint_x: 0.1
+                        size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
@@ -619,19 +619,19 @@
 
                     Label:
                         text: "Net Percent"
-                        size_hint_x: 0.06
+                        size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
                     Label:
                         text: "Sell Price"
-                        size_hint_x: 0.07
+                        size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
                     Label:
                         text: "Expected Return"
-                        size_hint_x: 0.07
+                        size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
@@ -649,7 +649,7 @@
 
                 RecycleView:
                     id: hp_list_view
-                    viewclass: "HPRow"
+                    viewclass: "HPListItem"
                     RecycleBoxLayout:
                         default_size: None, dp(32)
                         default_size_hint: 1, None
