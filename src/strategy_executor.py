@@ -105,6 +105,8 @@ class StrategyExecutor:
                         config=strategy_data.config
                     )
                     logger.info("Sell strategy determined: %s", sell_strategy)
+                    if sell_strategy[0].symbol.endswith("USDC"):
+                        strategy_data.config.symbol_info = sell_strategy[0]
                     sell_position = SellPosition(
                         sell_order=Order(quantity=0),
                         config=strategy_data.config,
@@ -383,6 +385,8 @@ class StrategyExecutor:
                 sell_strategy=sell_strategy,
                 price_resolver=self.price_resolver,
             )
+            logger.info("New sell position: %s", strategy.sell)
+            logger.info("Current position: %s", strategy.sell.current_position)
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -577,10 +581,17 @@ class StrategyExecutor:
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
+                rlzd_qty = strategy.sell.current_position.sell_order.realized_quantity
+                order_qty = strategy.sell.current_position.sell_order.quantity
                 await sell.cancel_remaining_order()
-                # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
-                # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
-                strategy.state = buy.data.state_info.state
+                strategy.state = (
+                    State.BOUGHT
+                    if not rlzd_qty
+                    else State.PARTIALLY_SOLD
+                    if rlzd_qty != order_qty
+                    else State.SOLD
+                )
+
                 # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
                 #     self.db.upsert_order(
                 #         order=sell.current_position.sell_order, hp_id=hp_id, side=side

@@ -504,17 +504,17 @@ class HpStrategy:
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
             )
-        logger.info(
-            "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
-            "price trigger: %s last price: %s",
-            self.buy.data.config.symbol_info.symbol,
-            self.buy.data.state_info.side,
-            self.state,
-            self.buy.data.config.budget,
-            self.balance,
-            trigger_send_orders_price,
-            self.ticker_update.last_price,
-        )
+        # logger.info(
+        #     "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
+        #     "price trigger: %s last price: %s",
+        #     self.buy.data.config.symbol_info.symbol,
+        #     self.buy.data.state_info.side,
+        #     self.state,
+        #     self.buy.data.config.budget,
+        #     self.balance,
+        #     trigger_send_orders_price,
+        #     self.ticker_update.last_price,
+        # )
 
         return condition
 
@@ -796,7 +796,7 @@ class HpStrategy:
         self.send_sell_position_to_ui()
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
-        logger.debug("Enter conditions for sending sell orders")
+        # logger.debug("Enter conditions for sending sell orders")
         trig_ord_price: float = self.calculate_trigger_send_orders_price_sell()
 
         assert isinstance(self.buy.data.config, HPBuyConfig)
@@ -819,7 +819,7 @@ class HpStrategy:
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
-        logger.debug(
+        logger.info(
             "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker symbol: %s, orig sell data symbol: %s",
             condition,
             self.sell.current_position.config.hp_id,

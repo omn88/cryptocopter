@@ -194,12 +194,14 @@ class HpFront(BoxLayout):
         self._log_all_records_buy()
 
     async def _process_sell_position_data(self, data: HPGuiDataSell) -> None:
-        logger.info("UI received SELL position data: %s", data)
+        logger.info("UI received SELL position data")
 
         # Update the HP list and DB
         self.hp_list_data = self.update_hp_list(
             update=data.hp_update, hp_list=self.hp_list_data
         )
+
+        logger.info("HP List updated with update: %s", data.hp_update)
 
         hp_id = str(data.data.config.hp_id)
 
@@ -654,10 +656,14 @@ class HpFront(BoxLayout):
         - coin: The coin involved in the HP.
         - quantity: The amount of the coin to sell.
         """
-        # Move to the "Sell" tab
+        # Switch into Existing-HP mode, then move to the "Sell" tab
+        # self.ids.hp_mode_existing.state = "down"
+        # self.ids.hp_mode_new.state      = "normal"
         self.ids.hp_tabbed_panel.switch_to(
             self.ids.hp_sell_tab
         )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
+        # rebuild the “Existing HP” UI
+        self.update_hp_mode("existing")
 
         # Populate the fields in the Sell tab
         self.ids.hp_id_input.text = str(hp_id)
@@ -674,6 +680,9 @@ class HpFront(BoxLayout):
         # Optional: If you want to set focus on the sell price input field
         self.ids.sell_price_input.focus = True
 
+        self.ids.hp_mode_existing.state = "down"
+        self.ids.hp_mode_new.state = "normal"
+
         logger.info(
             "Moved to 'Sell' tab for HP ID: %s, coin: %s, Quantity: %s",
             hp_id,
@@ -688,9 +697,7 @@ class HpFront(BoxLayout):
         )
 
         self.config_queue.put_nowait(
-            SellPosition(
-                config=config, state_info=state_info, sell_order=Order(quantity=0)
-            )
+            RemoveRecord(hp_id=config.hp_id, symbol=f"{coin}USDT", side=state_info.side)
         )
 
         logger.info("Cancel sell send to the config queue: %s", config)
