@@ -24,6 +24,7 @@ from src.identifiers.spot import (
     HPBuyConfig,
     HPSellConfig,
     HPSellData,
+    SellPosition,
     SignalUpdate,
     StateInfo,
     TickerUpdate,
@@ -1524,9 +1525,10 @@ async def send_sell_order_for_partially_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        data=HPSellData(
+        original_position=SellPosition(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(quantity=0),
         ),
         db=strategy.db,
         sell_strategy=[config.symbol_info],
@@ -1885,9 +1887,10 @@ async def send_sell_order_for_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        data=HPSellData(
+        original_position=SellPosition(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(quantity=0),
         ),
         db=strategy.db,
         sell_strategy=[config.symbol_info],
@@ -1988,9 +1991,10 @@ async def simulate_move_to_sell_from_partially_bought_position(
     )
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        data=HPSellData(
+        original_position=SellPosition(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(quantity=0),
         ),
         db=strategy.db,
         sell_strategy=[config.symbol_info],
@@ -2054,9 +2058,10 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
 
     strategy.sell = HPPositionSell(
         client=strategy.client,
-        data=HPSellData(
+        original_position=SellPosition(
             config=config,
             state_info=StateInfo(side=PositionSide.SHORT),
+            sell_order=Order(quantity=0),
         ),
         db=strategy.db,
         sell_strategy=[config.symbol_info],

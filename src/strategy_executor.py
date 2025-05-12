@@ -28,7 +28,7 @@ from src.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
@@ -258,13 +258,14 @@ class StrategyExecutor:
             ),
             sell_position=HPPositionSell(
                 client=self.client,
-                data=HPSellData(
+                original_position=SellPosition(
                     config=HPSellConfig(
                         hp_id=new_hp.config.hp_id,
                         symbol_info=new_hp.config.symbol_info,
                         coin=new_hp.config.coin,
                     ),
                     state_info=StateInfo(side=PositionSide.SHORT),
+                    sell_order=Order(quantity=0.0),
                 ),
                 db=self.db,
                 sell_strategy=[],
@@ -309,7 +310,7 @@ class StrategyExecutor:
             ),
         )
 
-        self.db.upsert_buy_price_level(data=strategy.buy.data)
+        # self.db.upsert_buy_price_level(data=strategy.buy.data)
 
         asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
@@ -373,9 +374,10 @@ class StrategyExecutor:
         if strategy_data.state_info.state == State.NEW:
             strategy.sell = HPPositionSell(
                 client=self.client,
-                data=HPSellData(
+                original_position=SellPosition(
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
+                    sell_order=Order(quantity=strategy_data.config.quantity),
                 ),
                 db=self.db,
                 sell_strategy=sell_strategy,
@@ -391,7 +393,7 @@ class StrategyExecutor:
             )
             strategy.sell.current_position.state_info.ui_state = UiState.CLOSED
 
-        self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
         self.send_sell_position_to_ui(
             config=strategy.sell.current_position.config,
             state_info=strategy.sell.current_position.state_info,
@@ -427,9 +429,10 @@ class StrategyExecutor:
             ),
             sell_position=HPPositionSell(
                 client=self.client,
-                data=HPSellData(
+                original_position=SellPosition(
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
+                    sell_order=Order(quantity=strategy_data.config.quantity),
                 ),
                 db=self.db,
                 sell_strategy=sell_strategy,
@@ -452,8 +455,8 @@ class StrategyExecutor:
             tuple(self.supported_quotes)
         ), f"Symbol must end with one of {self.supported_quotes}"
         self.send_sell_position_to_ui(
-            config=strategy.sell.original_sell_data.config,
-            state_info=strategy.sell.original_sell_data.state_info,
+            config=strategy.sell.original_position.config,
+            state_info=strategy.sell.original_position.state_info,
             state=strategy.state,
         )
 
@@ -516,20 +519,20 @@ class StrategyExecutor:
                     symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
                 )
-                for order in buy.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(
-                            order=order,
-                            hp_id=hp_id,
-                            side=side,
-                        )
+                # for order in buy.orders:
+                #     if order.status == ORDER_STATUS_CANCELED:
+                #         self.db.upsert_order(
+                #             order=order,
+                #             hp_id=hp_id,
+                #             side=side,
+                #         )
                 buy.data.state_info.completeness = round(
                     sum(order.realized_quantity for order in buy.orders)
                     / sum(order.quantity for order in buy.orders),
                     2,
                 )
 
-            self.db.upsert_buy_price_level(data=buy.data)
+            # self.db.upsert_buy_price_level(data=buy.data)
 
             buy.data.state_info.ui_state = UiState.CLOSED
 
@@ -553,11 +556,11 @@ class StrategyExecutor:
                     orders=buy.orders,
                 )
                 strategy.state = buy.data.state_info.state
-                for order in buy.orders:
-                    if order.status == ORDER_STATUS_CANCELED:
-                        self.db.upsert_order(
-                            order=order, hp_id=buy.data.config.hp_id, side=side
-                        )
+                # for order in buy.orders:
+                #     if order.status == ORDER_STATUS_CANCELED:
+                #         self.db.upsert_order(
+                #             order=order, hp_id=buy.data.config.hp_id, side=side
+                #         )
             buy.data.state_info.state = State.CLOSED
             buy.data.state_info.ui_state = UiState.CLOSED
             buy.data.state_info.completeness = sum(
@@ -570,7 +573,7 @@ class StrategyExecutor:
                 buy_orders=strategy.buy.orders,
             )
 
-            self.db.upsert_buy_price_level(data=buy.data)
+            # self.db.upsert_buy_price_level(data=buy.data)
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
@@ -578,10 +581,10 @@ class StrategyExecutor:
                 # ToDo: Logic for determining state is to be added here, depending on the bp state and sp state
                 # (shall we allow for changing the sell price if orders were at least touched? by not allowing we ease the implementation(Only one order for selling!)).
                 strategy.state = buy.data.state_info.state
-                if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
-                    self.db.upsert_order(
-                        order=sell.current_position.sell_order, hp_id=hp_id, side=side
-                    )
+                # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
+                #     self.db.upsert_order(
+                #         order=sell.current_position.sell_order, hp_id=hp_id, side=side
+                #     )
             # sell.current_position.config.sell_price = 0.0
             sell.current_position.state_info.ui_state = UiState.CLOSED
             sell.current_position.state_info.completeness = round(
@@ -594,7 +597,7 @@ class StrategyExecutor:
                 state_info=strategy.sell.current_position.state_info,
                 state=strategy.state,
             )
-            self.db.upsert_sell_price_level(data=sell.current_position)
+            # self.db.upsert_sell_price_level(data=sell.current_position)
 
     def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Dict]:
         buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
@@ -860,7 +863,7 @@ class StrategyExecutor:
     #         self.strategies[buy_config.hp_id] = strategy
 
     #         strategy.sell.sell_strategy = self.determine_sell_strategy(
-    #             config=strategy.sell.original_sell_data.config
+    #             config=strategy.sell.original_position.config
     #         )
 
     #         logger.info("Entering strategy recovery.")

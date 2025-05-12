@@ -171,8 +171,7 @@ class HpFront(BoxLayout):
         self.ui_queue_closed = True
 
     async def _process_buy_position_data(self, data: HPGuiDataBuy) -> None:
-        logger.info("UI received position data: %s", data)
-
+        logger.info("UI received BUY position data: %s", data)
         # Update the HP list and DB
         self.hp_list_data = self.update_hp_list(
             update=data.hp_update, hp_list=self.hp_list_data
@@ -195,7 +194,7 @@ class HpFront(BoxLayout):
         self._log_all_records_buy()
 
     async def _process_sell_position_data(self, data: HPGuiDataSell) -> None:
-        logger.info("UI received position data: %s", data)
+        logger.info("UI received SELL position data: %s", data)
 
         # Update the HP list and DB
         self.hp_list_data = self.update_hp_list(
@@ -204,10 +203,19 @@ class HpFront(BoxLayout):
 
         hp_id = str(data.data.config.hp_id)
 
+        logger.info("Before weird if")
+
         if not data.data.config.hp_id.endswith(
             ("a", "b")
         ) and data.data.config.symbol_info.symbol.endswith("USDT"):
+            logger.info(
+                "Going to return in the if, hp_id: %s, symbol info: %s",
+                data.data.config.hp_id,
+                data.data.config.symbol_info,
+            )
             return  # Don't show this in idle/active/archive
+
+        logger.info("After the weird if")
 
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records_sell, hp_id):
@@ -219,6 +227,7 @@ class HpFront(BoxLayout):
         elif self._archived_record_exists_sell(data.data):
             logger.info("Record %s already found in archived records", hp_id)
         else:
+            logger.info("Adding new sell record.")
             self._add_new_record_sell(data.data)
 
         self._log_all_records_sell()
@@ -590,9 +599,6 @@ class HpFront(BoxLayout):
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
                     if symbol == f"{strategy['coin']}USDC":
-                        logger.info(
-                            "Symbol: %s, strategy coin: %s", symbol, strategy["coin"]
-                        )
                         current_price = self.symbols_info[symbol].adjust_price(
                             price=float(ticker["c"])
                         )
@@ -625,7 +631,7 @@ class HpFront(BoxLayout):
         sell_config = HPSellData(
             config=HPSellConfig(
                 hp_id=str(self.ids.hp_id_input.text).strip(),
-                coin=f"{coin}USD",
+                coin=coin,
                 buy_price=float(str(self.ids.buy_price_input.text).strip()),
                 sell_price=float(str(self.ids.sell_price_input.text).strip()),
                 quantity=float(str(self.ids.quantity_input.text).strip()),
@@ -906,6 +912,7 @@ class HpFront(BoxLayout):
             self.filter_records("archive", "All", side="SELL")
 
     def _add_new_record_sell(self, data: HPSellData) -> None:
+        logger.info("Going to add new IdlePositionSell")
         hp_id = str(data.config.hp_id)
 
         if data.state_info.state == State.WAITING_CHILD:
@@ -966,6 +973,7 @@ class HpFront(BoxLayout):
                 ).to_dict()
             )
             self.filter_records("archive", "All", side="SELL")
+        logger.info("New record added to sell")
 
     def _log_all_records_buy(self) -> None:
         logger.info(

@@ -38,6 +38,8 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    Order,
+    SellPosition,
     State,
     StateInfo,
 )
@@ -236,9 +238,10 @@ def trading_system_factory(mock_AsyncClient):
                 ),
                 client=mock_AsyncClient,
                 db=test_database,
-                data=HPSellData(
+                original_position=SellPosition(
                     config=HPSellConfig(symbol_info=SymbolInfo()),
                     state_info=StateInfo(side=PositionSide.SHORT),
+                    sell_order=Order(quantity=0.0),
                 ),
             ),
         )

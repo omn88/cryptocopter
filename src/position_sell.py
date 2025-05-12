@@ -40,13 +40,13 @@ class HPPositionSell:
     def __init__(
         self,
         client: BinanceClient,
-        data: HPSellData,
+        original_position: SellPosition,
         sell_strategy: List[SymbolInfo],
         db: Database,
         price_resolver: UsdPriceResolver,
     ):
         self.client = client
-        self.original_sell_data = data
+        self.original_position = original_position
         self.db = db
         self.sell_strategy = sell_strategy
 
@@ -84,24 +84,24 @@ class HPPositionSell:
     def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
         if not symbol_info.symbol.endswith("USDT"):
             sell_position = SellPosition(
-                config=self.original_sell_data.config,
-                state_info=self.original_sell_data.state_info,
+                config=self.original_position.config,
+                state_info=self.original_position.state_info,
                 sell_order=self._generate_order(
                     symbol_info,
-                    quantity=self.original_sell_data.config.quantity,
-                    price=self.original_sell_data.config.sell_price,
+                    quantity=self.original_position.config.quantity,
+                    price=self.original_position.config.sell_price,
                 ),
                 sell_type=SellType.DIRECT,
             )
             return [sell_position]
 
         sell_position = SellPosition(
-            config=self.original_sell_data.config,
-            state_info=self.original_sell_data.state_info,
+            config=self.original_position.config,
+            state_info=self.original_position.state_info,
             sell_order=self._generate_order(
                 symbol_info,
-                quantity=self.original_sell_data.config.quantity,
-                price=self.original_sell_data.config.sell_price,
+                quantity=self.original_position.config.quantity,
+                price=self.original_position.config.sell_price,
             ),
             sell_type=SellType.CONVERT,
         )
@@ -110,7 +110,7 @@ class HPPositionSell:
     def _build_2hop_positions(
         self, sell_strategy: List[SymbolInfo]
     ) -> List[SellPosition]:
-        original = self.original_sell_data
+        original = self.original_position
         sell_price = original.config.sell_price
         quantity = original.config.quantity
 
@@ -145,14 +145,14 @@ class HPPositionSell:
         sell_positions = [
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=f"{self.original_sell_data.config.hp_id}a",
+                    hp_id=f"{self.original_position.config.hp_id}a",
                     is_child=True,
-                    parent_hp_id=self.original_sell_data.config.hp_id,
+                    parent_hp_id=self.original_position.config.hp_id,
                     symbol_info=leg1_info,
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
-                    coin=self.original_sell_data.config.coin,
-                    buy_price=self.original_sell_data.config.buy_price / leg2_price,
+                    coin=self.original_position.config.coin,
+                    buy_price=self.original_position.config.buy_price / leg2_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -164,9 +164,9 @@ class HPPositionSell:
             ),
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=f"{self.original_sell_data.config.hp_id}b",
+                    hp_id=f"{self.original_position.config.hp_id}b",
                     is_child=True,
-                    parent_hp_id=self.original_sell_data.config.hp_id,
+                    parent_hp_id=self.original_position.config.hp_id,
                     symbol_info=leg2_info,
                     quantity=leg2_quantity,
                     sell_price=leg2_price,

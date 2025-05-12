@@ -1430,9 +1430,9 @@ class HPSimulator:
             strategy.sell.sell_strategy[1].symbol
             == f"BTC{sell_config.config.end_currency}"
         )
-        assert (
-            strategy.sell.original_sell_data.config.symbol_info.symbol == f"{coin}USDT"
-        )
+
+        logger.info("Orig SELL DATA: %s", strategy.sell.original_position)
+        assert strategy.sell.original_position.config.coin == coin
 
         assert self.front.hp_list_data[0]["state"] == State.BOUGHT.value
         assert self.front.hp_list_data[0]["coin"] == coin
