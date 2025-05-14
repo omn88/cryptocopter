@@ -968,6 +968,7 @@ class HpStrategy:
         logger.info("All order filled, archiving position")
 
         self.sell.current_position.state_info.state = State.SOLD
+        self.sell.current_position.state_info.ui_state = UiState.CLOSED
         self.sell.current_position.state_info.completeness = (
             round(
                 self.sell.current_position.sell_order.realized_quantity
@@ -978,9 +979,15 @@ class HpStrategy:
             else 0
         )
 
-        self.sell.current_position.state_info.ui_state = UiState.CLOSED
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
+        if len(self.sell.sell_positions) == 1:
+            self.config_queue.put_nowait(
+                HPClose(
+                    config=self.sell.current_position.config,
+                    state_info=self.sell.current_position.state_info,
+                )
+            )
         if (
             len(self.sell.sell_positions) == 2
             and self.sell.current_position is self.sell.sell_positions[1]

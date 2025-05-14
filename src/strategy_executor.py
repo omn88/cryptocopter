@@ -28,7 +28,7 @@ from src.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
@@ -125,6 +125,8 @@ class StrategyExecutor:
                     await self.remove_record(
                         hp_id=strategy_data.hp_id, side=strategy_data.side
                     )
+                if isinstance(strategy_data, HPClose):
+                    await self.close_position(close_data=strategy_data)
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
@@ -233,6 +235,12 @@ class StrategyExecutor:
         logger.info("Client connection closed.")
         self.thread.join()
         logger.info("Strategy executor thread finished")
+
+    async def close_position(self, close_data: HPClose):
+        self.broker.unsubscribe(system_id=close_data.config.hp_id)
+        strategy = self.strategies[close_data.config.hp_id]
+
+        strategy.stop_event.set()
 
     async def setup_buy_position(
         self,
