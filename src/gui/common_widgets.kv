@@ -436,22 +436,19 @@
         size_hint_x: 0.1
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
 
-
 <RecordListItemArchiveSell@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
     height: '30dp'
 
     open_time: ''
-    system_id: ''
+    close_time: ''
     symbol: ''
     side: ''
     buy_price: ''
     sell_price: ''
     quantity: ''
     end_currency: ''
-    stagnation: ''
-    current_price: ''
     completeness: ''
 
     canvas.before:
@@ -462,13 +459,16 @@
 
     Label:
         text: root.open_time
-        size_hint_x: 0.13
+        size_hint_x: 0.15
+    Label:
+        text: root.close_time
+        size_hint_x: 0.15
     Label:
         text: root.symbol
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.side
-        size_hint_x: 0.05
+        size_hint_x: 0.1
     Label:
         text: root.buy_price
         size_hint_x: 0.1
@@ -477,19 +477,13 @@
         size_hint_x: 0.1
     Label:
         text: root.quantity
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.end_currency
         size_hint_x: 0.1
     Label:
-        text: root.stagnation
-        size_hint_x: 0.08
-    Label:
-        text: root.current_price
-        size_hint_x: 0.1
-    Label:
         text: root.completeness
-        size_hint_x: 0.08
+        size_hint_x: 0.1
 
 <CoinListItem@BoxLayout>:
     orientation: "horizontal"
