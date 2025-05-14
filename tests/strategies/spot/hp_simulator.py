@@ -1277,7 +1277,7 @@ class HPSimulator:
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "SOLD_PART_BOUGHT"
+        assert item["state"] == "SOLD_PART_BOUGHT", item["state"]
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 

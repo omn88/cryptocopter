@@ -898,25 +898,30 @@ class HpFront(BoxLayout):
             self.filter_records("active", "All", side="BUY")
 
         if data.state_info.ui_state == UiState.CLOSED:
-            logger.info("New position added to Archive, system id: %s", hp_id)
-            data.state_info.close_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.archive_records_buy.append(
-                ArchivedPositionBuy(
-                    open_time=data.state_info.open_time,
-                    close_time=data.state_info.close_time,
-                    hp_id=str(data.config.hp_id),
-                    symbol=data.config.symbol_info.symbol,
-                    side=str(data.state_info.side.value),
-                    mode=str(data.config.mode.value),
-                    price_low=str(data.config.price_low),
-                    price_high=str(data.config.price_high),
-                    budget=str(data.config.budget),
-                    order_trigger=str(data.config.order_trigger),
-                    completeness=str(data.state_info.completeness),
-                ).to_dict()
-            )
-            self.filter_records("archive", "All", side="BUY")
-            self.filter_records("archive", "All", side="SELL")
+            if data.config.hp_id not in [
+                item["hp_id"] for item in self.archive_records_buy
+            ]:
+                logger.info("New position added to Archive, system id: %s", hp_id)
+                data.state_info.close_time = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                self.archive_records_buy.append(
+                    ArchivedPositionBuy(
+                        open_time=data.state_info.open_time,
+                        close_time=data.state_info.close_time,
+                        hp_id=str(data.config.hp_id),
+                        symbol=data.config.symbol_info.symbol,
+                        side=str(data.state_info.side.value),
+                        mode=str(data.config.mode.value),
+                        price_low=str(data.config.price_low),
+                        price_high=str(data.config.price_high),
+                        budget=str(data.config.budget),
+                        order_trigger=str(data.config.order_trigger),
+                        completeness=str(data.state_info.completeness),
+                    ).to_dict()
+                )
+                self.filter_records("archive", "All", side="BUY")
+                self.filter_records("archive", "All", side="SELL")
 
     def _add_new_record_sell(self, data: HPSellData) -> None:
         logger.info("Going to add new IdlePositionSell")
