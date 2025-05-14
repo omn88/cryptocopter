@@ -581,14 +581,31 @@ class StrategyExecutor:
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
-                rlzd_qty = strategy.sell.current_position.sell_order.realized_quantity
-                order_qty = strategy.sell.current_position.sell_order.quantity
+                sell_rlzd_qty = (
+                    strategy.sell.current_position.sell_order.realized_quantity
+                )
+                sell_order_qty = strategy.sell.current_position.sell_order.quantity
+                fully_bought = all(
+                    order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+                )
                 await sell.cancel_remaining_order()
                 strategy.state = (
-                    State.BOUGHT
-                    if not rlzd_qty
+                    State.PARTIALLY_BOUGHT
+                    if not fully_bought
+                    else State.BOUGHT
+                    if fully_bought and not sell_rlzd_qty
                     else State.PARTIALLY_SOLD
-                    if rlzd_qty != order_qty
+                    if (
+                        fully_bought
+                        and sell_order_qty
+                        and sell_rlzd_qty != sell_order_qty
+                    )
+                    else State.PART_SOLD_PART_BOUGHT
+                    if (
+                        not fully_bought
+                        and sell_order_qty
+                        and sell_rlzd_qty != sell_order_qty
+                    )
                     else State.SOLD
                 )
 
@@ -596,7 +613,7 @@ class StrategyExecutor:
                 #     self.db.upsert_order(
                 #         order=sell.current_position.sell_order, hp_id=hp_id, side=side
                 #     )
-            # sell.current_position.config.sell_price = 0.0
+            sell.current_position.config.sell_price = 0.0
             sell.current_position.state_info.ui_state = UiState.CLOSED
             sell.current_position.state_info.completeness = round(
                 sell.current_position.sell_order.realized_quantity
