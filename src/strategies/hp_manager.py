@@ -421,6 +421,7 @@ class HpStrategy:
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
+            symbol_info=symbol_info,
             quantity=quantity,
             quantity_usd=quantity_usd,
             buy_price=buy_price,

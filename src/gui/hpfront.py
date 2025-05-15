@@ -237,6 +237,7 @@ class HpFront(BoxLayout):
     def update_hp_list(self, update: HPUpdate, hp_list: List[Dict]) -> List[Dict]:
         hp_id = update.hp_id
         is_child = hp_id[-1].isalpha()  # True if ends with 'a', 'b', etc.
+        is_parent = not is_child
         parent_id = hp_id[:-1] if is_child else hp_id
 
         hp_map: Dict[str, Dict] = {}
@@ -248,15 +249,17 @@ class HpFront(BoxLayout):
         # Prepare record
         new_record = {
             "hp_id": hp_id,
-            "coin": update.coin,
-            "buy_price": str(update.buy_price)
+            "coin": f"{update.coin}USD" if is_parent else update.symbol_info.symbol,
+            "buy_price": str(update.symbol_info.adjust_price(update.buy_price))
             if update.buy_price is not None
             else "0.0",
-            "quantity": str(update.quantity) if update.quantity is not None else "0.0",
+            "quantity": str(update.symbol_info.adjust_quantity(update.quantity))
+            if update.quantity is not None
+            else "0.0",
             "quantity_usd": str(update.quantity_usd)
             if update.quantity_usd is not None
             else "0.0",
-            "sell_price": str(update.sell_price)
+            "sell_price": str(update.symbol_info.adjust_price(update.sell_price))
             if update.sell_price is not None
             else "0.0",
             "expected_return": str(update.expected_return)
@@ -600,7 +603,7 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
-                    if symbol == f"{strategy['coin']}USDC":
+                    if symbol == (strategy["coin"] or f"{strategy['coin']}C"):
                         current_price = self.symbols_info[symbol].adjust_price(
                             price=float(ticker["c"])
                         )
@@ -629,6 +632,7 @@ class HpFront(BoxLayout):
             return
 
         coin = str(self.ids.coin_input.text).strip().upper()
+        coin = coin[:-3] if coin.endswith("USD") else coin
 
         sell_config = HPSellData(
             config=HPSellConfig(
@@ -667,7 +671,7 @@ class HpFront(BoxLayout):
 
         # Populate the fields in the Sell tab
         self.ids.hp_id_input.text = str(hp_id)
-        self.ids.coin_input.text = str(coin)
+        self.ids.coin_input.text = str(coin[:-3] if coin.endswith("USD") else coin)
         self.ids.quantity_input.text = str(quantity)
         # self.ids.quantity_usd_label.text = str(
         #     round(float(quantity) * float(buy_price), 2)
@@ -691,6 +695,7 @@ class HpFront(BoxLayout):
         )
 
     def cancel_sell(self, hp_id: str, coin: str):
+        coin = coin[:-3] if coin.endswith("USD") else coin
         config = HPSellConfig(hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"])
         state_info = StateInfo(
             side=PositionSide.SHORT, ui_state=UiState.CLOSED, state=State.CLOSED
@@ -722,7 +727,11 @@ class HpFront(BoxLayout):
                 if int(item["hp_id"]) == int(hp_id):
                     # Populate the fields in the Sell tab
                     self.ids.hp_id_input.text = str(hp_id)
-                    self.ids.coin_input.text = item["coin"]
+                    self.ids.coin_input.text = (
+                        item["coin"][:-3]
+                        if item["coin"].endswith("USD")
+                        else item["coin"]
+                    )
                     self.ids.quantity_input.text = item["quantity"]
                     self.ids.buy_price_input.text = item["buy_price"]
 

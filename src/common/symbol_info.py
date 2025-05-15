@@ -30,6 +30,14 @@ class SymbolInfo:
             f"price_precision={self.price_precision})"
         )
 
+    # def format_price_for_display(self, price: float) -> str:
+    #     adjusted_price = self.adjust_price(price)
+    #     return f"{adjusted_price:.{self.price_precision}f}"
+
+    # def format_quantity_for_display(self, quantity: float) -> str:
+    #     adjusted_quantity = self.adjust_quantity(quantity)
+    #     return f"{adjusted_quantity:.{self.precision}f}"
+
     def adjust_quantity(self, quantity: float) -> float:
         return round(quantity, self.precision)
 

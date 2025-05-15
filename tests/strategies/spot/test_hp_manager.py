@@ -451,7 +451,7 @@ async def test_stagnation_counter_increase_buy(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -607,7 +607,7 @@ async def test_sell_orders_stagnation_increase(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -695,7 +695,7 @@ async def test_resend_unfilled_sell_orders(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -777,7 +777,7 @@ async def test_sell_position_first_order_filled(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -822,7 +822,7 @@ async def test_sell_position_first_order_filled(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -1230,7 +1230,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -1299,7 +1299,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1326.32"
     assert item["quantity"] == "0.26"
     assert item["quantity_usd"] == "344.84"
@@ -1388,7 +1388,7 @@ async def test_buy_fully_partially_sold_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -1503,7 +1503,7 @@ async def test_sell_fully_partially_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -1557,7 +1557,7 @@ async def test_sell_fully_partially_bought_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -1645,7 +1645,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
@@ -1699,7 +1699,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert len(hp_list) == 1
     item = hp_list[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"

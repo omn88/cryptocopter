@@ -339,6 +339,7 @@ class StrategyExecutor:
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
                     coin=config.coin,
+                    symbol_info=config.symbol_info,
                     state=state,
                     buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
@@ -365,6 +366,7 @@ class StrategyExecutor:
                     buy_price=config.buy_price,
                     sell_price=config.sell_price,
                     coin=config.coin,
+                    symbol_info=config.symbol_info,
                     state=state,
                     quantity=config.quantity,
                     quantity_usd=quantity_usd,

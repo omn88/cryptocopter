@@ -117,7 +117,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
         "BTCUSDT": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=2),
+        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
     }
@@ -253,6 +253,7 @@ def trading_system_factory(mock_AsyncClient):
             hp_update=HPUpdate(
                 hp_id=hp_config.hp_id,
                 coin=hp_config.coin,
+                symbol_info=hp_config.symbol_info,
                 state=State.NEW,
                 buy_price=hp_config.price_high,
             ),
