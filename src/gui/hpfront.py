@@ -603,16 +603,19 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
-                    if symbol == (strategy["coin"] or f"{strategy['coin']}C"):
-                        current_price = self.symbols_info[symbol].adjust_price(
+                    if symbol == (strategy["coin"] or f"{strategy['coin']}T"):
+                        current_price = self.symbols_info[symbol].format_price(
                             price=float(ticker["c"])
                         )
-                        strategy["current_price"] = str(current_price)
+                        strategy["current_price"] = current_price
 
                         if float(strategy["buy_price"]):
                             net_percent = round(
                                 100
-                                * (current_price / float(strategy["buy_price"]) - 1),
+                                * (
+                                    float(current_price) / float(strategy["buy_price"])
+                                    - 1
+                                ),
                                 2,
                             )
                             strategy["net"] = str(
