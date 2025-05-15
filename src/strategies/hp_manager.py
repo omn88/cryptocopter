@@ -471,7 +471,11 @@ class HpStrategy:
             )
             * (1 + (self.buy.data.config.order_trigger / 100))
         )
-        logger.info("Calculated price for trigger send orders price buy: %s, config: %s", price, self.buy.data.config)
+        logger.info(
+            "Calculated price for trigger send orders price buy: %s, config: %s",
+            price,
+            self.buy.data.config,
+        )
         return price
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:

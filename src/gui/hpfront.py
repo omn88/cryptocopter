@@ -250,16 +250,16 @@ class HpFront(BoxLayout):
         new_record = {
             "hp_id": hp_id,
             "coin": f"{update.coin}USD" if is_parent else update.symbol_info.symbol,
-            "buy_price": str(update.symbol_info.adjust_price(update.buy_price))
+            "buy_price": str(update.symbol_info.format_price(update.buy_price))
             if update.buy_price is not None
             else "0.0",
-            "quantity": str(update.symbol_info.adjust_quantity(update.quantity))
+            "quantity": str(update.symbol_info.format_quantity(update.quantity))
             if update.quantity is not None
             else "0.0",
             "quantity_usd": str(update.quantity_usd)
             if update.quantity_usd is not None
             else "0.0",
-            "sell_price": str(update.symbol_info.adjust_price(update.sell_price))
+            "sell_price": str(update.symbol_info.format_price(update.sell_price))
             if update.sell_price is not None
             else "0.0",
             "expected_return": str(update.expected_return)

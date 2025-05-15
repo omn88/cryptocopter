@@ -1520,10 +1520,10 @@ class HPSimulator:
         item = self.front.hp_list_data[1]
         assert item["hp_id"] == "1000a"
         assert item["coin"] == "AXLBTC"
-        assert item["buy_price"] == "9.2e-07", f"buy price: {item['buy_price']}"
+        assert item["buy_price"] == "0.00000092", f"buy price: {item['buy_price']}"
         assert item["quantity"] == "500.0"
         assert item["quantity_usd"] == "0.0004575"
-        assert item["sell_price"] == "3.56e-06", f"Sell price: {item['sell_price']}"
+        assert item["sell_price"] == "0.00000356", f"Sell price: {item['sell_price']}"
         assert item["expected_return"] == "0.002645"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
