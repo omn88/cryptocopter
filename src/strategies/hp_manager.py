@@ -463,7 +463,7 @@ class HpStrategy:
         logger.info("Send HPGuiDataSell to UI: %s", data)
 
     def calculate_trigger_send_orders_price_buy(self):
-        return self.buy.data.config.symbol_info.adjust_price(
+        price = self.buy.data.config.symbol_info.adjust_price(
             max(
                 order.price
                 for order in self.buy.orders
@@ -471,6 +471,8 @@ class HpStrategy:
             )
             * (1 + (self.buy.data.config.order_trigger / 100))
         )
+        logger.info("Calculated price for trigger send orders price buy: %s, config: %s", price, self.buy.data.config)
+        return price
 
     def get_remaining_quantity_buy(self, *args, **kwargs) -> float:
         rem_quant = 0.0
@@ -505,9 +507,12 @@ class HpStrategy:
                 trigger_send_orders_price,
                 self.ticker_update.last_price,
             )
+        if self.balance < self.buy.data.config.budget:
+            logger.warning("Ni mo hajsu")
         # logger.info(
-        #     "[Send buy orders] %s, side: %s, state: %s, budget: %s, balance: %s "
+        #     "[Send buy orders]: %s, %s, side: %s, state: %s, budget: %s, balance: %s "
         #     "price trigger: %s last price: %s",
+        #     condition,
         #     self.buy.data.config.symbol_info.symbol,
         #     self.buy.data.state_info.side,
         #     self.state,
