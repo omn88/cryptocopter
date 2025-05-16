@@ -544,6 +544,7 @@
     sell_price: ''
     expected_return: ''
     state: ''
+    is_child: False
 
     Label:
         text: root.hp_id
@@ -607,4 +608,4 @@
         on_release:
             if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
             else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
-        disabled: root.state == "SOLD"
+        disabled: root.is_child or root.state == "SOLD"

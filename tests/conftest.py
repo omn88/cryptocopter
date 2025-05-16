@@ -127,6 +127,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
         client=mock_AsyncClient, symbols_info=symbols_info
     )
     price_resolver.latest_prices["BTCPLN"] = 320000.0
+    price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,
@@ -280,6 +281,8 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         price_resolver = UsdPriceResolver(
             client=mock_AsyncClient, symbols_info=symbols_info
         )
+        price_resolver.latest_prices["BTCPLN"] = 320000.0
+        price_resolver.latest_prices["BTCUSDC"] = 100000.0
         gui = HpFront(
             client=mock_AsyncClient,
             strategy_id="test_strategy",

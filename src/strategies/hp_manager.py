@@ -431,6 +431,7 @@ class HpStrategy:
             net_percent=net_percent,
             state=self.state,
             expected_return=expected_return,
+            is_child=self.sell.current_position.config.is_child,
         )
 
         logger.info("HP Update: %s", hp_update)

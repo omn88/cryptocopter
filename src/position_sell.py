@@ -22,7 +22,6 @@ from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
     HPSellConfig,
-    HPSellData,
     Order,
     SellPosition,
     SellType,

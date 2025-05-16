@@ -1522,7 +1522,7 @@ class HPSimulator:
         assert item["coin"] == "AXLBTC"
         assert item["buy_price"] == "0.00000092", f"buy price: {item['buy_price']}"
         assert item["quantity"] == "500.0"
-        assert item["quantity_usd"] == "0.0004575"
+        assert item["quantity_usd"] == "45.75"
         assert item["sell_price"] == "0.00000356", f"Sell price: {item['sell_price']}"
         assert item["expected_return"] == "0.002645"
         assert item["current_price"] == "0.0"

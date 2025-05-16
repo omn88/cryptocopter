@@ -18,6 +18,7 @@ class HPUpdate:
     net: Optional[float] = None
     net_percent: Optional[float] = None
     state: State = State.NONE
+    is_child: bool = False
 
 
 @dataclass
