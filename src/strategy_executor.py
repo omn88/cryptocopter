@@ -280,6 +280,8 @@ class StrategyExecutor:
                 db=self.db,
                 sell_strategy=[],
                 price_resolver=self.price_resolver,
+                broker=self.broker,
+                worker_queue=worker_queue,
             ),
         )
 
@@ -394,6 +396,8 @@ class StrategyExecutor:
                 db=self.db,
                 sell_strategy=sell_strategy,
                 price_resolver=self.price_resolver,
+                broker=self.broker,
+                worker_queue=strategy.worker_queue,
             )
             logger.info("New sell position: %s", strategy.sell)
             logger.info("Current position: %s", strategy.sell.current_position)
@@ -451,6 +455,8 @@ class StrategyExecutor:
                 db=self.db,
                 sell_strategy=sell_strategy,
                 price_resolver=self.price_resolver,
+                broker=self.broker,
+                worker_queue=worker_queue,
             ),
             balance=self.balances["USDC"],
             db=self.db,

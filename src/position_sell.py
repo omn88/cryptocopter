@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import queue
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -15,6 +16,7 @@ from binance.exceptions import (
     BinanceRequestException,
 )
 
+from src.broker import BrokerSpot
 from src.identifiers.common import BinanceClient, PositionSide
 from src.common.symbol_info import SymbolInfo
 
@@ -27,6 +29,9 @@ from src.identifiers.spot import (
     SellType,
     State,
     StateInfo,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
     UiState,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -43,13 +48,16 @@ class HPPositionSell:
         sell_strategy: List[SymbolInfo],
         db: Database,
         price_resolver: UsdPriceResolver,
+        broker: BrokerSpot,
+        worker_queue: queue.Queue,
     ):
         self.client = client
         self.original_position = original_position
         self.db = db
         self.sell_strategy = sell_strategy
-
+        self.broker = broker
         self.price_resolver = price_resolver
+        self.worker_queue = worker_queue
 
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
@@ -68,6 +76,17 @@ class HPPositionSell:
 
         if self.sell_positions:
             self.current_position = self.sell_positions[0]
+
+        for position in self.sell_positions:
+            self.broker.subscribe(
+                system_id=self.original_position.config.hp_id,
+                subscription_info=SubscriptionInfo(
+                    data_type=SubscriptionType.PRICE,
+                    symbol=position.config.symbol_info.symbol,
+                    target=SubscriptionTarget.BACKEND,
+                    queue=self.worker_queue,
+                ),
+            )
 
     def _build_sell_positions(self) -> None:
         if not self.sell_strategy:

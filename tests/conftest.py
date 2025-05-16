@@ -244,6 +244,8 @@ def trading_system_factory(mock_AsyncClient):
                     state_info=StateInfo(side=PositionSide.SHORT),
                     sell_order=Order(quantity=0.0),
                 ),
+                broker=MagicMock(),
+                worker_queue=queue.Queue(),
             ),
         )
         hp_config.hp_id = generate_hp_id(hp_list=[])

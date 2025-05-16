@@ -1533,6 +1533,8 @@ async def send_sell_order_for_partially_bought_position(
         db=strategy.db,
         sell_strategy=[config.symbol_info],
         price_resolver=strategy.sell.price_resolver,
+        broker=strategy.sell.broker,
+        worker_queue=strategy.worker_queue,
     )
 
     strategy.client.create_order.side_effect = get_new_orders(
@@ -1895,6 +1897,8 @@ async def send_sell_order_for_bought_position(
         db=strategy.db,
         sell_strategy=[config.symbol_info],
         price_resolver=strategy.sell.price_resolver,
+        broker=strategy.sell.broker,
+        worker_queue=strategy.worker_queue,
     )
 
     strategy.client.create_order.side_effect = get_new_orders(
@@ -1999,6 +2003,8 @@ async def simulate_move_to_sell_from_partially_bought_position(
         db=strategy.db,
         sell_strategy=[config.symbol_info],
         price_resolver=strategy.sell.price_resolver,
+        broker=strategy.sell.broker,
+        worker_queue=strategy.worker_queue,
     )
 
     assert strategy.sell.current_position.config.hp_id == "1000"
@@ -2066,6 +2072,8 @@ async def move_to_sell_position_active(strategy: HpStrategy) -> HpStrategy:
         db=strategy.db,
         sell_strategy=[config.symbol_info],
         price_resolver=strategy.sell.price_resolver,
+        broker=strategy.sell.broker,
+        worker_queue=strategy.worker_queue,
     )
 
     strategy.client.create_order.side_effect = get_sell_order(

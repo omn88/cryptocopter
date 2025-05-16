@@ -1478,6 +1478,7 @@ class HPSimulator:
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         await wait_for_condition(condition_func=lambda: self.front.active_records_sell)
+        logger.info("idle records sell: %s", self.front.idle_records_sell)
         await wait_for_condition(
             condition_func=lambda: not self.front.idle_records_sell
         )

@@ -208,11 +208,9 @@ class HpFront(BoxLayout):
 
         hp_id = str(data.data.config.hp_id)
 
-        logger.info("Before weird if")
+        # logger.info("Before weird if")
 
-        if not data.data.config.hp_id.endswith(
-            ("a", "b")
-        ) and data.data.config.symbol_info.symbol.endswith("USDT"):
+        if data.data.config.symbol_info.symbol.endswith("USDT"):
             logger.info(
                 "Going to return in the if, hp_id: %s, symbol info: %s",
                 data.data.config.hp_id,
@@ -220,7 +218,7 @@ class HpFront(BoxLayout):
             )
             return  # Don't show this in idle/active/archive
 
-        logger.info("After the weird if")
+        # logger.info("After the weird if")
 
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records_sell, hp_id):
