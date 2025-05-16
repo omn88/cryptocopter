@@ -271,18 +271,24 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
+        symbols_info = {
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        }
 
+        # Create the StrategyExecutor instance
+        price_resolver = UsdPriceResolver(
+            client=mock_AsyncClient, symbols_info=symbols_info
+        )
         gui = HpFront(
             client=mock_AsyncClient,
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=MagicMock(),
             ui_queue=queue.Queue(),
-            symbols_info={
-                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-                "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-            },
+            symbols_info=symbols_info,
             test_mode=True,
+            price_resolver=price_resolver,
         )
 
         gui.initialize()
