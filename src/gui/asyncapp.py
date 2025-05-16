@@ -203,6 +203,7 @@ class AsyncApp(App):
             config_queue=back_end.config_queue,
             db=self.db,
             ui_queue=ui_queue,
+            price_resolver=self.price_resolver,
         )
 
         front_end.initialize()

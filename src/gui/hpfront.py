@@ -45,6 +45,7 @@ from src.gui.identifiers.spot import (
     IdlePositionSell,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 
 logger = logging.getLogger("HPFront")
@@ -85,6 +86,7 @@ class HpFront(BoxLayout):
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
         db: Database,
+        price_resolver: UsdPriceResolver,
         test_mode=False,
         **kwargs,
     ):
@@ -106,6 +108,7 @@ class HpFront(BoxLayout):
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
+        self.price_resolver = price_resolver
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             self.symbol_input = SearchableDropDown(
@@ -246,6 +249,14 @@ class HpFront(BoxLayout):
         # Create a map for fast lookup
         hp_map = {item["hp_id"]: item for item in hp_list}
 
+        quantity_usd = (
+            update.symbol_info.format_price(update.quantity_usd * self.price_resolver.latest_prices["BTCUSDC"])
+            if update.quantity_usd is not None and update.symbol_info.symbol.endswith("BTC")
+            else update.symbol_info.format_price(update.quantity_usd)
+            if update.quantity_usd is not None
+            else "0.0"
+        )
+
         # Prepare record
         new_record = {
             "hp_id": hp_id,
@@ -256,9 +267,7 @@ class HpFront(BoxLayout):
             "quantity": str(update.symbol_info.format_quantity(update.quantity))
             if update.quantity is not None
             else "0.0",
-            "quantity_usd": str(update.quantity_usd)
-            if update.quantity_usd is not None
-            else "0.0",
+            "quantity_usd": quantity_usd,
             "sell_price": str(update.symbol_info.format_price(update.sell_price))
             if update.sell_price is not None
             else "0.0",
