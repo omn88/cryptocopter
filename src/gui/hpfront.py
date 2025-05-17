@@ -197,7 +197,7 @@ class HpFront(BoxLayout):
         self._log_all_records_buy()
 
     async def _process_sell_position_data(self, data: HPGuiDataSell) -> None:
-        logger.info("UI received SELL position data")
+        logger.info("UI received SELL position data: %s", data)
 
         # Update the HP list and DB
         self.hp_list_data = self.update_hp_list(
@@ -371,7 +371,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.archive_records_buy.append(archived_position.to_dict())
-                    logger.info("Archiving price level: %s", archived_position)
+                    logger.info("Archiving price level(%s): %s", data.config.hp_id, archived_position)
 
                 if data.state_info.ui_state == UiState.STAGNATED:
                     trigger_price = data.config.symbol_info.adjust_price(
@@ -399,7 +399,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.idle_records_buy.append(idle_position.to_dict())
-                    logger.info("Price level stagnated: %s", idle_position)
+                    logger.info("Price level stagnated(%s): %s", data.config.hp_id, idle_position)
         self.filter_records("active", "All", side="BUY")
         self.filter_records("idle", "All", side="BUY")
         self.filter_records("archive", "All", side="BUY")
@@ -439,7 +439,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.archive_records_sell.append(archived_position.to_dict())
-                    logger.info("Archiving price level: %s", archived_position)
+                    logger.info("Archiving price level(%s): %s", data.config.hp_id, archived_position)
 
                 if data.state_info.ui_state == UiState.STAGNATED:
                     self.active_records_sell.remove(position)
@@ -456,7 +456,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.idle_records_sell.append(idle_position.to_dict())
-                    logger.info("Price level stagnated: %s", idle_position)
+                    logger.info("Price level stagnated(%s): %s", data.config.hp_id, idle_position)
 
         self.filter_records("active", "All", side="SELL")
         self.filter_records("idle", "All", side="SELL")
@@ -508,7 +508,7 @@ class HpFront(BoxLayout):
                         state=str(data.state_info.ui_state),
                     )
                     self.active_records_buy.append(active_position.to_dict())
-                    logger.info("Activating price level: %s", active_position)
+                    logger.info("Activating price level(%s): %s", data.config.hp_id, active_position)
                 if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
@@ -528,7 +528,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.archive_records_buy.append(archived_position.to_dict())
-                    logger.info("Archiving price level: %s", archived_position)
+                    logger.info("Archiving price level(%s): %s", data.config.hp_id, archived_position)
 
         self.filter_records("active", "All", side="BUY")
         self.filter_records("idle", "All", side="BUY")
@@ -570,7 +570,7 @@ class HpFront(BoxLayout):
                         state=str(data.state_info.ui_state),
                     )
                     self.active_records_sell.append(active_position.to_dict())
-                    logger.info("Activating price level: %s", active_position)
+                    logger.info("Activating price level(%s): %s", data.config.hp_id, active_position)
                 if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
@@ -589,7 +589,7 @@ class HpFront(BoxLayout):
                         completeness=str(data.state_info.completeness),
                     )
                     self.archive_records_sell.append(archived_position.to_dict())
-                    logger.info("Archiving price level: %s", archived_position)
+                    logger.info("Archiving price level(%s): %s", data.config.hp_id, archived_position)
 
         self.filter_records("active", "All", side="SELL")
         self.filter_records("idle", "All", side="SELL")
@@ -1290,10 +1290,10 @@ class HpFront(BoxLayout):
             )
         )
         row1.add_widget(
-            self._create_labeled_input_with_hint("coin:", "coin_input", "BTC")
+            self._create_labeled_input_with_hint("coin:", "coin_input", "", "AXL")
         )
         row1.add_widget(
-            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
+            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "", "10.0")
         )
 
         # **Row 2: Buy Price, Sell Price, End Currency**
@@ -1305,11 +1305,11 @@ class HpFront(BoxLayout):
             padding=[10, 0, 10, 0],
         )
         row2.add_widget(
-            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
+            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "", "0.28")
         )
         row2.add_widget(
             self._create_labeled_input_with_hint(
-                "Sell Price:", "sell_price_input", "0.0"
+                "Sell Price:", "sell_price_input", "", "1.14"
             )
         )
         row2.add_widget(
@@ -1331,7 +1331,7 @@ class HpFront(BoxLayout):
         self.ids.dynamic_sell_container.do_layout()
 
     def _create_labeled_input_with_hint(
-        self, label_text, input_name, hint_text, editable=True
+        self, label_text, input_name, hint_text, default_text="", editable=True
     ):
         """Creates a label with a TextInput that stays aligned towards the top."""
         box = BoxLayout(orientation="vertical", spacing=4, size_hint_x=0.33)
@@ -1340,10 +1340,11 @@ class HpFront(BoxLayout):
         label.bind(size=label.setter("text_size"))
 
         input_widget = TextInput(
+            text=default_text,
             size_hint_y=0.6,
             multiline=False,
             hint_text=hint_text,
-            foreground_color=(0, 0, 0, 1),  # **Black font color**
+            foreground_color=(0, 0, 0, 1),
             hint_text_color=(0.6, 0.6, 0.6, 1),
             padding=[8, 5, 8, 5],
             disabled=not editable,
