@@ -996,7 +996,7 @@ class HpFront(BoxLayout):
                     completeness=str(data.state_info.completeness),
                 ).to_dict()
             )
-        self.filter_records("idle", "All", side="BUY")
+        self.filter_records("idle", "All", side="SELL")
         if data.state_info.ui_state == UiState.OPEN:
             logger.info("New position added to Active, system id: %s", hp_id)
             self.active_records_sell.append(
@@ -1014,7 +1014,7 @@ class HpFront(BoxLayout):
                     state=str(data.state_info.ui_state),
                 ).to_dict()
             )
-            self.filter_records("active", "All", side="BUY")
+            self.filter_records("active", "All", side="SELL")
 
         if data.state_info.ui_state == UiState.CLOSED:
             logger.info("New position added to Archive, system id: %s", hp_id)
