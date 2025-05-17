@@ -831,13 +831,14 @@ class HpStrategy:
                 self.sell.current_position.state_info.state,
             )
         logger.info(
-            "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker symbol: %s, orig sell data symbol: %s",
+            "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker price: %s, ticker symbol: %s, orig sell data symbol: %s",
             condition,
             self.sell.current_position.config.hp_id,
             self.sell.current_position.config.symbol_info.symbol,
             self.sell.current_position.state_info.side,
             self.sell.current_position.state_info.state,
             trig_ord_price,
+            self.ticker_update.last_price,
             self.ticker_update.symbol,
             self.sell.original_position.config.symbol_info.symbol,
         )

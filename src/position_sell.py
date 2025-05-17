@@ -77,16 +77,26 @@ class HPPositionSell:
         if self.sell_positions:
             self.current_position = self.sell_positions[0]
 
-        for position in self.sell_positions:
-            self.broker.subscribe(
-                system_id=self.original_position.config.hp_id,
-                subscription_info=SubscriptionInfo(
-                    data_type=SubscriptionType.PRICE,
-                    symbol=position.config.symbol_info.symbol,
-                    target=SubscriptionTarget.BACKEND,
-                    queue=self.worker_queue,
-                ),
-            )
+        if len(self.sell_positions) == 2:
+            for position in self.sell_positions:
+                self.broker.subscribe(
+                    system_id=self.original_position.config.hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=position.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=self.worker_queue,
+                    ),
+                )
+        self.broker.subscribe(
+            system_id=self.original_position.config.hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=self.original_position.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=self.worker_queue,
+            ),
+        )
 
     def _build_sell_positions(self) -> None:
         if not self.sell_strategy:
