@@ -30,12 +30,6 @@ class SymbolInfo:
             f"price_precision={self.price_precision})"
         )
 
-    # def format_price(self, price: float) -> str:
-    #     return f"{price:.{self.price_precision}f}"
-
-    # def format_quantity(self, quantity: float) -> str:
-    #     return f"{quantity:.{self.precision}f}"
-
     def format_price(self, price: float) -> str:
         if price == 0:
             return "0.0"
