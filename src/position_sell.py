@@ -405,11 +405,13 @@ class HPPositionSell:
         last_exception = None
         for _ in range(max_retries):
             try:
-                price = symbol_info.adjust_price(order.price)
+                price = symbol_info.format_price(order.price)
+
                 quantity = symbol_info.adjust_quantity(
                     order.quantity - order.realized_quantity
                 )
-                symbol_info.validate_order(price=price, quantity=quantity)
+                symbol_info.validate_order(price=float(price), quantity=quantity)
+
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
