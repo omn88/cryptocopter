@@ -640,7 +640,7 @@ class HpFront(BoxLayout):
                 symbol = ticker.get("s")
                 if symbol == strategy["symbol"]:
                     strategy["current_price"] = str(
-                        self.symbols_info[symbol].format_price(price=float(ticker["c"]))
+                        self.symbols_info[symbol].adjust_price(price=float(ticker["c"]))
                     )
 
         for strategy in self.hp_list_data:

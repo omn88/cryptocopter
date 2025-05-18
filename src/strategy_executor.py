@@ -630,6 +630,13 @@ class StrategyExecutor:
                 #         order=sell.current_position.sell_order, hp_id=hp_id, side=side
                 #     )
             sell.current_position.config.sell_price = 0.0
+            if sell.current_position.config.is_child:
+                sell.original_position.config.sell_price = 0.0
+                self.send_sell_position_to_ui(
+                    config=strategy.sell.original_position.config,
+                    state_info=strategy.sell.original_position.state_info,
+                    state=strategy.state,
+                )
             sell.current_position.state_info.ui_state = UiState.CLOSED
             sell.current_position.state_info.completeness = round(
                 sell.current_position.sell_order.realized_quantity

@@ -1704,7 +1704,7 @@ class HPSimulator:
 
         item = self.front.hp_list_data[2]
         assert item["hp_id"] == "1000b"
-        assert item["coin"] == "BTCPLN"
+        assert item["coin"] == "BTCPLN", item["coin"]
         assert item["quantity"] == "0.0", f"quantity to: {item['quantity']}"
         assert item["buy_price"] == "320000.0", f"buy price to: {item['buy_price']}"
         assert item["quantity_usd"] == "0.0"
