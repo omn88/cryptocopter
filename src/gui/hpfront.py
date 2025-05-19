@@ -230,7 +230,6 @@ class HpFront(BoxLayout):
         elif self._archived_record_exists_sell(data.data):
             logger.info("Record %s already found in archived records", hp_id)
         else:
-            logger.info("Adding new sell record.")
             self._add_new_record_sell(data.data)
 
         self._log_all_records_sell()
@@ -498,7 +497,7 @@ class HpFront(BoxLayout):
                 ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
-                logger.info("Data state: %s", data.state_info.ui_state)
+                # logger.info("Data state: %s", data.state_info.ui_state)
                 if data.state_info.ui_state == UiState.OPEN:
                     self.idle_records_buy.remove(position)
                     cancel_price = data.config.symbol_info.adjust_price(
@@ -579,7 +578,7 @@ class HpFront(BoxLayout):
                 ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
-                logger.info("Data state: %s", data.state_info.ui_state)
+                # logger.info("Data state: %s", data.state_info.ui_state)
                 if data.state_info.ui_state == UiState.OPEN:
                     self.idle_records_sell.remove(position)
                     active_position = ActivePositionSell(

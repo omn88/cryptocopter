@@ -381,7 +381,7 @@ class HpStrategy:
         else:
             buy_price = self.sell.current_position.config.buy_price
 
-        logger.info("BUY PRICE: %s", buy_price)
+        # logger.info("BUY PRICE: %s", buy_price)
 
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
         quantity_usd = symbol_info.adjust_price(
@@ -718,10 +718,9 @@ class HpStrategy:
         )
 
         await self.sell.open_position()
+
         self.state = State.SELLING
-
         self.sell.current_position.state_info.generate_next_monitor_time()
-
         self.sell.current_position.state_info.completeness = (
             round(
                 self.sell.current_position.sell_order.realized_quantity
@@ -742,6 +741,17 @@ class HpStrategy:
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
         self.send_sell_position_to_ui()
+
+        if self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED:
+            self.sell.current_position.state_info.state = State.SOLD
+            self.sell.current_position.state_info.ui_state = UiState.CLOSED
+            self.sell.current_position.state_info.completeness = 1.0
+
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            logger.info("All SELL orders filled, sending: %s", signal)
+            self.worker_queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
@@ -1008,12 +1018,13 @@ class HpStrategy:
             len(self.sell.sell_positions) == 2
             and self.sell.current_position is self.sell.sell_positions[1]
         ):
-            self.state = State.SOLD
-            self.send_sell_position_to_ui()
+            self.sell.original_position.state_info.state = State.SOLD
+            self.sell.original_position.sell_order.status = ORDER_STATUS_FILLED
+            self.sell.original_position.state_info.completeness = 1.0
+            # self.send_sell_position_to_ui()
 
-            logger.info("NOW GOING TO UPDATE MAIN POSITION")
             self.sell.current_position = SellPosition(
-                sell_order=Order(quantity=0, status=ORDER_STATUS_FILLED),
+                sell_order=self.sell.original_position.sell_order,
                 config=self.sell.original_position.config,
                 state_info=self.sell.original_position.state_info,
             )
@@ -1028,6 +1039,13 @@ class HpStrategy:
             )
             self.ui_queue.put_nowait(data)
             logger.info("Send HPGuiDataSell to UI: %s", data)
+
+            self.config_queue.put_nowait(
+                HPClose(
+                    config=self.sell.current_position.config,
+                    state_info=self.sell.current_position.state_info,
+                )
+            )
         if (
             len(self.sell.sell_positions) == 2
             and self.sell.current_position is self.sell.sell_positions[0]

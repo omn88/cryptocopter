@@ -88,6 +88,15 @@ class HPPositionSell:
                         queue=self.worker_queue,
                     ),
                 )
+                self.broker.subscribe(
+                    system_id=self.original_position.config.hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.USER,
+                        symbol=position.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=self.worker_queue,
+                    ),
+                )
         self.broker.subscribe(
             system_id=self.original_position.config.hp_id,
             subscription_info=SubscriptionInfo(
@@ -250,11 +259,12 @@ class HPPositionSell:
                     symbol_info=self.current_position.config.symbol_info,
                 )
                 logger.info(
-                    "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+                    "New %s order send for %s at price: %s, quantity: %s and status: %s [id: %s]",
                     self.current_position.state_info.side.value,
                     self.current_position.config.symbol_info.symbol,
                     self.current_position.sell_order.price,
                     self.current_position.sell_order.quantity_stable,
+                    self.current_position.sell_order.status,
                     self.current_position.sell_order.order_id,
                 )
         except AssertionError as error:
@@ -412,6 +422,10 @@ class HPPositionSell:
                 )
                 symbol_info.validate_order(price=float(price), quantity=quantity)
 
+                logger.info(
+                    "Before actual order sending(%s): %s", symbol_info.symbol, order
+                )
+
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
@@ -420,6 +434,8 @@ class HPPositionSell:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
+                logger.info("After sending(%s): %s", symbol_info.symbol, order)
+                logger.info("Response: %s", resp)
             except (
                 BinanceAPIException,
                 BinanceOrderException,
@@ -438,6 +454,7 @@ class HPPositionSell:
                 order.order_id = int(resp["orderId"])
                 # order.price = resp["price"]
                 order.status = resp["status"]
+
                 return order
 
         assert last_exception is not None
