@@ -105,8 +105,8 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
@@ -194,7 +194,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -282,7 +282,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -370,8 +370,8 @@ async def test_stagnation_counter_increase_buy(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
-    assert item["buy_price"] == "0.0"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "0.0"
@@ -442,7 +442,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
@@ -529,7 +529,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
     assert item["quantity_usd"] == "336.0"
@@ -618,7 +618,7 @@ async def test_send_sell_order_for_bought_position(
     )
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"
@@ -699,7 +699,7 @@ async def test_sell_orders_stagnation_increase(
 
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTC"
+    assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
     assert item["quantity"] == "0.85"
     assert item["quantity_usd"] == "1002.0"

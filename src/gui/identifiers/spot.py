@@ -1,11 +1,13 @@
 from dataclasses import asdict, dataclass, field
 from typing import NamedTuple, Optional
+from src.common.symbol_info import SymbolInfo
 from src.identifiers.spot import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
 
 
 @dataclass
 class HPUpdate:
     hp_id: str
+    symbol_info: SymbolInfo
     coin: str = ""
     buy_price: Optional[float] = None
     quantity: Optional[float] = None
@@ -16,6 +18,7 @@ class HPUpdate:
     net: Optional[float] = None
     net_percent: Optional[float] = None
     state: State = State.NONE
+    is_child: bool = False
 
 
 @dataclass

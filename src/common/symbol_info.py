@@ -30,6 +30,31 @@ class SymbolInfo:
             f"price_precision={self.price_precision})"
         )
 
+    def format_price(self, price: float) -> str:
+        if price == 0:
+            return "0.0"
+        if price < 1:
+            return (
+                f"{price:.{self.price_precision}f}".rstrip("0").rstrip(".")
+                if "." in f"{price:.{self.price_precision}f}"
+                else f"{price:.{self.price_precision}f}"
+            )
+        return f"{price:.1f}" if price == round(price, 1) else f"{price:.2f}"
+
+    def format_quantity(self, quantity: float) -> str:
+        if quantity == 0:
+            return "0.0"
+        if quantity < 1:
+            return (
+                f"{quantity:.{self.precision}f}".rstrip("0").rstrip(".")
+                if "." in f"{quantity:.{self.precision}f}"
+                else f"{quantity:.{self.precision}f}"
+            )
+
+        return (
+            f"{quantity:.1f}" if quantity == round(quantity, 1) else f"{quantity:.2f}"
+        )
+
     def adjust_quantity(self, quantity: float) -> float:
         return round(quantity, self.precision)
 

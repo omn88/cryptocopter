@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import queue
 from typing import List
 from binance.enums import (
     TIME_IN_FORCE_GTC,
@@ -15,6 +16,7 @@ from binance.exceptions import (
     BinanceRequestException,
 )
 
+from src.broker import BrokerSpot
 from src.identifiers.common import BinanceClient, PositionSide
 from src.common.symbol_info import SymbolInfo
 
@@ -22,12 +24,14 @@ from src.database import Database
 from src.identifiers.spot import (
     ExecutionReport,
     HPSellConfig,
-    HPSellData,
     Order,
     SellPosition,
     SellType,
     State,
     StateInfo,
+    SubscriptionInfo,
+    SubscriptionTarget,
+    SubscriptionType,
     UiState,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -40,17 +44,20 @@ class HPPositionSell:
     def __init__(
         self,
         client: BinanceClient,
-        data: HPSellData,
+        original_position: SellPosition,
         sell_strategy: List[SymbolInfo],
         db: Database,
         price_resolver: UsdPriceResolver,
+        broker: BrokerSpot,
+        worker_queue: queue.Queue,
     ):
         self.client = client
-        self.original_sell_data = data
+        self.original_position = original_position
         self.db = db
         self.sell_strategy = sell_strategy
-
+        self.broker = broker
         self.price_resolver = price_resolver
+        self.worker_queue = worker_queue
 
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
@@ -70,6 +77,36 @@ class HPPositionSell:
         if self.sell_positions:
             self.current_position = self.sell_positions[0]
 
+        if len(self.sell_positions) == 2:
+            for position in self.sell_positions:
+                self.broker.subscribe(
+                    system_id=self.original_position.config.hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=position.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=self.worker_queue,
+                    ),
+                )
+                self.broker.subscribe(
+                    system_id=self.original_position.config.hp_id,
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.USER,
+                        symbol=position.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=self.worker_queue,
+                    ),
+                )
+        self.broker.subscribe(
+            system_id=self.original_position.config.hp_id,
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol=self.original_position.config.symbol_info.symbol,
+                target=SubscriptionTarget.BACKEND,
+                queue=self.worker_queue,
+            ),
+        )
+
     def _build_sell_positions(self) -> None:
         if not self.sell_strategy:
             self.sell_positions = []
@@ -84,24 +121,24 @@ class HPPositionSell:
     def _build_1hop_position(self, symbol_info: SymbolInfo) -> List[SellPosition]:
         if not symbol_info.symbol.endswith("USDT"):
             sell_position = SellPosition(
-                config=self.original_sell_data.config,
-                state_info=self.original_sell_data.state_info,
+                config=self.original_position.config,
+                state_info=self.original_position.state_info,
                 sell_order=self._generate_order(
                     symbol_info,
-                    quantity=self.original_sell_data.config.quantity,
-                    price=self.original_sell_data.config.sell_price,
+                    quantity=self.original_position.config.quantity,
+                    price=self.original_position.config.sell_price,
                 ),
                 sell_type=SellType.DIRECT,
             )
             return [sell_position]
 
         sell_position = SellPosition(
-            config=self.original_sell_data.config,
-            state_info=self.original_sell_data.state_info,
+            config=self.original_position.config,
+            state_info=self.original_position.state_info,
             sell_order=self._generate_order(
                 symbol_info,
-                quantity=self.original_sell_data.config.quantity,
-                price=self.original_sell_data.config.sell_price,
+                quantity=self.original_position.config.quantity,
+                price=self.original_position.config.sell_price,
             ),
             sell_type=SellType.CONVERT,
         )
@@ -110,7 +147,7 @@ class HPPositionSell:
     def _build_2hop_positions(
         self, sell_strategy: List[SymbolInfo]
     ) -> List[SellPosition]:
-        original = self.original_sell_data
+        original = self.original_position
         sell_price = original.config.sell_price
         quantity = original.config.quantity
 
@@ -145,14 +182,14 @@ class HPPositionSell:
         sell_positions = [
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=f"{self.original_sell_data.config.hp_id}a",
+                    hp_id=f"{self.original_position.config.hp_id}a",
                     is_child=True,
-                    parent_hp_id=self.original_sell_data.config.hp_id,
+                    parent_hp_id=self.original_position.config.hp_id,
                     symbol_info=leg1_info,
                     quantity=leg1_quantity,
                     sell_price=leg1_price,
-                    coin=self.original_sell_data.config.coin,
-                    buy_price=self.original_sell_data.config.buy_price / leg2_price,
+                    coin=self.original_position.config.coin,
+                    buy_price=self.original_position.config.buy_price / leg2_price,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -164,9 +201,9 @@ class HPPositionSell:
             ),
             SellPosition(
                 config=HPSellConfig(
-                    hp_id=f"{self.original_sell_data.config.hp_id}b",
+                    hp_id=f"{self.original_position.config.hp_id}b",
                     is_child=True,
-                    parent_hp_id=self.original_sell_data.config.hp_id,
+                    parent_hp_id=self.original_position.config.hp_id,
                     symbol_info=leg2_info,
                     quantity=leg2_quantity,
                     sell_price=leg2_price,
@@ -222,11 +259,12 @@ class HPPositionSell:
                     symbol_info=self.current_position.config.symbol_info,
                 )
                 logger.info(
-                    "New %s order send for %s at price: %s and quantity: %s [id: %s]",
+                    "New %s order send for %s at price: %s, quantity: %s and status: %s [id: %s]",
                     self.current_position.state_info.side.value,
                     self.current_position.config.symbol_info.symbol,
                     self.current_position.sell_order.price,
                     self.current_position.sell_order.quantity_stable,
+                    self.current_position.sell_order.status,
                     self.current_position.sell_order.order_id,
                 )
         except AssertionError as error:
@@ -377,11 +415,17 @@ class HPPositionSell:
         last_exception = None
         for _ in range(max_retries):
             try:
-                price = symbol_info.adjust_price(order.price)
+                price = symbol_info.format_price(order.price)
+
                 quantity = symbol_info.adjust_quantity(
                     order.quantity - order.realized_quantity
                 )
-                symbol_info.validate_order(price=price, quantity=quantity)
+                symbol_info.validate_order(price=float(price), quantity=quantity)
+
+                logger.info(
+                    "Before actual order sending(%s): %s", symbol_info.symbol, order
+                )
+
                 resp = await self.client.create_order(
                     symbol=symbol_info.symbol,
                     price=price,
@@ -390,6 +434,8 @@ class HPPositionSell:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
+                logger.info("After sending(%s): %s", symbol_info.symbol, order)
+                logger.info("Response: %s", resp)
             except (
                 BinanceAPIException,
                 BinanceOrderException,
@@ -408,6 +454,7 @@ class HPPositionSell:
                 order.order_id = int(resp["orderId"])
                 # order.price = resp["price"]
                 order.status = resp["status"]
+
                 return order
 
         assert last_exception is not None

@@ -230,6 +230,9 @@ class BrokerSpot:
         # Only add the subscription if it does not already exist
         if subscription_info not in self.subscriptions[system_id]:
             self.subscriptions[system_id].append(subscription_info)
+            logger.info(
+                "New subscription for ID: %s: %s", system_id, subscription_info.symbol
+            )
 
     def unsubscribe(self, system_id: str) -> None:
         """Allows a strategy to unsubscribe from a user or price feed."""
@@ -237,6 +240,7 @@ class BrokerSpot:
         # Check if the system_id exists in the subscriptions
         if system_id in self.subscriptions:
             del self.subscriptions[system_id]
+            logger.info("Deleted all subscriptions for ID: %s", system_id)
 
     def stop(self):
         """Shut down BrokerSpot gracefully."""

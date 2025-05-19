@@ -38,6 +38,8 @@ from src.identifiers.spot import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    Order,
+    SellPosition,
     State,
     StateInfo,
 )
@@ -115,7 +117,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
         "BTCUSDT": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=2),
+        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
     }
@@ -125,6 +127,7 @@ def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
         client=mock_AsyncClient, symbols_info=symbols_info
     )
     price_resolver.latest_prices["BTCPLN"] = 320000.0
+    price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,
@@ -236,10 +239,13 @@ def trading_system_factory(mock_AsyncClient):
                 ),
                 client=mock_AsyncClient,
                 db=test_database,
-                data=HPSellData(
+                original_position=SellPosition(
                     config=HPSellConfig(symbol_info=SymbolInfo()),
                     state_info=StateInfo(side=PositionSide.SHORT),
+                    sell_order=Order(quantity=0.0),
                 ),
+                broker=MagicMock(),
+                worker_queue=queue.Queue(),
             ),
         )
         hp_config.hp_id = generate_hp_id(hp_list=[])
@@ -250,7 +256,9 @@ def trading_system_factory(mock_AsyncClient):
             hp_update=HPUpdate(
                 hp_id=hp_config.hp_id,
                 coin=hp_config.coin,
+                symbol_info=hp_config.symbol_info,
                 state=State.NEW,
+                buy_price=hp_config.price_high,
             ),
         )
         logger.debug("Going to send hpguidatabuy to ui queue: %s", hp_gui_data_buy)
@@ -266,18 +274,26 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
+        symbols_info = {
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        }
 
+        # Create the StrategyExecutor instance
+        price_resolver = UsdPriceResolver(
+            client=mock_AsyncClient, symbols_info=symbols_info
+        )
+        price_resolver.latest_prices["BTCPLN"] = 320000.0
+        price_resolver.latest_prices["BTCUSDC"] = 100000.0
         gui = HpFront(
             client=mock_AsyncClient,
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=MagicMock(),
             ui_queue=queue.Queue(),
-            symbols_info={
-                "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-                "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-            },
+            symbols_info=symbols_info,
             test_mode=True,
+            price_resolver=price_resolver,
         )
 
         gui.initialize()

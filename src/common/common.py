@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import List
+from decimal import Decimal, ROUND_DOWN
 import pytz
 from src.identifiers.common import BinanceClient
 from src.identifiers.futures import Signal, State

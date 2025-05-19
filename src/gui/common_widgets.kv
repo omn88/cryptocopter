@@ -375,7 +375,7 @@
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side)
 
 
 <RecordListItemIdleSell@BoxLayout>:
@@ -403,10 +403,10 @@
 
     Label:
         text: root.open_time
-        size_hint_x: 0.13
+        size_hint_x: 0.15
     Label:
         text: root.symbol
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.side
         size_hint_x: 0.05
@@ -418,24 +418,20 @@
         size_hint_x: 0.1
     Label:
         text: root.quantity
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.end_currency
         size_hint_x: 0.1
-    Label:
-        text: root.stagnation
-        size_hint_x: 0.08
     Label:
         text: root.current_price
         size_hint_x: 0.1
     Label:
         text: root.completeness
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Button:
         text: 'Remove'
         size_hint_x: 0.1
-        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
-
+        on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side)
 
 <RecordListItemArchiveSell@BoxLayout>:
     orientation: "horizontal"
@@ -443,15 +439,13 @@
     height: '30dp'
 
     open_time: ''
-    system_id: ''
+    close_time: ''
     symbol: ''
     side: ''
     buy_price: ''
     sell_price: ''
     quantity: ''
     end_currency: ''
-    stagnation: ''
-    current_price: ''
     completeness: ''
 
     canvas.before:
@@ -462,13 +456,16 @@
 
     Label:
         text: root.open_time
-        size_hint_x: 0.13
+        size_hint_x: 0.15
+    Label:
+        text: root.close_time
+        size_hint_x: 0.15
     Label:
         text: root.symbol
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.side
-        size_hint_x: 0.05
+        size_hint_x: 0.1
     Label:
         text: root.buy_price
         size_hint_x: 0.1
@@ -477,19 +474,13 @@
         size_hint_x: 0.1
     Label:
         text: root.quantity
-        size_hint_x: 0.08
+        size_hint_x: 0.1
     Label:
         text: root.end_currency
         size_hint_x: 0.1
     Label:
-        text: root.stagnation
-        size_hint_x: 0.08
-    Label:
-        text: root.current_price
-        size_hint_x: 0.1
-    Label:
         text: root.completeness
-        size_hint_x: 0.08
+        size_hint_x: 0.1
 
 <CoinListItem@BoxLayout>:
     orientation: "horizontal"
@@ -519,7 +510,6 @@
     Label:
         text: root.total_usd
         size_hint_x: 0.3
-
 
 <HPListItem@BoxLayout>:
     orientation: 'horizontal'
@@ -551,164 +541,62 @@
     sell_price: ''
     expected_return: ''
     state: ''
-
-    Label:
-        text: root.hp_id
-        size_hint_x: 0.05
-        font_size: '14sp'
-
-    Label:
-        text: root.coin
-        size_hint_x: 0.05
-        font_size: '14sp'
-
-    Label:
-        text: root.buy_price
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.quantity
-        size_hint_x: 0.05
-        font_size: '14sp'
-
-    Label:
-        text: root.quantity_usd
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.current_price
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.net
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.net_percent
-        size_hint_x: 0.05
-        font_size: '14sp'
-
-    Label:
-        text: root.sell_price
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.expected_return
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Label:
-        text: root.state
-        size_hint_x: 0.1
-        font_size: '14sp'
-
-    Button:
-        id: action_button
-        text: "SELL HP" if root.sell_price == "0.0" else "CANCEL"
-        size_hint_x: 0.1
-        on_release:
-            if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
-            else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
-        disabled: root.state == "SOLD"
-
-<HPRow@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: dp(32)
-    spacing: dp(6)
-
-    # All expected keys from the data dict
-    hp_id: ""
-    coin: ""
-    buy_price: ""
-    quantity: ""
-    quantity_usd: ""
-    sell_price: ""
-    expected_return: ""
-    current_price: ""
-    net: ""
-    net_percent: ""
-    state: ""
     is_child: False
 
-    canvas.before:
-        Color:
-            rgba: (0.95, 0.95, 0.95, 1) if self.is_child else (1, 1, 1, 1)
-        Rectangle:
-            pos: self.pos
-            size: self.size
-
     Label:
         text: root.hp_id
         size_hint_x: 0.05
-        halign: "left"
-        text_size: self.size
-        padding_x: dp(20 if root.is_child else 0)
+        font_size: '14sp'
 
     Label:
         text: root.coin
         size_hint_x: 0.05
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Label:
         text: root.buy_price
         size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Label:
         text: root.quantity
-        size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        size_hint_x: 0.05
+        font_size: '14sp'
 
     Label:
         text: root.quantity_usd
         size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Label:
         text: root.current_price
         size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Label:
         text: root.net
         size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Label:
         text: root.net_percent
-        size_hint_x: 0.06
-        halign: "left"
-        text_size: self.size
+        size_hint_x: 0.05
+        font_size: '14sp'
 
     Label:
         text: root.sell_price
-        size_hint_x: 0.07
-        halign: "left"
-        text_size: self.size
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
         text: root.expected_return
-        size_hint_x: 0.07
-        halign: "left"
-        text_size: self.size
+        size_hint_x: 0.1
+        font_size: '14sp'
 
     Label:
         text: root.state
         size_hint_x: 0.1
-        halign: "left"
-        text_size: self.size
+        font_size: '14sp'
 
     Button:
         id: action_button
@@ -717,4 +605,4 @@
         on_release:
             if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
             else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
-        disabled: root.state == "SOLD"
+        disabled: root.is_child or root.state == "SOLD"

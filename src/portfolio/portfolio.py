@@ -180,11 +180,11 @@ async def fetch_initial_balances(
         if total_balance <= 0:
             continue
 
-        logger.info("Coin with balance bigger than zero: %s - %s", coin, total_balance)
+        # logger.info("Coin with balance bigger than zero: %s - %s", coin, total_balance)
 
         try:
             price_in_usd = resolver.resolve_usd(coin)
-            logger.info("Coin: %s price in usd: %s", coin, price_in_usd)
+            # logger.info("Coin: %s price in usd: %s", coin, price_in_usd)
 
             total_value = price_in_usd * total_balance
 

@@ -26,7 +26,6 @@ def get_new_orders(orders: List[Order]):
                     "updateTime": 1566818724722,
                 }
             )
-    logger.info("ORDER LIST........................: %s", order_list)
     return order_list
 
 

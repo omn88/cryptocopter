@@ -404,10 +404,10 @@
                                     size_hint_x: 0.05
                                 Label:
                                     text: 'Buy Price'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Sell Price'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Quantity'
                                     size_hint_x: 0.08
@@ -419,10 +419,7 @@
                                     size_hint_x: 0.08
                                 Label:
                                     text: 'Current Price'
-                                    size_hint_x: 0.08
-                                Label:
-                                    text: 'Budget'
-                                    size_hint_x: 0.06
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Completeness'
                                     size_hint_x: 0.08
@@ -459,30 +456,27 @@
                                 height: '30dp'
                                 Label:
                                     text: 'Open Time'
-                                    size_hint_x: 0.13
+                                    size_hint_x: 0.15
                                 Label:
                                     text: 'Symbol'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Side'
                                     size_hint_x: 0.05
                                 Label:
                                     text: 'Buy Price'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Sell Price'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Quantity'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'End currency'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Current Price'
-                                    size_hint_x: 0.1
-                                Label:
-                                    text: 'Budget'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Completeness'
@@ -520,16 +514,16 @@
                                 height: '30dp'
                                 Label:
                                     text: 'Open Time'
-                                    size_hint_x: 0.13
+                                    size_hint_x: 0.15
                                 Label:
                                     text: 'Close Time'
-                                    size_hint_x: 0.13
+                                    size_hint_x: 0.15
                                 Label:
                                     text: 'Symbol'
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Side'
-                                    size_hint_x: 0.06
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'Buy Price'
                                     size_hint_x: 0.1
@@ -538,7 +532,7 @@
                                     size_hint_x: 0.1
                                 Label:
                                     text: 'Quantity'
-                                    size_hint_x: 0.08
+                                    size_hint_x: 0.1
                                 Label:
                                     text: 'End currency'
                                     size_hint_x: 0.1
@@ -595,7 +589,7 @@
 
                     Label:
                         text: "Quantity"
-                        size_hint_x: 0.1
+                        size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
@@ -619,19 +613,19 @@
 
                     Label:
                         text: "Net Percent"
-                        size_hint_x: 0.06
+                        size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
                     Label:
                         text: "Sell Price"
-                        size_hint_x: 0.07
+                        size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
                     Label:
                         text: "Expected Return"
-                        size_hint_x: 0.07
+                        size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
@@ -649,7 +643,7 @@
 
                 RecycleView:
                     id: hp_list_view
-                    viewclass: "HPRow"
+                    viewclass: "HPListItem"
                     RecycleBoxLayout:
                         default_size: None, dp(32)
                         default_size_hint: 1, None

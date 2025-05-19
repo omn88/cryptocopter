@@ -295,7 +295,7 @@ class HPSellConfig:
         return (
             f"HPSellConfig(hp_id={self.hp_id}, coin={self.coin}, "
             f"quantity={self.quantity}, buy_price={self.buy_price}, "
-            f"sell_price={self.sell_price}, end_currency={self.end_currency})"
+            f"sell_price={self.sell_price}, end_currency={self.end_currency}, symbol_info={self.symbol_info})"
         )
 
 
