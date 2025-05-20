@@ -64,9 +64,16 @@ class SymbolInfo:
     def validate_order(self, price: float, quantity: float) -> None:
         notional = price * quantity
         if notional < self.min_notional:
+            price_str = f"{price:.{self.price_precision}f}"
+            quantity_str = f"{quantity:.{self.precision}f}"
+            notional_str = f"{notional:.{self.price_precision}f}"
+            min_notional_str = f"{self.min_notional:.{self.price_precision}f}"
+
             raise ValueError(
-                f"Order notional is below MIN_NOTIONAL, notional: {notional:.2f}, "
-                "min notional: {self.min_notional:.2f},price: {price:.2f}, quantity: {quantity:.2f}"
+                f"Order notional is below MIN_NOTIONAL, "
+                f"notional: {notional_str}, "
+                f"min notional: {min_notional_str}, "
+                f"price: {price_str}, quantity: {quantity_str}"
             )
 
     def extract_coin_from_symbol(self, symbol: str) -> str:

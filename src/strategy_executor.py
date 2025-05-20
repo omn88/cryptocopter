@@ -292,10 +292,6 @@ class StrategyExecutor:
 
         self.strategies[new_hp.config.hp_id] = strategy
 
-        assert new_hp.config.symbol_info.symbol.endswith(
-            "USDC"
-        ), "Symbol must end with 'USDC'"
-
         self.send_buy_position_to_ui(
             config=new_hp.config,
             state_info=new_hp.state_info,
