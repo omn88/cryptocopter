@@ -713,14 +713,8 @@ class HpStrategy:
 
         self.state = State.SELLING
         self.sell.current_position.state_info.generate_next_monitor_time()
-        self.sell.current_position.state_info.completeness = (
-            round(
-                self.sell.current_position.sell_order.realized_quantity
-                / self.sell.current_position.sell_order.quantity,
-                2,
-            )
-            if self.sell.current_position.sell_order
-            else 0
+        self.sell.current_position.state_info.get_completeness(
+            self.sell.current_position.sell_order
         )
 
         self.sell.current_position.state_info.ui_state = UiState.OPEN
@@ -912,14 +906,8 @@ class HpStrategy:
         self.state = State.SELLING
         self.sell.current_position.state_info.state = State.PARTIALLY_SOLD
         self.sell.current_position.state_info.generate_next_monitor_time()
-        self.sell.current_position.state_info.completeness = (
-            round(
-                self.sell.current_position.sell_order.realized_quantity
-                / self.sell.current_position.sell_order.quantity,
-                2,
-            )
-            if self.sell.current_position.sell_order
-            else 0
+        self.sell.current_position.state_info.get_completeness(
+            self.sell.current_position.sell_order
         )
         self.sell.current_position.state_info.ui_state = UiState.OPEN
 
@@ -983,14 +971,8 @@ class HpStrategy:
 
         self.sell.current_position.state_info.state = State.SOLD
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
-        self.sell.current_position.state_info.completeness = (
-            round(
-                self.sell.current_position.sell_order.realized_quantity
-                / self.sell.current_position.sell_order.quantity,
-                2,
-            )
-            if self.sell.current_position.sell_order
-            else 0
+        self.sell.current_position.state_info.get_completeness(
+            self.sell.current_position.sell_order
         )
 
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
@@ -1195,14 +1177,8 @@ class HpStrategy:
 
         self.sell.current_position.state_info.state = State.SOLD
 
-        self.sell.current_position.state_info.completeness = (
-            round(
-                self.sell.current_position.sell_order.realized_quantity
-                / self.sell.current_position.sell_order.quantity,
-                2,
-            )
-            if self.sell.current_position.sell_order
-            else 0
+        self.sell.current_position.state_info.get_completeness(
+            self.sell.current_position.sell_order
         )
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
 
@@ -1485,14 +1461,8 @@ class HpStrategy:
 
         self.sell.current_position.state_info.generate_next_monitor_time()
         self.sell.current_position.state_info.ui_state = UiState.OPEN
-        self.sell.current_position.state_info.completeness = (
-            round(
-                self.sell.current_position.sell_order.realized_quantity
-                / self.sell.current_position.sell_order.quantity,
-                2,
-            )
-            if self.sell.current_position.sell_order
-            else 0
+        self.sell.current_position.state_info.get_completeness(
+            self.sell.current_position.sell_order
         )
         self.send_sell_position_to_ui()
         # self.db.upsert_sell_price_level(data=self.sell.current_position)

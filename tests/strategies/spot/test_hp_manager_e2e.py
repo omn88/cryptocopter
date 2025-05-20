@@ -1,7 +1,9 @@
+import asyncio
 import datetime
 import logging
 import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from src.common.symbol_info import SymbolInfo
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
@@ -1468,3 +1470,199 @@ async def test_fill_second_sell_position_in_two_hop_trade(
     await sim.open_second_sell_position_from_two_hop_trade()
 
     await sim.simulate_sell_order_fill_in_second_hop()
+
+
+@pytest.mark.database_integration
+async def test_no_sell_orders_send_if_buy_position_not_realized(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
+
+    strategy = back.strategies["1000"]
+    sell_config = HPSellData(
+        config=HPSellConfig(
+            hp_id="1000",
+            coin="BTC",
+            buy_price=0.0,
+            sell_price=4200.0,
+            quantity=0.0,
+            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+    logger.info("Sell config added to the queue: %s", sell_config.config)
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+    await wait_for_condition(
+        condition_func=lambda: back.strategies["1000"].sell.current_position.sell_order
+    )
+
+    sim.new_price(price=4200.0)
+
+    await asyncio.sleep(0.1)
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+
+@pytest.mark.database_integration
+async def test_sell_orders_send_if_buy_position_realized_partially(
+    frontend_backend_setup,
+):
+    front, back = frontend_backend_setup
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+
+    assert len(back.strategies) == 0
+
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
+
+    strategy = back.strategies["1000"]
+    sell_config = HPSellData(
+        config=HPSellConfig(
+            hp_id="1000",
+            coin="BTC",
+            buy_price=0.0,
+            sell_price=4200.0,
+            quantity=0.0,
+            symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+        ),
+        state_info=StateInfo(side=PositionSide.SHORT),
+    )
+    front.config_queue.put_nowait(sell_config)
+    logger.info("Sell config added to the queue: %s", sell_config.config)
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+    await wait_for_condition(
+        condition_func=lambda: back.strategies["1000"].sell.current_position.sell_order
+    )
+
+    await sim.move_to_position_active_buy()
+
+    # Simulate partial fill
+    strategy = await sim.simulate_partial_fill_with_sell_price()
+
+    # Cancel position
+    strategy.buy.data.state_info.stagnation_counter = (
+        strategy.buy.data.state_info.stagnation_limit
+    )
+
+    assert strategy.buy.data.state_info.next_monitor_time
+
+    assert strategy.buy.orders_cancel_price == 1428.0
+    sim.new_price(price=1428.0)
+
+    assert len(strategy.buy.orders) == 3
+
+    await wait_for_condition(
+        lambda: strategy.buy.orders[0].status == ORDER_STATUS_CANCELED
+    )
+    await wait_for_condition(
+        lambda: strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
+    )
+    await wait_for_condition(
+        lambda: strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+    )
+
+    assert strategy.buy.orders[0].realized_quantity == 0.12
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
+
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.PARTIALLY_BOUGHT
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usd"] == "168.0"
+    assert item["sell_price"] == "4200.0"
+    assert item["expected_return"] == "336.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "PARTIALLY_BOUGHT"
+
+    logger.info("HP List after the update: %s", front.hp_list_data)
+
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=[strategy.sell.current_position.sell_order]
+    )
+    sim.new_price(price=4200.0)
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "SELLING"
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.12"
+    assert item["quantity_usd"] == "168.0"
+    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+    assert item["expected_return"] == "336.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "SELLING"
