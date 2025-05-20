@@ -112,7 +112,7 @@ class HpFront(BoxLayout):
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             self.symbol_input = SearchableDropDown(
-                client=self.client, options=self.symbols
+                client=self.client, options=self.symbols, symbols_info=self.symbols_info
             )
             # Add it to the layout where needed
             self.ids.symbol_container.add_widget(self.symbol_input)
