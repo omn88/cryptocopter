@@ -244,6 +244,20 @@ class StateInfo:
     def generate_open_time(self):
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    def get_completeness(self, orders: Union[Order, List[Order]]):
+        if isinstance(orders, List):
+            realized_quantity = sum(order.realized_quantity for order in orders)
+            quantity = sum(order.quantity for order in orders)
+        else:
+            assert isinstance(orders, Order)
+            realized_quantity = orders.realized_quantity
+            quantity = orders.quantity
+
+        if quantity:
+            self.completeness = round(realized_quantity / quantity, 2)
+        else:
+            self.completeness = 0.0
+
 
 @dataclass
 class HPBuyConfig:

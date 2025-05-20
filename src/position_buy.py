@@ -91,11 +91,7 @@ class HPPositionBuy:
                     side=self.data.state_info.side,
                 )
 
-        self.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
-        )
+        self.data.state_info.get_completeness(orders=self.orders)
         self.data.state_info.ui_state = UiState.STAGNATED
 
         self.db.upsert_buy_price_level(data=self.data)
@@ -123,11 +119,7 @@ class HPPositionBuy:
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
         self.data.state_info.stagnation_counter = 0
         self.data.state_info.generate_next_monitor_time()
-        self.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
-        )
+        self.data.state_info.get_completeness(self.orders)
         self.data.state_info.ui_state = UiState.OPEN
 
     async def handle_order_filled(self, execution_report: ExecutionReport) -> None:
@@ -154,11 +146,7 @@ class HPPositionBuy:
         self.data.state_info.stagnation_counter = 0
         self.data.state_info.generate_next_monitor_time()
 
-        self.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.orders)
-            / sum(order.quantity for order in self.orders),
-            2,
-        )
+        self.data.state_info.get_completeness(self.orders)
         logger.info("Completeness: %s", self.data.state_info.completeness)
         logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 

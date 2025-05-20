@@ -546,11 +546,7 @@ class StrategyExecutor:
                 #             hp_id=hp_id,
                 #             side=side,
                 #         )
-                buy.data.state_info.completeness = round(
-                    sum(order.realized_quantity for order in buy.orders)
-                    / sum(order.quantity for order in buy.orders),
-                    2,
-                )
+                buy.data.state_info.get_completeness(buy.orders)
 
             # self.db.upsert_buy_price_level(data=buy.data)
 
@@ -638,10 +634,8 @@ class StrategyExecutor:
                     state=strategy.state,
                 )
             sell.current_position.state_info.ui_state = UiState.CLOSED
-            sell.current_position.state_info.completeness = round(
-                sell.current_position.sell_order.realized_quantity
-                / sell.current_position.sell_order.quantity,
-                2,
+            sell.current_position.state_info.get_completeness(
+                sell.current_position.sell_order
             )
             self.send_sell_position_to_ui(
                 config=strategy.sell.current_position.config,
@@ -931,11 +925,7 @@ class StrategyExecutor:
     #             if strategy.state == State.BOUGHT
     #             else UiState.STAGNATED
     #         )
-    #         strategy.buy.data.state_info.completeness = round(
-    #             sum(order.realized_quantity for order in strategy.buy.orders)
-    #             / sum(order.quantity for order in strategy.buy.orders),
-    #             2,
-    #         )
+    #         strategy.buy.data.state_info.get_completeness(strategy.buy.orders)
     #         strategy.buy.data.state_info.generate_next_monitor_time()
     #         self.send_buy_position_data_to_ui(
     #             buy_position=strategy.buy, strategy_state=strategy.state
@@ -968,14 +958,8 @@ class StrategyExecutor:
     #                 if strategy.state in [State.BUYING, State.SELLING]
     #                 else UiState.STAGNATED
     #             )
-    #             if strategy.sell.current_position.sell_order:
-    #                 strategy.sell.current_position.state_info.completeness = round(
-    #                     strategy.sell.current_position.sell_order.realized_quantity
-    #                     / strategy.sell.current_position.sell_order.quantity,
-    #                     2,
-    #                 )
-    #             else:
-    #                 strategy.sell.current_position.state_info.completeness = 0
+
+    #             strategy.sell.current_position.state_info.get_completeness(strategy.sell.current_position.sell_order)
 
     #             # Send sell position data
     #             sell_pos_data = HPGuiDataSell(

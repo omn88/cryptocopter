@@ -115,7 +115,6 @@ class HpFront(BoxLayout):
                 client=self.client, options=self.symbols
             )
             # Add it to the layout where needed
-            logger.info("Created symbol input: %s", self.symbol_input)
             self.ids.symbol_container.add_widget(self.symbol_input)
 
     def initialize(self):

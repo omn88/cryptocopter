@@ -140,7 +140,7 @@ class BrokerSpot:
         event_type = msg.get("e")
 
         if event_type == EventName.EXECUTION_REPORT.value:
-            for strategy, subscriptions in self.subscriptions.items():
+            for _, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
                     assert isinstance(subscription_info, SubscriptionInfo)
                     if (
@@ -155,7 +155,7 @@ class BrokerSpot:
                         )
 
         if event_type == EventName.ACCOUNT_POSITION.value:
-            for strategy, subscriptions in self.subscriptions.items():
+            for _, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
                     assert isinstance(subscription_info, SubscriptionInfo)
                     if subscription_info.target == SubscriptionTarget.PORTFOLIO:

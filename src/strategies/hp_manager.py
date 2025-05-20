@@ -539,11 +539,7 @@ class HpStrategy:
         self.buy.data.state_info.state = State.NEW
 
         self.buy.data.state_info.generate_next_monitor_time()
-        self.buy.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.buy.orders)
-            / sum(order.quantity for order in self.buy.orders),
-            2,
-        )
+        self.buy.data.state_info.get_completeness(self.buy.orders)
 
         self.buy.data.state_info.ui_state = UiState.OPEN
 
@@ -661,11 +657,7 @@ class HpStrategy:
         await self.buy.open_position()
         self.state = State.BUYING
         self.buy.data.state_info.state = State.PARTIALLY_BOUGHT
-        self.buy.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.buy.orders)
-            / sum(order.quantity for order in self.buy.orders),
-            2,
-        )
+        self.buy.data.state_info.get_completeness(self.buy.orders)
         self.buy.data.state_info.ui_state = UiState.OPEN
 
         logger.info("Will update orders: %s", self.buy.orders)
@@ -772,11 +764,7 @@ class HpStrategy:
         logger.info("All order filled, archiving position")
 
         self.buy.data.state_info.state = State.BOUGHT
-        self.buy.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.buy.orders)
-            / sum(order.quantity for order in self.buy.orders),
-            2,
-        )
+        self.buy.data.state_info.get_completeness(self.buy.orders)
         self.buy.data.state_info.ui_state = UiState.CLOSED
 
         logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
@@ -840,22 +828,22 @@ class HpStrategy:
                 self.sell.current_position.state_info.side,
                 self.sell.current_position.state_info.state,
             )
-        if (
-            self.ticker_update.symbol
-            == self.sell.original_position.config.symbol_info.symbol
-        ):
-            logger.info(
-                "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker price: %s, ticker symbol: %s, orig sell data symbol: %s",
-                condition,
-                self.sell.current_position.config.hp_id,
-                self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.side,
-                self.sell.current_position.state_info.state,
-                trig_ord_price,
-                self.ticker_update.last_price,
-                self.ticker_update.symbol,
-                self.sell.original_position.config.symbol_info.symbol,
-            )
+        # if (
+        #     self.ticker_update.symbol
+        #     == self.sell.original_position.config.symbol_info.symbol
+        # ):
+        #     logger.info(
+        #         "[Send sell orders]: %s hp id: %s, %s, side: %s, state: %s, trigger price: %s, ticker price: %s, ticker symbol: %s, orig sell data symbol: %s",
+        #         condition,
+        #         self.sell.current_position.config.hp_id,
+        #         self.sell.current_position.config.symbol_info.symbol,
+        #         self.sell.current_position.state_info.side,
+        #         self.sell.current_position.state_info.state,
+        #         trig_ord_price,
+        #         self.ticker_update.last_price,
+        #         self.ticker_update.symbol,
+        #         self.sell.original_position.config.symbol_info.symbol,
+        #     )
         return condition
 
     def conditions_for_cancelling_unfilled_sell_orders(self, *args, **kwargs) -> bool:
@@ -1442,11 +1430,7 @@ class HpStrategy:
         self.buy.data.state_info.generate_next_monitor_time()
 
         self.buy.data.state_info.ui_state = UiState.OPEN
-        self.buy.data.state_info.completeness = round(
-            sum(order.realized_quantity for order in self.buy.orders)
-            / sum(order.quantity for order in self.buy.orders),
-            2,
-        )
+        self.buy.data.state_info.get_completeness(self.buy.orders)
 
         logger.info("Orders: %s", self.buy.orders)
 
@@ -1650,7 +1634,7 @@ class HpStrategy:
                 event = self.worker_queue.get_nowait()
                 assert isinstance(event, Event)
 
-                logger.info("New event: %s", event)
+                # logger.info("New event: %s", event)
 
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
