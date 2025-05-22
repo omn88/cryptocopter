@@ -1,6 +1,9 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- handle converting of the coins which lost USDT pair due to MICA and do not have multihop available pairs
+- mica related changes with multihop selling strategies
+- load save config reimplemented
 - test cases covering strategy scenarios related to handling buy and sell position separately.
 - multithreaded environment where strategy executor, portfolio, database, websockets are dedicated threads which put data to the GUI queues.
 - websockets work with broker pattern so they dispatch the particular messages to the clients which subscribed for particular feeds.
