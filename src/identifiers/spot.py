@@ -361,17 +361,3 @@ class RemoveRecord(NamedTuple):
 
     def __str__(self):
         return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
-
-
-class SaveConfig(NamedTuple):
-    file_name: str
-
-    def __str__(self):
-        return f"SaveConfig(file_name='{self.file_name}')"
-
-
-class LoadConfig(NamedTuple):
-    file_name: str
-
-    def __str__(self):
-        return f"LoadConfig(file_name='{self.file_name}')"

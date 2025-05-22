@@ -1,4 +1,5 @@
 import asyncio
+import csv
 import logging
 import os
 import queue
@@ -8,7 +9,7 @@ from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.common import generate_hp_id
 from src.database import Database
-from src.identifiers.common import BinanceClient, PositionSide
+from src.identifiers.common import BinanceClient, Mode, PositionSide
 from src.identifiers.spot import (
     Event,
     EventName,
@@ -28,7 +29,14 @@ from src.identifiers.spot import (
     UiState,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
+from src.gui.identifiers.spot import (
+    HPClose,
+    HPGuiDataBuy,
+    HPGuiDataSell,
+    HPUpdate,
+    LoadConfig,
+    SaveConfig,
+)
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
@@ -128,8 +136,123 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPClose):
                     await self.close_position(close_data=strategy_data)
 
+                if isinstance(strategy_data, SaveConfig):
+                    await self.save_all_configs_to_csv(filename=strategy_data.filename)
+
+                if isinstance(strategy_data, LoadConfig):
+                    await self.load_configs_from_parsed_rows(strategy_data.parsed_rows)
+
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    async def save_all_configs_to_csv(self, filename: str):
+        path = f"{filename}.csv"
+        try:
+            with open(path, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(
+                    [
+                        "side",
+                        "symbol",
+                        "price_low",
+                        "price_high",
+                        "budget",
+                        "order_trigger",
+                        "mode",
+                        "hp_id",
+                        "coin",
+                        "buy_price",
+                        "sell_price",
+                        "quantity",
+                        "end_currency",
+                    ]
+                )
+
+                for strategy in self.strategies.values():
+                    if strategy.state in [State.NEW, State.BUYING]:
+                        buy_cfg = strategy.buy.data.config
+                        writer.writerow(
+                            [
+                                "BUY",
+                                buy_cfg.symbol_info.symbol,
+                                buy_cfg.price_low,
+                                buy_cfg.price_high,
+                                buy_cfg.budget,
+                                buy_cfg.order_trigger,
+                                buy_cfg.mode.name,
+                                "",
+                                buy_cfg.coin,
+                                "",
+                                "",
+                                "",
+                                "",
+                            ]
+                        )
+                    if strategy.state in [
+                        State.BOUGHT,
+                        State.SELLING,
+                        State.PARTIALLY_SOLD,
+                    ]:
+                        assert isinstance(
+                            strategy.sell.original_position.config, HPSellConfig
+                        )
+                        cfg = strategy.sell.original_position.config
+                        writer.writerow(
+                            [
+                                "SELL",
+                                cfg.symbol_info.symbol,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                cfg.coin,
+                                cfg.buy_price,
+                                cfg.sell_price,
+                                cfg.quantity,
+                                cfg.end_currency or "USDC",
+                            ]
+                        )
+            logger.info("All strategies saved to %s", path)
+        except Exception as e:
+            logger.error("Failed to save config: %s", e)
+
+    async def load_configs_from_parsed_rows(self, parsed_rows):
+        for row in parsed_rows:
+            try:
+                if row["side"] == "BUY":
+                    config = HPBuyConfig(
+                        hp_id=row["hp_id"],
+                        symbol_info=self.symbols_info[row["symbol"]],
+                        coin=row["coin"],
+                        price_low=float(row["price_low"]),
+                        price_high=float(row["price_high"]),
+                        budget=float(row["budget"]),
+                        order_trigger=float(row["order_trigger"]),
+                        mode=Mode[row["mode"]],
+                    )
+                    state_info = StateInfo(side=PositionSide.LONG)
+                    self.config_queue.put_nowait(
+                        HPBuyData(config=config, state_info=state_info)
+                    )
+
+                elif row["side"] == "SELL":
+                    config = HPSellConfig(
+                        hp_id=row["hp_id"] or None,
+                        symbol_info=self.symbols_info[row["symbol"]],
+                        coin=row["coin"],
+                        buy_price=float(row["buy_price"]),
+                        sell_price=float(row["sell_price"]),
+                        quantity=float(row["quantity"]),
+                        end_currency=row.get("end_currency", "USDC"),
+                    )
+                    state_info = StateInfo(side=PositionSide.SHORT)
+                    self.config_queue.put_nowait(
+                        HPSellData(config=config, state_info=state_info)
+                    )
+            except Exception as e:
+                logger.error("Failed to parse config row: %s", e)
 
     def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
         delisted_coins = {

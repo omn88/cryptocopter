@@ -1,4 +1,5 @@
 import asyncio
+import csv
 from datetime import datetime
 import os
 import queue
@@ -9,6 +10,7 @@ from kivy.properties import (
     ObjectProperty,
     StringProperty,
 )
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
@@ -43,6 +45,8 @@ from src.gui.identifiers.spot import (
     HPUpdate,
     IdlePositionBuy,
     IdlePositionSell,
+    LoadConfig,
+    SaveConfig,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -1463,6 +1467,30 @@ class HpFront(BoxLayout):
 
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
+
+    def save_positions_to_csv(self):
+        filename = self.ids.filenameinput.text.strip()
+        if not filename:
+            logger.warning("No filename provided. Save aborted.")
+            return
+        self.config_queue.put_nowait(SaveConfig(filename=filename))
+
+    def load_positions_from_csv(self):
+        filename = self.ids.filenameinput.text.strip()
+        if not filename:
+            logger.warning("No filename provided. Load aborted.")
+            return
+
+        path = f"{filename}.csv"
+        try:
+            with open(path, "r") as f:
+                reader = csv.DictReader(f)
+                parsed = [row for row in reader]
+
+            self.config_queue.put_nowait(LoadConfig(parsed_rows=parsed))
+            logger.info("Queued LoadConfig from %s", path)
+        except Exception as e:
+            logger.error("Failed to load CSV: %s", e)
 
     # def calculate_expected_gain(self, sell_price):
     #     """
