@@ -19,20 +19,40 @@ log_filename = os.path.join(
     LOG_DIR, f"cryptocopter_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
 )
 
+# Clear existing root handlers
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
+# Console handler with visible logger name and preserved native colors
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s - [%(name)s] - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+)
+
+# File handler (rotating logs)
+file_handler = RotatingFileHandler(
+    log_filename, maxBytes=32 * 1024 * 1024, backupCount=16
+)
+file_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s - [%(name)s] - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+)
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-        logging.StreamHandler(),  # Console
-        RotatingFileHandler(  # File output
-            log_filename, maxBytes=32 * 1024 * 1024, backupCount=16
-        ),
+        console_handler,
+        file_handler,
     ],
 )
 
+# Reduce noise from verbose libraries
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
+logging.getLogger("binance.streams").setLevel(logging.WARNING)

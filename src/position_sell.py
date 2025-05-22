@@ -288,10 +288,8 @@ class HPPositionSell:
         #         side=self.current_position.state_info.side,
         #     )
 
-        self.current_position.state_info.completeness = round(
-            self.current_position.sell_order.realized_quantity
-            / self.current_position.sell_order.quantity,
-            2,
+        self.current_position.state_info.get_completeness(
+            self.current_position.sell_order
         )
         self.current_position.state_info.ui_state = UiState.STAGNATED
 
@@ -331,10 +329,8 @@ class HPPositionSell:
         )
         self.current_position.state_info.stagnation_counter = 0
         self.current_position.state_info.generate_next_monitor_time()
-        self.current_position.state_info.completeness = round(
-            self.current_position.sell_order.realized_quantity
-            / self.current_position.sell_order.quantity,
-            2,
+        self.current_position.state_info.get_completeness(
+            self.current_position.sell_order
         )
         self.current_position.state_info.ui_state = UiState.OPEN
 
@@ -367,10 +363,8 @@ class HPPositionSell:
         self.current_position.state_info.stagnation_counter = 0
         self.current_position.state_info.generate_next_monitor_time()
 
-        self.current_position.state_info.completeness = round(
-            self.current_position.sell_order.realized_quantity
-            / self.current_position.sell_order.quantity,
-            2,
+        self.current_position.state_info.get_completeness(
+            self.current_position.sell_order
         )
 
         logger.info("Completeness: %s", self.current_position.state_info.completeness)

@@ -112,10 +112,9 @@ class HpFront(BoxLayout):
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             self.symbol_input = SearchableDropDown(
-                client=self.client, options=self.symbols
+                client=self.client, options=self.symbols, symbols_info=self.symbols_info
             )
             # Add it to the layout where needed
-            logger.info("Created symbol input: %s", self.symbol_input)
             self.ids.symbol_container.add_widget(self.symbol_input)
 
     def initialize(self):
@@ -345,6 +344,7 @@ class HpFront(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
+                symbol_info = data.config.symbol_info
                 position[
                     "stagnation"
                 ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
@@ -363,8 +363,8 @@ class HpFront(BoxLayout):
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
-                        price_low=str(data.config.price_low),
-                        price_high=str(data.config.price_high),
+                        price_low=symbol_info.format_price(data.config.price_low),
+                        price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),
@@ -377,7 +377,7 @@ class HpFront(BoxLayout):
                     )
 
                 if data.state_info.ui_state == UiState.STAGNATED:
-                    trigger_price = data.config.symbol_info.adjust_price(
+                    trigger_price = data.config.symbol_info.format_price(
                         (
                             (1 + (data.config.order_trigger / 100))
                             * data.config.price_high
@@ -394,8 +394,8 @@ class HpFront(BoxLayout):
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
-                        price_low=str(data.config.price_low),
-                        price_high=str(data.config.price_high),
+                        price_low=symbol_info.format_price(data.config.price_low),
+                        price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=f"{data.config.order_trigger},({trigger_price})",
                         state=str(data.state_info.ui_state),
@@ -423,6 +423,7 @@ class HpFront(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
+                symbol_info = data.config.symbol_info
                 position[
                     "stagnation"
                 ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
@@ -492,6 +493,7 @@ class HpFront(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
+                symbol_info = data.config.symbol_info
                 position[
                     "stagnation"
                 ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
@@ -500,7 +502,7 @@ class HpFront(BoxLayout):
                 # logger.info("Data state: %s", data.state_info.ui_state)
                 if data.state_info.ui_state == UiState.OPEN:
                     self.idle_records_buy.remove(position)
-                    cancel_price = data.config.symbol_info.adjust_price(
+                    cancel_price = data.config.symbol_info.format_price(
                         (
                             (1 + (2 * data.config.order_trigger / 100))
                             * data.config.price_high
@@ -509,14 +511,15 @@ class HpFront(BoxLayout):
                             * data.config.price_low
                         )
                     )
+
                     active_position = ActivePositionBuy(
                         open_time=data.state_info.open_time,
                         hp_id=str(data.config.hp_id),
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
-                        price_low=str(data.config.price_low),
-                        price_high=str(data.config.price_high),
+                        price_low=symbol_info.format_price(data.config.price_low),
+                        price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
                         stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
@@ -541,8 +544,8 @@ class HpFront(BoxLayout):
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
-                        price_low=str(data.config.price_low),
-                        price_high=str(data.config.price_high),
+                        price_low=symbol_info.format_price(data.config.price_low),
+                        price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),
@@ -638,8 +641,8 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if symbol == strategy["symbol"]:
-                    strategy["current_price"] = str(
-                        self.symbols_info[symbol].adjust_price(price=float(ticker["c"]))
+                    strategy["current_price"] = self.symbols_info[symbol].format_price(
+                        price=float(ticker["c"])
                     )
 
         for strategy in self.hp_list_data:
@@ -896,7 +899,7 @@ class HpFront(BoxLayout):
             self.ids.buy_archive_records_list.refresh_from_data()
             self.ids.sell_archive_records_list.refresh_from_data()
 
-    def _calculate_trigger_price(self, data: HPBuyData) -> float:
+    def _calculate_trigger_price(self, data: HPBuyData) -> str:
         # For idle positions
         if data.state_info.side.value == PositionSide.LONG.value:
             base = data.config.price_high
@@ -904,7 +907,7 @@ class HpFront(BoxLayout):
         else:
             base = data.config.price_low
             factor = 1 - (data.config.order_trigger / 100)
-        return data.config.symbol_info.adjust_price(base * factor)
+        return data.config.symbol_info.format_price(base * factor)
 
     def _calculate_cancel_price(self, data: HPBuyData) -> float:
         # For active positions; note the 2*order_trigger
@@ -941,6 +944,7 @@ class HpFront(BoxLayout):
 
     def _add_new_record_buy(self, data: HPBuyData) -> None:
         hp_id = str(data.config.hp_id)
+        symbol_info = data.config.symbol_info
         if data.state_info.ui_state in [UiState.NEW, UiState.STAGNATED]:
             logger.info("New position added to Idle, system id: %s", hp_id)
             self.idle_records_buy.append(
@@ -950,8 +954,8 @@ class HpFront(BoxLayout):
                     symbol=data.config.symbol_info.symbol,
                     side=str(data.state_info.side.value),
                     mode=str(data.config.mode.value),
-                    price_low=str(data.config.price_low),
-                    price_high=str(data.config.price_high),
+                    price_low=symbol_info.format_price(data.config.price_low),
+                    price_high=symbol_info.format_price(data.config.price_high),
                     budget=str(data.config.budget),
                     order_trigger=f"{data.config.order_trigger},({self._calculate_trigger_price(data=data)})",
                     state=str(data.state_info.ui_state),
@@ -968,8 +972,8 @@ class HpFront(BoxLayout):
                     symbol=data.config.symbol_info.symbol,
                     side=str(data.state_info.side.value),
                     mode=str(data.config.mode.value),
-                    price_low=str(data.config.price_low),
-                    price_high=str(data.config.price_high),
+                    price_low=symbol_info.format_price(data.config.price_low),
+                    price_high=symbol_info.format_price(data.config.price_high),
                     budget=str(data.config.budget),
                     order_cancel=f"{2 * data.config.order_trigger},({self._calculate_cancel_price(data=data)})",
                     stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
@@ -995,8 +999,8 @@ class HpFront(BoxLayout):
                         symbol=data.config.symbol_info.symbol,
                         side=str(data.state_info.side.value),
                         mode=str(data.config.mode.value),
-                        price_low=str(data.config.price_low),
-                        price_high=str(data.config.price_high),
+                        price_low=symbol_info.format_price(data.config.price_low),
+                        price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),

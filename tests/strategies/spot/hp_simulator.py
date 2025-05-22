@@ -188,6 +188,51 @@ class HPSimulator:
 
         return strategy
 
+    async def simulate_partial_fill_with_sell_price(self) -> HpStrategy:
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
+            order_id=445860,
+            last_executed_quantity=0.12,
+            last_executed_price=1400,
+            cumulative_filled_quantity=0.12,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.BUYING
+        logger.info("Orders: %s", strategy.buy.orders)
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.orders[0].status
+            == ORDER_STATUS_PARTIALLY_FILLED
+        )
+        assert strategy.buy.orders[1].status == ORDER_STATUS_NEW
+        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == str(exc_report.last_executed_quantity)
+        )
+
+        item = self.front.hp_list_data[0]
+        assert item["hp_id"] == "1000"
+        assert item["coin"] == "BTCUSD"
+        assert item["buy_price"] == "1400.0"
+        assert item["quantity"] == "0.12"
+        assert item["quantity_usd"] == "168.0"
+        assert item["sell_price"] == "4200.0"
+        assert item["expected_return"] == "336.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "BUYING"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+        return strategy
+
     async def simulate_first_buy_order_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
