@@ -26,6 +26,7 @@ from src.identifiers.spot import (
     HPSellData,
     Order,
     SellPosition,
+    SellType,
     Signal,
     SignalUpdate,
     State,
@@ -677,8 +678,12 @@ class HpStrategy:
         if sell_price is None:
             return 0.0  # or raise an error depending on your logic
 
-        adjusted = self.sell.original_position.config.symbol_info.adjust_price(
-            0.96 * sell_price
+        adjusted = (
+            self.sell.original_position.config.symbol_info.adjust_price(
+                0.96 * sell_price
+            )
+            if self.sell.current_position.sell_type == SellType.DIRECT
+            else self.sell.original_position.config.symbol_info.adjust_price(sell_price)
         )
         return float(adjusted)
 
@@ -705,6 +710,10 @@ class HpStrategy:
         return condition
 
     async def send_sell_order(self, *args, **kwargs) -> None:
+        if self.sell.current_position.config.symbol_info.is_convert_only:
+            await self.convert_position()
+            return
+
         logger.info(
             "Sending %s SELL", self.sell.current_position.config.symbol_info.symbol
         )
@@ -738,6 +747,70 @@ class HpStrategy:
             self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
+
+    async def convert_position(self, max_spread: float = 0.01) -> None:
+        symbol_info = self.sell.current_position.config.symbol_info
+        if not symbol_info.is_convert_only:
+            logger.warning("Conversion not required for symbol: %s", symbol_info.symbol)
+            return
+
+        from_asset = symbol_info.extract_coin_from_symbol(symbol_info.symbol)
+        to_asset = self.sell.current_position.config.end_currency or "USDC"
+        quantity = self.sell.current_position.config.quantity
+
+        try:
+            logger.info(
+                "Requesting convert quote from %s to %s, quantity: %s",
+                from_asset,
+                to_asset,
+                quantity,
+            )
+            quote = await self.client.convert_request_quote(
+                fromAsset=from_asset,
+                toAsset=to_asset,
+                amount=str(quantity),
+            )
+            quote_id = quote["quoteId"]
+            quoted_amount = float(quote["toAmount"])
+            effective_price = quoted_amount / float(quote["fromAmount"])
+
+            # Validate against price via USDT if necessary
+            usdt_pair = f"{from_asset}USDT"
+            market_price_usdt = self.sell.price_resolver.latest_prices.get(usdt_pair)
+
+            if not market_price_usdt:
+                logger.warning(
+                    "No market price available for %s, skipping convert", usdt_pair
+                )
+                return
+
+            spread = abs((market_price_usdt - effective_price) / market_price_usdt)
+            logger.info(
+                "Quote effective price: %.6f, market price (USDT): %.6f, spread: %.2f%%",
+                effective_price,
+                market_price_usdt,
+                spread * 100,
+            )
+
+            if spread > max_spread:
+                logger.warning(
+                    "Spread %.2f%% exceeds max allowed (%.2f%%), skipping convert",
+                    spread * 100,
+                    max_spread * 100,
+                )
+                return
+
+            accept = await self.client.convert_accept_quote(quoteId=quote_id)
+            logger.info("Quote accepted: %s", accept)
+
+            self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED
+            self.sell.current_position.sell_order.realized_quantity = quantity
+            self.sell.current_position.state_info.state = State.SOLD
+            self.sell.current_position.state_info.ui_state = UiState.CLOSED
+            self.sell.current_position.state_info.completeness = 1.0
+
+        except Exception as e:
+            logger.error("Convert failed from %s to %s: %s", from_asset, to_asset, e)
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (
