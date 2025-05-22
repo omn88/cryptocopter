@@ -55,3 +55,4 @@ logging.basicConfig(
 # Reduce noise from verbose libraries
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
+logging.getLogger("binance.streams").setLevel(logging.WARNING)

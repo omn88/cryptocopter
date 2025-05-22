@@ -1,13 +1,11 @@
 import logging
 import queue
-from typing import Dict, List
+from typing import Dict
 from kivy.properties import ObjectProperty, ListProperty
-from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 
 from src.identifiers.spot import (
     AccountPosition,
-    AllTickers,
     Balances,
     Event,
     EventName,
@@ -22,7 +20,7 @@ from kivy.uix.boxlayout import BoxLayout
 import asyncio
 import logging
 
-logger = logging.getLogger("PortfolioUI")
+logger = logging.getLogger("portfolio_ui")
 
 
 class PortfolioUI(BoxLayout):
