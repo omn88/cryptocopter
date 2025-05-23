@@ -519,7 +519,6 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=strategy.worker_queue,
             )
-            logger.info("New sell position: %s", strategy.sell)
             logger.info("Current position: %s", strategy.sell.current_position)
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")

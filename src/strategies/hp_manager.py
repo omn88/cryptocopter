@@ -374,7 +374,9 @@ class HpStrategy:
         symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
+        logger.info("Enter build hp update")
         if self.buy.orders:
+            logger.info("HP update in self buy orders")
             if all(order.realized_quantity == 0.0 for order in self.buy.orders):
                 buy_price = self.buy.data.config.price_high
             else:
@@ -382,12 +384,17 @@ class HpStrategy:
         else:
             buy_price = self.sell.current_position.config.buy_price
 
+        logger.info("HP update buy price: %s", buy_price)
+
         # logger.info("BUY PRICE: %s", buy_price)
 
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
+
         quantity_usd = symbol_info.adjust_price(
-            quantity * buy_price if buy_price else 0.0
+            float(quantity) * float(buy_price) if buy_price else 0.0
         )
+
+        logger.info("quantity: %s, q usd: %s", quantity, quantity_usd)
 
         net = None
         net_percent = None
@@ -412,12 +419,15 @@ class HpStrategy:
             else self.sell.current_position.config.quantity
         )
 
+        logger.info("Total quantity: %s", total_quantity)
+
         expected_return = None
         if buy_price and self.sell.current_position.config.sell_price:
             expected_return = symbol_info.adjust_price(
                 (self.sell.current_position.config.sell_price - buy_price)
                 * total_quantity
             )
+            logger.info("Expected return : %s", expected_return)
 
         hp_update = HPUpdate(
             hp_id=hp_id,
@@ -712,6 +722,7 @@ class HpStrategy:
     async def send_sell_order(self, *args, **kwargs) -> None:
         if self.sell.current_position.config.symbol_info.is_convert_only:
             await self.convert_position()
+            self.send_sell_position_to_ui()
             return
 
         logger.info(
@@ -756,7 +767,9 @@ class HpStrategy:
 
         from_asset = symbol_info.extract_coin_from_symbol(symbol_info.symbol)
         to_asset = self.sell.current_position.config.end_currency or "USDC"
-        quantity = self.sell.current_position.config.quantity
+        quantity = symbol_info.format_quantity(
+            self.sell.current_position.config.quantity
+        )
 
         try:
             logger.info(
@@ -765,11 +778,13 @@ class HpStrategy:
                 to_asset,
                 quantity,
             )
+
             quote = await self.client.convert_request_quote(
                 fromAsset=from_asset,
                 toAsset=to_asset,
-                amount=str(quantity),
+                fromAmount=quantity,
             )
+
             quote_id = quote["quoteId"]
             quoted_amount = float(quote["toAmount"])
             effective_price = quoted_amount / float(quote["fromAmount"])
@@ -804,10 +819,17 @@ class HpStrategy:
             logger.info("Quote accepted: %s", accept)
 
             self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED
-            self.sell.current_position.sell_order.realized_quantity = quantity
+            self.sell.current_position.sell_order.realized_quantity = float(quantity)
             self.sell.current_position.state_info.state = State.SOLD
+            self.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
+
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            logger.info("All SELL orders filled, sending: %s", signal)
+            self.worker_queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
 
         except Exception as e:
             logger.error("Convert failed from %s to %s: %s", from_asset, to_asset, e)

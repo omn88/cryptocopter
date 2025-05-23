@@ -254,7 +254,7 @@ class StateInfo:
             quantity = orders.quantity
 
         if quantity:
-            self.completeness = round(realized_quantity / quantity, 2)
+            self.completeness = round(float(realized_quantity) / float(quantity), 2)
         else:
             self.completeness = 0.0
 

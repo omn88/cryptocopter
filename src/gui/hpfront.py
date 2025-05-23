@@ -210,18 +210,16 @@ class HpFront(BoxLayout):
         logger.info("HP List updated with update: %s", data.hp_update)
 
         hp_id = str(data.data.config.hp_id)
+        symbol_info = data.data.config.symbol_info
 
-        # logger.info("Before weird if")
-
-        if data.data.config.symbol_info.symbol.endswith("USDT"):
+        if symbol_info.symbol.endswith("USDT") and not symbol_info.is_convert_only:
             logger.info(
-                "Going to return in the if, hp_id: %s, symbol info: %s",
+                "No position add, hp_id: %s, symbol: %s, convert only: %s",
                 data.data.config.hp_id,
-                data.data.config.symbol_info,
+                symbol_info.symbol,
+                symbol_info.is_convert_only,
             )
-            return  # Don't show this in idle/active/archive
-
-        # logger.info("After the weird if")
+            return  # Don't show this in idle/active/archive for other than for convert
 
         # Try to update the record in one of the lists
         if self._record_exists(self.active_records_sell, hp_id):
