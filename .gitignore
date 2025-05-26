@@ -11,3 +11,4 @@ sample_data.txt
 *.txt
 *.csv
 venv
+linux_venv
