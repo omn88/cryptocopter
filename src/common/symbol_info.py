@@ -12,6 +12,7 @@ class SymbolInfo:
         price_filter: float = 0,
         precision: int = 0,
         price_precision: int = 0,
+        is_convert_only: bool = False,
     ):
         self.symbol = symbol
         self.min_notional = min_notional
@@ -21,13 +22,14 @@ class SymbolInfo:
         self.price_filter = price_filter
         self.precision = precision
         self.price_precision = price_precision
+        self.is_convert_only = is_convert_only
 
     def __repr__(self):
         return (
             f"SymbolInfo(symbol={self.symbol}, min_notional={self.min_notional}, "
             f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
             f"price_filter={self.price_filter}, precision={self.precision}, "
-            f"price_precision={self.price_precision})"
+            f"price_precision={self.price_precision}, convert_only={self.is_convert_only})"
         )
 
     def format_price(self, price: float) -> str:

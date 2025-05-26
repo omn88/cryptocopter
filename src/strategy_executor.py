@@ -303,12 +303,11 @@ class StrategyExecutor:
                 strategy.append(self.symbols_info["BNBPLN"])
                 return strategy
 
-            logger.warning(
-                "No valid sell path to PLN for coin: %s, putting %sUSDT symbol info for conversion purpose.",
-                coin,
-                coin,
-            )
-            return [self.symbols_info[f"{coin}USDT"]]
+            # Priority 5: Converting
+            symbol_info = self.symbols_info[f"{coin}USDT"]
+            symbol_info.is_convert_only = True
+            strategy.append(symbol_info)
+            return strategy
 
         if end_currency == "USDC":
             # Priority 1: coinUSDC
@@ -338,9 +337,11 @@ class StrategyExecutor:
                             strategy.append(self.symbols_info[f"{quote}USDC"])
                             return strategy
 
-            logger.warning("No valid sell path to USDC for coin: %s", coin)
-            logger.warning("Putting %sUSDT symbol info for conversion purpose.", coin)
-            return [self.symbols_info[f"{coin}USDT"]]
+            # Priority 4: Converting
+            symbol_info = self.symbols_info[f"{coin}USDT"]
+            symbol_info.is_convert_only = True
+            strategy.append(symbol_info)
+            return strategy
         return []
 
     def stop(self):
@@ -518,7 +519,6 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=strategy.worker_queue,
             )
-            logger.info("New sell position: %s", strategy.sell)
             logger.info("Current position: %s", strategy.sell.current_position)
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")

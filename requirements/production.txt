@@ -1,4 +1,4 @@
-python-binance==1.0.19
+python-binance==1.0.28
 bta-lib==1.0.0
 pandas==1.5.2
 numpy==1.24.3

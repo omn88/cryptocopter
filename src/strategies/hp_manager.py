@@ -26,6 +26,7 @@ from src.identifiers.spot import (
     HPSellData,
     Order,
     SellPosition,
+    SellType,
     Signal,
     SignalUpdate,
     State,
@@ -373,7 +374,9 @@ class HpStrategy:
         symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
+        logger.info("Enter build hp update")
         if self.buy.orders:
+            logger.info("HP update in self buy orders")
             if all(order.realized_quantity == 0.0 for order in self.buy.orders):
                 buy_price = self.buy.data.config.price_high
             else:
@@ -381,12 +384,17 @@ class HpStrategy:
         else:
             buy_price = self.sell.current_position.config.buy_price
 
+        logger.info("HP update buy price: %s", buy_price)
+
         # logger.info("BUY PRICE: %s", buy_price)
 
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
+
         quantity_usd = symbol_info.adjust_price(
-            quantity * buy_price if buy_price else 0.0
+            float(quantity) * float(buy_price) if buy_price else 0.0
         )
+
+        logger.info("quantity: %s, q usd: %s", quantity, quantity_usd)
 
         net = None
         net_percent = None
@@ -411,12 +419,15 @@ class HpStrategy:
             else self.sell.current_position.config.quantity
         )
 
+        logger.info("Total quantity: %s", total_quantity)
+
         expected_return = None
         if buy_price and self.sell.current_position.config.sell_price:
             expected_return = symbol_info.adjust_price(
                 (self.sell.current_position.config.sell_price - buy_price)
                 * total_quantity
             )
+            logger.info("Expected return : %s", expected_return)
 
         hp_update = HPUpdate(
             hp_id=hp_id,
@@ -677,8 +688,12 @@ class HpStrategy:
         if sell_price is None:
             return 0.0  # or raise an error depending on your logic
 
-        adjusted = self.sell.original_position.config.symbol_info.adjust_price(
-            0.96 * sell_price
+        adjusted = (
+            self.sell.original_position.config.symbol_info.adjust_price(
+                0.96 * sell_price
+            )
+            if self.sell.current_position.sell_type == SellType.DIRECT
+            else self.sell.original_position.config.symbol_info.adjust_price(sell_price)
         )
         return float(adjusted)
 
@@ -705,6 +720,11 @@ class HpStrategy:
         return condition
 
     async def send_sell_order(self, *args, **kwargs) -> None:
+        if self.sell.current_position.config.symbol_info.is_convert_only:
+            await self.convert_position()
+            self.send_sell_position_to_ui()
+            return
+
         logger.info(
             "Sending %s SELL", self.sell.current_position.config.symbol_info.symbol
         )
@@ -738,6 +758,81 @@ class HpStrategy:
             self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
+
+    async def convert_position(self, max_spread: float = 0.01) -> None:
+        symbol_info = self.sell.current_position.config.symbol_info
+        if not symbol_info.is_convert_only:
+            logger.warning("Conversion not required for symbol: %s", symbol_info.symbol)
+            return
+
+        from_asset = symbol_info.extract_coin_from_symbol(symbol_info.symbol)
+        to_asset = self.sell.current_position.config.end_currency or "USDC"
+        quantity = symbol_info.format_quantity(
+            self.sell.current_position.config.quantity
+        )
+
+        try:
+            logger.info(
+                "Requesting convert quote from %s to %s, quantity: %s",
+                from_asset,
+                to_asset,
+                quantity,
+            )
+
+            quote = await self.client.convert_request_quote(
+                fromAsset=from_asset,
+                toAsset=to_asset,
+                fromAmount=quantity,
+            )
+
+            quote_id = quote["quoteId"]
+            quoted_amount = float(quote["toAmount"])
+            effective_price = quoted_amount / float(quote["fromAmount"])
+
+            # Validate against price via USDT if necessary
+            usdt_pair = f"{from_asset}USDT"
+            market_price_usdt = self.sell.price_resolver.latest_prices.get(usdt_pair)
+
+            if not market_price_usdt:
+                logger.warning(
+                    "No market price available for %s, skipping convert", usdt_pair
+                )
+                return
+
+            spread = abs((market_price_usdt - effective_price) / market_price_usdt)
+            logger.info(
+                "Quote effective price: %.6f, market price (USDT): %.6f, spread: %.2f%%",
+                effective_price,
+                market_price_usdt,
+                spread * 100,
+            )
+
+            if spread > max_spread:
+                logger.warning(
+                    "Spread %.2f%% exceeds max allowed (%.2f%%), skipping convert",
+                    spread * 100,
+                    max_spread * 100,
+                )
+                return
+
+            accept = await self.client.convert_accept_quote(quoteId=quote_id)
+            logger.info("Quote accepted: %s", accept)
+
+            self.sell.current_position.sell_order.status = ORDER_STATUS_FILLED
+            self.sell.current_position.sell_order.realized_quantity = float(quantity)
+            self.sell.current_position.state_info.state = State.SOLD
+            self.state = State.SOLD
+            self.sell.current_position.state_info.ui_state = UiState.CLOSED
+            self.sell.current_position.state_info.completeness = 1.0
+
+            signal = Signal.HP_ALL_ORDERS_FILLED
+            logger.info("All SELL orders filled, sending: %s", signal)
+            self.worker_queue.put(
+                Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
+            )
+
+        except Exception as e:
+            logger.error("Convert failed from %s to %s: %s", from_asset, to_asset, e)
 
     def conditions_for_all_orders_filled_buy(self, *args, **kwargs) -> bool:
         condition = (

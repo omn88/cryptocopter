@@ -1516,7 +1516,7 @@ class HPSimulator:
         strategy.client.create_order.side_effect = get_new_orders(
             orders=[strategy.sell.current_position.sell_order]
         )
-        self.new_price(price=1.1, symbol="AXLUSDT")
+        self.new_price(price=1.14, symbol="AXLUSDT")
 
         sell_order = strategy.sell.current_position.sell_order
 
