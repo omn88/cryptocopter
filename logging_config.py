@@ -56,3 +56,4 @@ logging.basicConfig(
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
 logging.getLogger("binance.streams").setLevel(logging.WARNING)
+logging.getLogger("binance.ws.reconnecting_websocket").setLevel(logging.WARNING)

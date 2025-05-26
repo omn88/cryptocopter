@@ -86,7 +86,7 @@ class Position:
     side: PositionSide = PositionSide.FLAT  # ToDo: create a function
     orders: List[Order] = field(default_factory=lambda: [])
     liquidation_price: float = 0
-    take_profit_order: Order = Order(price=0, quantity=0)
+    take_profit_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     market_order: Order = field(default_factory=lambda: Order(price=0, quantity=0))
     status: PositionStatus = PositionStatus.OPEN
     leverage: int = 0
