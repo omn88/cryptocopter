@@ -9,3 +9,5 @@ sqlalchemy==2.0.41
 cryptography==45.0.3
 psutil==7.0.0
 python-decouple==3.8.0
+websockets==11.0.3
+
