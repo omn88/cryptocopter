@@ -723,21 +723,27 @@ class StrategyExecutor:
                 strategy.state = (
                     State.PARTIALLY_BOUGHT
                     if not fully_bought
-                    else State.BOUGHT
-                    if fully_bought and not sell_rlzd_qty
-                    else State.PARTIALLY_SOLD
-                    if (
-                        fully_bought
-                        and sell_order_qty
-                        and sell_rlzd_qty != sell_order_qty
+                    else (
+                        State.BOUGHT
+                        if fully_bought and not sell_rlzd_qty
+                        else (
+                            State.PARTIALLY_SOLD
+                            if (
+                                fully_bought
+                                and sell_order_qty
+                                and sell_rlzd_qty != sell_order_qty
+                            )
+                            else (
+                                State.PART_SOLD_PART_BOUGHT
+                                if (
+                                    not fully_bought
+                                    and sell_order_qty
+                                    and sell_rlzd_qty != sell_order_qty
+                                )
+                                else State.SOLD
+                            )
+                        )
                     )
-                    else State.PART_SOLD_PART_BOUGHT
-                    if (
-                        not fully_bought
-                        and sell_order_qty
-                        and sell_rlzd_qty != sell_order_qty
-                    )
-                    else State.SOLD
                 )
 
                 # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:

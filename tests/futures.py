@@ -740,7 +740,7 @@ def get_orders_long_then_market_then_short():
             "price": 20800.00,
             "status": ORDER_STATUS_NEW,
             "updateTime": 1566818724722,
-            "type": ORDER_TYPE_LIMIT
+            "type": ORDER_TYPE_LIMIT,
             # "type":
         },
         {
@@ -769,7 +769,7 @@ def get_orders_long_then_market_then_short():
             "price": 20800.00,
             "status": ORDER_STATUS_NEW,
             "updateTime": 1566818724722,
-            "type": ORDER_TYPE_LIMIT
+            "type": ORDER_TYPE_LIMIT,
             # "type":
         },
         {
