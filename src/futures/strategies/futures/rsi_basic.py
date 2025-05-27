@@ -83,9 +83,11 @@ class RsiBasic(BaseFuturesStrategy):
         self.df_handler.df.iloc[-1, -1] = self.df_handler.df.iloc[-2, -1]
 
         signal_update = SignalUpdate(
-            signal=Signal.NULL
-            if self.df_handler.df.iloc[-1]["Signal"] == 0
-            else self.df_handler.df.iloc[-1]["Signal"],
+            signal=(
+                Signal.NULL
+                if self.df_handler.df.iloc[-1]["Signal"] == 0
+                else self.df_handler.df.iloc[-1]["Signal"]
+            ),
             price=round(float(self.df_handler.df.iloc[-1]["Close"]), 2),
         )
 

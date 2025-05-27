@@ -514,9 +514,9 @@ class BaseFuturesStrategy:
 
     def skip_signal(self, *args, **kwargs) -> None:
         logger.info("Skipping signal: %s", self.signal_update.signal)
-        self.df_handler.df.at[
-            self.df_handler.df.index[-1], "Position"
-        ] = self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
+        self.df_handler.df.at[self.df_handler.df.index[-1], "Position"] = (
+            self.df_handler.df.at[self.df_handler.df.index[-2], "Position"]
+        )
 
     async def open_long(self, *args, **kwargs):
         logger.debug("Opening %s", self.signal_update.signal)

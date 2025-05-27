@@ -139,9 +139,11 @@ class HpFront(BoxLayout):
                 price_high=float(self.symbol_input.price_high_input.text),
                 budget=float(self.ids.budget_input.text),
                 order_trigger=float(self.ids.order_trigger_input.text),
-                mode=Mode.DCA
-                if self.ids.mode_input.text == Mode.DCA.value
-                else Mode.SINGLE,
+                mode=(
+                    Mode.DCA
+                    if self.ids.mode_input.text == Mode.DCA.value
+                    else Mode.SINGLE
+                ),
             ),
             state_info=StateInfo(),
         )
@@ -253,35 +255,45 @@ class HpFront(BoxLayout):
             )
             if update.quantity_usd is not None
             and update.symbol_info.symbol.endswith("BTC")
-            else update.symbol_info.format_price(update.quantity_usd)
-            if update.quantity_usd is not None
-            else "0.0"
+            else (
+                update.symbol_info.format_price(update.quantity_usd)
+                if update.quantity_usd is not None
+                else "0.0"
+            )
         )
 
         # Prepare record
         new_record = {
             "hp_id": hp_id,
             "coin": f"{update.coin}USD" if is_parent else update.symbol_info.symbol,
-            "buy_price": str(update.symbol_info.format_price(update.buy_price))
-            if update.buy_price is not None
-            else "0.0",
-            "quantity": str(update.symbol_info.format_quantity(update.quantity))
-            if update.quantity is not None
-            else "0.0",
+            "buy_price": (
+                str(update.symbol_info.format_price(update.buy_price))
+                if update.buy_price is not None
+                else "0.0"
+            ),
+            "quantity": (
+                str(update.symbol_info.format_quantity(update.quantity))
+                if update.quantity is not None
+                else "0.0"
+            ),
             "quantity_usd": quantity_usd,
-            "sell_price": str(update.symbol_info.format_price(update.sell_price))
-            if update.sell_price is not None
-            else "0.0",
-            "expected_return": str(update.expected_return)
-            if update.expected_return is not None
-            else "0.0",
-            "current_price": str(update.current_price)
-            if update.current_price is not None
-            else "0.0",
+            "sell_price": (
+                str(update.symbol_info.format_price(update.sell_price))
+                if update.sell_price is not None
+                else "0.0"
+            ),
+            "expected_return": (
+                str(update.expected_return)
+                if update.expected_return is not None
+                else "0.0"
+            ),
+            "current_price": (
+                str(update.current_price) if update.current_price is not None else "0.0"
+            ),
             "net": str(update.net) if update.current_price is not None else "0.0",
-            "net_percent": str(update.net_percent)
-            if update.net_percent is not None
-            else "0.0",
+            "net_percent": (
+                str(update.net_percent) if update.net_percent is not None else "0.0"
+            ),
             "state": update.state.value,
             "is_child": is_child,
         }
@@ -347,9 +359,9 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position[
-                    "stagnation"
-                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position["stagnation"] = (
+                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -426,9 +438,9 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position[
-                    "stagnation"
-                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position["stagnation"] = (
+                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -496,9 +508,9 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position[
-                    "stagnation"
-                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position["stagnation"] = (
+                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 # logger.info("Data state: %s", data.state_info.ui_state)
@@ -578,9 +590,9 @@ class HpFront(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position[
-                    "stagnation"
-                ] = f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                position["stagnation"] = (
+                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
+                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 # logger.info("Data state: %s", data.state_info.ui_state)

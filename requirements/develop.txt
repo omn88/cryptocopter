@@ -1,11 +1,10 @@
 -r production.txt
-black==23.7.0
-mypy==1.4.1
+black==25.1.0
+mypy==1.15.0
 pyyaml==6.0.1
-matplotlib==3.7.2
-matplotlib-inline==0.1.6
-pytest==7.4.0
-python-decouple==3.8.0
-pytest-asyncio==0.21.1
-pytest-mock==3.11.1
-types-pytz==2023.3.0.0
+matplotlib==3.10.3
+matplotlib-inline==0.1.7
+pytest==8.3.5
+pytest-asyncio==1.0.0
+pytest-mock==3.14.1
+types-pytz==2025.2.0.20250516

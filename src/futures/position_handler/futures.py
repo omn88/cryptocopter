@@ -352,9 +352,11 @@ class PositionHandler:
             )
             await self.gui_handler.update_order(
                 order=self.position.take_profit_order,
-                side=PositionSide.SHORT
-                if self.position.side == PositionSide.LONG
-                else PositionSide.LONG,
+                side=(
+                    PositionSide.SHORT
+                    if self.position.side == PositionSide.LONG
+                    else PositionSide.LONG
+                ),
                 symbol=self.position.symbol,
             )
             logger.info("GUI order updated")
