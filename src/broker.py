@@ -1,9 +1,10 @@
 import asyncio
+import json
 import os
 import threading
 import queue
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from decouple import Config, RepositoryEnv
 
@@ -105,9 +106,41 @@ class BrokerSpot:
                     logger.info("WebSocket connected.")
                     while not stop_event.is_set():
                         try:
-                            msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
-                            # logger.info("[Event]: %s", msg)
-                            message_handler(msg)
+                            raw_msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
+
+                            # Defensive parsing logic starts here
+                            msg: Any = None
+                            if isinstance(raw_msg, str):
+                                try:
+                                    msg = json.loads(raw_msg)
+                                    logger.debug("Parsed JSON message: %s", msg)
+                                except json.JSONDecodeError:
+                                    logger.warning(
+                                        "Received non-JSON string message: %s", raw_msg
+                                    )
+                                    continue  # Skip non-JSON strings
+                            elif isinstance(raw_msg, dict):
+                                msg = raw_msg
+                            else:
+                                logger.warning(
+                                    "Unexpected message type: %s (%s)",
+                                    type(raw_msg),
+                                    raw_msg,
+                                )
+                                continue
+
+                            # Defensive check for expected structure (example: all tickers should be a dict with 'data' or 'e' keys)
+                            if isinstance(msg, dict):
+                                if "e" in msg or "data" in msg or "s" in msg:
+                                    message_handler(msg)
+                                else:
+                                    logger.warning(
+                                        "Message dict missing expected keys: %s", msg
+                                    )
+                                    continue
+                            else:
+                                logger.warning("Unsupported message structure: %s", msg)
+
                         except asyncio.TimeoutError:
                             continue
                         except asyncio.CancelledError:
@@ -134,7 +167,7 @@ class BrokerSpot:
             "Gracefully getting out of handle socket method for socket: %s", socket
         )
 
-    def handle_user_message(self, msg) -> None:
+    def handle_user_message(self, msg: Dict) -> None:
         """Handle user-specific WebSocket messages."""
         symbol = msg.get("s")
         event_type = msg.get("e")
@@ -168,8 +201,15 @@ class BrokerSpot:
 
             # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
 
-    def handle_ticker_message(self, msg) -> None:
+    def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
+
+        if isinstance(msg, str):
+            logger.warning("Received string instead of dict: %s", msg)
+            return
+        if not isinstance(msg, dict):
+            logger.warning("Unexpected ticker format: %s (%s)", msg, type(msg))
+            return
 
         # Send the full msg to FrontEnd if subscribed to "ALL" symbols
         for strategy, subscriptions in self.subscriptions.items():
@@ -188,37 +228,40 @@ class BrokerSpot:
 
         for ticker in msg:
             symbol = ticker.get("s")
-            if symbol:
-                # Extract the relevant fields from the ticker message
-                last_price = float(ticker.get("c", 0))  # Current last price
-                best_bid_price = float(ticker.get("b", 0))  # Best bid price
-                best_ask_price = float(ticker.get("a", 0))  # Best ask price
-                high_price = float(ticker.get("h", 0))  # High price
-                low_price = float(ticker.get("l", 0))  # Low price
-                volume = float(ticker.get("v", 0))  # Volume
+            if not symbol:
+                logger.warning("Ticker without symbol: %s", ticker)
+                return
 
-                # Create the TickerUpdate NamedTuple with the extracted values
-                ticker_update = TickerUpdate(
-                    symbol=symbol,
-                    last_price=last_price,
-                    best_bid_price=best_bid_price,
-                    best_ask_price=best_ask_price,
-                    high_price=high_price,
-                    low_price=low_price,
-                    volume=volume,
-                )
+            # Extract the relevant fields from the ticker message
+            last_price = float(ticker.get("c", 0))  # Current last price
+            best_bid_price = float(ticker.get("b", 0))  # Best bid price
+            best_ask_price = float(ticker.get("a", 0))  # Best ask price
+            high_price = float(ticker.get("h", 0))  # High price
+            low_price = float(ticker.get("l", 0))  # Low price
+            volume = float(ticker.get("v", 0))  # Volume
 
-                # Send symbol-specific updates for other subscriptions
-                for strategy, subscriptions in self.subscriptions.items():
-                    for subscription_info in subscriptions:
-                        assert isinstance(subscription_info, SubscriptionInfo)
-                        if (
-                            subscription_info.data_type == SubscriptionType.PRICE
-                            and subscription_info.symbol == symbol
-                        ):
-                            subscription_info.queue.put_nowait(
-                                Event(name=EventName.TICKER, content=ticker_update)
-                            )
+            # Create the TickerUpdate NamedTuple with the extracted values
+            ticker_update = TickerUpdate(
+                symbol=symbol,
+                last_price=last_price,
+                best_bid_price=best_bid_price,
+                best_ask_price=best_ask_price,
+                high_price=high_price,
+                low_price=low_price,
+                volume=volume,
+            )
+
+            # Send symbol-specific updates for other subscriptions
+            for strategy, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    assert isinstance(subscription_info, SubscriptionInfo)
+                    if (
+                        subscription_info.data_type == SubscriptionType.PRICE
+                        and subscription_info.symbol == symbol
+                    ):
+                        subscription_info.queue.put_nowait(
+                            Event(name=EventName.TICKER, content=ticker_update)
+                        )
 
     def subscribe(self, system_id: str, subscription_info: SubscriptionInfo) -> None:
         """Allows a strategy to subscribe to user data or specific symbol price feed."""
@@ -297,7 +340,7 @@ class BrokerSpot:
             # Final log statement indicating complete shutdown
             logger.info("BrokerSpot shutdown complete.")
 
-    def create_execution_report(self, msg) -> ExecutionReport:
+    def create_execution_report(self, msg: Dict) -> ExecutionReport:
         return ExecutionReport(
             symbol=msg["s"],
             client_order_id=msg["c"],
