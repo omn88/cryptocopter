@@ -100,46 +100,46 @@ class BrokerSpot:
                 logger.info("Trying to start a stream")
                 if not socket:
                     logger.error("Socket is None or not properly initialized.")
-                    break  # Exit if socket is not valid
+                    break
 
                 async with socket as stream:
                     logger.info("WebSocket connected.")
                     while not stop_event.is_set():
                         try:
                             raw_msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
+                            # logger.debug("Raw WebSocket message: %s", raw_msg)
 
-                            # Defensive parsing logic starts here
-                            msg: Any = None
+                            # Pre-filter and parse message
+                            msg = None
                             if isinstance(raw_msg, str):
                                 try:
                                     msg = json.loads(raw_msg)
-                                    logger.debug("Parsed JSON message: %s", msg)
                                 except json.JSONDecodeError:
                                     logger.warning(
-                                        "Received non-JSON string message: %s", raw_msg
+                                        "Received non-JSON string from WebSocket: %s",
+                                        raw_msg,
                                     )
-                                    continue  # Skip non-JSON strings
+                                    continue
                             elif isinstance(raw_msg, dict):
                                 msg = raw_msg
-                            else:
-                                logger.warning(
-                                    "Unexpected message type: %s (%s)",
-                                    type(raw_msg),
-                                    raw_msg,
-                                )
-                                continue
-
-                            # Defensive check for expected structure (example: all tickers should be a dict with 'data' or 'e' keys)
-                            if isinstance(msg, dict):
-                                if "e" in msg or "data" in msg or "s" in msg:
-                                    message_handler(msg)
+                            elif isinstance(raw_msg, list):
+                                if all(isinstance(item, dict) for item in raw_msg):
+                                    msg = raw_msg
                                 else:
                                     logger.warning(
-                                        "Message dict missing expected keys: %s", msg
+                                        "Received list with non-dict items: %s", raw_msg
                                     )
                                     continue
                             else:
-                                logger.warning("Unsupported message structure: %s", msg)
+                                logger.warning(
+                                    "Unexpected WebSocket message type: %s",
+                                    type(raw_msg),
+                                )
+                                continue
+
+                            # Pass parsed msg to message_handler
+                            if msg:
+                                message_handler(msg)
 
                         except asyncio.TimeoutError:
                             continue
@@ -154,14 +154,14 @@ class BrokerSpot:
                 logger.error("Connection was reset: %s. Reconnecting...", e)
                 for attempt in range(reconnect_attempts):
                     if stop_event.is_set():
-                        return  # Exit if stop_event is set
-                    await asyncio.sleep(2**attempt)  # Exponential backoff
+                        return
+                    await asyncio.sleep(2**attempt)
                     logger.info("Reconnecting attempt %d...", attempt + 1)
-                    break  # Break out of the retry loop to re-establish the connection
+                    break
 
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)
-                break  # Exit the outer loop if an unexpected error occurs
+                break
 
         logger.info(
             "Gracefully getting out of handle socket method for socket: %s", socket
@@ -204,12 +204,6 @@ class BrokerSpot:
     def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
 
-        if isinstance(msg, str):
-            logger.warning("Received string instead of dict: %s", msg)
-            return
-        if not isinstance(msg, dict):
-            logger.warning("Unexpected ticker format: %s (%s)", msg, type(msg))
-            return
 
         # Send the full msg to FrontEnd if subscribed to "ALL" symbols
         for strategy, subscriptions in self.subscriptions.items():
