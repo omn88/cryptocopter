@@ -137,12 +137,23 @@ class PortfolioManager:
 
     async def handle_tickers(self, tickers_update: AllTickers) -> None:
         """Handle ticker updates to get latest prices."""
+        tickers = tickers_update.msg
+        if isinstance(tickers, dict):
+            tickers = [tickers]
+        elif isinstance(tickers, str):
+            logging.debug("Received control frame: %s", tickers)
+            return
+
+        if not isinstance(tickers, list):
+            logging.warning("Unexpected tickers format: %s", tickers)
+            return
+
         for ticker in tickers_update.msg:
-            symbol = ticker.get("s")
-            assert symbol
-            price = float(ticker.get("c", 0))
-            # Update price map
-            self.price_resolver.update_price(symbol, price)
+                symbol = ticker.get("s")
+                assert symbol
+                price = float(ticker.get("c", 0))
+                # Update price map
+                self.price_resolver.update_price(symbol, price)
 
         # Calculate USD-equivalent prices for known balances
         for coin in self.balances:

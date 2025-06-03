@@ -204,6 +204,12 @@ class BrokerSpot:
     def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
 
+        if isinstance(msg, str):
+                logging.debug("Received control frame: %s", msg)
+                return  # Ignore control messages like "pong"
+        if not isinstance(msg, list):
+            logging.warning("Unexpected message format(%s): %s", type(msg), msg)
+            return  # Defensive: Ignore unexpected types
 
         # Send the full msg to FrontEnd if subscribed to "ALL" symbols
         for strategy, subscriptions in self.subscriptions.items():
