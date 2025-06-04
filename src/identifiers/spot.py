@@ -43,6 +43,7 @@ class SignalUpdate(NamedTuple):
 class EventName(Enum):
     ACCOUNT_POSITION = "outboundAccountPosition"
     EXECUTION_REPORT = "executionReport"
+    ERROR = "error"
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"

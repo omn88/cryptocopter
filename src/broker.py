@@ -157,7 +157,6 @@ class BrokerSpot:
                         return
                     await asyncio.sleep(2**attempt)
                     logger.info("Reconnecting attempt %d...", attempt + 1)
-                    break
 
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)
@@ -169,8 +168,24 @@ class BrokerSpot:
 
     def handle_user_message(self, msg: Dict) -> None:
         """Handle user-specific WebSocket messages."""
-        symbol = msg.get("s")
         event_type = msg.get("e")
+
+        # Handle internal 'error' messages injected by python-binance
+        if event_type == EventName.ERROR.value:
+            logger.warning("Received internal error event: %s", msg)
+            for _, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    assert isinstance(subscription_info, SubscriptionInfo)
+                    if subscription_info.target in [
+                        SubscriptionTarget.FRONTEND,
+                        SubscriptionTarget.PORTFOLIO,
+                    ]:
+                        subscription_info.queue.put_nowait(
+                            Event(name=EventName.ERROR, content=msg)
+                        )
+            return  # Exit early, do not continue processing this as a user message
+
+        symbol = msg.get("s")
 
         if event_type == EventName.EXECUTION_REPORT.value:
             for _, subscriptions in self.subscriptions.items():
