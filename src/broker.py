@@ -1,9 +1,10 @@
 import asyncio
+import json
 import os
 import threading
 import queue
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from decouple import Config, RepositoryEnv
 
@@ -13,6 +14,7 @@ from src.identifiers.spot import (
     AccountPosition,
     AllTickers,
     Balance,
+    ErrorMessage,
     Event,
     EventName,
     ExecutionReport,
@@ -99,15 +101,47 @@ class BrokerSpot:
                 logger.info("Trying to start a stream")
                 if not socket:
                     logger.error("Socket is None or not properly initialized.")
-                    break  # Exit if socket is not valid
+                    break
 
                 async with socket as stream:
                     logger.info("WebSocket connected.")
                     while not stop_event.is_set():
                         try:
-                            msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
-                            # logger.info("[Event]: %s", msg)
-                            message_handler(msg)
+                            raw_msg = await asyncio.wait_for(stream.recv(), timeout=1.0)
+                            # logger.debug("Raw WebSocket message: %s", raw_msg)
+
+                            # Pre-filter and parse message
+                            msg = None
+                            if isinstance(raw_msg, str):
+                                try:
+                                    msg = json.loads(raw_msg)
+                                except json.JSONDecodeError:
+                                    logger.warning(
+                                        "Received non-JSON string from WebSocket: %s",
+                                        raw_msg,
+                                    )
+                                    continue
+                            elif isinstance(raw_msg, dict):
+                                msg = raw_msg
+                            elif isinstance(raw_msg, list):
+                                if all(isinstance(item, dict) for item in raw_msg):
+                                    msg = raw_msg
+                                else:
+                                    logger.warning(
+                                        "Received list with non-dict items: %s", raw_msg
+                                    )
+                                    continue
+                            else:
+                                logger.warning(
+                                    "Unexpected WebSocket message type: %s",
+                                    type(raw_msg),
+                                )
+                                continue
+
+                            # Pass parsed msg to message_handler
+                            if msg:
+                                message_handler(msg)
+
                         except asyncio.TimeoutError:
                             continue
                         except asyncio.CancelledError:
@@ -121,23 +155,38 @@ class BrokerSpot:
                 logger.error("Connection was reset: %s. Reconnecting...", e)
                 for attempt in range(reconnect_attempts):
                     if stop_event.is_set():
-                        return  # Exit if stop_event is set
-                    await asyncio.sleep(2**attempt)  # Exponential backoff
+                        return
+                    await asyncio.sleep(2**attempt)
                     logger.info("Reconnecting attempt %d...", attempt + 1)
-                    break  # Break out of the retry loop to re-establish the connection
 
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)
-                break  # Exit the outer loop if an unexpected error occurs
+                break
 
         logger.info(
             "Gracefully getting out of handle socket method for socket: %s", socket
         )
 
-    def handle_user_message(self, msg) -> None:
+    def handle_user_message(self, msg: Dict) -> None:
         """Handle user-specific WebSocket messages."""
-        symbol = msg.get("s")
         event_type = msg.get("e")
+
+        # Handle internal 'error' messages injected by python-binance
+        if event_type == EventName.ERROR.value:
+            logger.warning("Received internal error event: %s", msg)
+            for _, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    assert isinstance(subscription_info, SubscriptionInfo)
+                    if subscription_info.target in [
+                        SubscriptionTarget.FRONTEND,
+                        SubscriptionTarget.PORTFOLIO,
+                    ]:
+                        subscription_info.queue.put_nowait(
+                            Event(name=EventName.ERROR, content=ErrorMessage(msg=msg))
+                        )
+            return  # Exit early, do not continue processing this as a user message
+
+        symbol = msg.get("s")
 
         if event_type == EventName.EXECUTION_REPORT.value:
             for _, subscriptions in self.subscriptions.items():
@@ -168,8 +217,15 @@ class BrokerSpot:
 
             # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
 
-    def handle_ticker_message(self, msg) -> None:
+    def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
+
+        if isinstance(msg, str):
+            logging.debug("Received control frame: %s", msg)
+            return  # Ignore control messages like "pong"
+        if not isinstance(msg, list):
+            logging.warning("Unexpected message format(%s): %s", type(msg), msg)
+            return  # Defensive: Ignore unexpected types
 
         # Send the full msg to FrontEnd if subscribed to "ALL" symbols
         for strategy, subscriptions in self.subscriptions.items():
@@ -188,37 +244,40 @@ class BrokerSpot:
 
         for ticker in msg:
             symbol = ticker.get("s")
-            if symbol:
-                # Extract the relevant fields from the ticker message
-                last_price = float(ticker.get("c", 0))  # Current last price
-                best_bid_price = float(ticker.get("b", 0))  # Best bid price
-                best_ask_price = float(ticker.get("a", 0))  # Best ask price
-                high_price = float(ticker.get("h", 0))  # High price
-                low_price = float(ticker.get("l", 0))  # Low price
-                volume = float(ticker.get("v", 0))  # Volume
+            if not symbol:
+                logger.warning("Ticker without symbol: %s", ticker)
+                return
 
-                # Create the TickerUpdate NamedTuple with the extracted values
-                ticker_update = TickerUpdate(
-                    symbol=symbol,
-                    last_price=last_price,
-                    best_bid_price=best_bid_price,
-                    best_ask_price=best_ask_price,
-                    high_price=high_price,
-                    low_price=low_price,
-                    volume=volume,
-                )
+            # Extract the relevant fields from the ticker message
+            last_price = float(ticker.get("c", 0))  # Current last price
+            best_bid_price = float(ticker.get("b", 0))  # Best bid price
+            best_ask_price = float(ticker.get("a", 0))  # Best ask price
+            high_price = float(ticker.get("h", 0))  # High price
+            low_price = float(ticker.get("l", 0))  # Low price
+            volume = float(ticker.get("v", 0))  # Volume
 
-                # Send symbol-specific updates for other subscriptions
-                for strategy, subscriptions in self.subscriptions.items():
-                    for subscription_info in subscriptions:
-                        assert isinstance(subscription_info, SubscriptionInfo)
-                        if (
-                            subscription_info.data_type == SubscriptionType.PRICE
-                            and subscription_info.symbol == symbol
-                        ):
-                            subscription_info.queue.put_nowait(
-                                Event(name=EventName.TICKER, content=ticker_update)
-                            )
+            # Create the TickerUpdate NamedTuple with the extracted values
+            ticker_update = TickerUpdate(
+                symbol=symbol,
+                last_price=last_price,
+                best_bid_price=best_bid_price,
+                best_ask_price=best_ask_price,
+                high_price=high_price,
+                low_price=low_price,
+                volume=volume,
+            )
+
+            # Send symbol-specific updates for other subscriptions
+            for strategy, subscriptions in self.subscriptions.items():
+                for subscription_info in subscriptions:
+                    assert isinstance(subscription_info, SubscriptionInfo)
+                    if (
+                        subscription_info.data_type == SubscriptionType.PRICE
+                        and subscription_info.symbol == symbol
+                    ):
+                        subscription_info.queue.put_nowait(
+                            Event(name=EventName.TICKER, content=ticker_update)
+                        )
 
     def subscribe(self, system_id: str, subscription_info: SubscriptionInfo) -> None:
         """Allows a strategy to subscribe to user data or specific symbol price feed."""
@@ -297,7 +356,7 @@ class BrokerSpot:
             # Final log statement indicating complete shutdown
             logger.info("BrokerSpot shutdown complete.")
 
-    def create_execution_report(self, msg) -> ExecutionReport:
+    def create_execution_report(self, msg: Dict) -> ExecutionReport:
         return ExecutionReport(
             symbol=msg["s"],
             client_order_id=msg["c"],

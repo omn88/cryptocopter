@@ -646,6 +646,7 @@ class HpFront(BoxLayout):
         self.filter_records("archive", "All", side="SELL")
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
+
         for strategy in (
             self.active_records_buy
             + self.idle_records_buy

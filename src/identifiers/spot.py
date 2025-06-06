@@ -43,6 +43,7 @@ class SignalUpdate(NamedTuple):
 class EventName(Enum):
     ACCOUNT_POSITION = "outboundAccountPosition"
     EXECUTION_REPORT = "executionReport"
+    ERROR = "error"
     SIGNAL = "Signal"
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
@@ -180,6 +181,10 @@ class PriceUpdates(NamedTuple):
     msg: Dict[str, float]
 
 
+class ErrorMessage(NamedTuple):
+    msg: Dict
+
+
 class TickerUpdate(NamedTuple):
     symbol: str = ""
     last_price: float = 0
@@ -208,6 +213,7 @@ class Event(NamedTuple):
         AllTickers,
         Balances,
         PriceUpdates,
+        ErrorMessage,
     ]
 
     def __repr__(self) -> str:
