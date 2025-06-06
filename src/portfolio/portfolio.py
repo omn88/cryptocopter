@@ -149,11 +149,11 @@ class PortfolioManager:
             return
 
         for ticker in tickers_update.msg:
-                symbol = ticker.get("s")
-                assert symbol
-                price = float(ticker.get("c", 0))
-                # Update price map
-                self.price_resolver.update_price(symbol, price)
+            symbol = ticker.get("s")
+            assert symbol
+            price = float(ticker.get("c", 0))
+            # Update price map
+            self.price_resolver.update_price(symbol, price)
 
         # Calculate USD-equivalent prices for known balances
         for coin in self.balances:

@@ -14,6 +14,7 @@ from src.identifiers.spot import (
     AccountPosition,
     AllTickers,
     Balance,
+    ErrorMessage,
     Event,
     EventName,
     ExecutionReport,
@@ -181,7 +182,7 @@ class BrokerSpot:
                         SubscriptionTarget.PORTFOLIO,
                     ]:
                         subscription_info.queue.put_nowait(
-                            Event(name=EventName.ERROR, content=msg)
+                            Event(name=EventName.ERROR, content=ErrorMessage(msg=msg))
                         )
             return  # Exit early, do not continue processing this as a user message
 
@@ -220,8 +221,8 @@ class BrokerSpot:
         """Handle all market ticker WebSocket messages."""
 
         if isinstance(msg, str):
-                logging.debug("Received control frame: %s", msg)
-                return  # Ignore control messages like "pong"
+            logging.debug("Received control frame: %s", msg)
+            return  # Ignore control messages like "pong"
         if not isinstance(msg, list):
             logging.warning("Unexpected message format(%s): %s", type(msg), msg)
             return  # Defensive: Ignore unexpected types
