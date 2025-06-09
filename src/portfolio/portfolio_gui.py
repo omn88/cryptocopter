@@ -4,7 +4,7 @@ from typing import Dict
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
 
-from src.identifiers.spot import (
+from src.identifiers import (
     AccountPosition,
     Balances,
     Event,

@@ -1,14 +1,13 @@
+import asyncio
 from dataclasses import dataclass, field
 import datetime
 from enum import Enum, auto
+import logging
 import queue
+import time
 from typing import Dict, List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
-from src.identifiers.common import (
-    Mode,
-    PositionSide,
-    SentinelUpdate,
-)
+from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
 
 
@@ -207,7 +206,6 @@ class Event(NamedTuple):
     content: Union[
         SignalUpdate,
         TickerUpdate,
-        SentinelUpdate,
         ExecutionReport,
         AccountPosition,
         AllTickers,
@@ -218,6 +216,26 @@ class Event(NamedTuple):
 
     def __repr__(self) -> str:
         return f"Event(name={self.name}, content={self.content})"
+
+
+class PositionSide(Enum):
+    LONG = "BUY"
+    SHORT = "SELL"
+    FLAT = "FLAT"
+
+
+class RemoveRecord(NamedTuple):
+    hp_id: str
+    symbol: str
+    side: PositionSide
+
+    def __str__(self):
+        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
+
+
+class Mode(Enum):
+    SINGLE = "SINGLE"
+    DCA = "DCA"
 
 
 @dataclass
@@ -360,10 +378,32 @@ class SubscriptionInfo(NamedTuple):
     queue: queue.Queue
 
 
-class RemoveRecord(NamedTuple):
-    hp_id: str
-    symbol: str
-    side: PositionSide
+class BinanceClient(AsyncClient):
+    def __init__(self, api_key: str, api_secret: str, sync_interval: int = 60):
+        super().__init__(api_key, api_secret)
+        self.time_difference: float = 0.0
+        self.sync_interval: int = sync_interval
+        self.last_sync: float = 0.0
+        self.logger = logging.getLogger(__name__)
+        # asyncio.create_task(self.time_sync_loop())
 
-    def __str__(self):
-        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
+    async def time_sync_loop(self):
+        while True:
+            try:
+                self.time_difference = await self.get_server_time_difference()
+                self.last_sync = time.time()
+            except Exception as e:
+                self.logger.info("Failed to sync time: %s", e)
+            await asyncio.sleep(self.sync_interval)
+
+    async def get_server_time_difference(self) -> float:
+        server_time = await self.get_server_time()
+        server_time = server_time["serverTime"] / 1000  # Convert from ms to s
+        local_time = time.time()
+        return local_time - server_time
+
+    async def get_adjusted_time(self) -> float:
+        if time.time() - self.last_sync > self.sync_interval:
+            self.time_difference = await self.get_server_time_difference()
+            self.last_sync = time.time()
+        return time.time() - self.time_difference

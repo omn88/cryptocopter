@@ -12,18 +12,19 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
 )
 from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
-from src.identifiers.common import Mode, PositionSide
 from src.common.symbol_info import SymbolInfo
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
-from src.identifiers.spot import (
+from src.identifiers import (
     Event,
     EventName,
     ExecutionReport,
     HPBuyConfig,
     HPSellConfig,
     HPSellData,
+    Mode,
+    PositionSide,
     SellPosition,
     SignalUpdate,
     StateInfo,

@@ -3,7 +3,6 @@ import os
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
-from src.identifiers.common import PositionSide
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
@@ -19,7 +18,6 @@ import logging
 import queue
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
-from transitions.extensions.asyncio import AsyncMachine
 from unittest.mock import patch
 from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
@@ -27,32 +25,17 @@ from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
 from src.database import Database
-from src.identifiers.futures import (
-    Event,
-    EventName,
-    Signal,
-    SignalUpdate,
-)
-from src.identifiers.spot import (
+from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
-    HPSellData,
     Order,
+    PositionSide,
     SellPosition,
     State,
     StateInfo,
 )
-from src.identifiers.futures import StrategyConfig as ConfigFutures
-from src.futures.df_handler.futures import DfHandler as DfHandlerFutures
-from src.gui.gui_handler.futures import GuiHandler as GuiHandlerFutures
-from src.futures.strategies.futures.base import BaseFuturesStrategy
-from src.futures.strategies.futures.rsi_basic import RsiBasic
-from src.futures.strategies.futures.rsi_extended import RsiExtended
-from src.futures.strategies.futures.rsi_special import RsiSpecial
 from src.strategies.hp_manager import HpStrategy
-
-from tests.data.sample_dataframes import raw_data_generate
 from tests.spot import get_new_orders
 
 logger = logging.getLogger("conftest")
@@ -306,172 +289,3 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
 
         gui.stop_event.set()
         await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
-
-
-@pytest.fixture
-async def base(mock_AsyncClient):
-    config = ConfigFutures(
-        symbol="BTCUSDT",
-        name="RE_BTCUSDT",
-        number_of_orders=4,
-        budget=400,
-    )
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
-
-    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df_handler.df = df_handler.insert_to_pandas()
-
-    strategy = BaseFuturesStrategy(
-        client=mock_AsyncClient,
-        balance=1000,
-        df_handler=df_handler,
-        config=config,
-        gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
-        ),
-    )
-
-    # Trading State Machine initialization
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-
-    state_machine.model.df_handler.df["Signal"] = 0
-    state_machine.model.df_handler.df["Position"] = state_machine.model.state
-
-    await state_machine.model.queue.put(
-        Event(name=EventName.SIGNAL, content=SignalUpdate(signal=Signal.NULL, price=0))
-    )
-
-    yield state_machine
-
-    await state_machine.model.client.close_connection()
-
-
-@pytest.fixture
-async def basic_rsi(mock_AsyncClient):
-    config = ConfigFutures(
-        symbol="BTCUSDT",
-        name="RB_BTCUSDT",
-        number_of_orders=4,
-        budget=400,
-    )
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
-    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df_handler.df = df_handler.insert_to_pandas()
-    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
-
-    strategy = RsiBasic(
-        client=mock_AsyncClient,
-        balance=1000,
-        df_handler=df_handler,
-        gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
-        ),
-        config=config,
-    )
-
-    # Trading State Machine initialization
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-
-    await state_machine.model.df_handler.determine_start_position(
-        queue=state_machine.model.queue
-    )
-
-    yield state_machine
-
-    await state_machine.model.client.close_connection()
-
-
-@pytest.fixture
-async def extended_rsi(mock_AsyncClient):
-    config = ConfigFutures(
-        symbol="BTCUSDT",
-        name="RE_BTCUSDT",
-        number_of_orders=4,
-        budget=400,
-    )
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
-    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df_handler.df = df_handler.insert_to_pandas()
-    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
-
-    strategy = RsiExtended(
-        client=mock_AsyncClient,
-        balance=1000,
-        df_handler=df_handler,
-        gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
-        ),
-        config=config,
-    )
-
-    # Trading State Machine initialization
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-
-    await state_machine.model.df_handler.determine_start_position(
-        queue=state_machine.model.queue
-    )
-    yield state_machine
-
-    await state_machine.model.client.close_connection()
-
-
-@pytest.fixture
-async def special_rsi(mock_AsyncClient):
-    config = ConfigFutures(
-        symbol="BTCUSDT",
-        name="RS_BTCUSDT",
-        number_of_orders=4,
-        budget=400,
-    )
-    df_handler = DfHandlerFutures(client=mock_AsyncClient, config=config)
-    df_handler.raw_data = raw_data_generate(desired_signal=Signal.NULL)
-    df_handler.df = df_handler.insert_to_pandas()
-    df_handler.df = df_handler.rsi_indicator_apply(df=df_handler.df)
-
-    strategy = RsiSpecial(
-        client=mock_AsyncClient,
-        balance=1000,
-        df_handler=df_handler,
-        gui_handler=GuiHandlerFutures(
-            main_ui_queue=asyncio.Queue(), ui_queue=asyncio.Queue()
-        ),
-        config=config,
-    )
-
-    state_machine = AsyncMachine(
-        model=strategy,
-        states=strategy.states,
-        transitions=strategy.transitions,
-        initial=strategy.state,
-        send_event=True,
-        queued=True,
-    )
-
-    await state_machine.model.df_handler.determine_start_position(
-        queue=state_machine.model.queue
-    )
-
-    yield state_machine
-
-    await state_machine.model.client.close_connection()

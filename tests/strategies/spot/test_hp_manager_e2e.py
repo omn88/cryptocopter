@@ -4,16 +4,9 @@ import logging
 import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.symbol_info import SymbolInfo
-from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
-from src.identifiers.common import PositionSide
-from src.identifiers.spot import (
-    HPSellConfig,
-    HPSellData,
-    State,
-    StateInfo,
-)
+from src.identifiers import HPSellConfig, HPSellData, State, StateInfo, PositionSide
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition

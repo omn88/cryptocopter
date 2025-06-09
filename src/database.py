@@ -7,14 +7,14 @@ from typing import Dict, List, Optional, Tuple
 import uuid
 import aiomysql
 
-from src.identifiers.common import PositionSide
-from src.identifiers.spot import (
+from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
     Order,
     SellPosition,
     StateInfo,
+    PositionSide,
 )
 
 logger = logging.getLogger("database")
