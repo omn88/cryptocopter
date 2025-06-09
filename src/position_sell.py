@@ -17,11 +17,10 @@ from binance.exceptions import (
 )
 
 from src.broker import BrokerSpot
-from src.identifiers.common import BinanceClient, PositionSide
 from src.common.symbol_info import SymbolInfo
 
 from src.database import Database
-from src.identifiers.spot import (
+from src.identifiers import (
     ExecutionReport,
     HPSellConfig,
     Order,
@@ -33,6 +32,8 @@ from src.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
     UiState,
+    BinanceClient,
+    PositionSide,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 

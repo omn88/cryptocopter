@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -9,8 +8,7 @@ from binance.enums import (
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.identifiers.common import Mode, PositionSide
-from src.identifiers.spot import (
+from src.identifiers import (
     Event,
     EventName,
     ExecutionReport,
@@ -19,10 +17,11 @@ from src.identifiers.spot import (
     HPSellConfig,
     HPSellData,
     Order,
-    SellPosition,
     State,
     StateInfo,
     TickerUpdate,
+    Mode,
+    PositionSide,
 )
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor

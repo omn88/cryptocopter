@@ -5,8 +5,7 @@ import threading
 from typing import Dict, Optional
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
-from src.identifiers.common import BinanceClient
-from src.identifiers.spot import (
+from src.identifiers import (
     AccountPosition,
     AllTickers,
     Balances,
@@ -16,6 +15,7 @@ from src.identifiers.spot import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
+    BinanceClient,
 )
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver

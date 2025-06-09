@@ -9,8 +9,7 @@ from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 
 from binance import BinanceSocketManager
-from src.identifiers.common import BinanceClient
-from src.identifiers.spot import (
+from src.identifiers import (
     AccountPosition,
     AllTickers,
     Balance,
@@ -22,6 +21,7 @@ from src.identifiers.spot import (
     SubscriptionTarget,
     SubscriptionType,
     TickerUpdate,
+    BinanceClient,
 )
 
 logger = logging.getLogger("broker")
