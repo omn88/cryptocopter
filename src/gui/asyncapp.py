@@ -230,7 +230,6 @@ class AsyncApp(App):
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
-
     def cancel_all_strategies(self):
         asyncio.create_task(self.shutdown())
 

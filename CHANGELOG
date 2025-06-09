@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- Provide HP List data filtering per status or list of statuses.
 - handle converting of the coins which lost USDT pair due to MICA and do not have multihop available pairs
 - mica related changes with multihop selling strategies
 - load save config reimplemented
