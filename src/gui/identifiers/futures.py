@@ -1,9 +1,8 @@
-from enum import Enum
 from typing import NamedTuple
 
 from kivy.properties import NumericProperty, ListProperty, StringProperty
 from kivy.uix.label import Label
-from src.identifiers.futures import Position, PositionStatus, State
+from src.identifiers.futures import PositionStatus, State
 
 from src.gui.constants import GREEN_COLOR, RED_COLOR, WHITE_COLOR
 

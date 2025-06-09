@@ -1,10 +1,9 @@
 import os
 import pandas as pd
 from binance import Client
-from binance.exceptions import BinanceRequestException
 from decouple import config
 import logging
-import logging_config
+import logging_config  # noqa: F401 - Configures logging when imported
 from src.common.constants import SYMBOL, INTERVAL
 
 logger = logging.getLogger("data_retriever")
