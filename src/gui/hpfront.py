@@ -77,6 +77,23 @@ class HpFront(BoxLayout):
     idle_filter_sell = StringProperty("All")
     archive_filter_sell = StringProperty("All")
 
+    # HP List state filter - default excludes CLOSED and SOLD
+    hp_state_filter = ListProperty(
+        [
+            "NEW",
+            "BUYING",
+            "PARTIALLY_BOUGHT",
+            "BOUGHT",
+            "READY_TO_SELL",
+            "SELLING",
+            "PARTIALLY_SOLD",
+            "PART_SOLD_PART_BOUGHT",
+            "SOLD_PART_BOUGHT",
+            "WAITING_CHILD",
+            "NONE",
+        ]
+    )
+
     log_display = ObjectProperty(None)
     file_name_input = ObjectProperty(None)
     symbols = ListProperty()
@@ -330,8 +347,7 @@ class HpFront(BoxLayout):
                 if hp_id not in parent["children"]:
                     parent["children"].append(hp_id)
 
-        else:
-            # Add or update parent
+        else:  # Add or update parent
             if hp_id in hp_map:
                 hp_map[hp_id].update(new_record)
             else:
@@ -339,6 +355,10 @@ class HpFront(BoxLayout):
                 hp_map[hp_id] = new_record
 
         self.hp_list = list(hp_map.values())  # this is likely already present
+
+        # Check if the HP position moved to CLOSED or SOLD state and auto-remove from filter if needed
+        if update.state.value in ["CLOSED", "SOLD"]:
+            self.auto_remove_closed_sold_states()
 
         # Trigger visual refresh
         self._update_hp_list_view()
@@ -647,7 +667,6 @@ class HpFront(BoxLayout):
         self.filter_records("archive", "All", side="SELL")
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
-
         for strategy in (
             self.active_records_buy
             + self.idle_records_buy
@@ -1439,25 +1458,34 @@ class HpFront(BoxLayout):
             self.expanded_hp_ids.remove(hp_id)
         else:
             self.expanded_hp_ids.add(hp_id)
-        
         # Trigger UI update
         self._update_hp_list_view()
 
     def _get_sorted_hp_list(self):
-        parents = [hp for hp in self.hp_list_data if not hp.get("is_child", False)]
-        children = [hp for hp in self.hp_list_data if hp.get("is_child", False)]
+        # Apply state filtering first
+        filtered_data = [
+            hp
+            for hp in self.hp_list_data
+            if hp.get("state", "") in self.hp_state_filter
+        ]
+
+        parents = [hp for hp in filtered_data if not hp.get("is_child", False)]
+        children = [hp for hp in filtered_data if hp.get("is_child", False)]
 
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x["hp_id"])):
             # Add has_children property to parent for UI rendering
-            parent_children = [c for c in children if c.get("parent_hp_id") == parent["hp_id"]]
+            parent_children = [
+                c for c in children if c.get("parent_hp_id") == parent["hp_id"]
+            ]
             parent["has_children"] = len(parent_children) > 0
             parent["is_expanded"] = parent["hp_id"] in self.expanded_hp_ids
             sorted_list.append(parent)
-            
+
             # Only add children if parent is expanded
             if parent["hp_id"] in self.expanded_hp_ids:
-                for child in sorted(parent_children, key=lambda x: x["hp_id"]):                    sorted_list.append(child)
+                for child in sorted(parent_children, key=lambda x: x["hp_id"]):
+                    sorted_list.append(child)
         return sorted_list
 
     def _update_hp_list_view(self, *args):
@@ -1478,7 +1506,8 @@ class HpFront(BoxLayout):
             "current_price",
             "net",
             "net_percent",
-            "state",            "is_child",
+            "state",
+            "is_child",
             "has_children",
             "is_expanded",
         }
@@ -1519,6 +1548,110 @@ class HpFront(BoxLayout):
             logger.info("Queued LoadConfig from %s", path)
         except Exception as e:
             logger.error("Failed to load CSV: %s", e)
+
+    def update_hp_state_filter(self, selected_states):
+        """Update the HP state filter and refresh the list"""
+        self.hp_state_filter = selected_states
+        self._update_hp_list_view()
+        logger.info("HP state filter updated to: %s", selected_states)
+
+    def on_hp_state_filter_change(self, filter_text):
+        """Handle HP state filter dropdown selection"""
+        if filter_text == "Active States (11)":
+            # Default filter excluding CLOSED and SOLD
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "PART_SOLD_PART_BOUGHT",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            display_text = "Showing 11 states (excludes CLOSED, SOLD)"
+        elif filter_text == "All States (13)":
+            # Show all states
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD",
+                "PART_SOLD_PART_BOUGHT",
+                "SOLD_PART_BOUGHT",
+                "CLOSED",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            display_text = "Showing all 13 states"
+        elif filter_text == "CLOSED Only":
+            # Show only CLOSED states
+            self.hp_state_filter = ["CLOSED"]
+            display_text = "Showing only CLOSED states"
+        elif filter_text == "SOLD Only":
+            # Show only SOLD states
+            self.hp_state_filter = ["SOLD"]
+            display_text = "Showing only SOLD states"
+        else:
+            # For "Custom..." or other cases, keep current filter
+            return
+
+        self._update_hp_list_view()
+        if not self.test_mode:
+            self.ids.hp_state_filter_display.text = display_text
+        logger.info("HP state filter changed to: %s", filter_text)
+
+    def reset_hp_state_filter(self):
+        """Reset HP state filter to default (excludes CLOSED and SOLD)"""
+        self.hp_state_filter = [
+            "NEW",
+            "BUYING",
+            "PARTIALLY_BOUGHT",
+            "BOUGHT",
+            "READY_TO_SELL",
+            "SELLING",
+            "PARTIALLY_SOLD",
+            "PART_SOLD_PART_BOUGHT",
+            "SOLD_PART_BOUGHT",
+            "WAITING_CHILD",
+            "NONE",
+        ]
+        self._update_hp_list_view()
+        if not self.test_mode:
+            self.ids.hp_state_filter_spinner.text = "Active States (11)"
+            self.ids.hp_state_filter_display.text = (
+                "Showing 11 states (excludes CLOSED, SOLD)"
+            )
+        logger.info("HP state filter reset to default")
+
+    def auto_remove_closed_sold_states(self):
+        """Automatically remove CLOSED and SOLD states from filter if they exist"""
+        current_filter = list(self.hp_state_filter)
+        states_to_remove = ["CLOSED", "SOLD"]
+
+        removed_any = False
+        for state in states_to_remove:
+            if state in current_filter:
+                current_filter.remove(state)
+                removed_any = True
+
+        if removed_any:
+            self.hp_state_filter = current_filter
+            self._update_hp_list_view()
+            # Update the spinner and display to reflect the change
+            if not self.test_mode:
+                self.ids.hp_state_filter_spinner.text = "Active States (11)"
+                self.ids.hp_state_filter_display.text = (
+                    "Showing 11 states (excludes CLOSED, SOLD)"
+                )
+            logger.info("Automatically removed CLOSED and SOLD states from filter")
 
     # def calculate_expected_gain(self, sell_price):
     #     """
