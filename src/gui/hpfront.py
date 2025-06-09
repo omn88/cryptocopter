@@ -379,9 +379,6 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
-                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -402,48 +399,19 @@ class HpFront(BoxLayout):
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),
+                        sum_allocated=symbol_info.format_price(data.config.budget),
+                        state=str(data.state_info.ui_state),
                     )
-                    self.archive_records_buy.append(archived_position.to_dict())
+                    self.archived_records_buy.append(archived_position.to_dict())
                     logger.info(
-                        "Archiving price level(%s): %s",
+                        "Closing price level(%s): %s",
                         data.config.hp_id,
                         archived_position,
                     )
+                    return
 
-                if data.state_info.ui_state == UiState.STAGNATED:
-                    trigger_price = data.config.symbol_info.format_price(
-                        (
-                            (1 + (data.config.order_trigger / 100))
-                            * data.config.price_high
-                            if data.state_info.side.value == PositionSide.LONG.value
-                            else (1 - (data.config.order_trigger / 100))
-                            * data.config.price_low
-                        )
-                    )
-
-                    self.active_records_buy.remove(position)
-                    idle_position = IdlePositionBuy(
-                        open_time=data.state_info.open_time,
-                        hp_id=str(data.config.hp_id),
-                        symbol=data.config.symbol_info.symbol,
-                        side=str(data.state_info.side.value),
-                        mode=str(data.config.mode.value),
-                        price_low=symbol_info.format_price(data.config.price_low),
-                        price_high=symbol_info.format_price(data.config.price_high),
-                        budget=str(data.config.budget),
-                        order_trigger=f"{data.config.order_trigger},({trigger_price})",
-                        state=str(data.state_info.ui_state),
-                        completeness=str(data.state_info.completeness),
-                    )
-                    self.idle_records_buy.append(idle_position.to_dict())
-                    logger.info(
-                        "Price level stagnated(%s): %s",
-                        data.config.hp_id,
-                        idle_position,
-                    )
-        self.filter_records("active", "All", side="BUY")
-        self.filter_records("idle", "All", side="BUY")
-        self.filter_records("archive", "All", side="BUY")
+                # Update current price
+                self.resolve_active_position_price_buy(data)
 
     def update_active_position_sell(
         self,
@@ -458,9 +426,6 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
-                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
 
@@ -480,38 +445,18 @@ class HpFront(BoxLayout):
                         quantity=symbol_info.format_quantity(data.config.quantity),
                         end_currency=str(data.config.end_currency),
                         completeness=str(data.state_info.completeness),
+                        state=str(data.state_info.ui_state),
                     )
-                    self.archive_records_sell.append(archived_position.to_dict())
+                    self.archived_records_sell.append(archived_position.to_dict())
                     logger.info(
-                        "Archiving price level(%s): %s",
+                        "Closing price level(%s): %s",
                         data.config.hp_id,
                         archived_position,
                     )
+                    return
 
-                if data.state_info.ui_state == UiState.STAGNATED:
-                    self.active_records_sell.remove(position)
-                    idle_position = IdlePositionSell(
-                        open_time=data.state_info.open_time,
-                        hp_id=str(data.config.hp_id),
-                        symbol=data.config.symbol_info.symbol,
-                        side=str(data.state_info.side.value),
-                        buy_price=symbol_info.format_price(data.config.buy_price),
-                        sell_price=symbol_info.format_price(data.config.sell_price),
-                        quantity=symbol_info.format_quantity(data.config.quantity),
-                        end_currency=str(data.config.end_currency),
-                        state=str(data.state_info.ui_state),
-                        completeness=str(data.state_info.completeness),
-                    )
-                    self.idle_records_sell.append(idle_position.to_dict())
-                    logger.info(
-                        "Price level stagnated(%s): %s",
-                        data.config.hp_id,
-                        idle_position,
-                    )
-
-        self.filter_records("active", "All", side="SELL")
-        self.filter_records("idle", "All", side="SELL")
-        self.filter_records("archive", "All", side="SELL")
+                # Update current price
+                self.resolve_active_position_price_sell(data)
 
     def update_idle_position_buy(
         self,
@@ -528,9 +473,6 @@ class HpFront(BoxLayout):
                     position["side"],
                 )
                 symbol_info = data.config.symbol_info
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
-                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 # logger.info("Data state: %s", data.state_info.ui_state)
@@ -540,12 +482,8 @@ class HpFront(BoxLayout):
                         (
                             (1 + (2 * data.config.order_trigger / 100))
                             * data.config.price_high
-                            if data.state_info.side.value == PositionSide.LONG.value
-                            else (1 - (2 * data.config.order_trigger / 100))
-                            * data.config.price_low
                         )
                     )
-
                     active_position = ActivePositionBuy(
                         open_time=data.state_info.open_time,
                         hp_id=str(data.config.hp_id),
@@ -556,7 +494,6 @@ class HpFront(BoxLayout):
                         price_high=symbol_info.format_price(data.config.price_high),
                         budget=str(data.config.budget),
                         order_cancel=f"{2 * data.config.order_trigger},({cancel_price})",
-                        stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                         completeness=str(data.state_info.completeness),
                         state=str(data.state_info.ui_state),
                     )
@@ -583,17 +520,15 @@ class HpFront(BoxLayout):
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),
+                        sum_allocated=symbol_info.format_price(data.config.budget),
+                        state=str(data.state_info.ui_state),
                     )
-                    self.archive_records_buy.append(archived_position.to_dict())
+                    self.archived_records_buy.append(archived_position.to_dict())
                     logger.info(
-                        "Archiving price level(%s): %s",
+                        "Closing price level(%s): %s",
                         data.config.hp_id,
                         archived_position,
                     )
-
-        self.filter_records("active", "All", side="BUY")
-        self.filter_records("idle", "All", side="BUY")
-        self.filter_records("archive", "All", side="BUY")
 
     def update_idle_position_sell(
         self,
@@ -610,9 +545,6 @@ class HpFront(BoxLayout):
                     position["hp_id"],
                     position["side"],
                 )
-                position["stagnation"] = (
-                    f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}"
-                )
                 position["completeness"] = str(data.state_info.completeness)
                 position["state"] = str(data.state_info.ui_state)
                 # logger.info("Data state: %s", data.state_info.ui_state)
@@ -627,7 +559,6 @@ class HpFront(BoxLayout):
                         sell_price=symbol_info.format_price(data.config.sell_price),
                         quantity=symbol_info.format_quantity(data.config.quantity),
                         end_currency=str(data.config.end_currency),
-                        stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                         completeness=str(data.state_info.completeness),
                         state=str(data.state_info.ui_state),
                     )
@@ -653,17 +584,14 @@ class HpFront(BoxLayout):
                         quantity=symbol_info.format_quantity(data.config.quantity),
                         end_currency=str(data.config.end_currency),
                         completeness=str(data.state_info.completeness),
+                        state=str(data.state_info.ui_state),
                     )
-                    self.archive_records_sell.append(archived_position.to_dict())
+                    self.archived_records_sell.append(archived_position.to_dict())
                     logger.info(
-                        "Archiving price level(%s): %s",
+                        "Closing price level(%s): %s",
                         data.config.hp_id,
                         archived_position,
                     )
-
-        self.filter_records("active", "All", side="SELL")
-        self.filter_records("idle", "All", side="SELL")
-        self.filter_records("archive", "All", side="SELL")
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         for strategy in (
@@ -1010,7 +938,6 @@ class HpFront(BoxLayout):
                     price_high=symbol_info.format_price(data.config.price_high),
                     budget=str(data.config.budget),
                     order_cancel=f"{2 * data.config.order_trigger},({self._calculate_cancel_price(data=data)})",
-                    stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                     completeness=str(data.state_info.completeness),
                     state=str(data.state_info.ui_state),
                 ).to_dict()
@@ -1038,6 +965,8 @@ class HpFront(BoxLayout):
                         budget=str(data.config.budget),
                         order_trigger=str(data.config.order_trigger),
                         completeness=str(data.state_info.completeness),
+                        sum_allocated=symbol_info.format_price(data.config.budget),
+                        state=str(data.state_info.ui_state),
                     ).to_dict()
                 )
                 self.filter_records("archive", "All", side="BUY")
@@ -1081,7 +1010,6 @@ class HpFront(BoxLayout):
                     sell_price=symbol_info.format_price(data.config.sell_price),
                     quantity=symbol_info.format_quantity(data.config.quantity),
                     end_currency=str(data.config.end_currency),
-                    stagnation=f"{data.state_info.stagnation_counter}/{data.state_info.stagnation_limit}",
                     completeness=str(data.state_info.completeness),
                     state=str(data.state_info.ui_state),
                 ).to_dict()
@@ -1103,6 +1031,7 @@ class HpFront(BoxLayout):
                     quantity=symbol_info.format_quantity(data.config.quantity),
                     end_currency=str(data.config.end_currency),
                     completeness=str(data.state_info.completeness),
+                    state=str(data.state_info.ui_state),
                 ).to_dict()
             )
             self.filter_records("archive", "All", side="SELL")
@@ -1566,7 +1495,6 @@ class HpFront(BoxLayout):
                 "READY_TO_SELL",
                 "SELLING",
                 "PARTIALLY_SOLD",
-                "PART_SOLD_PART_BOUGHT",
                 "SOLD_PART_BOUGHT",
                 "WAITING_CHILD",
                 "NONE",
@@ -1617,7 +1545,6 @@ class HpFront(BoxLayout):
             "READY_TO_SELL",
             "SELLING",
             "PARTIALLY_SOLD",
-            "PART_SOLD_PART_BOUGHT",
             "SOLD_PART_BOUGHT",
             "WAITING_CHILD",
             "NONE",

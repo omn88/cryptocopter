@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 import queue
 import logging
 from typing import Optional
@@ -296,20 +295,6 @@ class HpStrategy:
                 "before": "handle_order_partially_filled_sell",
             },
             {
-                "trigger": "process_ticker",
-                "source": State.BUYING,
-                "dest": "=",
-                "conditions": "conditions_for_position_stagnation_buy",
-                "after": "increase_stagnation_counter_buy",
-            },
-            {
-                "trigger": "process_ticker",
-                "source": State.SELLING,
-                "dest": "=",
-                "conditions": "conditions_for_position_stagnation_sell",
-                "after": "increase_stagnation_counter_sell",
-            },
-            {
                 "trigger": "process_order",
                 "source": "*",
                 "dest": "=",
@@ -572,17 +557,13 @@ class HpStrategy:
             self.buy.data.state_info.state == State.NEW
             and self.sell.current_position.state_info.state == State.NEW
             and self.state == State.BUYING
-            and self.buy.data.state_info.stagnation_counter
-            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price >= self.buy.orders_cancel_price
             and all(order.status == ORDER_STATUS_NEW for order in self.buy.orders)
         )
         if condition:
             logger.info(
-                "[Cancel Unfilled BUY] %s, stag: %s/%s, last price: %s, trig price: %s, state: %s, buy state: %s",
+                "[Cancel Unfilled BUY] %s, last price: %s, trig price: %s, state: %s, buy state: %s",
                 self.buy.data.config.symbol_info.symbol,
-                self.buy.data.state_info.stagnation_counter,
-                self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
                 self.state,
@@ -606,16 +587,12 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
-            and self.buy.data.state_info.stagnation_counter
-            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             logger.info(
-                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                "[Cancel Part Filled BUY] %s, last price: %s, trig price: %s",
                 self.buy.data.config.symbol_info.symbol,
-                self.buy.data.state_info.stagnation_counter,
-                self.buy.data.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -660,7 +637,6 @@ class HpStrategy:
     async def resend_buy_orders(self, *args, **kwargs) -> None:
         logger.info("Resending %s BUY", self.buy.data.config.symbol_info.symbol)
         self.balance -= self.get_remaining_quantity_buy()
-        self.buy.data.state_info.stagnation_counter = 0
 
         await self.buy.open_position()
         self.state = State.BUYING
@@ -864,8 +840,6 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
-            and self.sell.current_position.state_info.stagnation_counter
-            >= self.sell.current_position.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
@@ -874,10 +848,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                "[Cancel Unfilled SELL] %s, last price: %s, trig price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -939,10 +911,6 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
-            and (
-                self.sell.current_position.state_info.stagnation_counter
-                >= self.sell.current_position.state_info.stagnation_limit
-            )
             and (self.ticker_update.last_price <= sell_cancel_order_price)
             and (
                 self.ticker_update.symbol
@@ -951,10 +919,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Unfilled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                "[Cancel Unfilled SELL] %s, last price: %s, trig price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 sell_cancel_order_price,
             )
@@ -1016,9 +982,7 @@ class HpStrategy:
 
     def conditions_for_cancelling_partially_sold_orders(self, *args, **kwargs) -> bool:
         condition = (
-            self.sell.current_position.state_info.stagnation_counter
-            >= self.sell.current_position.state_info.stagnation_limit
-            and self.ticker_update.last_price
+            self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
             == self.sell.current_position.config.symbol_info.symbol
@@ -1027,10 +991,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Part Filled SELL] %s, stagnation: %s/%s, last price: %s, trig price: %s",
+                "[Cancel Part Filled SELL] %s, last price: %s, trig price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1135,8 +1097,6 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-            and self.sell.current_position.state_info.stagnation_counter
-            >= self.sell.current_position.state_info.stagnation_limit
             and self.ticker_update.last_price
             <= self.calculate_trigger_cancel_orders_price_sell()
             and self.ticker_update.symbol
@@ -1144,10 +1104,8 @@ class HpStrategy:
         )
         if condition:
             logger.info(
-                "[Cancel Part Filled SELL] %s, stagnation:%s/%s, last price: %s, trigger price: %s",
+                "[Cancel Part Filled SELL] %s, last price: %s, trigger price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.calculate_trigger_cancel_orders_price_sell(),
             )
@@ -1212,16 +1170,12 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.PARTIALLY_SOLD
-            and self.buy.data.state_info.stagnation_counter
-            >= self.buy.data.state_info.stagnation_limit
             and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             logger.info(
-                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
+                "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -1303,16 +1257,12 @@ class HpStrategy:
         condition = (
             self.buy.data.state_info.state == State.SOLD
             and self.sell.current_position.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.current_position.state_info.stagnation_counter
-            >= self.sell.current_position.state_info.stagnation_limit
             and self.ticker_update.last_price >= self.buy.orders_cancel_price
         )
         if condition:
             logger.info(
-                "[Cancel Part Filled BUY] %s, stagnation: %s/%s, last price: %s, trigger price: %s",
+                "[Cancel Part Filled BUY] %s, last price: %s, trigger price: %s",
                 self.sell.current_position.config.symbol_info.symbol,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
                 self.ticker_update.last_price,
                 self.buy.orders_cancel_price,
             )
@@ -1454,110 +1404,6 @@ class HpStrategy:
 
         # self.db.upsert_sell_price_level(data=self.sell.current_position)
         self.send_sell_position_to_ui()
-
-    def conditions_for_position_stagnation_buy(self, *args, **kwargs) -> bool:
-        date_time_now = datetime.now()
-
-        condition = self.state == State.BUYING and date_time_now > datetime.strptime(
-            self.buy.data.state_info.next_monitor_time, "%Y-%m-%d %H:%M:%S"
-        )
-        if condition:
-            logger.info(
-                "[Handle stagnation BUY]: %s, time now: %s, monitor time: %s",
-                condition,
-                date_time_now,
-                self.buy.data.state_info.next_monitor_time,
-            )
-        return condition
-
-    def increase_stagnation_counter_buy(self, *args, **kwargs) -> None:
-        logger.info(
-            "Entering increase stagnation coutner buy, counter before adding 1: %s",
-            self.buy.data.state_info.stagnation_counter,
-        )
-        self.buy.data.state_info.stagnation_counter += 1
-
-        if (
-            self.buy.data.state_info.stagnation_counter
-            < self.buy.data.state_info.stagnation_limit
-        ):
-            logger.info(
-                "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
-                self.buy.data.config.hp_id,
-                self.buy.data.state_info.stagnation_counter,
-                self.buy.data.state_info.stagnation_limit,
-            )
-        else:
-            logger.info(
-                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
-                self.buy.data.config.hp_id,
-                self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
-            )
-
-        self.buy.data.state_info.generate_next_monitor_time()
-
-        self.buy.data.state_info.ui_state = UiState.OPEN
-        self.buy.data.state_info.get_completeness(self.buy.orders)
-
-        logger.info("Orders: %s", self.buy.orders)
-
-        self.send_buy_position_to_ui()
-
-        self.db.upsert_buy_price_level(data=self.buy.data)
-
-    def conditions_for_position_stagnation_sell(self, *args, **kwargs) -> bool:
-        assert self.sell
-        date_time_now = datetime.now()
-
-        condition = (
-            self.sell is not None
-            and self.state == State.SELLING
-            and date_time_now
-            > datetime.strptime(
-                self.sell.current_position.state_info.next_monitor_time,
-                "%Y-%m-%d %H:%M:%S",
-            )
-        )
-        if condition:
-            logger.info(
-                "[Handle stagnation Sell]: %s, time now: %s, monitor time: %s",
-                condition,
-                date_time_now,
-                self.sell.current_position.state_info.next_monitor_time,
-            )
-
-        return condition
-
-    def increase_stagnation_counter_sell(self, *args, **kwargs) -> None:
-        assert self.sell
-        self.sell.current_position.state_info.stagnation_counter += 1
-
-        if (
-            self.sell.current_position.state_info.stagnation_counter
-            < self.sell.current_position.state_info.stagnation_limit
-        ):
-            logger.info(
-                "[%s]: stagnation counter increase to: %s, stagnation limit: %s",
-                self.sell.current_position.config.hp_id,
-                self.sell.current_position.state_info.stagnation_counter,
-                self.sell.current_position.state_info.stagnation_limit,
-            )
-        else:
-            logger.info(
-                "[%s]: Stagnation limit reached, current price: %s, order cancel price: %s",
-                self.sell.current_position.config.hp_id,
-                self.ticker_update.last_price,
-                self.buy.orders_cancel_price,
-            )
-
-        self.sell.current_position.state_info.generate_next_monitor_time()
-        self.sell.current_position.state_info.ui_state = UiState.OPEN
-        self.sell.current_position.state_info.get_completeness(
-            self.sell.current_position.sell_order
-        )
-        self.send_sell_position_to_ui()
-        # self.db.upsert_sell_price_level(data=self.sell.current_position)
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:
         condition = (

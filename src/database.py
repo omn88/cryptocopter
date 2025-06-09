@@ -398,7 +398,7 @@ class Database:
                             config.budget,
                             state_info.state.value,
                             version_timestamp,
-                            state_info.stagnation_counter,
+                            0,  # Default stagnation_counter to 0
                             state_info.next_monitor_time,
                         ),
                     )
@@ -448,7 +448,7 @@ class Database:
                             config.end_currency,
                             state_info.state.value,
                             version_timestamp,
-                            state_info.stagnation_counter,
+                            0,  # Default stagnation_counter to 0
                             state_info.next_monitor_time,
                         ),
                     )
