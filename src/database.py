@@ -12,7 +12,6 @@ from src.identifiers.spot import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
-    HPSellData,
     Order,
     SellPosition,
     StateInfo,

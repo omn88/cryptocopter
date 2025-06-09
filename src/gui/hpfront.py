@@ -10,7 +10,7 @@ from kivy.properties import (
     ObjectProperty,
     StringProperty,
 )
-from kivy.clock import Clock
+
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
@@ -26,10 +26,7 @@ from src.identifiers.spot import (
     Event,
     EventName,
     HPSellData,
-    Order,
     RemoveRecord,
-    SellPosition,
-    SellType,
     State,
     StateInfo,
     UiState,
