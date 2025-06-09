@@ -116,7 +116,6 @@ class HPPositionBuy:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
-        self.data.state_info.generate_next_monitor_time()
         self.data.state_info.get_completeness(self.orders)
         self.data.state_info.ui_state = UiState.OPEN
 
@@ -141,7 +140,6 @@ class HPPositionBuy:
                 )
 
         self.data.state_info.ui_state = UiState.OPEN
-        self.data.state_info.generate_next_monitor_time()
 
         self.data.state_info.get_completeness(self.orders)
         logger.info("Completeness: %s", self.data.state_info.completeness)

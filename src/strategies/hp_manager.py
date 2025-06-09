@@ -531,7 +531,6 @@ class HpStrategy:
         self.state = State.BUYING
         self.buy.data.state_info.state = State.NEW
 
-        self.buy.data.state_info.generate_next_monitor_time()
         self.buy.data.state_info.get_completeness(self.buy.orders)
 
         self.buy.data.state_info.ui_state = UiState.OPEN
@@ -705,7 +704,6 @@ class HpStrategy:
         await self.sell.open_position()
 
         self.state = State.SELLING
-        self.sell.current_position.state_info.generate_next_monitor_time()
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
         )
@@ -963,7 +961,6 @@ class HpStrategy:
         await self.sell.open_position()
         self.state = State.SELLING
         self.sell.current_position.state_info.state = State.PARTIALLY_SOLD
-        self.sell.current_position.state_info.generate_next_monitor_time()
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
         )

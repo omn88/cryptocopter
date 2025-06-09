@@ -319,7 +319,6 @@ class HPPositionSell:
             logger.info(
                 "Order: %s partially filled", self.current_position.sell_order.order_id
             )
-        self.current_position.state_info.generate_next_monitor_time()
         self.current_position.state_info.get_completeness(
             self.current_position.sell_order
         )
@@ -349,7 +348,6 @@ class HPPositionSell:
             #     hp_id=self.current_position.config.hp_id,
             #     side=self.current_position.state_info.side,            # )
         self.current_position.state_info.ui_state = UiState.OPEN
-        self.current_position.state_info.generate_next_monitor_time()
 
         self.current_position.state_info.get_completeness(
             self.current_position.sell_order

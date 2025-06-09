@@ -75,11 +75,6 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
 
     await sim.move_to_position_active_buy()
     strategy = back.strategies["1000"]
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
-
-    strategy.buy.data.state_info.generate_next_monitor_time()
 
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428)
@@ -158,9 +153,6 @@ async def test_default_position_first_order_filled_then_cancel(
     strategy = await sim.simulate_first_buy_order_fill()
 
     # Cancel partially bought position
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
 
     assert strategy.buy.data.state_info.next_monitor_time
 
@@ -247,9 +239,6 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     strategy = await sim.simulate_partial_fill()
 
     # Cancel position
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
 
     assert strategy.buy.data.state_info.next_monitor_time
 
@@ -327,64 +316,6 @@ async def test_default_position_all_buy_orders_filled(
 
 
 @pytest.mark.database_integration
-async def test_stagnation_counter_increase_buy(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
-
-    # Path 1: Send buy orders
-
-    await sim.move_to_position_active_buy()
-
-    strategy = back.strategies["1000"]
-    assert strategy.buy.data.state_info.stagnation_counter == 0
-    assert strategy.buy.data.state_info.stagnation_limit == 8
-
-    time = datetime.datetime.now()
-    strategy.buy.data.state_info.next_monitor_time = time.strftime("%Y-%m-%d %H:%M:%S")
-
-    assert strategy.buy.data.state_info.next_monitor_time == time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    assert strategy.conditions_for_position_stagnation_buy()
-    await strategy.process_ticker()  # type: ignore[attr-defined]
-
-    assert strategy.buy.data.state_info.stagnation_counter == 1
-    assert strategy.buy.data.state_info.stagnation_limit == 8
-
-    assert strategy.buy.data.state_info.next_monitor_time != time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "BUYING"
-
-    assert len(front.active_records_buy) == 1
-    assert len(front.idle_records_buy) == 0
-    active_pos = front.active_records_buy[0]
-    logger.info("active pos: %s", active_pos)
-
-    await wait_for_condition(condition_func=lambda: active_pos["stagnation"] == "1/8")
-
-
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
     frontend_backend_setup,
 ):
@@ -403,10 +334,6 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     strategy = await sim.simulate_partial_fill()
 
     # Cancel position
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
-
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.buy.orders_cancel_price == 1428.0
@@ -493,10 +420,6 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     strategy = await sim.simulate_first_buy_order_fill()
 
     # Cancel partially bought position
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
-
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.buy.orders_cancel_price == 1428.0
@@ -641,71 +564,8 @@ async def test_send_sell_order_for_bought_position(
     assert (
         active_sell_item["sell_price"] == "4200.0"
     ), f"Item sell price: {item['sell_price']}"
-    assert active_sell_item["stagnation"] == "0/8"
     assert active_sell_item["side"] == "SELL"
     assert active_sell_item["completeness"] == "0.0"
-
-
-@pytest.mark.database_integration
-async def test_sell_orders_stagnation_increase(
-    frontend_backend_setup,
-):
-    front, back = frontend_backend_setup
-    assert isinstance(front, HpFront)
-    assert isinstance(back, StrategyExecutor)
-    sim = HPSimulator(front=front, back=back)
-    await sim.simulate_bought_position()
-
-    await sim.setup_sell_position(
-        hp_id="1000",
-        symbol="BTCUSDC",
-        quantity=0.85,
-        buy_price=1178.82,
-        sell_price=4200.0,
-        end_currency="USDC",
-        coin="BTC",
-    )
-
-    await sim.send_sell_order_for_bought_position()
-
-    strategy = back.strategies["1000"]
-
-    assert strategy.sell.current_position.state_info.stagnation_counter == 0
-    assert strategy.sell.current_position.state_info.stagnation_limit == 8
-
-    time = datetime.datetime.now()
-    strategy.sell.current_position.state_info.next_monitor_time = time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    assert strategy.sell.current_position.state_info.next_monitor_time == time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    assert strategy.conditions_for_position_stagnation_sell()
-    await strategy.process_ticker()  # type: ignore[attr-defined]
-
-    assert strategy.sell.current_position.state_info.stagnation_counter == 1
-    assert strategy.sell.current_position.state_info.stagnation_limit == 8
-
-    assert strategy.sell.current_position.state_info.next_monitor_time != time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.85"
-    assert item["quantity_usd"] == "1002.0"
-    assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "2568.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "SELLING"
-
-    logger.info("HP List after the update: %s", front.hp_list_data)
 
 
 @pytest.mark.database_integration
@@ -1591,10 +1451,6 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
     strategy = await sim.simulate_partial_fill_with_sell_price()
 
     # Cancel position
-    strategy.buy.data.state_info.stagnation_counter = (
-        strategy.buy.data.state_info.stagnation_limit
-    )
-
     assert strategy.buy.data.state_info.next_monitor_time
 
     assert strategy.buy.orders_cancel_price == 1428.0
