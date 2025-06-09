@@ -10,8 +10,7 @@ from binance.enums import (
     ORDER_STATUS_EXPIRED,
 )
 from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
-from src.identifiers.common import PositionSide
-from src.identifiers.spot import (
+from src.identifiers import (
     Event,
     EventName,
     ExecutionReport,
@@ -20,13 +19,13 @@ from src.identifiers.spot import (
     StateInfo,
     TickerUpdate,
     UiState,
+    PositionSide,
 )
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import (
     assert_default_buy_position_data,
-    buy_fully_last_order,
     cancel_partially_bought_position_first_order_filled,
     cancel_partially_bought_position_first_order_filled_partially,
     cancel_sell_position_part_bought_part_sold,
@@ -35,8 +34,6 @@ from tests.strategies.spot.hp_manager_helpers import (
     cancel_untouched_sell_position,
     get_default_buy_position,
     move_to_buy_position_active,
-    move_to_partially_sold,
-    move_to_sell_position_active,
     reopen_buy_part_bought_part_sold,
     reopen_buy_part_bought_sold,
     resend_part_bought_first_order_filled,
@@ -48,7 +45,6 @@ from tests.strategies.spot.hp_manager_helpers import (
     simulate_bought_position,
     simulate_cancel_sell_position,
     simulate_first_buy_order_fill,
-    simulate_move_to_sell_from_partially_bought_position,
     simulate_partial_fill,
     simulate_partial_fill_sell,
     simulate_resend_sell_position,

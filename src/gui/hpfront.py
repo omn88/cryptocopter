@@ -17,8 +17,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
 from src.database import Database
-from src.identifiers.common import BinanceClient, Mode, PositionSide
-from src.identifiers.spot import (
+from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
@@ -30,6 +29,9 @@ from src.identifiers.spot import (
     State,
     StateInfo,
     UiState,
+    BinanceClient,
+    Mode,
+    PositionSide,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (

@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, NamedTuple, Optional
 from src.common.symbol_info import SymbolInfo
-from src.identifiers.spot import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
+from src.identifiers import HPBuyData, HPSellConfig, HPSellData, State, StateInfo
 
 
 @dataclass

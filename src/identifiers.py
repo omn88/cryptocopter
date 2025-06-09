@@ -1,9 +1,13 @@
+import asyncio
 from dataclasses import dataclass, field
 import datetime
 from enum import Enum, auto
+import logging
 import queue
+import time
 from typing import Dict, List, NamedTuple, Optional, Union
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
+from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
 
 
@@ -202,7 +206,6 @@ class Event(NamedTuple):
     content: Union[
         SignalUpdate,
         TickerUpdate,
-        SentinelUpdate,
         ExecutionReport,
         AccountPosition,
         AllTickers,
@@ -213,6 +216,26 @@ class Event(NamedTuple):
 
     def __repr__(self) -> str:
         return f"Event(name={self.name}, content={self.content})"
+
+
+class PositionSide(Enum):
+    LONG = "BUY"
+    SHORT = "SELL"
+    FLAT = "FLAT"
+
+
+class RemoveRecord(NamedTuple):
+    hp_id: str
+    symbol: str
+    side: PositionSide
+
+    def __str__(self):
+        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
+
+
+class Mode(Enum):
+    SINGLE = "SINGLE"
+    DCA = "DCA"
 
 
 @dataclass
@@ -353,39 +376,6 @@ class SubscriptionInfo(NamedTuple):
     symbol: str
     target: SubscriptionTarget
     queue: queue.Queue
-
-
-class RemoveRecord(NamedTuple):
-    hp_id: str
-    symbol: str
-    side: PositionSide
-
-    def __str__(self):
-        return f"RemoveRecord(hp_id='{self.hp_id}', symbol='{self.symbol}', side='{self.side}')"
-
-
-import asyncio
-from enum import Enum
-import logging
-import time
-from typing import NamedTuple
-
-from binance import AsyncClient
-
-
-class SentinelUpdate(NamedTuple):
-    sentinel: str
-
-
-class Mode(Enum):
-    SINGLE = "SINGLE"
-    DCA = "DCA"
-
-
-class PositionSide(Enum):
-    LONG = "BUY"
-    SHORT = "SELL"
-    FLAT = "FLAT"
 
 
 class BinanceClient(AsyncClient):
