@@ -22,7 +22,7 @@ async def shutdown(
     logging.info("Nacking outstanding messages")
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
 
-    results = [task.cancel() for task in tasks]
+    [task.cancel() for task in tasks]
 
     logging.info("Flushing metrics")
     await client.close_connection()

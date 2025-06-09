@@ -1,11 +1,9 @@
 import asyncio
-from dataclasses import dataclass
 from enum import Enum
 import logging
 import time
 from typing import NamedTuple
 
-from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
 from binance import AsyncClient
 
 
