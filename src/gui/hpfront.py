@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 import queue
 import logging
-from typing import Dict, List
+from typing import Dict, List, Set
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -57,6 +57,7 @@ logger = logging.getLogger("HPFront")
 
 class HpFront(BoxLayout):
     hp_list_data: List[Dict] = ListProperty([])
+    expanded_hp_ids: Set[str] = set()  # Track which parent HPs are expanded
     active_records_buy: List[Dict] = ListProperty([])
     idle_records_buy: List[Dict] = ListProperty([])
     archive_records_buy: List[Dict] = ListProperty([])
@@ -1432,18 +1433,31 @@ class HpFront(BoxLayout):
 
         return box
 
+    def toggle_hp_expansion(self, hp_id: str):
+        """Toggle the expansion state of a parent HP position"""
+        if hp_id in self.expanded_hp_ids:
+            self.expanded_hp_ids.remove(hp_id)
+        else:
+            self.expanded_hp_ids.add(hp_id)
+        
+        # Trigger UI update
+        self._update_hp_list_view()
+
     def _get_sorted_hp_list(self):
         parents = [hp for hp in self.hp_list_data if not hp.get("is_child", False)]
         children = [hp for hp in self.hp_list_data if hp.get("is_child", False)]
 
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x["hp_id"])):
+            # Add has_children property to parent for UI rendering
+            parent_children = [c for c in children if c.get("parent_hp_id") == parent["hp_id"]]
+            parent["has_children"] = len(parent_children) > 0
+            parent["is_expanded"] = parent["hp_id"] in self.expanded_hp_ids
             sorted_list.append(parent)
-            for child in sorted(
-                [c for c in children if c.get("parent_hp_id") == parent["hp_id"]],
-                key=lambda x: x["hp_id"],
-            ):
-                sorted_list.append(child)
+            
+            # Only add children if parent is expanded
+            if parent["hp_id"] in self.expanded_hp_ids:
+                for child in sorted(parent_children, key=lambda x: x["hp_id"]):                    sorted_list.append(child)
         return sorted_list
 
     def _update_hp_list_view(self, *args):
@@ -1464,8 +1478,9 @@ class HpFront(BoxLayout):
             "current_price",
             "net",
             "net_percent",
-            "state",
-            "is_child",
+            "state",            "is_child",
+            "has_children",
+            "is_expanded",
         }
 
         cleaned_data = []
@@ -1473,6 +1488,8 @@ class HpFront(BoxLayout):
             filtered = {k: item.get(k, "") for k in valid_keys}
             # Kivy's RecycleView needs everything as strings or primitives
             filtered["is_child"] = bool(item.get("is_child", False))
+            filtered["has_children"] = bool(item.get("has_children", False))
+            filtered["is_expanded"] = bool(item.get("is_expanded", False))
             filtered["hp_manager"] = self
             cleaned_data.append(filtered)
 

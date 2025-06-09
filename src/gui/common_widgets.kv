@@ -520,7 +520,7 @@
 
     canvas.before:
         Color:
-            rgba: 0.2, 0.2, 0.2, 1  # Define the background color for the rows
+            rgba: (0.15, 0.15, 0.15, 1) if root.is_child else (0.2, 0.2, 0.2, 1)  # Darker background for child items
         Rectangle:
             size: self.size
             pos: self.pos
@@ -542,11 +542,26 @@
     expected_return: ''
     state: ''
     is_child: False
+    has_children: False
+    is_expanded: False
 
-    Label:
-        text: root.hp_id
+    # Indentation for child items and expand/collapse button for parents
+    BoxLayout:
         size_hint_x: 0.05
-        font_size: '14sp'
+        orientation: 'horizontal'
+        padding: [20, 0, 0, 0] if root.is_child else [0, 0, 0, 0]  # Indent child items
+        
+        Button:
+            text: "▼" if root.is_expanded else "▶" if root.has_children else ""
+            size_hint_x: None
+            width: 20 if root.has_children else 0
+            opacity: 1 if root.has_children else 0
+            background_color: (0.3, 0.3, 0.3, 1)
+            on_release: root.hp_manager.toggle_hp_expansion(root.hp_id) if root.has_children else None
+        
+        Label:
+            text: root.hp_id
+            font_size: '14sp'
 
     Label:
         text: root.coin
