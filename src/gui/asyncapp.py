@@ -37,13 +37,6 @@ logger = logging.getLogger("async_app")
 
 # Load the common_widgets.kv file first
 Builder.load_file("src/gui/common_widgets.kv")
-Builder.load_file("src/gui/strategytab.kv")
-
-strategy_mapping = {
-    "RSI Basic": "RB",
-    "RSI Extended": "RE",
-    "RSI Special": "RS",
-}
 
 
 class AsyncApp(App):
@@ -109,7 +102,6 @@ class AsyncApp(App):
     def on_start(self):
         self.setup_portfolio_manager()
         asyncio.create_task(self.load_all_active_strategies())
-        asyncio.create_task(self.update_ui())
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -237,16 +229,6 @@ class AsyncApp(App):
                 strategy_id=strategy_id, symbols_info=self.symbols_info
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
-
-    async def on_close_strategy(self, strategy_name, symbol):
-        # Get the tab for the strategy
-        tab = self.strategies[f"{strategy_mapping[strategy_name]}_{symbol}"]
-
-        # Remove the tab from the TabbedPanel
-        self.root.remove_widget(tab)
-
-        if len(self.root.tab_list) > 0:
-            self.root.switch_to(self.root.tab_list[0])
 
     def cancel_all_strategies(self):
         asyncio.create_task(self.shutdown())
