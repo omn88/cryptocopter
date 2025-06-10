@@ -1053,7 +1053,6 @@ class StrategyExecutor:
     #             else UiState.STAGNATED
     #         )
     #         strategy.buy.data.state_info.get_completeness(strategy.buy.orders)
-    #         strategy.buy.data.state_info.generate_next_monitor_time()
     #         self.send_buy_position_data_to_ui(
     #             buy_position=strategy.buy, strategy_state=strategy.state
     #         )
@@ -1078,7 +1077,6 @@ class StrategyExecutor:
     #             ] = await self.restore_sell_orders(
     #                 sell_config=sell_config, worker_queue=worker_queue
     #             )
-    #             strategy.sell.current_position.state_info.generate_next_monitor_time()
 
     #             strategy.sell.current_position.state_info.ui_state = (
     #                 UiState.OPEN

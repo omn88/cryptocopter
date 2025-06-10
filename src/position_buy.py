@@ -78,7 +78,6 @@ class HPPositionBuy:
             self.data.state_info.side,
             self.data.config.hp_id,
         )
-        self.data.state_info.stagnation_counter = 0
 
         self.orders = await self.cancel_remaining_limit_orders(
             symbol=self.data.config.symbol_info.symbol,
@@ -117,9 +116,6 @@ class HPPositionBuy:
                 )
                 logger.info("Order: %s partially filled", order.order_id)
 
-        logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
-        self.data.state_info.stagnation_counter = 0
-        self.data.state_info.generate_next_monitor_time()
         self.data.state_info.get_completeness(self.orders)
         self.data.state_info.ui_state = UiState.OPEN
 
@@ -144,12 +140,9 @@ class HPPositionBuy:
                 )
 
         self.data.state_info.ui_state = UiState.OPEN
-        self.data.state_info.stagnation_counter = 0
-        self.data.state_info.generate_next_monitor_time()
 
         self.data.state_info.get_completeness(self.orders)
         logger.info("Completeness: %s", self.data.state_info.completeness)
-        logger.info("Stagnation counter reset for system: %s", self.data.config.hp_id)
 
     def prepare_orders(self) -> None:
         config = self.data.config

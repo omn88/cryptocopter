@@ -80,7 +80,6 @@ class ActivePositionBuy:
     order_cancel: str = field(default="")
     state: str = field(default="")
     completeness: str = field(default="")
-    stagnation: str = field(default="")
     current_price: str = field(default="")
 
     def to_dict(self):
@@ -100,6 +99,8 @@ class ArchivedPositionBuy:
     budget: str = field(default="")
     order_trigger: str = field(default="")
     completeness: str = field(default="")
+    sum_allocated: str = field(default="")
+    state: str = field(default="")
 
     def to_dict(self):
         return asdict(self)
@@ -135,7 +136,6 @@ class ActivePositionSell:
     end_currency: str = field(default="")
     state: str = field(default="")
     completeness: str = field(default="")
-    stagnation: str = field(default="")
     current_price: str = field(default="")
 
     def to_dict(self):
@@ -154,6 +154,7 @@ class ArchivedPositionSell:
     quantity: str = field(default="")
     end_currency: str = field(default="")
     completeness: str = field(default="")
+    state: str = field(default="")
 
     def to_dict(self):
         return asdict(self)

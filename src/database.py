@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS buy_price_levels (
     budget FLOAT NOT NULL,
     state VARCHAR(20) NOT NULL,
     mode VARCHAR(10) NOT NULL,
-    stagnation_counter INT NOT NULL DEFAULT 0,
     next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -66,7 +65,6 @@ CREATE TABLE IF NOT EXISTS sell_price_levels (
     quantity FLOAT NOT NULL,
     state VARCHAR(20) NOT NULL,
     end_currency VARCHAR(20) NOT NULL,
-    stagnation_counter INT NOT NULL DEFAULT 0,
     next_monitor_time VARCHAR(20) NOT NULL DEFAULT '1970-01-01 00:00:00',
     is_current BOOLEAN NOT NULL DEFAULT TRUE,
     version_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -367,9 +365,9 @@ class Database:
                         "SELECT 1 FROM buy_price_levels WHERE hp_id=%s LIMIT 1",
                         (config.hp_id,),
                     )
-                    existing_record = await cur.fetchone()
-
-                    # If no such record exists, proceed with the update and insert
+                    existing_record = (
+                        await cur.fetchone()
+                    )  # If no such record exists, proceed with the update and insert
                     if existing_record:
                         # Mark the current record as not current
                         await cur.execute(
@@ -382,8 +380,8 @@ class Database:
                     insert_query = """
                     INSERT INTO buy_price_levels (
                         open_time, hp_id, symbol, mode, price_low, price_high, order_trigger, budget, state,
-                        is_current, version_timestamp, stagnation_counter, next_monitor_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                        is_current, version_timestamp
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                     """
                     await cur.execute(
                         insert_query,
@@ -398,8 +396,6 @@ class Database:
                             config.budget,
                             state_info.state.value,
                             version_timestamp,
-                            state_info.stagnation_counter,
-                            state_info.next_monitor_time,
                         ),
                     )
                     await conn.commit()
@@ -433,8 +429,8 @@ class Database:
                     insert_query = """
                     INSERT INTO sell_price_levels (
                         open_time, hp_id, symbol, buy_price, sell_price, quantity, end_currency, state,
-                        is_current, version_timestamp, stagnation_counter, next_monitor_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                        is_current, version_timestamp
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                     """
                     await cur.execute(
                         insert_query,
@@ -448,8 +444,6 @@ class Database:
                             config.end_currency,
                             state_info.state.value,
                             version_timestamp,
-                            state_info.stagnation_counter,
-                            state_info.next_monitor_time,
                         ),
                     )
                     await conn.commit()

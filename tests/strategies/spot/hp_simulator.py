@@ -105,11 +105,6 @@ class HPSimulator:
 
     async def cancel_buy_position_untouched(self):
         strategy = self.back.strategies["1000"]
-        strategy.buy.data.state_info.stagnation_counter = (
-            strategy.buy.data.state_info.stagnation_limit
-        )
-
-        strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.buy.orders_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
@@ -590,15 +585,11 @@ class HPSimulator:
         assert (
             active_sell_item["sell_price"] == "4200.0"
         ), f"Item sell price: {item['sell_price']}"
-        assert active_sell_item["stagnation"] == "0/8"
         assert active_sell_item["side"] == "SELL"
         assert active_sell_item["completeness"] == "0.0"
 
     async def cancel_unfilled_sell_position(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.current_position.state_info.stagnation_counter = (
-            strategy.sell.current_position.state_info.stagnation_limit
-        )
         self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -725,10 +716,6 @@ class HPSimulator:
 
     async def cancel_partially_sold_position(self):
         strategy = self.back.strategies["1000"]
-
-        strategy.sell.current_position.state_info.stagnation_counter = (
-            strategy.sell.current_position.state_info.stagnation_limit
-        )
         self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -805,7 +792,6 @@ class HPSimulator:
         assert (
             active_sell_item["sell_price"] == "4200.0"
         ), f"Item sell price: {item['sell_price']}"
-        assert active_sell_item["stagnation"] == "0/8"
         assert active_sell_item["side"] == "SELL"
         assert active_sell_item["completeness"] == "0.49", active_sell_item[
             "completeness"
@@ -854,7 +840,6 @@ class HPSimulator:
         assert (
             active_sell_item["sell_price"] == "4200.0"
         ), f"Item sell price: {item['sell_price']}"
-        assert active_sell_item["stagnation"] == "0/8"
         assert active_sell_item["side"] == "SELL"
         assert active_sell_item["completeness"] == "0.0"
 
@@ -908,11 +893,6 @@ class HPSimulator:
 
     async def cancel_buy_position_after_first_order_filled(self):
         strategy = self.back.strategies["1000"]
-        strategy.buy.data.state_info.stagnation_counter = (
-            strategy.buy.data.state_info.stagnation_limit
-        )
-
-        assert strategy.buy.data.state_info.next_monitor_time
 
         assert strategy.buy.orders_cancel_price == 1428.0
         self.new_price(price=1428.0, symbol="BTCUSDC")
@@ -959,9 +939,6 @@ class HPSimulator:
 
     async def cancel_unfilled_sell_position_from_part_filled_buy(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.current_position.state_info.stagnation_counter = (
-            strategy.sell.current_position.state_info.stagnation_limit
-        )
         self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -1040,9 +1017,6 @@ class HPSimulator:
 
     async def cancel_sell_position_filled_partially(self):
         strategy = self.back.strategies["1000"]
-        strategy.sell.current_position.state_info.stagnation_counter = (
-            strategy.sell.current_position.state_info.stagnation_limit
-        )
         self.new_price(3864, symbol="BTCUSDC")
 
         await wait_for_condition(
@@ -1134,11 +1108,6 @@ class HPSimulator:
 
     async def cancel_buy_position_filled_partially_sold_partially(self):
         strategy = self.back.strategies["1000"]
-        strategy.buy.data.state_info.stagnation_counter = (
-            strategy.buy.data.state_info.stagnation_limit
-        )
-
-        strategy.buy.data.state_info.generate_next_monitor_time()
 
         assert strategy.buy.orders_cancel_price == 1224.0
         strategy.ticker_update = TickerUpdate(last_price=1428.0)

@@ -279,7 +279,6 @@ class HPPositionSell:
             self.current_position.state_info.side,
             self.current_position.config.hp_id,
         )
-        self.current_position.state_info.stagnation_counter = 0
 
         await self.cancel_remaining_order()
         # if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
@@ -312,9 +311,7 @@ class HPPositionSell:
             )
             self.current_position.sell_order.price = (
                 execution_report.last_executed_price
-            )
-
-            # self.db.upsert_order(
+            )  # self.db.upsert_order(
             #     order=self.current_position.sell_order,
             #     hp_id=self.current_position.config.hp_id,
             #     side=self.current_position.state_info.side,
@@ -322,14 +319,6 @@ class HPPositionSell:
             logger.info(
                 "Order: %s partially filled", self.current_position.sell_order.order_id
             )
-
-        logger.info(
-            "Stagnation counter reset for system: %s, realized sell quantity: %s",
-            self.current_position.config.hp_id,
-            self.current_position.sell_order.realized_quantity,
-        )
-        self.current_position.state_info.stagnation_counter = 0
-        self.current_position.state_info.generate_next_monitor_time()
         self.current_position.state_info.get_completeness(
             self.current_position.sell_order
         )
@@ -357,22 +346,14 @@ class HPPositionSell:
             # self.db.upsert_order(
             #     order=self.current_position.sell_order,
             #     hp_id=self.current_position.config.hp_id,
-            #     side=self.current_position.state_info.side,
-            # )
-
+            #     side=self.current_position.state_info.side,            # )
         self.current_position.state_info.ui_state = UiState.OPEN
-        self.current_position.state_info.stagnation_counter = 0
-        self.current_position.state_info.generate_next_monitor_time()
 
         self.current_position.state_info.get_completeness(
             self.current_position.sell_order
         )
 
         logger.info("Completeness: %s", self.current_position.state_info.completeness)
-        logger.info(
-            "Stagnation counter reset for system: %s",
-            self.current_position.config.hp_id,
-        )
 
     async def cancel_remaining_order(self) -> None:
         if (

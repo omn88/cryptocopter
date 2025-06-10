@@ -241,11 +241,6 @@ class Mode(Enum):
 @dataclass
 class StateInfo:
     state: State = State.NEW
-    stagnation_counter: int = 0
-    stagnation_limit: int = 8
-    next_monitor_time: str = (
-        datetime.datetime.now() + datetime.timedelta(hours=1)
-    ).strftime("%Y-%m-%d %H:%M:%S")
     open_time: str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     close_time: str = ""
     side: PositionSide = PositionSide.LONG
@@ -254,16 +249,10 @@ class StateInfo:
 
     def __str__(self):
         return (
-            f"StateInfo(state={self.state}, stagnation_counter={self.stagnation_counter}, "
-            f"stagnation_limit={self.stagnation_limit}, next_monitor_time='{self.next_monitor_time}', "
+            f"StateInfo(state={self.state},"
             f"open_time='{self.open_time}', close_time='{self.close_time}', side={self.side}, ui_state={self.ui_state}, "
             f"completeness={self.completeness:.2f})"
         )
-
-    def generate_next_monitor_time(self):
-        self.next_monitor_time = (
-            datetime.datetime.now() + datetime.timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
 
     def generate_open_time(self):
         self.open_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
