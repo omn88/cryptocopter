@@ -88,7 +88,9 @@ class StrategyExecutor:
         # WebSocket error handling attributes
         self._websocket_error_count = 0
         self._last_websocket_error_time = 0
-        self._websocket_error_suppression_time = 600  # 10 minutes        self.loop = None
+        self._websocket_error_suppression_time = (
+            600  # 10 minutes        self.loop = None
+        )
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
@@ -164,7 +166,10 @@ class StrategyExecutor:
             error_type = error_msg.get("type", "")
             error_message = error_msg.get("m", "")
 
-            if "keepalive ping timeout" in error_message or "ConnectionClosedError" in error_type:
+            if (
+                "keepalive ping timeout" in error_message
+                or "ConnectionClosedError" in error_type
+            ):
 
                 # Suppress frequent logging of the same error
                 if (

@@ -73,10 +73,7 @@ class WebSocketErrorFilter(logging.Filter):
             and "Connection closed. Reconnecting" in message
         ):
             return False
-        if (
-            "ConnectionClosedError" in message
-            and "keepalive ping timeout" in message
-        ):
+        if "ConnectionClosedError" in message and "keepalive ping timeout" in message:
             return False
         return True
 

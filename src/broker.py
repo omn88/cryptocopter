@@ -183,8 +183,8 @@ class BrokerSpot:
         if event_type == EventName.ERROR.value:
             # Check if this is a keepalive timeout error and we have a custom handler
             if self._error_handler and (
-                'keepalive ping timeout' in str(msg.get('m', '')) or
-                'ConnectionClosedError' in str(msg.get('type', ''))
+                "keepalive ping timeout" in str(msg.get("m", ""))
+                or "ConnectionClosedError" in str(msg.get("type", ""))
             ):
                 # Call custom error handler asynchronously
                 if self.loop:
@@ -192,7 +192,7 @@ class BrokerSpot:
                         self._error_handler(msg), self.loop
                     )
                 return  # Don't process this error further
-            
+
             logger.warning("Received internal error event: %s", msg)
             for _, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
