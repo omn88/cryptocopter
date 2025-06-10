@@ -1290,7 +1290,6 @@ async def simulate_second_buy_order_partial_fill(
 async def cancel_partially_bought_position_first_order_filled_partially(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-
     assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
 
@@ -1408,7 +1407,6 @@ async def resend_part_bought_first_order_filled_partially(
 async def cancel_partially_bought_position_first_order_filled(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-
     assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
 
@@ -1623,7 +1621,6 @@ async def sell_partially_partially_bought_position(
 async def cancel_unfilled_sell_orders_for_partially_bought_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
     strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert (
@@ -1676,7 +1673,6 @@ async def cancel_unfilled_sell_orders_for_partially_bought_position(
 async def simulate_cancel_sell_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
     strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_partially_sold_orders()
@@ -2125,7 +2121,6 @@ async def simulate_partial_fill_sell(
 
 
 async def move_to_partially_sold(strategy: HpStrategy) -> HpStrategy:
-
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 4116.0
     strategy.ticker_update = TickerUpdate(last_price=4116.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_partially_sold_orders()
@@ -2322,7 +2317,6 @@ async def reopen_buy_part_bought_sold(
 async def cancel_untouched_buy_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> Tuple[HpStrategy, List[Dict]]:
-
     assert strategy.buy.orders_cancel_price == 1428.0
     strategy.ticker_update = TickerUpdate(last_price=1428.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_unfilled_buy_orders()
@@ -2372,7 +2366,6 @@ async def cancel_untouched_buy_position(
 async def cancel_untouched_sell_position(
     strategy: HpStrategy, hp_gui: HpFront, hp_list: List[Dict]
 ) -> HpStrategy:
-
     assert strategy.calculate_trigger_cancel_orders_price_sell() == 3864.0
     strategy.ticker_update = TickerUpdate(last_price=3864.0, symbol="BTCUSDC")
     assert strategy.conditions_for_cancelling_unfilled_sell_orders()

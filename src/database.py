@@ -365,9 +365,9 @@ class Database:
                         "SELECT 1 FROM buy_price_levels WHERE hp_id=%s LIMIT 1",
                         (config.hp_id,),
                     )
-                    existing_record = await cur.fetchone()
-
-                    # If no such record exists, proceed with the update and insert
+                    existing_record = (
+                        await cur.fetchone()
+                    )  # If no such record exists, proceed with the update and insert
                     if existing_record:
                         # Mark the current record as not current
                         await cur.execute(
@@ -380,7 +380,7 @@ class Database:
                     insert_query = """
                     INSERT INTO buy_price_levels (
                         open_time, hp_id, symbol, mode, price_low, price_high, order_trigger, budget, state,
-                        is_current, version_timestamp,
+                        is_current, version_timestamp
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s)
                     """
                     await cur.execute(
