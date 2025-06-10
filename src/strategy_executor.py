@@ -4,6 +4,7 @@ import logging
 import os
 import queue
 import threading
+import time  # Add time import for WebSocket error handling
 from typing import Dict, List, Optional, Tuple
 from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
@@ -84,6 +85,11 @@ class StrategyExecutor:
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
 
+        # WebSocket error handling attributes
+        self._websocket_error_count = 0
+        self._last_websocket_error_time = 0
+        self._websocket_error_suppression_time = 600  # 10 minutes
+
         self.loop = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
@@ -101,6 +107,10 @@ class StrategyExecutor:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
+
+            # Set up WebSocket error handling
+            if hasattr(self.broker, "set_error_handler"):
+                self.broker.set_error_handler(self._handle_websocket_error)
 
         # await self.initialize_positions_from_db()
 
@@ -146,6 +156,87 @@ class StrategyExecutor:
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    async def _handle_websocket_error(self, error_msg):
+        """Handle WebSocket errors, especially keepalive timeouts"""
+        current_time = time.time()
+
+        # Check if this is a keepalive timeout error
+        if isinstance(error_msg, dict):
+            error_type = error_msg.get("type", "")
+            error_message = error_msg.get("m", "")
+
+            if "keepalive ping timeout" in error_message or "ConnectionClosedError" in error_type:
+
+                # Suppress frequent logging of the same error
+                if (
+                    current_time - self._last_websocket_error_time
+                    > self._websocket_error_suppression_time
+                ):
+                    logger.warning(
+                        "WebSocket keepalive timeout detected. This is a known issue with "
+                        "python-binance + Python 3.12. Connection will auto-reconnect."
+                    )
+                    self._last_websocket_error_time = current_time
+                    self._websocket_error_count = 1
+                else:
+                    self._websocket_error_count += 1
+
+                # If too many errors in short time, consider resubscribing
+                if self._websocket_error_count > 50:  # Excessive reconnections
+                    logger.warning(
+                        "Excessive WebSocket reconnections detected, will resubscribe all streams"
+                    )
+                    await self._resubscribe_all_strategies()
+                    self._websocket_error_count = 0
+
+                return  # Don't process this error further
+
+        # Handle other WebSocket errors normally
+        logger.error(f"WebSocket error: {error_msg}")
+
+    async def _resubscribe_all_strategies(self):
+        """Resubscribe all active strategies after excessive reconnections"""
+        logger.info("Resubscribing all active strategy WebSocket streams...")
+
+        for strategy_id, strategy in self.strategies.items():
+            try:
+                worker_queue = strategy.worker_queue
+
+                # Unsubscribe first
+                self.broker.unsubscribe(system_id=str(strategy_id))
+
+                # Wait a bit
+                await asyncio.sleep(1)
+
+                # Resubscribe to user data stream
+                self.broker.subscribe(
+                    system_id=str(strategy_id),
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.USER,
+                        symbol=strategy.buy.data.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
+                )
+
+                # Resubscribe to price stream
+                self.broker.subscribe(
+                    system_id=str(strategy_id),
+                    subscription_info=SubscriptionInfo(
+                        data_type=SubscriptionType.PRICE,
+                        symbol=strategy.buy.data.config.symbol_info.symbol,
+                        target=SubscriptionTarget.BACKEND,
+                        queue=worker_queue,
+                    ),
+                )
+
+                logger.debug(f"Resubscribed streams for strategy {strategy_id}")
+
+            except Exception as e:
+                logger.error(f"Failed to resubscribe strategy {strategy_id}: {e}")
+
+        logger.info("Finished resubscribing all strategies")
 
     async def save_all_configs_to_csv(self, filename: str):
         path = f"{filename}.csv"
