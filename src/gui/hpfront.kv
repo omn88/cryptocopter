@@ -554,7 +554,6 @@
                     size_hint_y: None
                     height: '40dp'
                     spacing: 10
-                    
                     Label:
                         text: "Filter by State:"
                         size_hint_x: 0.15
@@ -562,14 +561,14 @@
                         halign: 'left'
                         valign: 'middle'
                         text_size: self.size
-                    
+
                     Spinner:
                         id: hp_state_filter_spinner
                         text: "Active States (11)"
                         size_hint_x: 0.25
                         values: ["Active States (11)", "All States (13)", "CLOSED Only", "SOLD Only", "Custom..."]
                         on_text: root.on_hp_state_filter_change(self.text)
-                    
+
                     Label:
                         id: hp_state_filter_display
                         text: "Showing 11 states (excludes CLOSED, SOLD)"
@@ -578,7 +577,7 @@
                         halign: 'left'
                         valign: 'middle'
                         text_size: self.size
-                    
+
                     Button:
                         text: "Reset"
                         size_hint_x: 0.2
