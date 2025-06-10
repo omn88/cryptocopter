@@ -88,9 +88,7 @@ class StrategyExecutor:
         # WebSocket error handling attributes
         self._websocket_error_count = 0
         self._last_websocket_error_time = 0
-        self._websocket_error_suppression_time = 600  # 10 minutes
-
-        self.loop = None
+        self._websocket_error_suppression_time = 600  # 10 minutes        self.loop = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
@@ -108,9 +106,9 @@ class StrategyExecutor:
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
 
-            # Set up WebSocket error handling
-            if hasattr(self.broker, "set_error_handler"):
-                self.broker.set_error_handler(self._handle_websocket_error)
+        # Set up WebSocket error handling (for both test and real mode)
+        if hasattr(self.broker, "set_error_handler"):
+            self.broker.set_error_handler(self._handle_websocket_error)
 
         # await self.initialize_positions_from_db()
 
