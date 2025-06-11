@@ -48,6 +48,11 @@ class BrokerSpot:
         self.stop_producers_event: asyncio.Event = asyncio.Event()
         self.tasks: Optional[List[asyncio.Task]] = None
         self.thread = threading.Thread(target=self.start_loop)
+
+        # WebSocket error handling
+        self._error_handler = None
+        self._last_keepalive_error_log = 0
+
         self.thread.start()
 
     def start_loop(self) -> None:
@@ -89,6 +94,10 @@ class BrokerSpot:
 
         # Await all tasks
         await asyncio.gather(*self.tasks, return_exceptions=True)
+
+    def set_error_handler(self, handler):
+        """Set custom error handler for WebSocket errors"""
+        self._error_handler = handler
 
     async def handle_socket(
         self, socket, stop_event, message_handler, reconnect_attempts=10
@@ -162,7 +171,6 @@ class BrokerSpot:
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)
                 break
-
         logger.info(
             "Gracefully getting out of handle socket method for socket: %s", socket
         )
@@ -173,6 +181,18 @@ class BrokerSpot:
 
         # Handle internal 'error' messages injected by python-binance
         if event_type == EventName.ERROR.value:
+            # Check if this is a keepalive timeout error and we have a custom handler
+            if self._error_handler and (
+                "keepalive ping timeout" in str(msg.get("m", ""))
+                or "ConnectionClosedError" in str(msg.get("type", ""))
+            ):
+                # Call custom error handler asynchronously
+                if self.loop:
+                    asyncio.run_coroutine_threadsafe(
+                        self._error_handler(msg), self.loop
+                    )
+                return  # Don't process this error further
+
             logger.warning("Received internal error event: %s", msg)
             for _, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
