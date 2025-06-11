@@ -541,7 +541,7 @@
         size_hint_x: 0.05
         orientation: 'horizontal'
         padding: [20, 0, 0, 0] if root.is_child else [0, 0, 0, 0]  # Indent child items
-        
+
         Button:
             text: "▼" if root.is_expanded else "▶" if root.has_children else ""
             size_hint_x: None
@@ -549,7 +549,7 @@
             opacity: 1 if root.has_children else 0
             background_color: (0.3, 0.3, 0.3, 1)
             on_release: root.hp_manager.toggle_hp_expansion(root.hp_id) if root.has_children else None
-        
+
         Label:
             text: root.hp_id
             font_size: '14sp'
@@ -583,11 +583,13 @@
         text: root.net
         size_hint_x: 0.1
         font_size: '14sp'
+        color: (0.2, 0.8, 0.2, 1) if root.net and root.net != "0.0" and not root.net.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net and root.net.startswith("-") else (1, 1, 1, 1)
 
     Label:
-        text: root.net_percent
+        text: root.net_percent + "%" if root.net_percent and root.net_percent != "0.0" else "0.0%"
         size_hint_x: 0.05
         font_size: '14sp'
+        color: (0.2, 0.8, 0.2, 1) if root.net_percent and root.net_percent != "0.0" and not root.net_percent.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net_percent and root.net_percent.startswith("-") else (1, 1, 1, 1)
 
     Label:
         text: root.sell_price

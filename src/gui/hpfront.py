@@ -300,14 +300,20 @@ class HpFront(BoxLayout):
                 else "0.0"
             ),
             "expected_return": (
-                str(update.expected_return)
+                str(update.symbol_info.format_price(update.expected_return))
                 if update.expected_return is not None
                 else "0.0"
             ),
             "current_price": (
-                str(update.current_price) if update.current_price is not None else "0.0"
+                str(update.symbol_info.format_price(update.current_price))
+                if update.current_price is not None
+                else "0.0"
             ),
-            "net": str(update.net) if update.current_price is not None else "0.0",
+            "net": (
+                str(update.symbol_info.format_price(update.net))
+                if update.net is not None
+                else "0.0"
+            ),
             "net_percent": (
                 str(update.net_percent) if update.net_percent is not None else "0.0"
             ),
@@ -676,7 +682,11 @@ class HpFront(BoxLayout):
             for ticker in tickers.msg:
                 symbol = ticker.get("s")
                 if strategy["state"] not in [State.CLOSED.value, State.SOLD.value]:
-                    if symbol == strategy["coin"]:
+                    # Handle USDT pairs for USD coins (e.g., AXLUSD -> AXLUSDT)
+                    if (
+                        strategy["coin"].endswith("USD")
+                        and symbol == f"{strategy['coin'][:-3]}USDT"
+                    ):
                         current_price = self.symbols_info[symbol].format_price(
                             price=float(ticker["c"])
                         )
@@ -691,22 +701,21 @@ class HpFront(BoxLayout):
                                 ),
                                 2,
                             )
-                            strategy["net"] = str(
-                                round(
-                                    1
-                                    + (net_percent / 100)
-                                    * float(strategy["quantity_usd"]),
-                                    2,
-                                )
+                            # Calculate actual net profit/loss in USD for USDT pairs
+                            net_usd = round(
+                                (float(current_price) - float(strategy["buy_price"]))
+                                * float(strategy["quantity"]),
+                                2,
+                            )
+                            strategy["net"] = self.symbols_info[symbol].format_price(
+                                net_usd
                             )
                             strategy["net_percent"] = str(net_percent)
-                    if (
-                        strategy["coin"].endswith("USD")
-                        and symbol == f"{strategy['coin']}T"
-                    ):
-                        current_price = self.symbols_info[
-                            f"{strategy['coin']}T"
-                        ].format_price(price=float(ticker["c"]))
+                    # Handle direct symbol matches (e.g., BTCUSDT)
+                    elif symbol == strategy["coin"]:
+                        current_price = self.symbols_info[symbol].format_price(
+                            price=float(ticker["c"])
+                        )
                         strategy["current_price"] = current_price
 
                         if float(strategy["buy_price"]):
@@ -718,13 +727,14 @@ class HpFront(BoxLayout):
                                 ),
                                 2,
                             )
-                            strategy["net"] = str(
-                                round(
-                                    1
-                                    + (net_percent / 100)
-                                    * float(strategy["quantity_usd"]),
-                                    2,
-                                )
+                            # Calculate actual net profit/loss in USD
+                            net_usd = round(
+                                (float(current_price) - float(strategy["buy_price"]))
+                                * float(strategy["quantity"]),
+                                2,
+                            )
+                            strategy["net"] = self.symbols_info[symbol].format_price(
+                                net_usd
                             )
                             strategy["net_percent"] = str(net_percent)
         # Trigger visual refresh
