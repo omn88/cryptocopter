@@ -419,6 +419,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         idle_position,
                     )
+                    self.filter_records("active", "All", side="BUY")
+                    self.filter_records("idle", "All", side="BUY")
                     return
 
                 if data.state_info.ui_state == UiState.CLOSED:
@@ -447,14 +449,9 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         archived_position,
                     )
+                    self.filter_records("active", "All", side="BUY")
+                    self.filter_records("archive", "All", side="BUY")
                     return
-
-                # Update current price
-                self.resolve_active_position_price_buy(data)
-
-        self.filter_records("active", "All", side="BUY")
-        self.filter_records("idle", "All", side="BUY")
-        self.filter_records("archive", "All", side="BUY")
 
     def update_active_position_sell(
         self,
@@ -492,6 +489,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         idle_position,
                     )
+                    self.filter_records("active", "All", side="SELL")
+                    self.filter_records("idle", "All", side="SELL")
                     return
 
                 if data.state_info.ui_state == UiState.CLOSED:
@@ -518,12 +517,9 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         archived_position,
                     )
+                    self.filter_records("active", "All", side="SELL")
+                    self.filter_records("archive", "All", side="SELL")
                     return  # Update current price
-                self.resolve_active_position_price_sell(data)
-
-        self.filter_records("active", "All", side="SELL")
-        self.filter_records("idle", "All", side="SELL")
-        self.filter_records("archive", "All", side="SELL")
 
     def update_idle_position_buy(
         self,
@@ -570,6 +566,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         active_position,
                     )
+                    self.filter_records("active", "All", side="BUY")
+                    self.filter_records("idle", "All", side="BUY")
                     return
                 if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
@@ -597,6 +595,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         archived_position,
                     )
+                    self.filter_records("archive", "All", side="BUY")
+                    self.filter_records("idle", "All", side="BUY")
                     return
 
     def update_idle_position_sell(
@@ -637,6 +637,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         active_position,
                     )
+                    self.filter_records("active", "All", side="SELL")
+                    self.filter_records("idle", "All", side="SELL")
                     return
                 if data.state_info.ui_state == UiState.CLOSED:
                     data.state_info.close_time = datetime.now().strftime(
@@ -662,6 +664,8 @@ class HpFront(BoxLayout):
                         data.config.hp_id,
                         archived_position,
                     )
+                    self.filter_records("archive", "All", side="SELL")
+                    self.filter_records("idle", "All", side="SELL")
                     return
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
