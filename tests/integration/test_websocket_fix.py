@@ -9,8 +9,9 @@ import logging
 import sys
 import os
 
-# Add the src directory to the path so we can import our modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+# Add the root directory to the path so we can import our modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 # Import our logging config to set up filters
 import logging_config  # noinspection PyUnresolvedReferences
