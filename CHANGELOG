@@ -1,6 +1,7 @@
 ############################################# CHANGELOG #############################################
 
 ### NEW FEATURES
+- WebSocket keepalive timeout error handling: Implemented intelligent error handling for python-binance WebSocket keepalive timeout issues that occur with Python 3.12. The system now suppresses repetitive timeout error logs, automatically handles reconnections, and includes recovery mechanisms for excessive connection failures. This addresses the common "keepalive ping timeout; no close frame received" errors without disrupting trading operations.
 - Provide HP List data filtering per status or list of statuses.
 - handle converting of the coins which lost USDT pair due to MICA and do not have multihop available pairs
 - mica related changes with multihop selling strategies

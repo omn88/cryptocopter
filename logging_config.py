@@ -56,4 +56,30 @@ logging.basicConfig(
 logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
 logging.getLogger("binance.streams").setLevel(logging.WARNING)
-logging.getLogger("binance.ws.reconnecting_websocket").setLevel(logging.WARNING)
+logging.getLogger("binance.ws.reconnecting_websocket").setLevel(logging.ERROR)
+
+
+# Add WebSocket error filter to suppress keepalive timeout messages
+class WebSocketErrorFilter(logging.Filter):
+    """Filter to suppress noisy WebSocket keepalive timeout messages"""
+
+    def filter(self, record):
+        message = record.getMessage()
+        # Suppress keepalive timeout messages
+        if "keepalive ping timeout" in message:
+            return False
+        if (
+            "BinanceWebsocketClosed" in message
+            and "Connection closed. Reconnecting" in message
+        ):
+            return False
+        if "ConnectionClosedError" in message and "keepalive ping timeout" in message:
+            return False
+        return True
+
+
+# Apply the filter to the root logger and specific WebSocket loggers
+websocket_filter = WebSocketErrorFilter()
+logging.getLogger("root").addFilter(websocket_filter)
+logging.getLogger("binance.ws.reconnecting_websocket").addFilter(websocket_filter)
+logging.getLogger("websockets.protocol").addFilter(websocket_filter)
