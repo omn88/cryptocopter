@@ -10,6 +10,7 @@ from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.common import generate_hp_id
 from src.database import Database
+from src.connection_monitor import connection_monitor
 from src.identifiers import (
     Event,
     EventName,
@@ -88,14 +89,26 @@ class StrategyExecutor:
         # WebSocket error handling attributes
         self._websocket_error_count = 0
         self._last_websocket_error_time = 0
-        self._websocket_error_suppression_time = (
-            600  # 10 minutes        self.loop = None
-        )
+        self._websocket_error_suppression_time = 600  # 10 minutes
+
+        self.loop = None
         self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self.start_loop)
+        self.thread = threading.Thread(target=self._start_loop)
         self.thread.start()
 
-    def start_loop(self):
+        # Connection health monitoring
+        self._connection_status = "CONNECTED"  # CONNECTED, DEGRADED, DISCONNECTED
+        self._last_successful_message_time = time.time()
+        self._connection_quality_score = 100  # 0-100 scale
+        self._recent_message_timestamps: list[float] = []
+        self._max_recent_messages = 50  # Track last 50 messages for health calculation
+        self._connection_check_interval = 30  # Check connection health every 30 seconds
+        self._last_connection_check = time.time()
+        self._connectivity_alerts_sent: set[str] = (
+            set()
+        )  # Track which alerts we've already sent
+
+    def _start_loop(self):
         """Starts the asyncio loop in a new thread."""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -111,6 +124,9 @@ class StrategyExecutor:
         # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
+
+        # Start enhanced connection monitoring
+        await self.start_connection_monitoring()
 
         # await self.initialize_positions_from_db()
 
@@ -161,6 +177,9 @@ class StrategyExecutor:
         """Handle WebSocket errors, especially keepalive timeouts"""
         current_time = time.time()
 
+        # Update connection status based on error type
+        self._update_connection_status("ERROR", error_msg)
+
         # Check if this is a keepalive timeout error
         if isinstance(error_msg, dict):
             error_type = error_msg.get("type", "")
@@ -193,10 +212,135 @@ class StrategyExecutor:
                     await self._resubscribe_all_strategies()
                     self._websocket_error_count = 0
 
-                return  # Don't process this error further
+                return  # Don't process this error further        # Handle other WebSocket errors normally
+        logger.error("WebSocket error: %s", error_msg)
 
-        # Handle other WebSocket errors normally
-        logger.error(f"WebSocket error: {error_msg}")
+    def _track_successful_message(self):
+        """Track successful WebSocket message reception"""
+        self._update_connection_status("MESSAGE_RECEIVED")
+        # Also update the global connection monitor
+        connection_monitor.record_message_received()
+
+    def _update_connection_status(self, event_type: str, data=None):
+        """Update connection status and quality metrics"""
+        current_time = time.time()
+
+        if event_type == "MESSAGE_RECEIVED":
+            # Record successful message
+            self._last_successful_message_time = current_time
+            self._recent_message_timestamps.append(current_time)
+
+            # Keep only recent messages for performance
+            if len(self._recent_message_timestamps) > self._max_recent_messages:
+                self._recent_message_timestamps.pop(0)
+
+            # Improve connection status if we were degraded
+            if self._connection_status == "DEGRADED":
+                self._connection_status = "CONNECTED"
+                logger.info("Connection status improved to CONNECTED")
+                self._connectivity_alerts_sent.discard("DEGRADED")
+
+        elif event_type == "ERROR":
+            # Record error in global monitor
+            connection_monitor.record_error()
+
+            # Degrade connection status
+            time_since_last_message = current_time - self._last_successful_message_time
+
+            if time_since_last_message > 300:  # 5 minutes without messages
+                if self._connection_status != "DISCONNECTED":
+                    self._connection_status = "DISCONNECTED"
+                    if "DISCONNECTED" not in self._connectivity_alerts_sent:
+                        logger.error(
+                            "Connection status: DISCONNECTED (no messages for %ds)",
+                            int(time_since_last_message),
+                        )
+                        self._connectivity_alerts_sent.add("DISCONNECTED")
+            elif time_since_last_message > 60:  # 1 minute without messages
+                if self._connection_status == "CONNECTED":
+                    self._connection_status = "DEGRADED"
+                    if "DEGRADED" not in self._connectivity_alerts_sent:
+                        logger.warning(
+                            "Connection status: DEGRADED (no messages for %ds)",
+                            int(time_since_last_message),
+                        )
+                        self._connectivity_alerts_sent.add("DEGRADED")
+
+        # Periodically check and update connection health
+        if current_time - self._last_connection_check > self._connection_check_interval:
+            self._calculate_connection_quality()
+            self._last_connection_check = current_time
+
+    def _calculate_connection_quality(self):
+        """Calculate connection quality score based on recent activity"""
+        current_time = time.time()
+
+        # Remove old timestamps (older than 5 minutes)
+        cutoff_time = current_time - 300
+        self._recent_message_timestamps = [
+            ts for ts in self._recent_message_timestamps if ts > cutoff_time
+        ]
+
+        # Calculate quality based on message frequency and recency
+        if not self._recent_message_timestamps:
+            self._connection_quality_score = 0
+            return
+
+        # Time since last message (0-100 points, max 60 seconds for full points)
+        time_since_last = current_time - self._last_successful_message_time
+        recency_score = max(0, 100 - (time_since_last / 60 * 100))
+
+        # Message frequency score (expect at least 1 message per minute for good quality)
+        message_count = len(self._recent_message_timestamps)
+        frequency_score = min(100, message_count * 2)  # 50 messages = 100 points
+
+        # Combined score
+        self._connection_quality_score = int((recency_score + frequency_score) / 2)
+
+        # Log quality changes
+        if (
+            self._connection_quality_score < 50
+            and "LOW_QUALITY" not in self._connectivity_alerts_sent
+        ):
+            logger.warning(
+                "Connection quality degraded: %d%% (recent messages: %d, last message: %ds ago)",
+                self._connection_quality_score,
+                message_count,
+                int(time_since_last),
+            )
+            self._connectivity_alerts_sent.add("LOW_QUALITY")
+        elif self._connection_quality_score >= 80:
+            self._connectivity_alerts_sent.discard("LOW_QUALITY")
+
+    def get_connection_status(self) -> dict:
+        """Get current connection status and metrics"""
+        current_time = time.time()
+
+        # Get global monitor metrics
+        global_metrics = connection_monitor.get_metrics()
+
+        return {
+            "status": self._connection_status,
+            "quality_score": self._connection_quality_score,
+            "last_message_time": self._last_successful_message_time,
+            "seconds_since_last_message": int(
+                current_time - self._last_successful_message_time
+            ),
+            "recent_message_count": len(self._recent_message_timestamps),
+            "websocket_error_count": self._websocket_error_count,
+            # Global monitor data
+            "global_status": global_metrics.status.value,
+            "global_quality": global_metrics.quality_score,
+            "uptime_percentage": global_metrics.uptime_percentage,
+            "network_latency_ms": global_metrics.network_latency_ms,
+            "status_summary": connection_monitor.get_status_summary(),
+        }
+
+    async def start_connection_monitoring(self):
+        """Start background connection monitoring"""
+        logger.info("Starting enhanced connection monitoring...")
+        # Start the global connection monitor in background
+        asyncio.create_task(connection_monitor.run_periodic_checks())
 
     async def _resubscribe_all_strategies(self):
         """Resubscribe all active strategies after excessive reconnections"""
@@ -234,10 +378,10 @@ class StrategyExecutor:
                     ),
                 )
 
-                logger.debug(f"Resubscribed streams for strategy {strategy_id}")
+                logger.debug("Resubscribed streams for strategy %s", strategy_id)
 
             except Exception as e:
-                logger.error(f"Failed to resubscribe strategy {strategy_id}: {e}")
+                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
 
         logger.info("Finished resubscribing all strategies")
 
