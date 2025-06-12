@@ -380,9 +380,11 @@ class HpStrategy:
 
         net = None
         net_percent = None
-        if current_price and buy_price:
-            net = current_price * quantity
-            net_percent = (current_price / buy_price) * 100
+        if current_price and buy_price and quantity:
+            # Calculate net profit/loss in USD
+            net = symbol_info.adjust_price((current_price - buy_price) * quantity)
+            # Calculate percentage change
+            net_percent = round(((current_price / buy_price) - 1) * 100, 2)
 
         hp_id = (
             self.sell.current_position.config.hp_id

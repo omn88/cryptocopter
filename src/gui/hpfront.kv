@@ -581,51 +581,45 @@
                     Button:
                         text: "Reset"
                         size_hint_x: 0.2
-                        on_release: root.reset_hp_state_filter()
-
-                # Header BoxLayout for the HP List
+                        on_release: root.reset_hp_state_filter()                # Header BoxLayout for the HP List
                 BoxLayout:
                     orientation: 'horizontal'
                     size_hint_y: None
-                    height: '40dp'
                     height: '50dp'
                     padding: [10, 10]
-                    spacing: 10
                     spacing: 15
 
                     Label:
                         text: "ID"
-                        font_size: '16sp'  # Set font size
+                        font_size: '16sp'
+                        size_hint_x: 0.05
+                        bold: True
+                    Label:
+                        text: "Pair"
                         size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Coin"
-                        size_hint_x: 0.05
-                        font_size: '16sp'
-                        bold: True
-
-                    Label:
-                        text: "Buy Price"
+                        text: "Buy"
                         size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Quantity"
+                        text: "Qty"
                         size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Quantity in USD"
+                        text: "Qty USD"
                         size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Current Price"
+                        text: "Current"
                         size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
@@ -637,19 +631,19 @@
                         bold: True
 
                     Label:
-                        text: "Net Percent"
+                        text: "Net %"
                         size_hint_x: 0.05
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Sell Price"
+                        text: "Sell"
                         size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
 
                     Label:
-                        text: "Expected Return"
+                        text: "Expected"
                         size_hint_x: 0.1
                         font_size: '16sp'
                         bold: True
