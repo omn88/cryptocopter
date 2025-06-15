@@ -10,7 +10,5 @@ sample_data.txt
 .coverage
 *.txt
 *.csv
-.github
-.vscode
 venv
 linux_venv
