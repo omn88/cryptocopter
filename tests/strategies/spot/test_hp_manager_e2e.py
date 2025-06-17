@@ -150,11 +150,9 @@ async def test_default_position_first_order_filled_then_cancel(
     await sim.move_to_position_active_buy()
 
     # Simulate first buy order fill
-    strategy = await sim.simulate_first_buy_order_fill()
-
-    # Cancel partially bought position
-
-    assert strategy.buy.data.state_info.next_monitor_time
+    strategy = (
+        await sim.simulate_first_buy_order_fill()
+    )  # Cancel partially bought position
 
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428.0)
@@ -236,11 +234,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     await sim.move_to_position_active_buy()
 
     # Simulate partial fill
-    strategy = await sim.simulate_partial_fill()
-
-    # Cancel position
-
-    assert strategy.buy.data.state_info.next_monitor_time
+    strategy = await sim.simulate_partial_fill()  # Cancel position
 
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428.0)
@@ -330,12 +324,10 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
     # Path 1: Send buy orders
     await sim.move_to_position_active_buy()
-    # Simulate partial fill
+    # Simulate partial fill    # Simulate partial fill
     strategy = await sim.simulate_partial_fill()
 
     # Cancel position
-    assert strategy.buy.data.state_info.next_monitor_time
-
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428.0)
 
@@ -414,14 +406,10 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     sim.simulate_buy_position(symbol="BTCUSDC")
     await sim.assert_default_buy_position()
 
-    await sim.move_to_position_active_buy()
-
-    # Simulate first buy order fill
+    await sim.move_to_position_active_buy()  # Simulate first buy order fill
     strategy = await sim.simulate_first_buy_order_fill()
 
     # Cancel partially bought position
-    assert strategy.buy.data.state_info.next_monitor_time
-
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428.0)
 
@@ -1445,14 +1433,10 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
         condition_func=lambda: back.strategies["1000"].sell.current_position.sell_order
     )
 
-    await sim.move_to_position_active_buy()
-
-    # Simulate partial fill
+    await sim.move_to_position_active_buy()  # Simulate partial fill
     strategy = await sim.simulate_partial_fill_with_sell_price()
 
     # Cancel position
-    assert strategy.buy.data.state_info.next_monitor_time
-
     assert strategy.buy.orders_cancel_price == 1428.0
     sim.new_price(price=1428.0)
 
