@@ -13,7 +13,6 @@ Functions:
 
 import os
 import asyncio
-from typing import List
 import warnings
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
@@ -88,9 +87,21 @@ async def main():
 
     try:
         await app.async_run()
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt, shutting down gracefully...")
+    except Exception as e:
+        logger.error(f"Unexpected error in main application: {e}")
     finally:
-        await client.close_connection()
-        db.close_pool()
+        try:
+            await client.close_connection()
+        except Exception as e:
+            logger.error(f"Error closing client connection: {e}")
+
+        try:
+            db.close_pool()
+        except Exception as e:
+            logger.error(f"Error closing database pool: {e}")
+
         logger.info("FINITO")
 
 

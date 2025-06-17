@@ -183,12 +183,15 @@ class StrategyExecutor:
                     self._last_websocket_error_time = current_time
                     self._websocket_error_count = 1
                 else:
-                    self._websocket_error_count += 1
-
-                # If too many errors in short time, consider resubscribing
-                if self._websocket_error_count > 50:  # Excessive reconnections
+                    self._websocket_error_count += (
+                        1  # If too many errors in short time, consider resubscribing
+                    )
+                if (
+                    self._websocket_error_count > 20
+                ):  # Reduced threshold for faster recovery
                     logger.warning(
-                        "Excessive WebSocket reconnections detected, will resubscribe all streams"
+                        "Excessive WebSocket reconnections detected (%d errors), will resubscribe all streams",
+                        self._websocket_error_count,
                     )
                     await self._resubscribe_all_strategies()
                     self._websocket_error_count = 0
