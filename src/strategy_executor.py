@@ -199,7 +199,7 @@ class StrategyExecutor:
                 return  # Don't process this error further
 
         # Handle other WebSocket errors normally
-        logger.error(f"WebSocket error: {error_msg}")
+        logger.error("WebSocket error: %s", error_msg)
 
     async def _resubscribe_all_strategies(self):
         """Resubscribe all active strategies after excessive reconnections"""
@@ -236,11 +236,10 @@ class StrategyExecutor:
                         queue=worker_queue,
                     ),
                 )
-
-                logger.debug(f"Resubscribed streams for strategy {strategy_id}")
+                logger.debug("Resubscribed streams for strategy %s", strategy_id)
 
             except Exception as e:
-                logger.error(f"Failed to resubscribe strategy {strategy_id}: {e}")
+                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
 
         logger.info("Finished resubscribing all strategies")
 

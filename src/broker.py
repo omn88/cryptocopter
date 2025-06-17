@@ -112,20 +112,63 @@ class BrokerSpot:
     async def monitor_connection_health(self):
         """Monitor WebSocket connection health and restart if needed"""
         logger.info("Starting connection health monitor")
+        health_check_counter = 0
+        last_warning_time = {}  # Track when we last warned about each connection
 
         while not self.stop_producers_event.is_set():
             try:
                 current_time = time.time()
+                health_check_counter += 1
+
+                # Log periodic heartbeat every 5 minutes (10 cycles of 30s)
+                if health_check_counter % 10 == 0:
+                    active_connections = len(self._last_message_time)
+                    logger.info(
+                        "Connection health check #%d: %d active connections monitored",
+                        health_check_counter,
+                        active_connections,
+                    )
+
+                    # Log details of each connection's last activity
+                    for connection_type, last_time in self._last_message_time.items():
+                        seconds_since_last = current_time - last_time
+                        logger.info(
+                            "  %s: last message %.1f seconds ago",
+                            connection_type,
+                            seconds_since_last,
+                        )
 
                 # Check if we haven't received messages in a while
                 for connection_type, last_time in self._last_message_time.items():
-                    if current_time - last_time > self._connection_timeout:
-                        logger.warning(
-                            "Connection timeout detected for %s. "
-                            "Last message received %.1f seconds ago.",
-                            connection_type,
-                            current_time - last_time,
-                        )  # The connection will auto-reconnect via the existing logic
+                    seconds_since_last = current_time - last_time
+
+                    if seconds_since_last > self._connection_timeout:
+                        # Only warn for ticker streams - user streams can be silent for long periods
+                        if "ticker" in connection_type:
+                            # Only warn once every 5 minutes per connection to avoid spam
+                            last_warn = last_warning_time.get(connection_type, 0)
+                            if current_time - last_warn > 300:  # 5 minutes
+                                logger.warning(
+                                    "Ticker connection timeout detected for %s. "
+                                    "Last message received %.1f seconds ago.",
+                                    connection_type,
+                                    seconds_since_last,
+                                )
+                                last_warning_time[connection_type] = current_time
+                        elif "user" in connection_type:
+                            # For user streams, only log if extremely long silence (>1 hour)
+                            # and only as INFO level since it might be normal
+                            if seconds_since_last > 3600:  # 1 hour
+                                last_warn = last_warning_time.get(connection_type, 0)
+                                if (
+                                    current_time - last_warn > 1800
+                                ):  # Log every 30 minutes
+                                    logger.info(
+                                        "User stream has been silent for %.1f seconds "
+                                        "(normal if no trading activity)",
+                                        seconds_since_last,
+                                    )
+                                    last_warning_time[connection_type] = current_time
 
                 await asyncio.sleep(30)  # Check every 30 seconds
 
@@ -226,9 +269,6 @@ class BrokerSpot:
 
     def handle_user_message(self, msg: Dict) -> None:
         """Handle user-specific WebSocket messages."""
-        # Update connection health timestamp
-        self.update_message_timestamp("user_stream")
-
         event_type = msg.get("e")
 
         # Handle internal 'error' messages injected by python-binance
@@ -289,8 +329,6 @@ class BrokerSpot:
 
     def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
-        # Update connection health timestamp
-        self.update_message_timestamp("ticker_stream")
 
         if isinstance(msg, str):
             logging.debug("Received control frame: %s", msg)
