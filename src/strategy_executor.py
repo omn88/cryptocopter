@@ -183,12 +183,15 @@ class StrategyExecutor:
                     self._last_websocket_error_time = current_time
                     self._websocket_error_count = 1
                 else:
-                    self._websocket_error_count += 1
-
-                # If too many errors in short time, consider resubscribing
-                if self._websocket_error_count > 50:  # Excessive reconnections
+                    self._websocket_error_count += (
+                        1  # If too many errors in short time, consider resubscribing
+                    )
+                if (
+                    self._websocket_error_count > 20
+                ):  # Reduced threshold for faster recovery
                     logger.warning(
-                        "Excessive WebSocket reconnections detected, will resubscribe all streams"
+                        "Excessive WebSocket reconnections detected (%d errors), will resubscribe all streams",
+                        self._websocket_error_count,
                     )
                     await self._resubscribe_all_strategies()
                     self._websocket_error_count = 0
@@ -196,7 +199,7 @@ class StrategyExecutor:
                 return  # Don't process this error further
 
         # Handle other WebSocket errors normally
-        logger.error(f"WebSocket error: {error_msg}")
+        logger.error("WebSocket error: %s", error_msg)
 
     async def _resubscribe_all_strategies(self):
         """Resubscribe all active strategies after excessive reconnections"""
@@ -233,11 +236,10 @@ class StrategyExecutor:
                         queue=worker_queue,
                     ),
                 )
-
-                logger.debug(f"Resubscribed streams for strategy {strategy_id}")
+                logger.debug("Resubscribed streams for strategy %s", strategy_id)
 
             except Exception as e:
-                logger.error(f"Failed to resubscribe strategy {strategy_id}: {e}")
+                logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
 
         logger.info("Finished resubscribing all strategies")
 

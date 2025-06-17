@@ -5,6 +5,7 @@ import threading
 import queue
 import logging
 from typing import Dict, List, Optional
+import time
 
 from decouple import Config, RepositoryEnv
 
@@ -23,6 +24,7 @@ from src.identifiers import (
     TickerUpdate,
     BinanceClient,
 )
+from src.common.websocket_config import ROBUST_CONFIG
 
 logger = logging.getLogger("broker")
 
@@ -51,7 +53,14 @@ class BrokerSpot:
 
         # WebSocket error handling
         self._error_handler = None
-        self._last_keepalive_error_log = 0
+        self._last_keepalive_error_log = 0  # Connection health monitoring
+        self._connection_health_task: Optional[asyncio.Task] = None
+        self._last_message_time: Dict[str, float] = {}
+        self._connection_timeout = ROBUST_CONFIG.message_timeout_threshold
+
+        # Use robust WebSocket configuration
+        self._ws_config = ROBUST_CONFIG
+        self._ws_config.log_config()
 
         self.thread.start()
 
@@ -72,8 +81,13 @@ class BrokerSpot:
         )
 
         socket_manager = BinanceSocketManager(client=self.client)
-        assert self.loop
+        assert self.loop  # Start the connection health monitor
+        self._connection_health_task = self.loop.create_task(
+            self.monitor_connection_health()
+        )
+
         self.tasks = [
+            self._connection_health_task,
             self.loop.create_task(
                 self.handle_socket(
                     socket_manager.ticker_socket(),
@@ -94,6 +108,79 @@ class BrokerSpot:
 
         # Await all tasks
         await asyncio.gather(*self.tasks, return_exceptions=True)
+
+    async def monitor_connection_health(self):
+        """Monitor WebSocket connection health and restart if needed"""
+        logger.info("Starting connection health monitor")
+        health_check_counter = 0
+        last_warning_time = {}  # Track when we last warned about each connection
+
+        while not self.stop_producers_event.is_set():
+            try:
+                current_time = time.time()
+                health_check_counter += 1
+
+                # Log periodic heartbeat every 5 minutes (10 cycles of 30s)
+                if health_check_counter % 10 == 0:
+                    active_connections = len(self._last_message_time)
+                    logger.info(
+                        "Connection health check #%d: %d active connections monitored",
+                        health_check_counter,
+                        active_connections,
+                    )
+
+                    # Log details of each connection's last activity
+                    for connection_type, last_time in self._last_message_time.items():
+                        seconds_since_last = current_time - last_time
+                        logger.info(
+                            "  %s: last message %.1f seconds ago",
+                            connection_type,
+                            seconds_since_last,
+                        )
+
+                # Check if we haven't received messages in a while
+                for connection_type, last_time in self._last_message_time.items():
+                    seconds_since_last = current_time - last_time
+
+                    if seconds_since_last > self._connection_timeout:
+                        # Only warn for ticker streams - user streams can be silent for long periods
+                        if "ticker" in connection_type:
+                            # Only warn once every 5 minutes per connection to avoid spam
+                            last_warn = last_warning_time.get(connection_type, 0)
+                            if current_time - last_warn > 300:  # 5 minutes
+                                logger.warning(
+                                    "Ticker connection timeout detected for %s. "
+                                    "Last message received %.1f seconds ago.",
+                                    connection_type,
+                                    seconds_since_last,
+                                )
+                                last_warning_time[connection_type] = current_time
+                        elif "user" in connection_type:
+                            # For user streams, only log if extremely long silence (>1 hour)
+                            # and only as INFO level since it might be normal
+                            if seconds_since_last > 3600:  # 1 hour
+                                last_warn = last_warning_time.get(connection_type, 0)
+                                if (
+                                    current_time - last_warn > 1800
+                                ):  # Log every 30 minutes
+                                    logger.info(
+                                        "User stream has been silent for %.1f seconds "
+                                        "(normal if no trading activity)",
+                                        seconds_since_last,
+                                    )
+                                    last_warning_time[connection_type] = current_time
+
+                await asyncio.sleep(30)  # Check every 30 seconds
+
+            except Exception as e:
+                logger.error("Error in connection health monitor: %s", e)
+                await asyncio.sleep(30)
+
+        logger.info("Connection health monitor stopped")
+
+    def update_message_timestamp(self, connection_type: str):
+        """Update the last message timestamp for a connection type"""
+        self._last_message_time[connection_type] = time.time()
 
     def set_error_handler(self, handler):
         """Set custom error handler for WebSocket errors"""
@@ -146,6 +233,11 @@ class BrokerSpot:
                                     type(raw_msg),
                                 )
                                 continue
+
+                            # Update the last message timestamp for this connection
+                            self.update_message_timestamp(
+                                "user" if "e" in msg else "ticker"
+                            )
 
                             # Pass parsed msg to message_handler
                             if msg:
@@ -233,9 +325,7 @@ class BrokerSpot:
                                 name=EventName.ACCOUNT_POSITION,
                                 content=self.create_account_position(msg),
                             )
-                        )
-
-            # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
+                        )  # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
 
     def handle_ticker_message(self, msg: List[Dict]) -> None:
         """Handle all market ticker WebSocket messages."""
@@ -344,7 +434,7 @@ class BrokerSpot:
             logger.info("Current tasks: %s", asyncio.all_tasks())
 
             if self.loop:
-                # Stop the event loop safel
+                # Stop the event loop safely
 
                 # Give some time for pending tasks to handle cancellation
                 pending_tasks = [
