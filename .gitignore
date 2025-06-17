@@ -5,10 +5,11 @@ data
 sample_data.txt
 .pytest_cache/
 .buildozer/
-.venv
 .env
 .coverage
 *.txt
 *.csv
 venv
 linux_venv
+windows_venv
+.vscode/
