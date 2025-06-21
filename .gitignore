@@ -13,3 +13,4 @@ venv
 linux_venv
 windows_venv
 .vscode/
+*.db
