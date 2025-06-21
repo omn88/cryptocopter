@@ -11,17 +11,15 @@ This module provides a SQLite-based database implementation focused on:
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Dict, Tuple
 from datetime import datetime
 import json
-import asyncio
-import aiosqlite
 from contextlib import asynccontextmanager
+import aiosqlite
 
 from .models import (
     Position,
     Order,
-    Trade,
     Strategy,
     PositionType,
     PositionStatus,

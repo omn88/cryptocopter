@@ -21,7 +21,6 @@ from .trading_database import TradingDatabase
 from .models import (
     Position,
     Order,
-    Trade,
     PositionType,
     PositionStatus,
     TradeType,

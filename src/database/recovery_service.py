@@ -7,7 +7,6 @@ verifying their state with the exchange, and ensuring consistency.
 
 import logging
 from typing import List, Dict, Optional, Tuple, Any
-from datetime import datetime
 
 from src.identifiers import (
     BinanceClient,
@@ -18,12 +17,18 @@ from src.identifiers import (
     StateInfo,
     State,
     PositionSide,
-    Order as TradingOrder,
+    Order as TradingOrder,  # Alias to avoid collision
     Mode,
 )
 from src.common.symbol_info import SymbolInfo
 from .trading_database import TradingDatabase
-from .models import Position, Order, PositionType, PositionStatus, TradeType
+from .models import (
+    Position,
+    Order as DatabaseOrder,
+    PositionType,
+    PositionStatus,
+    TradeType,
+)  # Alias to avoid collision
 from .exceptions import RecoveryError
 
 logger = logging.getLogger("recovery_service")
@@ -155,7 +160,7 @@ class RecoveryService:
         return verified_positions
 
     async def _update_position_from_orders(
-        self, position: Position, orders: List[Order]
+        self, position: Position, orders: List[DatabaseOrder]
     ) -> Position:
         """Update position status and quantities based on order states."""
         total_quantity = sum(order.quantity for order in orders)
