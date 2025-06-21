@@ -867,7 +867,7 @@ class StrategyExecutor:
             )
             # self.db.upsert_sell_price_level(data=sell.current_position)
 
-    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Dict]:
+    def recover_price_levels(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
         buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
         logger.info(
             "HP: %s\nBuy price level: %s\nSell price level: %s",

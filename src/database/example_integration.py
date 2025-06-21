@@ -11,7 +11,7 @@ This example shows how to:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 from src.database import (
     TradingDatabase,
@@ -135,7 +135,7 @@ class TradingSystemWithNewDatabase:
         quantity: float,
         buy_price: float,
         sell_price: float,
-        parent_hp_id: str = None,
+        parent_hp_id: Optional[str] = None,
     ) -> str:
         """
         Create a new sell position and save it to database.

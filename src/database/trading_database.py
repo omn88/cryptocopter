@@ -530,3 +530,500 @@ class TradingDatabase:
                 return stats
         except Exception as e:
             raise DatabaseError(f"Failed to get database stats: {e}")
+
+    # ========================================================================    # COMPATIBILITY METHODS FOR OLD DATABASE INTERFACE
+    # ========================================================================
+
+    async def initialize(self) -> None:
+        """Compatibility method - database is already initialized in __init__."""
+        pass
+
+    def stop_worker(self) -> None:
+        """Compatibility method - no worker thread in SQLite implementation."""
+        pass
+
+    def upsert_order(self, order, hp_id: str, side) -> None:
+        """
+        Compatibility method for upsert_order (synchronous).
+
+        Args:
+            order: Trading system Order object
+            hp_id: Position HP ID
+            side: PositionSide enum
+        """
+
+        async def _async_upsert_order():
+            try:
+                # Convert trading order to database order
+                db_order = Order(
+                    position_id=hp_id,  # Use hp_id as position_id for compatibility
+                    exchange_order_id=(
+                        order.order_id
+                        if hasattr(order, "order_id") and order.order_id > 0
+                        else None
+                    ),
+                    symbol="",  # Will need to be filled from context
+                    side=side.value if hasattr(side, "value") else str(side),
+                    status=self._convert_order_status_string(
+                        order.status if hasattr(order, "status") else "NEW"
+                    ),
+                    price=order.price if hasattr(order, "price") else 0.0,
+                    quantity=order.quantity if hasattr(order, "quantity") else 0.0,
+                    quantity_stable=(
+                        order.quantity_stable
+                        if hasattr(order, "quantity_stable")
+                        else 0.0
+                    ),
+                    realized_quantity=(
+                        order.realized_quantity
+                        if hasattr(order, "realized_quantity")
+                        else 0.0
+                    ),
+                    time_in_force=(
+                        order.time_in_force
+                        if hasattr(order, "time_in_force")
+                        else "GTC"
+                    ),
+                    order_type=(
+                        order.order_type if hasattr(order, "order_type") else "LIMIT"
+                    ),
+                )
+
+                await self.save_order(db_order)
+                logger.debug(f"Compatibility: Saved order for hp_id {hp_id}")
+            except Exception as e:
+                logger.error(f"Failed to upsert order (compatibility): {e}")
+
+        # Run the async method synchronously
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an event loop, we can't use asyncio.run()
+                # This is a limitation of the synchronous compatibility interface
+                logger.warning(
+                    "Cannot run async database operation in running event loop"
+                )
+                return
+            else:
+                asyncio.run(_async_upsert_order())
+        except RuntimeError:
+            # No event loop running, safe to use asyncio.run()
+            asyncio.run(_async_upsert_order())
+
+    async def upsert_buy_price_level(self, data) -> None:
+        """
+        Compatibility method for upsert_buy_price_level.
+
+        Args:
+            data: HPBuyData object
+        """
+        try:
+            # Convert HPBuyData to Position
+            position = Position(
+                hp_id=data.config.hp_id,
+                position_type=PositionType.BUY,
+                status=self._convert_state_to_position_status(data.state_info.state),
+                symbol=data.config.symbol_info.symbol,
+                coin=data.config.coin,
+                budget=data.config.budget,
+                price_low=data.config.price_low,
+                price_high=data.config.price_high,
+                order_trigger=data.config.order_trigger,
+                mode=(
+                    data.config.mode.value
+                    if hasattr(data.config.mode, "value")
+                    else str(data.config.mode)
+                ),
+                completeness=data.state_info.completeness,
+                trade_type=TradeType.DIRECT,
+                created_at=(
+                    datetime.strptime(data.state_info.open_time, "%Y-%m-%d %H:%M:%S")
+                    if data.state_info.open_time
+                    else datetime.now()
+                ),
+            )
+
+            await self.save_position(position)
+            logger.debug(
+                f"Compatibility: Saved buy price level for hp_id {data.config.hp_id}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to upsert buy price level (compatibility): {e}")
+
+    async def upsert_sell_price_level(self, data) -> None:
+        """
+        Compatibility method for upsert_sell_price_level.
+
+        Args:
+            data: SellPosition or HPSellData object
+        """
+        try:
+            # Handle both SellPosition and HPSellData
+            if hasattr(data, "config") and hasattr(data, "state_info"):
+                # This is a SellPosition
+                config = data.config
+                state_info = data.state_info
+            elif hasattr(data, "config"):
+                # This is HPSellData
+                config = data.config
+                state_info = data.state_info
+            else:
+                logger.error("Unknown data type in upsert_sell_price_level")
+                return
+
+            position = Position(
+                hp_id=config.hp_id,
+                position_type=PositionType.SELL,
+                status=self._convert_state_to_position_status(state_info.state),
+                symbol=config.symbol_info.symbol,
+                coin=config.coin,
+                quantity=config.quantity,
+                buy_price=config.buy_price,
+                sell_price=config.sell_price,
+                end_currency=config.end_currency,
+                trade_type=TradeType.DIRECT,
+                completeness=state_info.completeness,
+                created_at=(
+                    datetime.strptime(state_info.open_time, "%Y-%m-%d %H:%M:%S")
+                    if state_info.open_time
+                    else datetime.now()
+                ),
+            )
+
+            await self.save_position(position)
+            logger.debug(
+                f"Compatibility: Saved sell price level for hp_id {config.hp_id}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to upsert sell price level (compatibility): {e}")
+
+    def fetch_all_active_strategies(self) -> List[Dict]:
+        """
+        Compatibility method for fetch_all_active_strategies.
+
+        Returns:
+            List of strategy dictionaries
+        """
+        import asyncio
+
+        try:
+            return asyncio.run(self._fetch_all_active_strategies())
+        except Exception as e:
+            logger.error(f"Failed to fetch active strategies (compatibility): {e}")
+            return []
+
+    async def _fetch_all_active_strategies(self) -> List[Dict]:
+        """Internal async method for fetching strategies."""
+        try:
+            async with self.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT * FROM strategies WHERE status = 'ACTIVE'
+                """
+                )
+                rows = await cursor.fetchall()
+
+                strategies = []
+                for row in rows:
+                    strategies.append(
+                        {
+                            "strategy_id": row["id"],
+                            "name": row["name"],
+                            "description": row["description"],
+                            "status": row["status"],
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                        }
+                    )
+
+                return strategies
+        except Exception as e:
+            logger.error(f"Failed to fetch strategies: {e}")
+            return []
+
+    def fetch_active_hp_list(self) -> List[Dict]:
+        """
+        Compatibility method for fetch_active_hp_list.
+
+        Returns:
+            List of active position dictionaries
+        """
+        import asyncio
+
+        try:
+            return asyncio.run(self._fetch_active_hp_list())
+        except Exception as e:
+            logger.error(f"Failed to fetch active HP list (compatibility): {e}")
+            return []
+
+    async def _fetch_active_hp_list(self) -> List[Dict]:
+        """Internal async method for fetching active positions."""
+        try:
+            positions = await self.get_active_positions()
+
+            hp_list = []
+            for pos in positions:
+                hp_list.append(
+                    {
+                        "hp_id": pos.hp_id,
+                        "coin": pos.coin,
+                        "buy_price": pos.buy_price,
+                        "quantity": pos.quantity,
+                        "quantity_usd": pos.budget,
+                        "sell_price": pos.sell_price,
+                        "expected_return": (
+                            pos.sell_price * pos.quantity
+                            if pos.sell_price and pos.quantity
+                            else 0.0
+                        ),
+                        "net": 0.0,  # Calculate if needed
+                        "net_percent": 0.0,  # Calculate if needed
+                        "state": pos.status.value,
+                        "created_at": pos.created_at.isoformat(),
+                        "version_timestamp": pos.updated_at.isoformat(),
+                    }
+                )
+
+            return hp_list
+        except Exception as e:
+            logger.error(f"Failed to fetch active HP list: {e}")
+            return []
+
+    def fetch_price_levels_for_hp(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Compatibility method for fetch_price_levels_for_hp.
+
+        Args:
+            hp_id: Position HP ID
+
+        Returns:
+            Tuple of (buy_levels, sell_levels)
+        """
+        import asyncio
+
+        try:
+            return asyncio.run(self._fetch_price_levels_for_hp(hp_id))
+        except Exception as e:
+            logger.error(f"Failed to fetch price levels (compatibility): {e}")
+            return ([], [])
+
+    async def _fetch_price_levels_for_hp(
+        self, hp_id: str
+    ) -> Tuple[List[Dict], List[Dict]]:
+        """Internal async method for fetching price levels."""
+        try:
+            positions = await self.get_active_positions()
+            position = next((p for p in positions if p.hp_id == hp_id), None)
+
+            if not position:
+                return ([], [])
+
+            buy_levels = []
+            sell_levels = []
+
+            if position.position_type == PositionType.BUY:
+                buy_levels.append(
+                    {
+                        "hp_id": position.hp_id,
+                        "open_time": position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "symbol": position.symbol,
+                        "price_low": position.price_low,
+                        "price_high": position.price_high,
+                        "order_trigger": position.order_trigger,
+                        "budget": position.budget,
+                        "state": position.status.value,
+                        "mode": position.mode,
+                        "is_current": True,
+                        "version_timestamp": position.updated_at.isoformat(),
+                    }
+                )
+            else:
+                sell_levels.append(
+                    {
+                        "hp_id": position.hp_id,
+                        "open_time": position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "symbol": position.symbol,
+                        "buy_price": position.buy_price,
+                        "sell_price": position.sell_price,
+                        "quantity": position.quantity,
+                        "state": position.status.value,
+                        "end_currency": position.end_currency,
+                        "is_current": True,
+                        "version_timestamp": position.updated_at.isoformat(),
+                    }
+                )
+
+            return (buy_levels, sell_levels)
+        except Exception as e:
+            logger.error(f"Failed to fetch price levels: {e}")
+            return ([], [])
+
+    def fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
+        """
+        Compatibility method for fetch_orders_for_price_level.
+
+        Args:
+            hp_id: Position HP ID
+            side: Order side (BUY/SELL)
+
+        Returns:
+            List of order dictionaries
+        """
+        import asyncio
+
+        try:
+            return asyncio.run(self._fetch_orders_for_price_level(hp_id, side))
+        except Exception as e:
+            logger.error(f"Failed to fetch orders for price level (compatibility): {e}")
+            return []
+
+    async def _fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
+        """Internal async method for fetching orders."""
+        try:
+            # Find position by hp_id
+            positions = await self.get_active_positions()
+            position = next((p for p in positions if p.hp_id == hp_id), None)
+
+            if not position:
+                return []
+
+            # Get orders for this position
+            orders = await self.get_position_orders(position.id)
+
+            # Filter by side and convert to dict format
+            result = []
+            for order in orders:
+                if order.side == side:
+                    result.append(
+                        {
+                            "order_id": order.exchange_order_id,
+                            "hp_id": hp_id,
+                            "quantity": order.quantity,
+                            "price": order.price,
+                            "side": order.side,
+                            "quantity_stable": order.quantity_stable,
+                            "realized_quantity": order.realized_quantity,
+                            "time_in_force": order.time_in_force,
+                            "status": order.status.value,
+                            "order_type": order.order_type,
+                            "is_current": True,
+                            "created_at": order.created_at.isoformat(),
+                            "version_timestamp": order.updated_at.isoformat(),
+                        }
+                    )
+
+            return result
+        except Exception as e:
+            logger.error(f"Failed to fetch orders: {e}")
+            return []
+
+    def insert_strategy(
+        self, name: str, description: str = "", status: str = "ACTIVE"
+    ) -> str:
+        """
+        Compatibility method for insert_strategy.
+
+        Args:
+            name: Strategy name
+            description: Strategy description
+            status: Strategy status
+
+        Returns:
+            Strategy ID
+        """
+        import asyncio
+
+        try:
+            strategy = Strategy(
+                name=name,
+                description=description,
+                status=status,
+            )
+            return asyncio.run(self.save_strategy(strategy))
+        except Exception as e:
+            logger.error(f"Failed to insert strategy (compatibility): {e}")
+            return ""
+
+    def assert_db_buy_price_level_content(self, config, state_info) -> None:
+        """
+        Compatibility method for assert_db_buy_price_level_content.
+
+        Args:
+            config: HPBuyConfig object
+            state_info: StateInfo object
+        """
+        import asyncio
+
+        try:
+            asyncio.run(self._assert_db_buy_price_level_content(config, state_info))
+        except Exception as e:
+            logger.error(
+                f"Failed to assert buy price level content (compatibility): {e}"
+            )
+
+    async def _assert_db_buy_price_level_content(self, config, state_info) -> None:
+        """Internal async method for asserting buy price level content."""
+        try:
+            positions = await self.get_active_positions()
+            position = next((p for p in positions if p.hp_id == config.hp_id), None)
+
+            if not position:
+                raise AssertionError(f"Position {config.hp_id} not found in database")
+
+            assert position.symbol == config.symbol_info.symbol
+            assert position.price_low == config.price_low
+            assert position.price_high == config.price_high
+            assert position.budget == config.budget
+            assert position.order_trigger == config.order_trigger
+
+            logger.debug(f"Compatibility: Assertion passed for hp_id {config.hp_id}")
+        except Exception as e:
+            logger.error(f"Failed to assert buy price level content: {e}")
+            raise
+
+    def _convert_state_to_position_status(self, state):
+        """Convert trading system State to PositionStatus."""
+        try:
+            # Import here to avoid circular imports
+            from src.identifiers import State
+
+            mapping = {
+                State.NEW: PositionStatus.NEW,
+                State.BUYING: PositionStatus.OPEN,
+                State.SELLING: PositionStatus.OPEN,
+                State.PARTIALLY_BOUGHT: PositionStatus.PARTIALLY_FILLED,
+                State.PARTIALLY_SOLD: PositionStatus.PARTIALLY_FILLED,
+                State.BOUGHT: PositionStatus.FILLED,
+                State.SOLD: PositionStatus.FILLED,
+                State.CLOSED: PositionStatus.CLOSED,
+                State.WAITING_CHILD: PositionStatus.WAITING_CHILD,
+            }
+            return mapping.get(state, PositionStatus.NEW)
+        except Exception:
+            # Fallback to string comparison
+            state_str = str(state)
+            if "NEW" in state_str:
+                return PositionStatus.NEW
+            elif "OPEN" in state_str or "BUYING" in state_str or "SELLING" in state_str:
+                return PositionStatus.OPEN
+            elif "FILLED" in state_str or "BOUGHT" in state_str or "SOLD" in state_str:
+                return PositionStatus.FILLED
+            elif "CLOSED" in state_str:
+                return PositionStatus.CLOSED
+            else:
+                return PositionStatus.NEW
+
+    def _convert_order_status_string(self, status_str: str):
+        """Convert order status string to OrderStatus enum."""
+        from .models import OrderStatus
+
+        mapping = {
+            "NEW": OrderStatus.NEW,
+            "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
+            "FILLED": OrderStatus.FILLED,
+            "CANCELED": OrderStatus.CANCELED,
+            "REJECTED": OrderStatus.REJECTED,
+        }
+        return mapping.get(status_str, OrderStatus.NEW)

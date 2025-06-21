@@ -94,7 +94,7 @@ class HPPositionBuy:
         self.data.state_info.get_completeness(orders=self.orders)
         self.data.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_buy_price_level(data=self.data)
+        await self.db.upsert_buy_price_level(data=self.data)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport

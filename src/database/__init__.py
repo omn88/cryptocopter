@@ -24,11 +24,14 @@ from .exceptions import (
     IntegrityError,
 )
 from .recovery_service import RecoveryService
+from .position_manager import PositionManager
 
-# from .position_manager import PositionManager  # Commented out to avoid circular import
+# For backwards compatibility, alias TradingDatabase as Database
+Database = TradingDatabase
 
 __all__ = [
     "TradingDatabase",
+    "Database",  # Backwards compatibility alias
     "Position",
     "Trade",
     "Order",
@@ -42,5 +45,5 @@ __all__ = [
     "DatabaseConnectionError",
     "IntegrityError",
     "RecoveryService",
-    # 'PositionManager'  # Commented out to avoid circular import
+    "PositionManager",
 ]

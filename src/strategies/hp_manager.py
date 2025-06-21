@@ -550,7 +550,7 @@ class HpStrategy:
             "Orders sent, updating DB with price level: %s",
             self.buy.data.state_info,
         )
-        self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(data=self.buy.data)
         self.send_buy_position_to_ui()
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
@@ -653,7 +653,7 @@ class HpStrategy:
                 hp_id=self.buy.data.config.hp_id,
                 side=self.buy.data.state_info.side,
             )
-        self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(data=self.buy.data)
 
         self.send_buy_position_to_ui()
 
@@ -832,7 +832,7 @@ class HpStrategy:
         logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
         self.send_buy_position_to_ui()
 
-        self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(data=self.buy.data)
 
     def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
         self, *args, **kwargs
@@ -975,7 +975,7 @@ class HpStrategy:
             side=self.sell.current_position.state_info.side,
             hp_id=self.sell.current_position.config.hp_id,
         )
-        self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(data=self.sell.current_position)
 
         self.send_sell_position_to_ui()
 
@@ -1293,7 +1293,7 @@ class HpStrategy:
 
         await self.buy.handle_order_filled(execution_report=self.execution_report)
 
-        self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(data=self.buy.data)
 
         self.send_buy_position_to_ui()
 

@@ -18,12 +18,12 @@ from src.identifiers import (
     StateInfo,
     State,
     PositionSide,
-    Order,
+    Order as TradingOrder,
     Mode,
 )
 from src.common.symbol_info import SymbolInfo
 from .trading_database import TradingDatabase
-from .models import Position, PositionType, PositionStatus, TradeType
+from .models import Position, Order, PositionType, PositionStatus, TradeType
 from .exceptions import RecoveryError
 
 logger = logging.getLogger("recovery_service")
@@ -166,12 +166,12 @@ class RecoveryService:
         position.realized_quantity = realized_quantity
         position.completeness = (
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
-        )
-
-        # Update status based on completeness
+        )  # Update status based on completeness
         if position.completeness == 0.0:
             if any(
-                order.status.value in ["NEW", "PARTIALLY_FILLED"] for order in orders
+                (order.status.value if hasattr(order.status, "value") else order.status)
+                in ["NEW", "PARTIALLY_FILLED"]
+                for order in orders
             ):
                 position.status = PositionStatus.OPEN
             else:
@@ -295,10 +295,10 @@ class RecoveryService:
             Dict mapping parent hp_id to list of positions in the chain
         """
         try:
-            active_positions = await self.database.get_active_positions()
-
-            # Group by parent positions
-            multihop_chains = {}
+            active_positions = (
+                await self.database.get_active_positions()
+            )  # Group by parent positions
+            multihop_chains: Dict[str, List[Position]] = {}
 
             for position in active_positions:
                 if position.trade_type in [TradeType.TWOHOP, TradeType.CONVERT]:
@@ -317,9 +317,9 @@ class RecoveryService:
                     if root_hp_id not in multihop_chains:
                         multihop_chains[root_hp_id] = []
 
-                    multihop_chains[root_hp_id].append(position)
-
-            # Sort each chain by hop sequence
+                    multihop_chains[root_hp_id].append(
+                        position
+                    )  # Sort each chain by hop sequence
             for hp_id in multihop_chains:
                 multihop_chains[hp_id].sort(key=lambda p: p.hop_sequence)
 
@@ -336,7 +336,7 @@ class RecoveryService:
         Returns a report of any issues found.
         """
         try:
-            issues = {
+            issues: Dict[str, List[str]] = {
                 "missing_symbols": [],
                 "orphaned_orders": [],
                 "inconsistent_states": [],
