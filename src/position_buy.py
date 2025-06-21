@@ -130,7 +130,8 @@ class HPPositionBuy:
                     order.order_id,
                     execution_report.symbol,
                     order.price,
-                    order.status,                )
+                    order.status,
+                )
 
                 await self.db.upsert_order(
                     order=order,

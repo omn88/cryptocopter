@@ -285,7 +285,7 @@ class HPPositionSell:
 
         await self.cancel_remaining_order()
         # if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
-        await self.db.upsert_order_async(
+        await self.db.upsert_order(
             order=self.current_position.sell_order,
             hp_id=self.current_position.config.hp_id,
             side=self.current_position.state_info.side,
@@ -346,7 +346,7 @@ class HPPositionSell:
                 self.current_position.sell_order.status,
             )
 
-            await self.db.upsert_order_async(
+            await self.db.upsert_order(
                 order=self.current_position.sell_order,
                 hp_id=self.current_position.config.hp_id,
                 side=self.current_position.state_info.side,

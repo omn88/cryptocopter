@@ -540,7 +540,7 @@ class HpStrategy:
         logger.info("Orders sent, updating DB: %s", self.buy.orders)
 
         for order in self.buy.orders:
-            await self.db.upsert_order_async(
+            await self.db.upsert_order(
                 order=order,
                 hp_id=self.buy.data.config.hp_id,
                 side=self.buy.data.state_info.side,
@@ -648,7 +648,7 @@ class HpStrategy:
         logger.info("Will update orders: %s", self.buy.orders)
 
         for order in self.buy.orders:
-            await self.db.upsert_order_async(
+            await self.db.upsert_order(
                 order=order,
                 hp_id=self.buy.data.config.hp_id,
                 side=self.buy.data.state_info.side,
@@ -711,7 +711,7 @@ class HpStrategy:
         )
         self.sell.current_position.state_info.ui_state = UiState.OPEN
 
-        await self.db.upsert_order_async(
+        await self.db.upsert_order(
             order=self.sell.current_position.sell_order,
             side=self.sell.current_position.state_info.side,
             hp_id=self.sell.current_position.config.hp_id,
@@ -969,7 +969,7 @@ class HpStrategy:
 
         logger.info("Will update order: %s", self.sell.current_position.sell_order)
 
-        await self.db.upsert_order_async(
+        await self.db.upsert_order(
             order=self.sell.current_position.sell_order,
             side=self.sell.current_position.state_info.side,
             hp_id=self.sell.current_position.config.hp_id,

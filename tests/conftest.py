@@ -158,42 +158,28 @@ async def frontend_backend_setup(
 
 @pytest.fixture
 async def test_db():
-    """Drop the test database, recreate it, and set up tables before running tests."""
+    """Create a test SQLite database for testing."""
+    import tempfile
+    import os
 
-    # Suppress specific warnings related to database operations
-    warnings.filterwarnings(
-        "ignore", message="Can't create database 'e2e_test'; database exists"
-    )
-    warnings.filterwarnings("ignore", message="Table 'strategies' already exists")
-    warnings.filterwarnings("ignore", message="Table 'buy_price_levels' already exists")
-    warnings.filterwarnings(
-        "ignore", message="Table 'sell_price_levels' already exists"
-    )
-    warnings.filterwarnings("ignore", message="Table 'hp_list' already exists")
-    warnings.filterwarnings("ignore", message="Table 'orders' already exists")
+    # Create a temporary SQLite database file for testing
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+        test_db_path = tmp_file.name
 
-    db = Database(
-        host=config("DB_HOST"),
-        port=int(config("DB_PORT")),
-        user=config("DB_USER"),
-        password=config("DB_PASSWORD"),
-        name=config("DB_TEST_NAME"),
-    )
+    # Create the new TradingDatabase instance
+    db = Database(db_path=test_db_path)
     await db.initialize()
 
-    logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
-
-    # Drop the existing test database
-    db.drop_database()
-
-    # Recreate and set up the database from scratch
-    db.create_database_if_not_exists()
-    db.create_pool()
-    db.setup_tables()
+    logger.info("Created test database: %s", test_db_path)
 
     yield db  # Provide the database instance for the test
 
-    db.stop_worker()
+    # Cleanup: close database and remove file
+    await db.close()
+    try:
+        os.unlink(test_db_path)
+    except OSError:
+        pass  # File might already be deleted
 
 
 @pytest.fixture

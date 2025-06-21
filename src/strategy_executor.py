@@ -757,7 +757,7 @@ class StrategyExecutor:
                 )
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        await self.db.upsert_order_async(
+                        await self.db.upsert_order(
                             order=order,
                             hp_id=hp_id,
                             side=side,
@@ -790,7 +790,7 @@ class StrategyExecutor:
                 strategy.state = buy.data.state_info.state
                 for order in buy.orders:
                     if order.status == ORDER_STATUS_CANCELED:
-                        await self.db.upsert_order_async(
+                        await self.db.upsert_order(
                             order=order, hp_id=buy.data.config.hp_id, side=side
                         )
             buy.data.state_info.state = State.CLOSED
