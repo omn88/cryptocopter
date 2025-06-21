@@ -14,7 +14,6 @@ from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 logger = logging.getLogger("hp_e2e_test")
 
 
-@pytest.mark.database_integration
 async def test_get_default_buy_position(frontend_backend_setup):
     front, back = frontend_backend_setup
 
@@ -27,7 +26,6 @@ async def test_get_default_buy_position(frontend_backend_setup):
     await sim.assert_default_buy_position()
 
 
-@pytest.mark.database_integration
 async def test_default_buy_position_send_orders(frontend_backend_setup):
     front, back = frontend_backend_setup
     sim = HPSimulator(front=front, back=back)
@@ -59,7 +57,6 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     logger.info("Idle records: %s", front.idle_records_buy)
 
 
-@pytest.mark.database_integration
 async def test_cancel_default_position_untouched(frontend_backend_setup):
     front, back = frontend_backend_setup
     assert isinstance(front, HpFront)
@@ -107,7 +104,6 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
     assert item["state"] == "NEW"
 
 
-@pytest.mark.database_integration
 async def test_cancel_default_position_untouched_then_resend_orders(
     frontend_backend_setup,
 ):
@@ -131,7 +127,6 @@ async def test_cancel_default_position_untouched_then_resend_orders(
     await sim.move_to_position_active_buy()
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_then_cancel(
     frontend_backend_setup,
 ):
@@ -193,7 +188,6 @@ async def test_default_position_first_order_filled_then_cancel(
     logger.info("HP List after the update: %s", front.hp_list_data)
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_partially(
     frontend_backend_setup,
 ):
@@ -215,7 +209,6 @@ async def test_default_position_first_order_filled_partially(
     strategy = await sim.simulate_partial_fill()
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_partially_then_cancel(
     frontend_backend_setup,
 ):
@@ -274,7 +267,6 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     logger.info("HP List after the update: %s", front.hp_list_data)
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled(
     frontend_backend_setup,
 ):
@@ -295,7 +287,6 @@ async def test_default_position_first_order_filled(
     strategy = await sim.simulate_first_buy_order_fill()
 
 
-@pytest.mark.database_integration
 async def test_default_position_all_buy_orders_filled(
     frontend_backend_setup,
 ):
@@ -309,7 +300,6 @@ async def test_default_position_all_buy_orders_filled(
     await sim.simulate_bought_position()
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
     frontend_backend_setup,
 ):
@@ -391,7 +381,6 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
     )
 
 
-@pytest.mark.database_integration
 async def test_default_position_first_order_filled_then_cancel_then_resend(
     frontend_backend_setup,
 ):
@@ -472,7 +461,6 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
     )
 
 
-@pytest.mark.database_integration
 async def test_setup_sell_position_for_bought_position(
     frontend_backend_setup,
 ):
@@ -493,7 +481,6 @@ async def test_setup_sell_position_for_bought_position(
     )
 
 
-@pytest.mark.database_integration
 async def test_send_sell_order_for_bought_position(
     frontend_backend_setup,
 ):
@@ -556,7 +543,6 @@ async def test_send_sell_order_for_bought_position(
     assert active_sell_item["completeness"] == "0.0"
 
 
-@pytest.mark.database_integration
 async def test_cancel_unfilled_sell_orders(
     frontend_backend_setup,
 ):
@@ -582,7 +568,6 @@ async def test_cancel_unfilled_sell_orders(
     await sim.cancel_unfilled_sell_position()
 
 
-@pytest.mark.database_integration
 async def test_resend_unfilled_sell_orders(
     frontend_backend_setup,
 ):
@@ -610,7 +595,6 @@ async def test_resend_unfilled_sell_orders(
     await sim.send_sell_order_for_bought_position()
 
 
-@pytest.mark.database_integration
 async def test_sell_position_first_order_filled_partially(
     frontend_backend_setup,
 ):
@@ -635,7 +619,6 @@ async def test_sell_position_first_order_filled_partially(
     await sim.simulate_sell_order_partial_fill()
 
 
-@pytest.mark.database_integration
 async def test_sell_position_first_order_filled(
     frontend_backend_setup,
 ):
@@ -660,7 +643,6 @@ async def test_sell_position_first_order_filled(
     await sim.simulate_sell_order_fill()
 
 
-@pytest.mark.database_integration
 async def test_cancel_sell_position_first_order_filled_partially(
     frontend_backend_setup,
 ):
@@ -687,7 +669,6 @@ async def test_cancel_sell_position_first_order_filled_partially(
     await sim.cancel_partially_sold_position()
 
 
-@pytest.mark.database_integration
 async def test_resend_sell_position_first_order_filled_partially(
     frontend_backend_setup,
 ):
@@ -716,7 +697,6 @@ async def test_resend_sell_position_first_order_filled_partially(
     await sim.resend_sell_order_for_partially_sold_position()
 
 
-@pytest.mark.database_integration
 async def test_send_sell_order_for_partially_bought_position(
     frontend_backend_setup,
 ):
@@ -752,7 +732,6 @@ async def test_send_sell_order_for_partially_bought_position(
     await sim.send_sell_order_for_part_bought_position()
 
 
-@pytest.mark.database_integration
 async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
     frontend_backend_setup,
 ):
@@ -790,7 +769,6 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
     await sim.cancel_unfilled_sell_position_from_part_filled_buy()
 
 
-@pytest.mark.database_integration
 async def test_fill_orders_for_previously_partially_bought_position(
     frontend_backend_setup,
 ):
@@ -853,7 +831,6 @@ async def test_fill_orders_for_previously_partially_bought_position(
     await sim.simulate_third_buy_order_fill_with_sell_price()
 
 
-@pytest.mark.database_integration
 async def test_sell_partially_partially_bought_position(
     frontend_backend_setup,
 ):
@@ -891,7 +868,6 @@ async def test_sell_partially_partially_bought_position(
     await sim.simulate_sell_order_partial_fill_from_part_bought()
 
 
-@pytest.mark.database_integration
 async def test_buy_partially_partially_sold_position(
     frontend_backend_setup,
 ):
@@ -958,7 +934,6 @@ async def test_buy_partially_partially_sold_position(
     await sim.simulate_second_buy_order_partial_fill()
 
 
-@pytest.mark.database_integration
 async def test_cancel_buy_to_part_sold_part_bought(
     frontend_backend_setup,
 ):
@@ -1028,7 +1003,6 @@ async def test_cancel_buy_to_part_sold_part_bought(
     await sim.cancel_buy_position_filled_partially_sold_partially()
 
 
-@pytest.mark.database_integration
 async def test_buy_fully_partially_sold_position(
     frontend_backend_setup,
 ):
@@ -1095,7 +1069,6 @@ async def test_buy_fully_partially_sold_position(
     await sim.simulate_third_buy_order_fill_after_selling_half_of_first_order()
 
 
-@pytest.mark.database_integration
 async def test_sell_fully_partially_bought_position(
     frontend_backend_setup,
 ):
@@ -1133,7 +1106,6 @@ async def test_sell_fully_partially_bought_position(
     await sim.simulate_sell_order_fill_from_part_bought()
 
 
-@pytest.mark.database_integration
 async def test_buy_fully_partially_bought_position_when_sold_position(
     frontend_backend_setup,
 ):
@@ -1197,7 +1169,6 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     await sim.simulate_third_buy_order_fill_after_selling_first_order()
 
 
-@pytest.mark.database_integration
 async def test_start_new_sell_position_for_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1209,7 +1180,6 @@ async def test_start_new_sell_position_for_two_hop_trade(
     await sim.open_first_sell_position_from_two_hop_trade()
 
 
-@pytest.mark.database_integration
 async def test_send_order_for_first_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1223,7 +1193,6 @@ async def test_send_order_for_first_sell_position_in_two_hop_trade(
     await sim.send_orders_for_first_position_from_two_hop_trade()
 
 
-@pytest.mark.database_integration
 async def test_fill_partially_first_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1239,7 +1208,6 @@ async def test_fill_partially_first_sell_position_in_two_hop_trade(
     await sim.simulate_sell_order_partial_fill_in_first_hop()
 
 
-@pytest.mark.database_integration
 async def test_fill_first_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1255,7 +1223,6 @@ async def test_fill_first_sell_position_in_two_hop_trade(
     await sim.simulate_sell_order_fill_in_first_hop()
 
 
-@pytest.mark.database_integration
 async def test_start_second_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1273,7 +1240,6 @@ async def test_start_second_sell_position_in_two_hop_trade(
     await sim.open_second_sell_position_from_two_hop_trade()
 
 
-@pytest.mark.database_integration
 async def test_partial_fill_second_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1293,7 +1259,6 @@ async def test_partial_fill_second_sell_position_in_two_hop_trade(
     await sim.simulate_sell_order_partial_fill_in_second_hop()
 
 
-@pytest.mark.database_integration
 async def test_fill_second_sell_position_in_two_hop_trade(
     frontend_backend_setup,
 ):
@@ -1313,7 +1278,6 @@ async def test_fill_second_sell_position_in_two_hop_trade(
     await sim.simulate_sell_order_fill_in_second_hop()
 
 
-@pytest.mark.database_integration
 async def test_no_sell_orders_send_if_buy_position_not_realized(
     frontend_backend_setup,
 ):
@@ -1382,7 +1346,6 @@ async def test_no_sell_orders_send_if_buy_position_not_realized(
     assert item["state"] == "NEW"
 
 
-@pytest.mark.database_integration
 async def test_sell_orders_send_if_buy_position_realized_partially(
     frontend_backend_setup,
 ):
