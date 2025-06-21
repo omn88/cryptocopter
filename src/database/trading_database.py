@@ -16,6 +16,7 @@ from datetime import datetime
 import json
 from contextlib import asynccontextmanager
 import aiosqlite
+import asyncio
 
 from .models import (
     Position,
@@ -667,7 +668,6 @@ class TradingDatabase:
                     else datetime.now()
                 ),
             )
-
             await self.save_position(position)
             logger.debug(
                 "Compatibility: Saved sell price level for hp_id %s", config.hp_id
@@ -683,20 +683,17 @@ class TradingDatabase:
             List of strategy dictionaries
         """
         try:
-            # Try to get current event loop, if it exists, create a task            try:
-            import asyncio
-
-            asyncio.get_running_loop()
-            # We're in an event loop, need to use a different approach
-            logger.warning(
-                "fetch_all_active_strategies called from async context - returning empty list"
-            )
-            return []
-        except RuntimeError:
-            # No event loop running, can use asyncio.run
-            import asyncio
-
-            return asyncio.run(self._fetch_all_active_strategies())
+            # Try to get current event loop, if it exists, create a task
+            try:
+                asyncio.get_running_loop()
+                # We're in an event loop, need to use a different approach
+                logger.warning(
+                    "fetch_all_active_strategies called from async context - returning empty list"
+                )
+                return []
+            except RuntimeError:
+                # No event loop running, can use asyncio.run
+                return asyncio.run(self._fetch_all_active_strategies())
         except Exception as e:
             logger.error("Failed to fetch active strategies (compatibility): %s", e)
             return []
@@ -738,20 +735,17 @@ class TradingDatabase:
             List of active position dictionaries
         """
         try:
-            # Try to get current event loop, if it exists, create a task            try:
-            import asyncio
-
-            asyncio.get_running_loop()
-            # We're in an event loop, need to use a different approach
-            logger.warning(
-                "fetch_active_hp_list called from async context - returning empty list"
-            )
-            return []
-        except RuntimeError:
-            # No event loop running, can use asyncio.run
-            import asyncio
-
-            return asyncio.run(self._fetch_active_hp_list())
+            # Try to get current event loop, if it exists, create a task
+            try:
+                asyncio.get_running_loop()
+                # We're in an event loop, need to use a different approach
+                logger.warning(
+                    "fetch_active_hp_list called from async context - returning empty list"
+                )
+                return []
+            except RuntimeError:
+                # No event loop running, can use asyncio.run
+                return asyncio.run(self._fetch_active_hp_list())
         except Exception as e:
             logger.error("Failed to fetch active HP list (compatibility): %s", e)
             return []
@@ -786,7 +780,7 @@ class TradingDatabase:
 
             return hp_list
         except Exception as e:
-            logger.error(f"Failed to fetch active HP list: {e}")
+            logger.error("Failed to fetch active HP list: %s", e)
             return []
 
     def fetch_price_levels_for_hp(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
@@ -797,14 +791,11 @@ class TradingDatabase:
             hp_id: Position HP ID
 
         Returns:
-            Tuple of (buy_levels, sell_levels)
-        """
-        import asyncio
-
+            Tuple of (buy_levels, sell_levels)"""
         try:
             return asyncio.run(self._fetch_price_levels_for_hp(hp_id))
         except Exception as e:
-            logger.error(f"Failed to fetch price levels (compatibility): {e}")
+            logger.error("Failed to fetch price levels (compatibility): %s", e)
             return ([], [])
 
     async def _fetch_price_levels_for_hp(
@@ -855,7 +846,7 @@ class TradingDatabase:
 
             return (buy_levels, sell_levels)
         except Exception as e:
-            logger.error(f"Failed to fetch price levels: {e}")
+            logger.error("Failed to fetch price levels: %s", e)
             return ([], [])
 
     def fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
@@ -867,14 +858,13 @@ class TradingDatabase:
             side: Order side (BUY/SELL)
 
         Returns:
-            List of order dictionaries
-        """
-        import asyncio
-
+            List of order dictionaries"""
         try:
             return asyncio.run(self._fetch_orders_for_price_level(hp_id, side))
         except Exception as e:
-            logger.error(f"Failed to fetch orders for price level (compatibility): {e}")
+            logger.error(
+                "Failed to fetch orders for price level (compatibility): %s", e
+            )
             return []
 
     async def _fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
@@ -914,7 +904,7 @@ class TradingDatabase:
 
             return result
         except Exception as e:
-            logger.error(f"Failed to fetch orders: {e}")
+            logger.error("Failed to fetch orders: %s", e)
             return []
 
     def insert_strategy(
@@ -929,10 +919,7 @@ class TradingDatabase:
             status: Strategy status
 
         Returns:
-            Strategy ID
-        """
-        import asyncio
-
+            Strategy ID"""
         try:
             strategy = Strategy(
                 name=name,
@@ -941,7 +928,7 @@ class TradingDatabase:
             )
             return asyncio.run(self.save_strategy(strategy))
         except Exception as e:
-            logger.error(f"Failed to insert strategy (compatibility): {e}")
+            logger.error("Failed to insert strategy (compatibility): %s", e)
             return ""
 
     def assert_db_buy_price_level_content(self, config, state_info) -> None:
@@ -950,10 +937,7 @@ class TradingDatabase:
 
         Args:
             config: HPBuyConfig object
-            state_info: StateInfo object
-        """
-        import asyncio
-
+            state_info: StateInfo object"""
         try:
             asyncio.run(self._assert_db_buy_price_level_content(config, state_info))
         except Exception as e:
@@ -976,9 +960,9 @@ class TradingDatabase:
             assert position.budget == config.budget
             assert position.order_trigger == config.order_trigger
 
-            logger.debug(f"Compatibility: Assertion passed for hp_id {config.hp_id}")
+            logger.debug("Compatibility: Assertion passed for hp_id %s", config.hp_id)
         except Exception as e:
-            logger.error(f"Failed to assert buy price level content: {e}")
+            logger.error("Failed to assert buy price level content: %s", e)
             raise
 
     def _convert_state_to_position_status(self, state):
