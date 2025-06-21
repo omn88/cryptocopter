@@ -37,9 +37,6 @@ logger = logging.getLogger("main")
 DOTENV_FILE = "config/.env"
 config_env = Config(RepositoryEnv(DOTENV_FILE))
 
-DB_CONFIG_FILE = "config/.db_config"
-config_db = Config(RepositoryEnv(DB_CONFIG_FILE))
-
 window_width = 1200  # Set your desired width
 window_height = 640  # Set your desired height
 
@@ -55,15 +52,8 @@ async def main():
 
     Returns:
         None
-    """
-
-    db = Database(
-        host=config_db("DB_HOST"),
-        port=int(config_db("DB_PORT")),
-        user=config_db("DB_USER"),
-        password=config_db("DB_PASSWORD"),
-        name=config_db("DB_NAME"),
-    )
+    """  # Initialize SQLite database
+    db = Database()  # Uses default "trading.db" file
     await db.initialize()
 
     client = BinanceClient(
