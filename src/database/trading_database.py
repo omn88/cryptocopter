@@ -275,11 +275,13 @@ class TradingDatabase:
                 )
                 await conn.commit()
                 logger.info(
-                    f"Saved position {position.hp_id} with status {position.status.value}"
+                    "Saved position %s with status %s",
+                    position.hp_id,
+                    position.status.value,
                 )
                 return position.id
         except Exception as e:
-            raise DatabaseError(f"Failed to save position {position.hp_id}: {e}")
+            raise DatabaseError("Failed to save position %s: %s" % (position.hp_id, e))
 
     async def save_order(self, order: Order) -> str:
         """Save an order to the database."""
@@ -343,7 +345,9 @@ class TradingDatabase:
                     position = self._row_to_position(row)
                     positions.append(position)
 
-                logger.info(f"Retrieved {len(positions)} active positions for recovery")
+                logger.info(
+                    "Retrieved %s active positions for recovery", len(positions)
+                )
                 return positions
         except Exception as e:
             raise RecoveryError(f"Failed to retrieve active positions: {e}")
@@ -500,7 +504,7 @@ class TradingDatabase:
             backup_file = Path(backup_path)
             backup_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(self.db_path, backup_file)
-            logger.info(f"Database backed up to {backup_path}")
+            logger.info("Database backed up to %s", backup_path)
         except Exception as e:
             raise DatabaseError(f"Failed to backup database: {e}")
 
@@ -580,9 +584,9 @@ class TradingDatabase:
                 ),
             )
             await self.save_order(db_order)
-            logger.debug(f"Async: Saved order for hp_id {hp_id}")
+            logger.debug("Async: Saved order for hp_id %s", hp_id)
         except Exception as e:
-            logger.error(f"Failed to upsert order (async): {e}")
+            logger.error("Failed to upsert order (async): %s", e)
 
     async def upsert_buy_price_level(self, data) -> None:
         """
@@ -619,10 +623,10 @@ class TradingDatabase:
 
             await self.save_position(position)
             logger.debug(
-                f"Compatibility: Saved buy price level for hp_id {data.config.hp_id}"
+                "Compatibility: Saved buy price level for hp_id %s", data.config.hp_id
             )
         except Exception as e:
-            logger.error(f"Failed to upsert buy price level (compatibility): {e}")
+            logger.error("Failed to upsert buy price level (compatibility): %s", e)
 
     async def upsert_sell_price_level(self, data) -> None:
         """
@@ -666,10 +670,10 @@ class TradingDatabase:
 
             await self.save_position(position)
             logger.debug(
-                f"Compatibility: Saved sell price level for hp_id {config.hp_id}"
+                "Compatibility: Saved sell price level for hp_id %s", config.hp_id
             )
         except Exception as e:
-            logger.error(f"Failed to upsert sell price level (compatibility): {e}")
+            logger.error("Failed to upsert sell price level (compatibility): %s", e)
 
     def fetch_all_active_strategies(self) -> List[Dict]:
         """
@@ -678,12 +682,23 @@ class TradingDatabase:
         Returns:
             List of strategy dictionaries
         """
-        import asyncio
-
         try:
+            # Try to get current event loop, if it exists, create a task            try:
+            import asyncio
+
+            asyncio.get_running_loop()
+            # We're in an event loop, need to use a different approach
+            logger.warning(
+                "fetch_all_active_strategies called from async context - returning empty list"
+            )
+            return []
+        except RuntimeError:
+            # No event loop running, can use asyncio.run
+            import asyncio
+
             return asyncio.run(self._fetch_all_active_strategies())
         except Exception as e:
-            logger.error(f"Failed to fetch active strategies (compatibility): {e}")
+            logger.error("Failed to fetch active strategies (compatibility): %s", e)
             return []
 
     async def _fetch_all_active_strategies(self) -> List[Dict]:
@@ -712,7 +727,7 @@ class TradingDatabase:
 
                 return strategies
         except Exception as e:
-            logger.error(f"Failed to fetch strategies: {e}")
+            logger.error("Failed to fetch strategies: %s", e)
             return []
 
     def fetch_active_hp_list(self) -> List[Dict]:
@@ -722,12 +737,23 @@ class TradingDatabase:
         Returns:
             List of active position dictionaries
         """
-        import asyncio
-
         try:
+            # Try to get current event loop, if it exists, create a task            try:
+            import asyncio
+
+            asyncio.get_running_loop()
+            # We're in an event loop, need to use a different approach
+            logger.warning(
+                "fetch_active_hp_list called from async context - returning empty list"
+            )
+            return []
+        except RuntimeError:
+            # No event loop running, can use asyncio.run
+            import asyncio
+
             return asyncio.run(self._fetch_active_hp_list())
         except Exception as e:
-            logger.error(f"Failed to fetch active HP list (compatibility): {e}")
+            logger.error("Failed to fetch active HP list (compatibility): %s", e)
             return []
 
     async def _fetch_active_hp_list(self) -> List[Dict]:
