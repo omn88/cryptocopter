@@ -202,7 +202,17 @@ def trading_system_factory(mock_AsyncClient):
         hp_config: HPBuyConfig, balance: float = 10000
     ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
-        test_database = MagicMock()
+        test_database = AsyncMock()
+        # Set up the async and sync methods on the database mock
+        test_database.assert_db_buy_price_level_content = MagicMock()
+        test_database.upsert_order = AsyncMock()
+        test_database.upsert_order_async = AsyncMock()
+        test_database.get_active_positions = AsyncMock(return_value=[])
+        test_database.save_position = AsyncMock()
+        test_database.save_strategy = AsyncMock()
+        test_database.get_all_strategies = AsyncMock(return_value=[])
+        test_database.get_recovery_data = AsyncMock(return_value=[])
+        
         strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
@@ -260,9 +270,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         symbols_info = {
             "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        }
-
-        # Create the StrategyExecutor instance
+        }        # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(
             client=mock_AsyncClient, symbols_info=symbols_info
         )
@@ -272,7 +280,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             client=mock_AsyncClient,
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
-            db=MagicMock(),
+            db=AsyncMock(),
             ui_queue=queue.Queue(),
             symbols_info=symbols_info,
             test_mode=True,
