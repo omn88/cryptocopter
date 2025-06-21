@@ -85,7 +85,7 @@ class HPPositionBuy:
         )
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,
@@ -109,7 +109,7 @@ class HPPositionBuy:
                 )
                 order.price = execution_report.last_executed_price
 
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,
@@ -130,10 +130,9 @@ class HPPositionBuy:
                     order.order_id,
                     execution_report.symbol,
                     order.price,
-                    order.status,
-                )
+                    order.status,                )
 
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,

@@ -205,14 +205,14 @@ def trading_system_factory(mock_AsyncClient):
         test_database = AsyncMock()
         # Set up the async and sync methods on the database mock
         test_database.assert_db_buy_price_level_content = MagicMock()
-        test_database.upsert_order = AsyncMock()
-        test_database.upsert_order_async = AsyncMock()
+        test_database.upsert_order = AsyncMock()  # This is now the main async method
         test_database.get_active_positions = AsyncMock(return_value=[])
         test_database.save_position = AsyncMock()
         test_database.save_strategy = AsyncMock()
         test_database.get_all_strategies = AsyncMock(return_value=[])
         test_database.get_recovery_data = AsyncMock(return_value=[])
-        
+        test_database.upsert_buy_price_level = AsyncMock()
+
         strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
@@ -270,7 +270,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         symbols_info = {
             "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        }        # Create the StrategyExecutor instance
+        }  # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(
             client=mock_AsyncClient, symbols_info=symbols_info
         )

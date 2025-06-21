@@ -527,9 +527,11 @@ class TradingDatabase:
 
                 return stats
         except Exception as e:
-            raise DatabaseError(f"Failed to get database stats: {e}")
+            raise DatabaseError(
+                f"Failed to get database stats: {e}"
+            )  # ========================================================================
 
-    # ========================================================================    # COMPATIBILITY METHODS FOR OLD DATABASE INTERFACE
+    # COMPATIBILITY METHODS FOR OLD DATABASE INTERFACE
     # ========================================================================
 
     async def initialize(self) -> None:
@@ -540,79 +542,9 @@ class TradingDatabase:
         """Compatibility method - no worker thread in SQLite implementation."""
         pass
 
-    def upsert_order(self, order, hp_id: str, side) -> None:
+    async def upsert_order(self, order, hp_id: str, side) -> None:
         """
-        Compatibility method for upsert_order (synchronous).
-
-        Args:
-            order: Trading system Order object
-            hp_id: Position HP ID
-            side: PositionSide enum
-        """
-
-        async def _async_upsert_order():
-            try:
-                # Convert trading order to database order
-                db_order = Order(
-                    position_id=hp_id,  # Use hp_id as position_id for compatibility
-                    exchange_order_id=(
-                        order.order_id
-                        if hasattr(order, "order_id") and order.order_id > 0
-                        else None
-                    ),
-                    symbol="",  # Will need to be filled from context
-                    side=side.value if hasattr(side, "value") else str(side),
-                    status=self._convert_order_status_string(
-                        order.status if hasattr(order, "status") else "NEW"
-                    ),
-                    price=order.price if hasattr(order, "price") else 0.0,
-                    quantity=order.quantity if hasattr(order, "quantity") else 0.0,
-                    quantity_stable=(
-                        order.quantity_stable
-                        if hasattr(order, "quantity_stable")
-                        else 0.0
-                    ),
-                    realized_quantity=(
-                        order.realized_quantity
-                        if hasattr(order, "realized_quantity")
-                        else 0.0
-                    ),
-                    time_in_force=(
-                        order.time_in_force
-                        if hasattr(order, "time_in_force")
-                        else "GTC"
-                    ),
-                    order_type=(
-                        order.order_type if hasattr(order, "order_type") else "LIMIT"
-                    ),
-                )
-
-                await self.save_order(db_order)
-                logger.debug(f"Compatibility: Saved order for hp_id {hp_id}")
-            except Exception as e:
-                logger.error(f"Failed to upsert order (compatibility): {e}")
-
-        # Run the async method synchronously
-        import asyncio
-
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're already in an event loop, we can't use asyncio.run()
-                # This is a limitation of the synchronous compatibility interface
-                logger.warning(
-                    "Cannot run async database operation in running event loop"
-                )
-                return
-            else:
-                asyncio.run(_async_upsert_order())
-        except RuntimeError:
-            # No event loop running, safe to use asyncio.run()
-            asyncio.run(_async_upsert_order())
-
-    async def upsert_order_async(self, order, hp_id: str, side) -> None:
-        """
-        Async version of upsert_order.
+        Upsert an order to the database.
 
         Args:
             order: Trading system Order object
