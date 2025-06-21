@@ -610,6 +610,48 @@ class TradingDatabase:
             # No event loop running, safe to use asyncio.run()
             asyncio.run(_async_upsert_order())
 
+    async def upsert_order_async(self, order, hp_id: str, side) -> None:
+        """
+        Async version of upsert_order.
+
+        Args:
+            order: Trading system Order object
+            hp_id: Position HP ID
+            side: PositionSide enum
+        """
+        try:
+            # Convert trading order to database order
+            db_order = Order(
+                position_id=hp_id,  # Use hp_id as position_id for compatibility
+                exchange_order_id=(
+                    order.order_id
+                    if hasattr(order, "order_id") and order.order_id > 0
+                    else None
+                ),
+                symbol="",  # Will need to be filled from context
+                side=side.value if hasattr(side, "value") else str(side),
+                status=self._convert_order_status_string(
+                    order.status if hasattr(order, "status") else "NEW"
+                ),
+                price=order.price if hasattr(order, "price") else 0.0,
+                quantity=order.quantity if hasattr(order, "quantity") else 0.0,
+                quantity_stable=(
+                    order.quantity_stable if hasattr(order, "quantity_stable") else 0.0
+                ),
+                realized_quantity=(
+                    order.realized_quantity
+                    if hasattr(order, "realized_quantity")
+                    else 0.0
+                ),
+                time_in_force=(
+                    order.time_in_force if hasattr(order, "time_in_force") else "GTC"
+                ),
+            )
+            await self.save_order(db_order)
+            logger.debug(f"Async: Saved order for hp_id {hp_id}")
+        except Exception as e:
+            logger.error(f"Failed to upsert order (async): {e}")
+
     async def upsert_buy_price_level(self, data) -> None:
         """
         Compatibility method for upsert_buy_price_level.
