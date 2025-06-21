@@ -17,17 +17,14 @@ before_script:
 formatting:
   stage: formatting
   script:
-    - pip install black==25.1.0
     - black --check .
 
 linting:
   stage: linting
   script:
-    - pip install mypy==1.15.0
     - mypy --ignore-missing-imports --exclude venv .
 
 testing:
   stage: testing
   script:
-    - pip install pytest
-    - pytest -m "not database_integration"
+    - pytest

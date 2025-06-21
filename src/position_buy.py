@@ -85,7 +85,7 @@ class HPPositionBuy:
         )
         for order in self.orders:
             if order.status == ORDER_STATUS_CANCELED:
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,
@@ -94,7 +94,7 @@ class HPPositionBuy:
         self.data.state_info.get_completeness(orders=self.orders)
         self.data.state_info.ui_state = UiState.STAGNATED
 
-        self.db.upsert_buy_price_level(data=self.data)
+        await self.db.upsert_buy_price_level(data=self.data)
 
     async def handle_order_partially_filled(
         self, execution_report: ExecutionReport
@@ -109,7 +109,7 @@ class HPPositionBuy:
                 )
                 order.price = execution_report.last_executed_price
 
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,
@@ -133,7 +133,7 @@ class HPPositionBuy:
                     order.status,
                 )
 
-                self.db.upsert_order(
+                await self.db.upsert_order(
                     order=order,
                     hp_id=self.data.config.hp_id,
                     side=self.data.state_info.side,

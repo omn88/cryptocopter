@@ -19,7 +19,7 @@ from binance.exceptions import (
 from src.broker import BrokerSpot
 from src.common.symbol_info import SymbolInfo
 
-from src.database import Database
+from src.database import Database  # This will use the old database.py file in src/
 from src.identifiers import (
     ExecutionReport,
     HPSellConfig,
@@ -254,11 +254,13 @@ class HPPositionSell:
                     self.current_position.state_info.side,
                     self.current_position.config.symbol_info,
                 )
+
                 self.current_position.sell_order = await self._create_order(
                     side=self.current_position.state_info.side,
                     order=self.current_position.sell_order,
                     symbol_info=self.current_position.config.symbol_info,
                 )
+
                 logger.info(
                     "New %s order send for %s at price: %s, quantity: %s and status: %s [id: %s]",
                     self.current_position.state_info.side.value,
@@ -273,6 +275,7 @@ class HPPositionSell:
 
     async def cancel_position(self) -> None:
         assert isinstance(self.current_position, SellPosition)
+
         logger.info(
             "Start canceling position: %s %s, hp id: %s",
             self.current_position.config.symbol_info.symbol,
@@ -282,11 +285,11 @@ class HPPositionSell:
 
         await self.cancel_remaining_order()
         # if self.current_position.sell_order.status == ORDER_STATUS_CANCELED:
-        #     self.db.upsert_order(
-        #         order=self.current_position.sell_order,
-        #         hp_id=self.current_position.config.hp_id,
-        #         side=self.current_position.state_info.side,
-        #     )
+        await self.db.upsert_order(
+            order=self.current_position.sell_order,
+            hp_id=self.current_position.config.hp_id,
+            side=self.current_position.state_info.side,
+        )
 
         self.current_position.state_info.get_completeness(
             self.current_position.sell_order
@@ -343,10 +346,11 @@ class HPPositionSell:
                 self.current_position.sell_order.status,
             )
 
-            # self.db.upsert_order(
-            #     order=self.current_position.sell_order,
-            #     hp_id=self.current_position.config.hp_id,
-            #     side=self.current_position.state_info.side,            # )
+            await self.db.upsert_order(
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
+            )
         self.current_position.state_info.ui_state = UiState.OPEN
 
         self.current_position.state_info.get_completeness(

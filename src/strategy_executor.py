@@ -540,7 +540,7 @@ class StrategyExecutor:
             ),
         )
 
-        # self.db.upsert_buy_price_level(data=strategy.buy.data)
+        await self.db.upsert_buy_price_level(data=strategy.buy.data)
 
         asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
@@ -622,13 +622,12 @@ class StrategyExecutor:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
                 await strategy.sell.cancel_position()
-
             strategy.sell.current_position.config.sell_price = (
                 strategy_data.config.sell_price
             )
             strategy.sell.current_position.state_info.ui_state = UiState.CLOSED
 
-        # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        await self.db.upsert_sell_price_level(data=strategy.sell.current_position)
         self.send_sell_position_to_ui(
             config=strategy.sell.current_position.config,
             state_info=strategy.sell.current_position.state_info,
@@ -723,7 +722,7 @@ class StrategyExecutor:
                 ),
             )
 
-        # self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        await self.db.upsert_sell_price_level(data=strategy.sell.current_position)
 
         asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
@@ -756,16 +755,16 @@ class StrategyExecutor:
                     symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
                 )
-                # for order in buy.orders:
-                #     if order.status == ORDER_STATUS_CANCELED:
-                #         self.db.upsert_order(
-                #             order=order,
-                #             hp_id=hp_id,
-                #             side=side,
-                #         )
+                for order in buy.orders:
+                    if order.status == ORDER_STATUS_CANCELED:
+                        await self.db.upsert_order(
+                            order=order,
+                            hp_id=hp_id,
+                            side=side,
+                        )
                 buy.data.state_info.get_completeness(buy.orders)
 
-            # self.db.upsert_buy_price_level(data=buy.data)
+            await self.db.upsert_buy_price_level(data=buy.data)
 
             buy.data.state_info.ui_state = UiState.CLOSED
 
@@ -789,11 +788,11 @@ class StrategyExecutor:
                     orders=buy.orders,
                 )
                 strategy.state = buy.data.state_info.state
-                # for order in buy.orders:
-                #     if order.status == ORDER_STATUS_CANCELED:
-                #         self.db.upsert_order(
-                #             order=order, hp_id=buy.data.config.hp_id, side=side
-                #         )
+                for order in buy.orders:
+                    if order.status == ORDER_STATUS_CANCELED:
+                        await self.db.upsert_order(
+                            order=order, hp_id=buy.data.config.hp_id, side=side
+                        )
             buy.data.state_info.state = State.CLOSED
             buy.data.state_info.ui_state = UiState.CLOSED
             buy.data.state_info.completeness = sum(
@@ -806,7 +805,7 @@ class StrategyExecutor:
                 buy_orders=strategy.buy.orders,
             )
 
-            # self.db.upsert_buy_price_level(data=buy.data)
+            await self.db.upsert_buy_price_level(data=buy.data)
 
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
@@ -865,9 +864,9 @@ class StrategyExecutor:
                 state_info=strategy.sell.current_position.state_info,
                 state=strategy.state,
             )
-            # self.db.upsert_sell_price_level(data=sell.current_position)
+            await self.db.upsert_sell_price_level(data=sell.current_position)
 
-    def recover_price_levels(self, hp_id: str) -> Tuple[Dict, Dict]:
+    def recover_price_levels(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
         buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
         logger.info(
             "HP: %s\nBuy price level: %s\nSell price level: %s",

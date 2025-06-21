@@ -158,42 +158,28 @@ async def frontend_backend_setup(
 
 @pytest.fixture
 async def test_db():
-    """Drop the test database, recreate it, and set up tables before running tests."""
+    """Create a test SQLite database for testing."""
+    import tempfile
+    import os
 
-    # Suppress specific warnings related to database operations
-    warnings.filterwarnings(
-        "ignore", message="Can't create database 'e2e_test'; database exists"
-    )
-    warnings.filterwarnings("ignore", message="Table 'strategies' already exists")
-    warnings.filterwarnings("ignore", message="Table 'buy_price_levels' already exists")
-    warnings.filterwarnings(
-        "ignore", message="Table 'sell_price_levels' already exists"
-    )
-    warnings.filterwarnings("ignore", message="Table 'hp_list' already exists")
-    warnings.filterwarnings("ignore", message="Table 'orders' already exists")
+    # Create a temporary SQLite database file for testing
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+        test_db_path = tmp_file.name
 
-    db = Database(
-        host=config("DB_HOST"),
-        port=int(config("DB_PORT")),
-        user=config("DB_USER"),
-        password=config("DB_PASSWORD"),
-        name=config("DB_TEST_NAME"),
-    )
+    # Create the new TradingDatabase instance
+    db = Database(db_path=test_db_path)
     await db.initialize()
 
-    logger.info("Dropping and recreating the test database: %s", config("DB_TEST_NAME"))
-
-    # Drop the existing test database
-    db.drop_database()
-
-    # Recreate and set up the database from scratch
-    db.create_database_if_not_exists()
-    db.create_pool()
-    db.setup_tables()
+    logger.info("Created test database: %s", test_db_path)
 
     yield db  # Provide the database instance for the test
 
-    db.stop_worker()
+    # Cleanup: close database and remove file
+    await db.close()
+    try:
+        os.unlink(test_db_path)
+    except OSError:
+        pass  # File might already be deleted
 
 
 @pytest.fixture
@@ -202,7 +188,17 @@ def trading_system_factory(mock_AsyncClient):
         hp_config: HPBuyConfig, balance: float = 10000
     ) -> HpStrategy:
         ui_queue: queue.Queue = queue.Queue()
-        test_database = MagicMock()
+        test_database = AsyncMock()
+        # Set up the async and sync methods on the database mock
+        test_database.assert_db_buy_price_level_content = MagicMock()
+        test_database.upsert_order = AsyncMock()  # This is now the main async method
+        test_database.get_active_positions = AsyncMock(return_value=[])
+        test_database.save_position = AsyncMock()
+        test_database.save_strategy = AsyncMock()
+        test_database.get_all_strategies = AsyncMock(return_value=[])
+        test_database.get_recovery_data = AsyncMock(return_value=[])
+        test_database.upsert_buy_price_level = AsyncMock()
+
         strategy = HpStrategy(
             client=mock_AsyncClient,
             balance=balance,
@@ -260,9 +256,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
         symbols_info = {
             "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
             "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        }
-
-        # Create the StrategyExecutor instance
+        }  # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(
             client=mock_AsyncClient, symbols_info=symbols_info
         )
@@ -272,7 +266,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
             client=mock_AsyncClient,
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
-            db=MagicMock(),
+            db=AsyncMock(),
             ui_queue=queue.Queue(),
             symbols_info=symbols_info,
             test_mode=True,
