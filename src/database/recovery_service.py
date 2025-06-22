@@ -17,7 +17,6 @@ from src.identifiers import (
     StateInfo,
     State,
     PositionSide,
-    Order as TradingOrder,  # Alias to avoid collision
     Mode,
 )
 from src.common.symbol_info import SymbolInfo
@@ -67,7 +66,7 @@ class RecoveryService:
         try:
             # Load all active positions from database
             active_positions = await self.database.get_active_positions()
-            logger.info(f"Found {len(active_positions)} active positions in database")
+            logger.info("Found %d active positions in database", len(active_positions))
 
             # Verify positions with exchange
             verified_positions = await self._verify_positions_with_exchange(
@@ -89,12 +88,14 @@ class RecoveryService:
                         sell_positions.append(sell_data)
 
             logger.info(
-                f"Recovered {len(buy_positions)} buy positions and {len(sell_positions)} sell positions"
+                "Recovered %d buy positions and %d sell positions",
+                len(buy_positions),
+                len(sell_positions),
             )
             return buy_positions, sell_positions
 
         except Exception as e:
-            raise RecoveryError(f"Failed to recover positions: {e}")
+            raise RecoveryError(f"Failed to recover positions: {e}") from e
 
     async def _verify_positions_with_exchange(
         self, positions: List[Position]
@@ -124,7 +125,10 @@ class RecoveryService:
                             # Update order status if changed
                             if exchange_order["status"] != order.status.value:
                                 logger.info(
-                                    f"Order {order.exchange_order_id} status changed from {order.status.value} to {exchange_order['status']}"
+                                    "Order %s status changed from %s to %s",
+                                    order.exchange_order_id,
+                                    order.status.value,
+                                    exchange_order["status"],
                                 )
                                 order.status = self._convert_exchange_status(
                                     exchange_order["status"]
@@ -140,7 +144,9 @@ class RecoveryService:
 
                         except Exception as e:
                             logger.warning(
-                                f"Could not verify order {order.exchange_order_id}: {e}"
+                                "Could not verify order %s: %s",
+                                order.exchange_order_id,
+                                e,
                             )
                             updated_orders.append(order)
                     else:
@@ -157,7 +163,7 @@ class RecoveryService:
                     verified_positions.append(position)
 
             except Exception as e:
-                logger.error(f"Failed to verify position {position.hp_id}: {e}")
+                logger.error("Failed to verify position %s: %s", position.hp_id, e)
                 # Add position anyway for manual review
                 verified_positions.append(position)
 
@@ -208,7 +214,7 @@ class RecoveryService:
         try:
             symbol_info = self.symbols_info.get(position.symbol)
             if not symbol_info:
-                logger.error(f"Symbol info not found for {position.symbol}")
+                logger.error("Symbol info not found for %s", position.symbol)
                 return None
 
             config = HPBuyConfig(
@@ -237,7 +243,7 @@ class RecoveryService:
 
         except Exception as e:
             logger.error(
-                f"Failed to convert position {position.hp_id} to buy data: {e}"
+                "Failed to convert position %s to buy data: %s", position.hp_id, e
             )
             return None
 
@@ -246,7 +252,7 @@ class RecoveryService:
         try:
             symbol_info = self.symbols_info.get(position.symbol)
             if not symbol_info:
-                logger.error(f"Symbol info not found for {position.symbol}")
+                logger.error("Symbol info not found for %s", position.symbol)
                 return None
 
             config = HPSellConfig(
@@ -272,7 +278,7 @@ class RecoveryService:
 
         except Exception as e:
             logger.error(
-                f"Failed to convert position {position.hp_id} to sell data: {e}"
+                "Failed to convert position %s to sell data: %s", position.hp_id, e
             )
             return None
 
@@ -340,11 +346,11 @@ class RecoveryService:
             for hp_id in multihop_chains:
                 multihop_chains[hp_id].sort(key=lambda p: p.hop_sequence)
 
-            logger.info(f"Recovered {len(multihop_chains)} multihop position chains")
+            logger.info("Recovered %d multihop position chains", len(multihop_chains))
             return multihop_chains
 
         except Exception as e:
-            raise RecoveryError(f"Failed to recover multihop positions: {e}")
+            raise RecoveryError(f"Failed to recover multihop positions: {e}") from e
 
     async def validate_recovery_integrity(self) -> Dict[str, Any]:
         """
@@ -386,7 +392,7 @@ class RecoveryService:
             return issues
 
         except Exception as e:
-            logger.error(f"Failed to validate recovery integrity: {e}")
+            logger.error("Failed to validate recovery integrity: %s", e)
             return {"validation_error": str(e)}
 
     async def recover_positions_for_testing(self) -> List[Position]:
@@ -404,15 +410,15 @@ class RecoveryService:
         try:
             # Load all active positions from database
             active_positions = await self.database.get_active_positions()
-            logger.info(f"Found {len(active_positions)} active positions in database")
+            logger.info("Found %d active positions in database", len(active_positions))
 
             # Verify positions with exchange
             verified_positions = await self._verify_positions_with_exchange(
                 active_positions
             )
 
-            logger.info(f"Recovered {len(verified_positions)} positions")
+            logger.info("Recovered %d positions", len(verified_positions))
             return verified_positions
 
         except Exception as e:
-            raise RecoveryError(f"Failed to recover positions: {e}")
+            raise RecoveryError(f"Failed to recover positions: {e}") from e
