@@ -25,6 +25,7 @@ from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
 from src.database import Database
+from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
@@ -84,7 +85,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(test_db: Database, mock_AsyncClient):
+def strategy_executor_fixture(test_db: TradingDatabase, mock_AsyncClient):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -164,10 +165,8 @@ async def test_db():
 
     # Create a temporary SQLite database file for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
-        test_db_path = tmp_file.name
-
-    # Create the new TradingDatabase instance
-    db = Database(db_path=test_db_path)
+        test_db_path = tmp_file.name    # Create the new TradingDatabase instance
+    db = TradingDatabase(db_path=test_db_path)
     await db.initialize()
 
     logger.info("Created test database: %s", test_db_path)
@@ -283,3 +282,34 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
 
         gui.stop_event.set()
         await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
+
+
+@pytest.fixture
+def recovery_service(test_db, mock_AsyncClient):
+    """Create recovery service using the standard test fixtures."""
+    # Create mock symbols_info
+    from src.common.symbol_info import SymbolInfo
+    from src.database.recovery_service import RecoveryService
+    
+    symbols_info = {
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDT"),
+        "ETHUSDT": SymbolInfo(symbol="ETHUSDT"),
+        "ADAUSDT": SymbolInfo(symbol="ADAUSDT"),
+        "DOTUSDT": SymbolInfo(symbol="DOTUSDT"),
+        "SOLUSDT": SymbolInfo(symbol="SOLUSDT"),
+        "AVAXUSDT": SymbolInfo(symbol="AVAXUSDT"),
+        "LINKUSDT": SymbolInfo(symbol="LINKUSDT"),
+        "UNIUSDT": SymbolInfo(symbol="UNIUSDT"),
+        "MATICUSDT": SymbolInfo(symbol="MATICUSDT"),
+        "ATOMUSDT": SymbolInfo(symbol="ATOMUSDT"),
+        "FTMUSDT": SymbolInfo(symbol="FTMUSDT"),
+        "NEARUSDT": SymbolInfo(symbol="NEARUSDT"),
+        "BTCETH": SymbolInfo(symbol="BTCETH"),
+        "ETHBNB": SymbolInfo(symbol="ETHBNB"),
+        "BNBUSDT": SymbolInfo(symbol="BNBUSDT"),
+        "SANDUSDT": SymbolInfo(symbol="SANDUSDT"),
+        "MANAUSDT": SymbolInfo(symbol="MANAUSDT"),
+        "APEUSDT": SymbolInfo(symbol="APEUSDT"),
+        "GMTUSDT": SymbolInfo(symbol="GMTUSDT"),
+    }
+    return RecoveryService(test_db, mock_AsyncClient, symbols_info)

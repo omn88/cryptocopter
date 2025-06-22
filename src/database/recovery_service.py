@@ -144,13 +144,15 @@ class RecoveryService:
                             )
                             updated_orders.append(order)
                     else:
-                        updated_orders.append(order)
-
-                # Update position based on order states
-                updated_position = await self._update_position_from_orders(
-                    position, updated_orders
-                )
-                verified_positions.append(updated_position)
+                        updated_orders.append(order)                # Update position based on order states only if there are orders
+                if updated_orders:
+                    updated_position = await self._update_position_from_orders(
+                        position, updated_orders
+                    )
+                    verified_positions.append(updated_position)
+                else:
+                    # No orders, keep position as-is
+                    verified_positions.append(position)
 
             except Exception as e:
                 logger.error(f"Failed to verify position {position.hp_id}: {e}")
@@ -163,15 +165,31 @@ class RecoveryService:
         self, position: Position, orders: List[DatabaseOrder]
     ) -> Position:
         """Update position status and quantities based on order states."""
+        if not orders:
+            # No orders, return position unchanged
+            return position
+            
         total_quantity = sum(order.quantity for order in orders)
         realized_quantity = sum(order.realized_quantity for order in orders)
+
+        # Debug logging for the specific failing test case
+        if position.hp_id == "hp_stress_mismatch_001":
+            logger.info(f"DEBUG {position.hp_id}: total_quantity={total_quantity}, realized_quantity={realized_quantity}")
+            for order in orders:
+                logger.info(f"DEBUG order: quantity={order.quantity}, realized_quantity={order.realized_quantity}, status={order.status}")
 
         # Update quantities
         position.quantity = total_quantity
         position.realized_quantity = realized_quantity
         position.completeness = (
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
-        )  # Update status based on completeness
+        )
+        
+        # Debug logging for completeness calculation
+        if position.hp_id == "hp_stress_mismatch_001":
+            logger.info(f"DEBUG {position.hp_id}: completeness={position.completeness}")
+        
+        # Update status based on completeness
         if position.completeness == 0.0:
             if any(
                 (order.status.value if hasattr(order.status, "value") else order.status)
@@ -181,10 +199,14 @@ class RecoveryService:
                 position.status = PositionStatus.OPEN
             else:
                 position.status = PositionStatus.NEW
-        elif position.completeness == 1.0:
+        elif position.completeness >= 1.0:  # Use >= instead of == for floating point safety
             position.status = PositionStatus.FILLED
         else:
             position.status = PositionStatus.PARTIALLY_FILLED
+
+        # Debug logging for final status
+        if position.hp_id == "hp_stress_mismatch_001":
+            logger.info(f"DEBUG {position.hp_id}: final status={position.status}")
 
         # Save updated position
         await self.database.save_position(position)
@@ -376,3 +398,31 @@ class RecoveryService:
         except Exception as e:
             logger.error(f"Failed to validate recovery integrity: {e}")
             return {"validation_error": str(e)}
+
+    async def recover_positions_for_testing(self) -> List[Position]:
+        """
+        Recover all active positions from the database for testing purposes.
+
+        This method returns the raw Position objects after verification with the exchange,
+        without converting them to trading objects. Used primarily for testing.
+
+        Returns:
+            List of verified Position objects
+        """
+        logger.info("Starting position recovery for testing...")
+
+        try:
+            # Load all active positions from database
+            active_positions = await self.database.get_active_positions()
+            logger.info(f"Found {len(active_positions)} active positions in database")
+
+            # Verify positions with exchange
+            verified_positions = await self._verify_positions_with_exchange(
+                active_positions
+            )
+
+            logger.info(f"Recovered {len(verified_positions)} positions")
+            return verified_positions
+
+        except Exception as e:
+            raise RecoveryError(f"Failed to recover positions: {e}")
