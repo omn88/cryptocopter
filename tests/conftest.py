@@ -49,7 +49,7 @@ logger.info("DB CONFIG: %s", config)
 
 
 @pytest.fixture
-def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
+def mock_async_client(mocker: MockerFixture) -> AsyncMock:
     # Mock the AsyncClient.
     mocked_AsyncClient = mocker.patch("binance.AsyncClient")
     # Create an async mock for the instance methods.
@@ -86,7 +86,7 @@ def mock_AsyncClient(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(test_db: TradingDatabase, mock_AsyncClient):
+def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -105,11 +105,9 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_AsyncClient):
         "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-    }
-
-    # Create the StrategyExecutor instance
+    }    # Create the StrategyExecutor instance
     price_resolver = UsdPriceResolver(
-        client=mock_AsyncClient, symbols_info=symbols_info
+        client=mock_async_client, symbols_info=symbols_info
     )
     price_resolver.latest_prices["BTCPLN"] = 320000.0
     price_resolver.latest_prices["BTCUSDC"] = 100000.0
@@ -123,7 +121,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_AsyncClient):
         test_mode=True,
         price_resolver=price_resolver,
     )
-    executor.client = mock_AsyncClient
+    executor.client = mock_async_client
 
     yield executor  # Provide the instance for the test
 
@@ -180,7 +178,7 @@ async def test_db() -> AsyncGenerator[TradingDatabase, None]:
 
 
 @pytest.fixture
-def trading_system_factory(mock_AsyncClient):
+def trading_system_factory(mock_async_client):
     def create_trading_system(
         hp_config: HPBuyConfig, balance: float = 10000
     ) -> HpStrategy:
@@ -197,23 +195,23 @@ def trading_system_factory(mock_AsyncClient):
         test_database.upsert_buy_price_level = AsyncMock()
 
         strategy = HpStrategy(
-            client=mock_AsyncClient,
+            client=mock_async_client,
             balance=balance,
             config_queue=MagicMock(),
             ui_queue=ui_queue,
             db=test_database,
             worker_queue=queue.Queue(),
             buy_position=HPPositionBuy(
-                client=mock_AsyncClient,
+                client=mock_async_client,
                 db=test_database,
                 data=HPBuyData(config=hp_config, state_info=StateInfo()),
             ),
             sell_position=HPPositionSell(
                 sell_strategy=[],
                 price_resolver=UsdPriceResolver(
-                    client=mock_AsyncClient, symbols_info={}
+                    client=mock_async_client, symbols_info={}
                 ),
-                client=mock_AsyncClient,
+                client=mock_async_client,
                 db=test_database,
                 original_position=SellPosition(
                     config=HPSellConfig(symbol_info=SymbolInfo()),
@@ -246,21 +244,20 @@ def trading_system_factory(mock_AsyncClient):
 
 
 @pytest.fixture
-async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
+async def hp_gui(mock_async_client) -> AsyncGenerator:
     with patch("kivy.base.EventLoop.ensure_window"):
         # Set up a mock HpManager instance
         mock_config_queue = MagicMock()
         symbols_info = {
             "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        }  # Create the StrategyExecutor instance
+            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),        }  # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(
-            client=mock_AsyncClient, symbols_info=symbols_info
+            client=mock_async_client, symbols_info=symbols_info
         )
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
         gui = HpFront(
-            client=mock_AsyncClient,
+            client=mock_async_client,
             strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=AsyncMock(),
@@ -283,7 +280,7 @@ async def hp_gui(mock_AsyncClient) -> AsyncGenerator:
 
 
 @pytest.fixture
-def recovery_service(test_db, mock_AsyncClient):
+def recovery_service(test_db, mock_async_client):
     """Create recovery service using the standard test fixtures."""
     # Create mock symbols_info
     from src.common.symbol_info import SymbolInfo
@@ -310,4 +307,4 @@ def recovery_service(test_db, mock_AsyncClient):
         "APEUSDT": SymbolInfo(symbol="APEUSDT"),
         "GMTUSDT": SymbolInfo(symbol="GMTUSDT"),
     }
-    return RecoveryService(test_db, mock_AsyncClient, symbols_info)
+    return RecoveryService(test_db, mock_async_client, symbols_info)

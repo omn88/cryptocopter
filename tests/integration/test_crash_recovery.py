@@ -125,7 +125,7 @@ async def test_recover_new_sell_position(
 async def test_recover_open_buy_position_with_orders(
     test_db: TradingDatabase,
     recovery_service: RecoveryService,
-    mock_AsyncClient: AsyncMock,
+    mock_async_client: AsyncMock,
 ):
     """Test recovery of OPEN buy position with active orders."""
     strategy_id = await create_test_strategy(test_db)
@@ -158,10 +158,8 @@ async def test_recover_open_buy_position_with_orders(
         quantity=0.001,
         order_type="LIMIT",
     )
-    await test_db.save_order(order)
-
-    # Simulate exchange response using your pattern
-    mock_AsyncClient.get_order.return_value = simulate_exchange_order_data(
+    await test_db.save_order(order)  # Simulate exchange response using your pattern
+    mock_async_client.get_order.return_value = simulate_exchange_order_data(
         12345, "NEW", "0.0"
     )
 
@@ -181,7 +179,7 @@ async def test_recover_open_buy_position_with_orders(
 async def test_recover_open_sell_position_with_orders(
     test_db: TradingDatabase,
     recovery_service: RecoveryService,
-    mock_AsyncClient: AsyncMock,
+    mock_async_client: AsyncMock,
 ):
     """Test recovery of OPEN sell position with active orders."""
     strategy_id = await create_test_strategy(test_db)
@@ -210,13 +208,11 @@ async def test_recover_open_sell_position_with_orders(
         quantity=0.001,
         order_type="LIMIT",
     )
-    await test_db.save_order(order)
-
-    # Simulate exchange response for sell order
+    await test_db.save_order(order)  # Simulate exchange response for sell order
     sell_order_data = simulate_exchange_order_data(54321, "NEW", "0.0")
     sell_order_data["side"] = "SELL"
     sell_order_data["price"] = "102000.0"
-    mock_AsyncClient.get_order.return_value = sell_order_data
+    mock_async_client.get_order.return_value = sell_order_data
 
     recovered_positions = await recovery_service.recover_positions_for_testing()
 
@@ -234,7 +230,7 @@ async def test_recover_open_sell_position_with_orders(
 async def test_recover_partially_filled_buy_position(
     test_db: TradingDatabase,
     recovery_service: RecoveryService,
-    mock_AsyncClient: AsyncMock,
+    mock_async_client: AsyncMock,
 ):
     """Test recovery of partially filled buy position."""
     strategy_id = await create_test_strategy(test_db)
@@ -267,10 +263,8 @@ async def test_recover_partially_filled_buy_position(
         realized_quantity=0.0005,
         order_type="LIMIT",
     )
-    await test_db.save_order(order)
-
-    # Simulate partially filled exchange response
-    mock_AsyncClient.get_order.return_value = simulate_exchange_order_data(
+    await test_db.save_order(order)  # Simulate partially filled exchange response
+    mock_async_client.get_order.return_value = simulate_exchange_order_data(
         11111, ORDER_STATUS_PARTIALLY_FILLED, "0.0005"
     )
 
@@ -330,7 +324,7 @@ async def test_recover_filled_buy_position(
 async def test_recover_position_with_exchange_status_mismatch(
     test_db: TradingDatabase,
     recovery_service: RecoveryService,
-    mock_AsyncClient: AsyncMock,
+    mock_async_client: AsyncMock,
 ):
     """Test recovery when DB and exchange have different order statuses."""
     strategy_id = await create_test_strategy(test_db)
@@ -361,10 +355,8 @@ async def test_recover_position_with_exchange_status_mismatch(
         quantity=0.001,
         order_type="LIMIT",
     )
-    await test_db.save_order(order)
-
-    # Exchange shows order as FILLED
-    mock_AsyncClient.get_order.return_value = simulate_exchange_order_data(
+    await test_db.save_order(order)  # Exchange shows order as FILLED
+    mock_async_client.get_order.return_value = simulate_exchange_order_data(
         88888, ORDER_STATUS_FILLED, "0.001"
     )
 
@@ -381,7 +373,7 @@ async def test_recover_position_with_exchange_status_mismatch(
 async def test_recover_position_with_missing_exchange_order(
     test_db: TradingDatabase,
     recovery_service: RecoveryService,
-    mock_AsyncClient: AsyncMock,
+    mock_async_client: AsyncMock,
 ):
     """Test recovery when order exists in DB but not on exchange."""
     strategy_id = await create_test_strategy(test_db)
@@ -412,10 +404,8 @@ async def test_recover_position_with_missing_exchange_order(
         quantity=0.001,
         order_type="LIMIT",
     )
-    await test_db.save_order(order)
-
-    # Exchange throws error (order not found)
-    mock_AsyncClient.get_order.side_effect = Exception("Order not found")
+    await test_db.save_order(order)  # Exchange throws error (order not found)
+    mock_async_client.get_order.side_effect = Exception("Order not found")
 
     recovered_positions = await recovery_service.recover_positions_for_testing()
 
