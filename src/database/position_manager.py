@@ -84,7 +84,7 @@ class PositionManager:
 
         except Exception as e:
             raise DatabaseError(
-                "Failed to save buy position %s: %s" % (buy_data.config.hp_id, e)
+                f"Failed to save buy position {buy_data.config.hp_id}: {e}"
             ) from e
 
     async def save_sell_position(
@@ -129,7 +129,7 @@ class PositionManager:
 
         except Exception as e:
             raise DatabaseError(
-                "Failed to save sell position %s: %s" % (sell_data.config.hp_id, e)
+                f"Failed to save sell position {sell_data.config.hp_id}: {e}"
             ) from e
 
     async def save_multihop_sell_positions(
@@ -195,7 +195,7 @@ class PositionManager:
             return position_ids
 
         except Exception as e:
-            raise DatabaseError("Failed to save multihop sell positions: %s" % e) from e
+            raise DatabaseError(f"Failed to save multihop sell positions: {e}") from e
 
     async def save_order(
         self, order: TradingOrder, position_id: str, side: PositionSide
@@ -231,7 +231,7 @@ class PositionManager:
             return order_id
 
         except Exception as e:
-            raise DatabaseError("Failed to save order: %s" % e) from e
+            raise DatabaseError(f"Failed to save order: {e}") from e
 
     async def update_position_from_execution(
         self, hp_id: str, execution_report: ExecutionReport
@@ -292,7 +292,7 @@ class PositionManager:
                 logger.info("Closed position %s", hp_id)
 
         except Exception as e:
-            raise DatabaseError("Failed to close position %s: %s" % (hp_id, e)) from e
+            raise DatabaseError(f"Failed to close position {hp_id}: {e}") from e
 
     async def get_position_status(self, hp_id: str) -> Optional[Dict]:
         """

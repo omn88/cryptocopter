@@ -27,6 +27,7 @@ from .models import (
     PositionType,
     PositionStatus,
     TradeType,
+    OrderStatus,
 )  # Alias to avoid collision
 from .exceptions import RecoveryError
 
@@ -92,6 +93,7 @@ class RecoveryService:
                 len(buy_positions),
                 len(sell_positions),
             )
+
             return buy_positions, sell_positions
 
         except Exception as e:
@@ -298,7 +300,6 @@ class RecoveryService:
 
     def _convert_exchange_status(self, exchange_status: str):
         """Convert exchange order status to our OrderStatus."""
-        from .models import OrderStatus
 
         mapping = {
             "NEW": OrderStatus.NEW,

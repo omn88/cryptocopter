@@ -8,6 +8,7 @@ This module provides a SQLite-based database implementation focused on:
 - Simple, reliable operations
 """
 
+import shutil
 import sqlite3
 import logging
 from pathlib import Path
@@ -15,10 +16,13 @@ from typing import List, Dict, Tuple
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
-import aiosqlite
 import asyncio
+import aiosqlite
+
+from src.identifiers import State
 
 from .models import (
+    OrderStatus,
     Position,
     Order,
     Strategy,
@@ -282,9 +286,7 @@ class TradingDatabase:
                 )
                 return position.id
         except Exception as e:
-            raise DatabaseError(
-                "Failed to save position %s: %s" % (position.hp_id, e)
-            ) from e
+            raise DatabaseError(f"Failed to save position {position.hp_id}: {e}") from e
 
     async def save_order(self, order: Order) -> str:
         """Save an order to the database."""
@@ -292,7 +294,7 @@ class TradingDatabase:
             async with self.get_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT OR REPLACE INTO orders 
+                    INSERT OR REPLACE INTO orders
                     (id, position_id, exchange_order_id, symbol, side, order_type, status,
                      price, quantity, quantity_stable, realized_quantity, time_in_force,
                      filled_at, created_at, updated_at)
@@ -469,7 +471,6 @@ class TradingDatabase:
 
     def _row_to_order(self, row) -> Order:
         """Convert database row to Order object."""
-        from .models import OrderStatus
 
         try:
             return Order(
@@ -504,7 +505,6 @@ class TradingDatabase:
     async def backup_database(self, backup_path: str) -> None:
         """Create a backup of the database."""
         try:
-            import shutil
 
             backup_file = Path(backup_path)
             backup_file.parent.mkdir(parents=True, exist_ok=True)
@@ -971,8 +971,6 @@ class TradingDatabase:
     def _convert_state_to_position_status(self, state):
         """Convert trading system State to PositionStatus."""
         try:
-            # Import here to avoid circular imports
-            from src.identifiers import State
 
             mapping = {
                 State.NEW: PositionStatus.NEW,
@@ -1002,7 +1000,6 @@ class TradingDatabase:
 
     def _convert_order_status_string(self, status_str: str):
         """Convert order status string to OrderStatus enum."""
-        from .models import OrderStatus
 
         mapping = {
             "NEW": OrderStatus.NEW,
