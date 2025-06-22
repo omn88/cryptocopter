@@ -51,10 +51,8 @@ async def main():
     This function creates an instance of AsyncApp and starts the application's main event loop.
 
     Returns:
-        None
-    """  # Initialize SQLite database
+        None"""  # Initialize SQLite database
     db = Database()  # Uses default "trading.db" file
-    await db.initialize()
 
     client = BinanceClient(
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")

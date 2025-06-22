@@ -335,10 +335,8 @@ class BrokerSpot:
             return  # Ignore control messages like "pong"
         if not isinstance(msg, list):
             logging.warning("Unexpected message format(%s): %s", type(msg), msg)
-            return  # Defensive: Ignore unexpected types
-
-        # Send the full msg to FrontEnd if subscribed to "ALL" symbols
-        for strategy, subscriptions in self.subscriptions.items():
+            return  # Defensive: Ignore unexpected types        # Send the full msg to FrontEnd if subscribed to "ALL" symbols
+        for _, subscriptions in self.subscriptions.items():
             for subscription_info in subscriptions:
                 assert isinstance(subscription_info, SubscriptionInfo)
                 if subscription_info.target in [
@@ -375,10 +373,8 @@ class BrokerSpot:
                 high_price=high_price,
                 low_price=low_price,
                 volume=volume,
-            )
-
-            # Send symbol-specific updates for other subscriptions
-            for strategy, subscriptions in self.subscriptions.items():
+            )  # Send symbol-specific updates for other subscriptions
+            for _, subscriptions in self.subscriptions.items():
                 for subscription_info in subscriptions:
                     assert isinstance(subscription_info, SubscriptionInfo)
                     if (

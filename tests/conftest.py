@@ -160,12 +160,12 @@ async def frontend_backend_setup(
 
 @pytest.fixture
 async def test_db() -> AsyncGenerator[TradingDatabase, None]:
-    """Create a test SQLite database for testing."""
-    # Create a temporary SQLite database file for testing
+    """Create a test SQLite database for testing."""  # Create a temporary SQLite database file for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
-        test_db_path = tmp_file.name  # Create the new TradingDatabase instance
+        test_db_path = tmp_file.name
+
+    # Create the new TradingDatabase instance
     db = TradingDatabase(db_path=test_db_path)
-    await db.initialize()
 
     logger.info("Created test database: %s", test_db_path)
 

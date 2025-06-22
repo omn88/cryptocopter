@@ -88,9 +88,8 @@ class StrategyExecutor:
         # WebSocket error handling attributes
         self._websocket_error_count = 0
         self._last_websocket_error_time = 0
-        self._websocket_error_suppression_time = (
-            600  # 10 minutes        self.loop = None
-        )
+        self._websocket_error_suppression_time = 600  # 10 minutes
+        self.loop = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
@@ -246,7 +245,7 @@ class StrategyExecutor:
     async def save_all_configs_to_csv(self, filename: str):
         path = f"{filename}.csv"
         try:
-            with open(path, "w", newline="") as csvfile:
+            with open(path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow(
                     [
