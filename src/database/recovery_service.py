@@ -144,7 +144,9 @@ class RecoveryService:
                             )
                             updated_orders.append(order)
                     else:
-                        updated_orders.append(order)                # Update position based on order states only if there are orders
+                        updated_orders.append(
+                            order
+                        )  # Update position based on order states only if there are orders
                 if updated_orders:
                     updated_position = await self._update_position_from_orders(
                         position, updated_orders
@@ -168,15 +170,19 @@ class RecoveryService:
         if not orders:
             # No orders, return position unchanged
             return position
-            
+
         total_quantity = sum(order.quantity for order in orders)
         realized_quantity = sum(order.realized_quantity for order in orders)
 
         # Debug logging for the specific failing test case
         if position.hp_id == "hp_stress_mismatch_001":
-            logger.info(f"DEBUG {position.hp_id}: total_quantity={total_quantity}, realized_quantity={realized_quantity}")
+            logger.info(
+                f"DEBUG {position.hp_id}: total_quantity={total_quantity}, realized_quantity={realized_quantity}"
+            )
             for order in orders:
-                logger.info(f"DEBUG order: quantity={order.quantity}, realized_quantity={order.realized_quantity}, status={order.status}")
+                logger.info(
+                    f"DEBUG order: quantity={order.quantity}, realized_quantity={order.realized_quantity}, status={order.status}"
+                )
 
         # Update quantities
         position.quantity = total_quantity
@@ -184,11 +190,11 @@ class RecoveryService:
         position.completeness = (
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
         )
-        
+
         # Debug logging for completeness calculation
         if position.hp_id == "hp_stress_mismatch_001":
             logger.info(f"DEBUG {position.hp_id}: completeness={position.completeness}")
-        
+
         # Update status based on completeness
         if position.completeness == 0.0:
             if any(
@@ -199,7 +205,9 @@ class RecoveryService:
                 position.status = PositionStatus.OPEN
             else:
                 position.status = PositionStatus.NEW
-        elif position.completeness >= 1.0:  # Use >= instead of == for floating point safety
+        elif (
+            position.completeness >= 1.0
+        ):  # Use >= instead of == for floating point safety
             position.status = PositionStatus.FILLED
         else:
             position.status = PositionStatus.PARTIALLY_FILLED

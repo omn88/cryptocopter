@@ -12,10 +12,11 @@ from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 # Use dummy window for Kivy in headless testing
 os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
-import warnings
-import pytest
 import logging
 import queue
+import tempfile
+import warnings
+import pytest
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch
@@ -158,14 +159,11 @@ async def frontend_backend_setup(
 
 
 @pytest.fixture
-async def test_db():
+async def test_db() -> AsyncGenerator[TradingDatabase, None]:
     """Create a test SQLite database for testing."""
-    import tempfile
-    import os
-
     # Create a temporary SQLite database file for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
-        test_db_path = tmp_file.name    # Create the new TradingDatabase instance
+        test_db_path = tmp_file.name  # Create the new TradingDatabase instance
     db = TradingDatabase(db_path=test_db_path)
     await db.initialize()
 
@@ -290,7 +288,7 @@ def recovery_service(test_db, mock_AsyncClient):
     # Create mock symbols_info
     from src.common.symbol_info import SymbolInfo
     from src.database.recovery_service import RecoveryService
-    
+
     symbols_info = {
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT"),
         "ETHUSDT": SymbolInfo(symbol="ETHUSDT"),

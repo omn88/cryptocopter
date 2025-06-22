@@ -7,7 +7,7 @@ position states and trading scenarios.
 
 from typing import Dict
 
-import pytest
+from unittest.mock import AsyncMock
 from binance.enums import ORDER_STATUS_PARTIALLY_FILLED, ORDER_STATUS_FILLED
 
 from src.database.models import (
@@ -19,16 +19,18 @@ from src.database.models import (
     TradeType,
     OrderStatus,
 )
+from src.database.trading_database import TradingDatabase
+from src.database.recovery_service import RecoveryService
 
 
-async def create_test_strategy(database) -> str:
+async def create_test_strategy(test_db: TradingDatabase) -> str:
     """Create a test strategy."""
     strategy = Strategy(
         name="Test Recovery Strategy",
         description="Strategy for testing recovery scenarios",
         status="ACTIVE",
     )
-    return await database.save_strategy(strategy)
+    return await test_db.save_strategy(strategy)
 
 
 def simulate_exchange_order_data(
@@ -53,8 +55,9 @@ def simulate_exchange_order_data(
 # ========================================================================
 
 
-@pytest.mark.asyncio
-async def test_recover_new_buy_position(test_db, recovery_service):
+async def test_recover_new_buy_position(
+    test_db: TradingDatabase, recovery_service: RecoveryService
+):
     """Test recovery of a NEW buy position (just created, no orders yet)."""
     strategy_id = await create_test_strategy(test_db)
 
@@ -85,8 +88,9 @@ async def test_recover_new_buy_position(test_db, recovery_service):
     assert recovered.budget == 100.0
 
 
-@pytest.mark.asyncio
-async def test_recover_new_sell_position(test_db, recovery_service):
+async def test_recover_new_sell_position(
+    test_db: TradingDatabase, recovery_service: RecoveryService
+):
     """Test recovery of a NEW sell position."""
     strategy_id = await create_test_strategy(test_db)
 
@@ -118,9 +122,10 @@ async def test_recover_new_sell_position(test_db, recovery_service):
 # ========================================================================
 
 
-@pytest.mark.asyncio
 async def test_recover_open_buy_position_with_orders(
-    test_db, recovery_service, mock_AsyncClient
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+    mock_AsyncClient: AsyncMock,
 ):
     """Test recovery of OPEN buy position with active orders."""
     strategy_id = await create_test_strategy(test_db)
@@ -173,9 +178,10 @@ async def test_recover_open_buy_position_with_orders(
     assert orders[0].exchange_order_id == 12345
 
 
-@pytest.mark.asyncio
 async def test_recover_open_sell_position_with_orders(
-    test_db, recovery_service, mock_AsyncClient
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+    mock_AsyncClient: AsyncMock,
 ):
     """Test recovery of OPEN sell position with active orders."""
     strategy_id = await create_test_strategy(test_db)
@@ -225,9 +231,10 @@ async def test_recover_open_sell_position_with_orders(
 # ========================================================================
 
 
-@pytest.mark.asyncio
 async def test_recover_partially_filled_buy_position(
-    test_db, recovery_service, mock_AsyncClient
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+    mock_AsyncClient: AsyncMock,
 ):
     """Test recovery of partially filled buy position."""
     strategy_id = await create_test_strategy(test_db)
@@ -281,8 +288,10 @@ async def test_recover_partially_filled_buy_position(
 # ========================================================================
 
 
-@pytest.mark.asyncio
-async def test_recover_filled_buy_position(test_db, recovery_service, mock_AsyncClient):
+async def test_recover_filled_buy_position(
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+):
     """Test recovery of fully filled buy position."""
     strategy_id = await create_test_strategy(test_db)
 
@@ -318,9 +327,10 @@ async def test_recover_filled_buy_position(test_db, recovery_service, mock_Async
 # ========================================================================
 
 
-@pytest.mark.asyncio
 async def test_recover_position_with_exchange_status_mismatch(
-    test_db, recovery_service, mock_AsyncClient
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+    mock_AsyncClient: AsyncMock,
 ):
     """Test recovery when DB and exchange have different order statuses."""
     strategy_id = await create_test_strategy(test_db)
@@ -368,9 +378,10 @@ async def test_recover_position_with_exchange_status_mismatch(
     assert recovered.realized_quantity == 0.001
 
 
-@pytest.mark.asyncio
 async def test_recover_position_with_missing_exchange_order(
-    test_db, recovery_service, mock_AsyncClient
+    test_db: TradingDatabase,
+    recovery_service: RecoveryService,
+    mock_AsyncClient: AsyncMock,
 ):
     """Test recovery when order exists in DB but not on exchange."""
     strategy_id = await create_test_strategy(test_db)
@@ -419,8 +430,9 @@ async def test_recover_position_with_missing_exchange_order(
 # ========================================================================
 
 
-@pytest.mark.asyncio
-async def test_recover_multihop_parent_position(test_db, recovery_service):
+async def test_recover_multihop_parent_position(
+    test_db: TradingDatabase, recovery_service: RecoveryService
+):
     """Test recovery of parent position in multihop trade."""
     strategy_id = await create_test_strategy(test_db)
 
@@ -486,15 +498,15 @@ async def test_recover_multihop_parent_position(test_db, recovery_service):
 # ========================================================================
 
 
-@pytest.mark.asyncio
-async def test_recover_empty_database(test_db, recovery_service):
+async def test_recover_empty_database(recovery_service: RecoveryService):
     """Test recovery when database is empty (fresh start)."""
     recovered_positions = await recovery_service.recover_positions_for_testing()
     assert len(recovered_positions) == 0
 
 
-@pytest.mark.asyncio
-async def test_recover_multiple_positions_different_states(test_db, recovery_service):
+async def test_recover_multiple_positions_different_states(
+    test_db: TradingDatabase, recovery_service: RecoveryService
+):
     """Test recovery of multiple positions in different states simultaneously."""
     strategy_id = await create_test_strategy(test_db)
 
@@ -537,8 +549,9 @@ async def test_recover_multiple_positions_different_states(test_db, recovery_ser
     assert hp_ids == expected_hp_ids
 
 
-@pytest.mark.asyncio
-async def test_recover_position_with_metadata(test_db, recovery_service):
+async def test_recover_position_with_metadata(
+    test_db: TradingDatabase, recovery_service: RecoveryService
+):
     """Test recovery of position with custom metadata."""
     strategy_id = await create_test_strategy(test_db)
 

@@ -57,7 +57,9 @@ logging.getLogger("transitions.extensions.asyncio").setLevel(logging.WARNING)
 logging.getLogger("websockets.client").setLevel(logging.WARNING)
 logging.getLogger("binance.streams").setLevel(logging.WARNING)
 logging.getLogger("binance.ws.reconnecting_websocket").setLevel(logging.ERROR)
-logging.getLogger("aiosqlite").setLevel(logging.WARNING)  # Suppress aiosqlite debug logs
+logging.getLogger("aiosqlite").setLevel(
+    logging.WARNING
+)  # Suppress aiosqlite debug logs
 
 
 # Add WebSocket error filter to suppress keepalive timeout messages
