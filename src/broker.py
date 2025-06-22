@@ -335,7 +335,7 @@ class BrokerSpot:
             return  # Ignore control messages like "pong"
         if not isinstance(msg, list):
             logging.warning("Unexpected message format(%s): %s", type(msg), msg)
-            return  # Defensive: Ignore unexpected types        # Send the full msg to FrontEnd if subscribed to "ALL" symbols
+            return  # Defensive: Ignore unexpected types
         for _, subscriptions in self.subscriptions.items():
             for subscription_info in subscriptions:
                 assert isinstance(subscription_info, SubscriptionInfo)
