@@ -174,26 +174,12 @@ class RecoveryService:
         total_quantity = sum(order.quantity for order in orders)
         realized_quantity = sum(order.realized_quantity for order in orders)
 
-        # Debug logging for the specific failing test case
-        if position.hp_id == "hp_stress_mismatch_001":
-            logger.info(
-                f"DEBUG {position.hp_id}: total_quantity={total_quantity}, realized_quantity={realized_quantity}"
-            )
-            for order in orders:
-                logger.info(
-                    f"DEBUG order: quantity={order.quantity}, realized_quantity={order.realized_quantity}, status={order.status}"
-                )
-
         # Update quantities
         position.quantity = total_quantity
         position.realized_quantity = realized_quantity
         position.completeness = (
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
         )
-
-        # Debug logging for completeness calculation
-        if position.hp_id == "hp_stress_mismatch_001":
-            logger.info(f"DEBUG {position.hp_id}: completeness={position.completeness}")
 
         # Update status based on completeness
         if position.completeness == 0.0:
@@ -211,10 +197,6 @@ class RecoveryService:
             position.status = PositionStatus.FILLED
         else:
             position.status = PositionStatus.PARTIALLY_FILLED
-
-        # Debug logging for final status
-        if position.hp_id == "hp_stress_mismatch_001":
-            logger.info(f"DEBUG {position.hp_id}: final status={position.status}")
 
         # Save updated position
         await self.database.save_position(position)
