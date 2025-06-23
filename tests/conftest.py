@@ -37,6 +37,7 @@ from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
+    HPSellData,
     Order,
     PositionSide,
     SellPosition,
@@ -296,4 +297,82 @@ def recovery_service(test_db, mock_async_client):
         "APEUSDT": SymbolInfo(symbol="APEUSDT"),
         "GMTUSDT": SymbolInfo(symbol="GMTUSDT"),
     }
+
     return RecoveryService(test_db, mock_async_client, symbols_info)
+
+
+@pytest.fixture
+def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture):
+    """Factory fixture to create HpStrategy instances for testing."""
+
+    def _create_strategy(hp_config: HPBuyConfig) -> HpStrategy:
+        """Create an HpStrategy with the given config."""
+        from src.strategies.hp_manager import HpStrategy
+
+        # Generate HP ID from existing strategies (empty list for tests)
+        hp_id = generate_hp_id(hp_list=[])
+
+        # Create buy data with the generated ID and config
+        buy_data = HPBuyData(
+            config=HPBuyConfig(
+                hp_id=hp_id,
+                symbol_info=hp_config.symbol_info,
+                coin=hp_config.coin,
+                price_low=hp_config.price_low,
+                price_high=hp_config.price_high,
+                order_trigger=hp_config.order_trigger,
+                budget=hp_config.budget,
+                mode=hp_config.mode,
+            ),
+            state_info=StateInfo(side=PositionSide.LONG),
+        )
+
+        # Create worker queue
+        worker_queue: queue.Queue = queue.Queue()
+
+        # Create buy position
+        buy_position = HPPositionBuy(
+            client=mock_async_client,
+            data=buy_data,
+            db=test_db,
+        )
+
+        # Create sell position
+        sell_position = HPPositionSell(
+            client=mock_async_client,
+            original_position=SellPosition(
+                config=HPSellConfig(
+                    hp_id=hp_id,
+                    symbol_info=hp_config.symbol_info,
+                    coin=hp_config.coin,
+                ),
+                state_info=StateInfo(side=PositionSide.SHORT),
+                sell_order=Order(quantity=0.0),
+            ),
+            sell_strategy=[],
+            db=test_db,
+            price_resolver=strategy_executor_fixture.price_resolver,
+            broker=strategy_executor_fixture.broker,
+            worker_queue=worker_queue,
+        )  # Create strategy with balance higher than budget to allow trading
+        strategy = HpStrategy(
+            client=mock_async_client,
+            balance=10000.0,  # Set balance higher than budget (1000.0) to allow trading
+            ui_queue=queue.Queue(),
+            worker_queue=worker_queue,
+            config_queue=queue.Queue(),
+            db=test_db,
+            buy_position=buy_position,
+            sell_position=sell_position,
+            initial_state=State.NEW,
+        )
+
+        # Prepare orders first (this is needed for proper hp_id resolution)
+        strategy.buy.prepare_orders()
+
+        # Send initial UI message using the strategy's method
+        strategy.send_buy_position_to_ui()
+
+        return strategy
+
+    return _create_strategy

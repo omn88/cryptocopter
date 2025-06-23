@@ -8,6 +8,9 @@ logger = logging.getLogger("common_spot")
 
 
 def get_new_orders(orders: List[Order]):
+    if not orders:
+        return []
+
     price_low = min(order.price for order in orders)
     price_high = max(order.price for order in orders)
 

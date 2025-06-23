@@ -74,7 +74,9 @@ async def test_crash_recovery_with_real_database_and_setup_methods(
         # Don't call the real method to avoid complex setup
 
     async def mock_setup_sell(strategy_data, sell_strategy):
-        setup_sell_calls.append((strategy_data, sell_strategy))        # Don't call the real method to avoid complex setup
+        setup_sell_calls.append(
+            (strategy_data, sell_strategy)
+        )  # Don't call the real method to avoid complex setup
 
     mock_trading_executor.setup_buy_position = mock_setup_buy  # type: ignore[method-assign]
     mock_trading_executor.setup_sell_position_with_new_hp = mock_setup_sell  # type: ignore[method-assign]
@@ -111,7 +113,8 @@ async def test_crash_recovery_handles_empty_database(
     async def mock_setup_buy(new_hp: HPBuyData):
         setup_buy_calls.append(new_hp)
 
-    async def mock_setup_sell(strategy_data, sell_strategy):        setup_sell_calls.append((strategy_data, sell_strategy))
+    async def mock_setup_sell(strategy_data, sell_strategy):
+        setup_sell_calls.append((strategy_data, sell_strategy))
 
     mock_trading_executor.setup_buy_position = mock_setup_buy  # type: ignore[method-assign]
     mock_trading_executor.setup_sell_position_with_new_hp = mock_setup_sell  # type: ignore[method-assign]
