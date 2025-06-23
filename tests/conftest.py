@@ -1,6 +1,12 @@
 import os
 
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
+
+# Suppress aiosqlite debug logging in tests
+import logging
+
+logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+
 from src.gui.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -105,7 +111,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
         "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-    }    # Create the StrategyExecutor instance
+    }  # Create the StrategyExecutor instance
     price_resolver = UsdPriceResolver(
         client=mock_async_client, symbols_info=symbols_info
     )
@@ -178,69 +184,51 @@ async def test_db() -> AsyncGenerator[TradingDatabase, None]:
 
 
 @pytest.fixture
-def trading_system_factory(mock_async_client):
-    def create_trading_system(
-        hp_config: HPBuyConfig, balance: float = 10000
-    ) -> HpStrategy:
-        ui_queue: queue.Queue = queue.Queue()
-        test_database = AsyncMock()
-        # Set up the async and sync methods on the database mock
-        test_database.assert_db_buy_price_level_content = MagicMock()
-        test_database.upsert_order = AsyncMock()  # This is now the main async method
-        test_database.get_active_positions = AsyncMock(return_value=[])
-        test_database.save_position = AsyncMock()
-        test_database.save_strategy = AsyncMock()
-        test_database.get_all_strategies = AsyncMock(return_value=[])
-        test_database.get_recovery_data = AsyncMock(return_value=[])
-        test_database.upsert_buy_price_level = AsyncMock()
+async def real_trading_db():
+    """Create a real TradingDatabase instance for testing."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
+        test_db_path = tmp_file.name
 
-        strategy = HpStrategy(
-            client=mock_async_client,
-            balance=balance,
-            config_queue=MagicMock(),
-            ui_queue=ui_queue,
-            db=test_database,
-            worker_queue=queue.Queue(),
-            buy_position=HPPositionBuy(
-                client=mock_async_client,
-                db=test_database,
-                data=HPBuyData(config=hp_config, state_info=StateInfo()),
-            ),
-            sell_position=HPPositionSell(
-                sell_strategy=[],
-                price_resolver=UsdPriceResolver(
-                    client=mock_async_client, symbols_info={}
-                ),
-                client=mock_async_client,
-                db=test_database,
-                original_position=SellPosition(
-                    config=HPSellConfig(symbol_info=SymbolInfo()),
-                    state_info=StateInfo(side=PositionSide.SHORT),
-                    sell_order=Order(quantity=0.0),
-                ),
-                broker=MagicMock(),
-                worker_queue=queue.Queue(),
-            ),
-        )
-        hp_config.hp_id = generate_hp_id(hp_list=[])
-        strategy.buy.prepare_orders()
-        strategy.client.create_order.side_effect = get_new_orders(strategy.buy.orders)
-        hp_gui_data_buy = HPGuiDataBuy(
-            data=HPBuyData(config=hp_config, state_info=strategy.buy.data.state_info),
-            hp_update=HPUpdate(
-                hp_id=hp_config.hp_id,
-                coin=hp_config.coin,
-                symbol_info=hp_config.symbol_info,
-                state=State.NEW,
-                buy_price=hp_config.price_high,
-            ),
-        )
-        logger.debug("Going to send hpguidatabuy to ui queue: %s", hp_gui_data_buy)
-        ui_queue.put_nowait(hp_gui_data_buy)
+    db = TradingDatabase(db_path=test_db_path)
+    yield db
+    await db.close()
 
-        return strategy
 
-    return create_trading_system
+@pytest.fixture
+def mock_trading_executor(real_trading_db):
+    """Create a StrategyExecutor for testing crash recovery."""
+    from src.strategy_executor import StrategyExecutor
+    from src.broker import BrokerSpot
+    from src.portfolio.usd_price_resolver import UsdPriceResolver
+    from unittest.mock import AsyncMock, MagicMock
+
+    symbols_info = {
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
+    }
+
+    broker = MagicMock(spec=BrokerSpot)
+    ui_queue = queue.Queue()
+    balances = {"USDC": 10000.0}
+    price_resolver = MagicMock(spec=UsdPriceResolver)
+
+    executor = StrategyExecutor(
+        db=real_trading_db,
+        broker=broker,
+        symbols_info=symbols_info,
+        ui_queue=ui_queue,
+        balances=balances,
+        price_resolver=price_resolver,
+        test_mode=True,
+    )
+
+    # Mock the client
+    executor.client = AsyncMock()
+
+    yield executor
+
+    # Cleanup
+    executor.stop()
 
 
 @pytest.fixture
@@ -250,7 +238,8 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
         mock_config_queue = MagicMock()
         symbols_info = {
             "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),        }  # Create the StrategyExecutor instance
+            "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        }  # Create the StrategyExecutor instance
         price_resolver = UsdPriceResolver(
             client=mock_async_client, symbols_info=symbols_info
         )

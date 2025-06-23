@@ -340,11 +340,10 @@ class RecoveryService:
 
                     if root_hp_id not in multihop_chains:
                         multihop_chains[root_hp_id] = []
-
                     multihop_chains[root_hp_id].append(position)
 
             # Sort each chain by hop sequence
-            for hp_id, chain in multihop_chains.items():
+            for _, chain in multihop_chains.items():
                 chain.sort(key=lambda p: p.hop_sequence)
 
             logger.info("Recovered %d multihop position chains", len(multihop_chains))
