@@ -394,31 +394,3 @@ class RecoveryService:
         except Exception as e:
             logger.error("Failed to validate recovery integrity: %s", e)
             return {"validation_error": str(e)}
-
-    async def recover_positions_for_testing(self) -> List[Position]:
-        """
-        Recover all active positions from the database for testing purposes.
-
-        This method returns the raw Position objects after verification with the exchange,
-        without converting them to trading objects. Used primarily for testing.
-
-        Returns:
-            List of verified Position objects
-        """
-        logger.info("Starting position recovery for testing...")
-
-        try:
-            # Load all active positions from database
-            active_positions = await self.database.get_active_positions()
-            logger.info("Found %d active positions in database", len(active_positions))
-
-            # Verify positions with exchange
-            verified_positions = await self._verify_positions_with_exchange(
-                active_positions
-            )
-
-            logger.info("Recovered %d positions", len(verified_positions))
-            return verified_positions
-
-        except Exception as e:
-            raise RecoveryError(f"Failed to recover positions: {e}") from e
