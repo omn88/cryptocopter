@@ -108,11 +108,13 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     balances = {"USDC": 10000.0}  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
+        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
         "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
         "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
         "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-    }  # Create the StrategyExecutor instance
+    }
+    # Create the StrategyExecutor instance
     price_resolver = UsdPriceResolver(
         client=mock_async_client, symbols_info=symbols_info
     )
@@ -182,43 +184,6 @@ async def test_db() -> AsyncGenerator[TradingDatabase, None]:
         os.unlink(test_db_path)
     except OSError:
         pass  # File might already be deleted
-
-
-@pytest.fixture
-def mock_trading_executor(test_db):
-    """Create a StrategyExecutor for testing crash recovery."""
-    from src.strategy_executor import StrategyExecutor
-    from src.broker import BrokerSpot
-    from src.portfolio.usd_price_resolver import UsdPriceResolver
-    from unittest.mock import AsyncMock, MagicMock
-
-    symbols_info = {
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-    }
-
-    broker = MagicMock(spec=BrokerSpot)
-    ui_queue = queue.Queue()
-    balances = {"USDC": 10000.0}
-    price_resolver = MagicMock(spec=UsdPriceResolver)
-
-    executor = StrategyExecutor(
-        db=test_db,
-        broker=broker,
-        symbols_info=symbols_info,
-        ui_queue=ui_queue,
-        balances=balances,
-        price_resolver=price_resolver,
-        test_mode=True,  # Keep test_mode for other behaviors (like client creation)
-    )
-
-    # Mock the client
-    executor.client = AsyncMock()
-
-    yield executor
-
-    # Cleanup
-    executor.stop()
 
 
 @pytest.fixture

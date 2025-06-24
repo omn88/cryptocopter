@@ -22,7 +22,7 @@ from src.identifiers import HPBuyData, HPSellData
 
 
 async def test_crash_recovery_with_real_database_and_setup_methods(
-    test_db: TradingDatabase, mock_trading_executor: StrategyExecutor
+    test_db: TradingDatabase, strategy_executor_fixture: StrategyExecutor
 ):
     """Test that crash recovery uses real database and calls real setup methods."""
 
@@ -62,22 +62,22 @@ async def test_crash_recovery_with_real_database_and_setup_methods(
         sell_price=102000.0,
         trade_type=TradeType.DIRECT,
     )
-    await test_db.save_position(sell_position)
-
-    # Track the number of strategies before recovery
-    strategies_before = len(mock_trading_executor.strategies)
+    await test_db.save_position(
+        sell_position
+    )  # Track the number of strategies before recovery
+    strategies_before = len(strategy_executor_fixture.strategies)
 
     # Run crash recovery explicitly to test the recovery functionality
-    await mock_trading_executor.recover_positions_from_crash()
+    await strategy_executor_fixture.recover_positions_from_crash()
 
     # Verify that positions were recovered by checking strategies were created
-    strategies_after = len(mock_trading_executor.strategies)
+    strategies_after = len(strategy_executor_fixture.strategies)
 
     # Should have at least 1 new strategy (positions can create multiple strategies)
     assert strategies_after > strategies_before
 
     # Verify that we have strategies with the expected HP IDs or new generated ones
-    strategy_ids = list(mock_trading_executor.strategies.keys())
+    strategy_ids = list(strategy_executor_fixture.strategies.keys())
 
     # The recovered positions might get new HP IDs, so just verify we have strategies
     assert (
@@ -163,18 +163,20 @@ async def test_recovery_service_find_positions(
     assert found_sell.config.quantity == 0.01
 
 
-async def test_crash_recovery_empty_database(mock_trading_executor: StrategyExecutor):
+async def test_crash_recovery_empty_database(
+    strategy_executor_fixture: StrategyExecutor,
+):
     """Test crash recovery with empty database (should not error)."""
 
     # Run crash recovery on empty database
-    await mock_trading_executor.recover_positions_from_crash()
+    await strategy_executor_fixture.recover_positions_from_crash()
 
     # Should not have any strategies
-    assert len(mock_trading_executor.strategies) == 0
+    assert len(strategy_executor_fixture.strategies) == 0
 
 
 async def test_crash_recovery_handles_errors_gracefully(
-    test_db: TradingDatabase, mock_trading_executor: StrategyExecutor
+    test_db: TradingDatabase, strategy_executor_fixture: StrategyExecutor
 ):
     """Test that crash recovery handles errors gracefully and continues operation."""
 
@@ -203,7 +205,7 @@ async def test_crash_recovery_handles_errors_gracefully(
     await test_db.save_position(bad_position)
 
     # Recovery should handle the error gracefully and not crash
-    await mock_trading_executor.recover_positions_from_crash()
+    await strategy_executor_fixture.recover_positions_from_crash()
 
     # Should not crash and executor should still be operational
-    assert mock_trading_executor is not None
+    assert strategy_executor_fixture is not None
