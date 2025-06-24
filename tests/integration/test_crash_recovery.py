@@ -72,7 +72,7 @@ async def test_recover_new_buy_position(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         mode="DCA",
         trade_type=TradeType.DIRECT,
     )
@@ -141,7 +141,7 @@ async def test_recover_open_buy_position_with_orders(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         mode="DCA",
         trade_type=TradeType.DIRECT,
     )
@@ -245,7 +245,7 @@ async def test_recover_partially_filled_buy_position(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         realized_quantity=0.0005,  # Partially filled
         mode="DCA",
         trade_type=TradeType.DIRECT,
@@ -299,7 +299,7 @@ async def test_recover_filled_buy_position(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         realized_quantity=0.001,  # Fully bought
         mode="DCA",
         trade_type=TradeType.DIRECT,
@@ -339,7 +339,7 @@ async def test_recover_position_with_exchange_status_mismatch(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         trade_type=TradeType.DIRECT,
     )
     await test_db.save_position(position)
@@ -388,7 +388,7 @@ async def test_recover_position_with_missing_exchange_order(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         trade_type=TradeType.DIRECT,
     )
     await test_db.save_position(position)
@@ -437,7 +437,7 @@ async def test_recover_multihop_parent_position(
         budget=100.0,
         price_low=0.02,
         price_high=0.03,
-        order_trigger=0.025,
+        order_trigger=2.5,
         trade_type=TradeType.TWOHOP,
         hop_sequence=0,
         child_position_ids=["child_001"],
@@ -521,7 +521,7 @@ async def test_recover_multiple_positions_different_states(
             quantity=0.001 if pos_type == PositionType.SELL else 0.0,
             price_low=95000.0 if pos_type == PositionType.BUY else 0.0,
             price_high=105000.0 if pos_type == PositionType.BUY else 0.0,
-            order_trigger=100000.0 if pos_type == PositionType.BUY else 0.0,
+            order_trigger=1.0 if pos_type == PositionType.BUY else 0.0,
             buy_price=98000.0 if pos_type == PositionType.SELL else 0.0,
             sell_price=102000.0 if pos_type == PositionType.SELL else 0.0,
             realized_quantity=realized_qty,
@@ -562,7 +562,7 @@ async def test_recover_position_with_metadata(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         metadata=metadata,
         trade_type=TradeType.DIRECT,
     )

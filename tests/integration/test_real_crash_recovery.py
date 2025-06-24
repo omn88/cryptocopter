@@ -45,7 +45,7 @@ async def test_crash_recovery_with_real_database_and_setup_methods(
         budget=100.0,
         price_low=95000.0,
         price_high=105000.0,
-        order_trigger=100000.0,
+        order_trigger=1.0,
         trade_type=TradeType.DIRECT,
     )
     await test_db.save_position(buy_position)
@@ -109,7 +109,7 @@ async def test_recovery_service_find_positions(
         budget=50.0,
         price_low=3000.0,
         price_high=3500.0,
-        order_trigger=3200.0,
+        order_trigger=1.0,
         trade_type=TradeType.DIRECT,
     )
     await test_db.save_position(buy_position)
