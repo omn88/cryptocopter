@@ -73,7 +73,8 @@ class StrategyExecutor:
         ui_queue: queue.Queue,
         balances: Dict[str, float],
         price_resolver: UsdPriceResolver,
-        test_mode: bool = False,    ):
+        test_mode: bool = False,
+    ):
         self.client: Optional[BinanceClient] = None
         self.db = db
         self.broker = broker
@@ -85,7 +86,6 @@ class StrategyExecutor:
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
-        self.auto_recovery_enabled = not test_mode  # Disable auto-recovery in test mode
 
         # WebSocket error handling attributes
         self._websocket_error_count = 0
@@ -111,9 +111,8 @@ class StrategyExecutor:
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
 
-        # Only run auto-recovery if enabled (disabled in test mode)
-        if self.auto_recovery_enabled:
-            await self.recover_positions_from_crash()
+        # Always run crash recovery (will be no-op if database is empty)
+        await self.recover_positions_from_crash()
 
         while not self.stop_event.is_set():
             try:

@@ -209,7 +209,7 @@ def mock_trading_executor(test_db):
         ui_queue=ui_queue,
         balances=balances,
         price_resolver=price_resolver,
-        test_mode=False,  # Enable auto-recovery for this test
+        test_mode=True,  # Keep test_mode for other behaviors (like client creation)
     )
 
     # Mock the client
