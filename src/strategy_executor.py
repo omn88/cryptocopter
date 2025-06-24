@@ -107,7 +107,7 @@ class StrategyExecutor:
         if not self.test_mode:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-            )        # Set up WebSocket error handling (for both test and real mode)
+            )  # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
 
@@ -1066,7 +1066,7 @@ class StrategyExecutor:
 
             # Create recovery service with the same database instance
             recovery_service = RecoveryService(
-                database=self.db,  # Use existing database instance
+                database=self.db,
                 client=self.client,
                 symbols_info=self.symbols_info,
             )
