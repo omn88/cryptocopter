@@ -185,18 +185,7 @@ async def test_db() -> AsyncGenerator[TradingDatabase, None]:
 
 
 @pytest.fixture
-async def real_trading_db():
-    """Create a real TradingDatabase instance for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
-        test_db_path = tmp_file.name
-
-    db = TradingDatabase(db_path=test_db_path)
-    yield db
-    await db.close()
-
-
-@pytest.fixture
-def mock_trading_executor(real_trading_db):
+def mock_trading_executor(test_db):
     """Create a StrategyExecutor for testing crash recovery."""
     from src.strategy_executor import StrategyExecutor
     from src.broker import BrokerSpot
@@ -214,13 +203,13 @@ def mock_trading_executor(real_trading_db):
     price_resolver = MagicMock(spec=UsdPriceResolver)
 
     executor = StrategyExecutor(
-        db=real_trading_db,
+        db=test_db,
         broker=broker,
         symbols_info=symbols_info,
         ui_queue=ui_queue,
         balances=balances,
         price_resolver=price_resolver,
-        test_mode=True,
+        test_mode=False,  # Enable auto-recovery for this test
     )
 
     # Mock the client
@@ -271,7 +260,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 
 @pytest.fixture
 def recovery_service(test_db, mock_async_client):
-    """Create recovery service using the standard test fixtures."""
+    """Create recovery service using the test database."""
     # Create mock symbols_info
     from src.common.symbol_info import SymbolInfo
     from src.database.recovery_service import RecoveryService
