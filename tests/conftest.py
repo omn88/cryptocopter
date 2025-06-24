@@ -13,6 +13,7 @@ from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
+from src.database.recovery_service import RecoveryService
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 # Use dummy window for Kivy in headless testing
@@ -227,9 +228,6 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 def recovery_service(test_db, mock_async_client):
     """Create recovery service using the test database."""
     # Create mock symbols_info
-    from src.common.symbol_info import SymbolInfo
-    from src.database.recovery_service import RecoveryService
-
     symbols_info = {
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT"),
         "ETHUSDT": SymbolInfo(symbol="ETHUSDT"),
