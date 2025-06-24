@@ -8,17 +8,28 @@ This module provides a SQLite-based database implementation focused on:
 - Simple, reliable operations
 """
 
+import shutil
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, Any, AsyncGenerator, Union
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
-import aiosqlite
 import asyncio
+import aiosqlite
+
+from src.identifiers import (
+    State,
+    HPBuyData,
+    HPSellData,
+    SellPosition,
+    HPBuyConfig,
+    StateInfo,
+)
 
 from .models import (
+    OrderStatus,
     Position,
     Order,
     Strategy,
@@ -59,7 +70,7 @@ class TradingDatabase:
             with sqlite3.connect(self.db_path) as conn:
                 self._create_tables(conn)
         except Exception as e:
-            raise DatabaseConnectionError(f"Failed to initialize database: {e}")
+            raise DatabaseConnectionError(f"Failed to initialize database: {e}") from e
 
     def _create_tables(self, conn: sqlite3.Connection) -> None:
         """Create all necessary tables."""
@@ -185,14 +196,14 @@ class TradingDatabase:
         conn.commit()
 
     @asynccontextmanager
-    async def get_connection(self):
+    async def get_connection(self) -> AsyncGenerator[aiosqlite.Connection, None]:
         """Get an async database connection."""
         try:
             async with aiosqlite.connect(self.db_path) as conn:
                 conn.row_factory = aiosqlite.Row
                 yield conn
         except Exception as e:
-            raise DatabaseConnectionError(f"Failed to connect to database: {e}")
+            raise DatabaseConnectionError(f"Failed to connect to database: {e}") from e
 
     async def save_strategy(self, strategy: Strategy) -> str:
         """Save a strategy to the database."""
@@ -200,7 +211,7 @@ class TradingDatabase:
             async with self.get_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT OR REPLACE INTO strategies 
+                    INSERT OR REPLACE INTO strategies
                     (id, name, description, status, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -216,7 +227,7 @@ class TradingDatabase:
                 await conn.commit()
                 return strategy.id
         except Exception as e:
-            raise DatabaseError(f"Failed to save strategy: {e}")
+            raise DatabaseError(f"Failed to save strategy: {e}") from e
 
     async def save_position(self, position: Position) -> str:
         """
@@ -282,7 +293,7 @@ class TradingDatabase:
                 )
                 return position.id
         except Exception as e:
-            raise DatabaseError("Failed to save position %s: %s" % (position.hp_id, e))
+            raise DatabaseError(f"Failed to save position {position.hp_id}: {e}") from e
 
     async def save_order(self, order: Order) -> str:
         """Save an order to the database."""
@@ -290,7 +301,7 @@ class TradingDatabase:
             async with self.get_connection() as conn:
                 await conn.execute(
                     """
-                    INSERT OR REPLACE INTO orders 
+                    INSERT OR REPLACE INTO orders
                     (id, position_id, exchange_order_id, symbol, side, order_type, status,
                      price, quantity, quantity_stable, realized_quantity, time_in_force,
                      filled_at, created_at, updated_at)
@@ -321,7 +332,7 @@ class TradingDatabase:
                 await conn.commit()
                 return order.id
         except Exception as e:
-            raise DatabaseError(f"Failed to save order: {e}")
+            raise DatabaseError(f"Failed to save order: {e}") from e
 
     async def get_active_positions(self) -> List[Position]:
         """
@@ -334,7 +345,7 @@ class TradingDatabase:
             async with self.get_connection() as conn:
                 cursor = await conn.execute(
                     """
-                    SELECT * FROM positions 
+                    SELECT * FROM positions
                     WHERE status NOT IN ('CLOSED', 'CANCELED')
                     ORDER BY created_at ASC
                 """
@@ -351,7 +362,7 @@ class TradingDatabase:
                 )
                 return positions
         except Exception as e:
-            raise RecoveryError(f"Failed to retrieve active positions: {e}")
+            raise RecoveryError(f"Failed to retrieve active positions: {e}") from e
 
     async def get_position_hierarchy(self, parent_hp_id: str) -> List[Position]:
         """
@@ -393,7 +404,7 @@ class TradingDatabase:
         except Exception as e:
             raise RecoveryError(
                 f"Failed to get position hierarchy for {parent_hp_id}: {e}"
-            )
+            ) from e
 
     async def get_position_orders(self, position_id: str) -> List[Order]:
         """Get all orders for a position."""
@@ -415,9 +426,11 @@ class TradingDatabase:
 
                 return orders
         except Exception as e:
-            raise DatabaseError(f"Failed to get orders for position {position_id}: {e}")
+            raise DatabaseError(
+                f"Failed to get orders for position {position_id}: {e}"
+            ) from e
 
-    def _row_to_position(self, row) -> Position:
+    def _row_to_position(self, row: aiosqlite.Row) -> Position:
         """Convert database row to Position object."""
         try:
             child_ids = (
@@ -461,11 +474,10 @@ class TradingDatabase:
                 updated_at=datetime.fromisoformat(row["updated_at"]),
             )
         except Exception as e:
-            raise DatabaseError(f"Failed to convert row to position: {e}")
+            raise DatabaseError(f"Failed to convert row to position: {e}") from e
 
-    def _row_to_order(self, row) -> Order:
+    def _row_to_order(self, row: aiosqlite.Row) -> Order:
         """Convert database row to Order object."""
-        from .models import OrderStatus
 
         try:
             return Order(
@@ -490,24 +502,12 @@ class TradingDatabase:
                 updated_at=datetime.fromisoformat(row["updated_at"]),
             )
         except Exception as e:
-            raise DatabaseError(f"Failed to convert row to order: {e}")
+            raise DatabaseError(f"Failed to convert row to order: {e}") from e
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connections."""
         # SQLite connections are closed automatically with context managers
         logger.info("Database connections closed")
-
-    async def backup_database(self, backup_path: str) -> None:
-        """Create a backup of the database."""
-        try:
-            import shutil
-
-            backup_file = Path(backup_path)
-            backup_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(self.db_path, backup_file)
-            logger.info("Database backed up to %s", backup_path)
-        except Exception as e:
-            raise DatabaseError(f"Failed to backup database: {e}")
 
     async def get_database_stats(self) -> Dict[str, int]:
         """Get database statistics for monitoring."""
@@ -518,7 +518,7 @@ class TradingDatabase:
                 for table in ["strategies", "positions", "orders", "trades"]:
                     cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
                     count = await cursor.fetchone()
-                    stats[table] = count[0]
+                    stats[table] = count[0] if count else 0
 
                 # Active positions
                 cursor = await conn.execute(
@@ -528,26 +528,15 @@ class TradingDatabase:
                 """
                 )
                 count = await cursor.fetchone()
-                stats["active_positions"] = count[0]
+                stats["active_positions"] = count[0] if count else 0
 
                 return stats
         except Exception as e:
-            raise DatabaseError(
-                f"Failed to get database stats: {e}"
-            )  # ========================================================================
+            raise DatabaseError(f"Failed to get database stats: {e}") from e
 
-    # COMPATIBILITY METHODS FOR OLD DATABASE INTERFACE
     # ========================================================================
 
-    async def initialize(self) -> None:
-        """Compatibility method - database is already initialized in __init__."""
-        pass
-
-    def stop_worker(self) -> None:
-        """Compatibility method - no worker thread in SQLite implementation."""
-        pass
-
-    async def upsert_order(self, order, hp_id: str, side) -> None:
+    async def upsert_order(self, order: Any, hp_id: str, side: Any) -> None:
         """
         Upsert an order to the database.
 
@@ -589,7 +578,7 @@ class TradingDatabase:
         except Exception as e:
             logger.error("Failed to upsert order (async): %s", e)
 
-    async def upsert_buy_price_level(self, data) -> None:
+    async def upsert_buy_price_level(self, data: HPBuyData) -> None:
         """
         Compatibility method for upsert_buy_price_level.
 
@@ -629,7 +618,9 @@ class TradingDatabase:
         except Exception as e:
             logger.error("Failed to upsert buy price level (compatibility): %s", e)
 
-    async def upsert_sell_price_level(self, data) -> None:
+    async def upsert_sell_price_level(
+        self, data: Union[SellPosition, HPSellData]
+    ) -> None:
         """
         Compatibility method for upsert_sell_price_level.
 
@@ -675,7 +666,7 @@ class TradingDatabase:
         except Exception as e:
             logger.error("Failed to upsert sell price level (compatibility): %s", e)
 
-    def fetch_all_active_strategies(self) -> List[Dict]:
+    def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
         """
         Compatibility method for fetch_all_active_strategies.
 
@@ -698,7 +689,7 @@ class TradingDatabase:
             logger.error("Failed to fetch active strategies (compatibility): %s", e)
             return []
 
-    async def _fetch_all_active_strategies(self) -> List[Dict]:
+    async def _fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
         """Internal async method for fetching strategies."""
         try:
             async with self.get_connection() as conn:
@@ -727,7 +718,7 @@ class TradingDatabase:
             logger.error("Failed to fetch strategies: %s", e)
             return []
 
-    def fetch_active_hp_list(self) -> List[Dict]:
+    def fetch_active_hp_list(self) -> List[Dict[str, Any]]:
         """
         Compatibility method for fetch_active_hp_list.
 
@@ -750,7 +741,7 @@ class TradingDatabase:
             logger.error("Failed to fetch active HP list (compatibility): %s", e)
             return []
 
-    async def _fetch_active_hp_list(self) -> List[Dict]:
+    async def _fetch_active_hp_list(self) -> List[Dict[str, Any]]:
         """Internal async method for fetching active positions."""
         try:
             positions = await self.get_active_positions()
@@ -783,7 +774,9 @@ class TradingDatabase:
             logger.error("Failed to fetch active HP list: %s", e)
             return []
 
-    def fetch_price_levels_for_hp(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
+    def fetch_price_levels_for_hp(
+        self, hp_id: str
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Compatibility method for fetch_price_levels_for_hp.
 
@@ -800,7 +793,7 @@ class TradingDatabase:
 
     async def _fetch_price_levels_for_hp(
         self, hp_id: str
-    ) -> Tuple[List[Dict], List[Dict]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Internal async method for fetching price levels."""
         try:
             positions = await self.get_active_positions()
@@ -849,7 +842,9 @@ class TradingDatabase:
             logger.error("Failed to fetch price levels: %s", e)
             return ([], [])
 
-    def fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
+    def fetch_orders_for_price_level(
+        self, hp_id: str, side: str
+    ) -> List[Dict[str, Any]]:
         """
         Compatibility method for fetch_orders_for_price_level.
 
@@ -867,7 +862,9 @@ class TradingDatabase:
             )
             return []
 
-    async def _fetch_orders_for_price_level(self, hp_id: str, side: str) -> List[Dict]:
+    async def _fetch_orders_for_price_level(
+        self, hp_id: str, side: str
+    ) -> List[Dict[str, Any]]:
         """Internal async method for fetching orders."""
         try:
             # Find position by hp_id
@@ -931,21 +928,26 @@ class TradingDatabase:
             logger.error("Failed to insert strategy (compatibility): %s", e)
             return ""
 
-    def assert_db_buy_price_level_content(self, config, state_info) -> None:
+    def assert_db_buy_price_level_content(
+        self, config: HPBuyConfig, state_info: StateInfo
+    ) -> None:
         """
         Compatibility method for assert_db_buy_price_level_content.
 
         Args:
             config: HPBuyConfig object
-            state_info: StateInfo object"""
+            state_info: StateInfo object
+        """
         try:
             asyncio.run(self._assert_db_buy_price_level_content(config, state_info))
         except Exception as e:
             logger.error(
-                f"Failed to assert buy price level content (compatibility): {e}"
+                "Failed to assert buy price level content (compatibility): %s", e
             )
 
-    async def _assert_db_buy_price_level_content(self, config, state_info) -> None:
+    async def _assert_db_buy_price_level_content(
+        self, config: HPBuyConfig, state_info: StateInfo
+    ) -> None:
         """Internal async method for asserting buy price level content."""
         try:
             positions = await self.get_active_positions()
@@ -960,16 +962,23 @@ class TradingDatabase:
             assert position.budget == config.budget
             assert position.order_trigger == config.order_trigger
 
+            # Assert state information if provided
+            if hasattr(state_info, "completeness"):
+                assert position.completeness == state_info.completeness
+            if hasattr(state_info, "state"):
+                expected_status = self._convert_state_to_position_status(
+                    state_info.state
+                )
+                assert position.status == expected_status
+
             logger.debug("Compatibility: Assertion passed for hp_id %s", config.hp_id)
         except Exception as e:
             logger.error("Failed to assert buy price level content: %s", e)
             raise
 
-    def _convert_state_to_position_status(self, state):
+    def _convert_state_to_position_status(self, state: Any) -> PositionStatus:
         """Convert trading system State to PositionStatus."""
         try:
-            # Import here to avoid circular imports
-            from src.identifiers import State
 
             mapping = {
                 State.NEW: PositionStatus.NEW,
@@ -997,9 +1006,8 @@ class TradingDatabase:
             else:
                 return PositionStatus.NEW
 
-    def _convert_order_status_string(self, status_str: str):
+    def _convert_order_status_string(self, status_str: str) -> OrderStatus:
         """Convert order status string to OrderStatus enum."""
-        from .models import OrderStatus
 
         mapping = {
             "NEW": OrderStatus.NEW,

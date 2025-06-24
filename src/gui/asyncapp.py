@@ -251,13 +251,8 @@ class AsyncApp(App):
         logger.info("Stop portfolio")
         self.portfolio.stop()
 
-        # Stop the broker
-        logger.info("Stopping the broker...")
+        # Stop the broker        logger.info("Stopping the broker...")
         self.broker.stop()
-
-        # Stop the database worker
-        logger.info("Stopping the database worker...")
-        self.db.stop_worker()
 
         logger.info("All systems stopped successfully. Application exiting.")
 

@@ -79,13 +79,13 @@ class PositionManager:
             )
 
             position_id = await self.database.save_position(position)
-            logger.info(f"Saved buy position {buy_data.config.hp_id}")
+            logger.info("Saved buy position %s", buy_data.config.hp_id)
             return position_id
 
         except Exception as e:
             raise DatabaseError(
                 f"Failed to save buy position {buy_data.config.hp_id}: {e}"
-            )
+            ) from e
 
     async def save_sell_position(
         self, sell_data: HPSellData, parent_hp_id: Optional[str] = None
@@ -124,13 +124,13 @@ class PositionManager:
             )
 
             position_id = await self.database.save_position(position)
-            logger.info(f"Saved sell position {sell_data.config.hp_id}")
+            logger.info("Saved sell position %s", sell_data.config.hp_id)
             return position_id
 
         except Exception as e:
             raise DatabaseError(
                 f"Failed to save sell position {sell_data.config.hp_id}: {e}"
-            )
+            ) from e
 
     async def save_multihop_sell_positions(
         self, sell_positions: List[SellPosition], parent_hp_id: str
@@ -188,12 +188,14 @@ class PositionManager:
                 )
 
             logger.info(
-                f"Saved {len(sell_positions)} multihop sell positions for parent {parent_hp_id}"
+                "Saved %s multihop sell positions for parent %s",
+                len(sell_positions),
+                parent_hp_id,
             )
             return position_ids
 
         except Exception as e:
-            raise DatabaseError(f"Failed to save multihop sell positions: {e}")
+            raise DatabaseError(f"Failed to save multihop sell positions: {e}") from e
 
     async def save_order(
         self, order: TradingOrder, position_id: str, side: PositionSide
@@ -225,11 +227,11 @@ class PositionManager:
             )
 
             order_id = await self.database.save_order(db_order)
-            logger.debug(f"Saved order {order.order_id} for position {position_id}")
+            logger.debug("Saved order %s for position %s", order.order_id, position_id)
             return order_id
 
         except Exception as e:
-            raise DatabaseError(f"Failed to save order: {e}")
+            raise DatabaseError(f"Failed to save order: {e}") from e
 
     async def update_position_from_execution(
         self, hp_id: str, execution_report: ExecutionReport
@@ -247,7 +249,7 @@ class PositionManager:
             position = next((p for p in positions if p.hp_id == hp_id), None)
 
             if not position:
-                logger.warning(f"Position {hp_id} not found for execution update")
+                logger.warning("Position %s not found for execution update", hp_id)
                 return
 
             # Update position quantities and status
@@ -268,10 +270,10 @@ class PositionManager:
             # Save updated position
             await self.database.save_position(position)
 
-            logger.info(f"Updated position {hp_id} from execution report")
+            logger.info("Updated position %s from execution report", hp_id)
 
         except Exception as e:
-            logger.error(f"Failed to update position from execution: {e}")
+            logger.error("Failed to update position from execution: %s", e)
 
     async def close_position(self, hp_id: str) -> None:
         """
@@ -287,10 +289,10 @@ class PositionManager:
             if position:
                 position.status = PositionStatus.CLOSED
                 await self.database.save_position(position)
-                logger.info(f"Closed position {hp_id}")
+                logger.info("Closed position %s", hp_id)
 
         except Exception as e:
-            raise DatabaseError(f"Failed to close position {hp_id}: {e}")
+            raise DatabaseError(f"Failed to close position {hp_id}: {e}") from e
 
     async def get_position_status(self, hp_id: str) -> Optional[Dict]:
         """
@@ -323,7 +325,7 @@ class PositionManager:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get position status for {hp_id}: {e}")
+            logger.error("Failed to get position status for %s: %s", hp_id, e)
             return None
 
     def _convert_state_to_status(self, state: State) -> PositionStatus:
@@ -365,4 +367,4 @@ class PositionManager:
                 await self.database.save_position(parent)
 
         except Exception as e:
-            logger.error(f"Failed to update parent-child relationships: {e}")
+            logger.error("Failed to update parent-child relationships: %s", e)

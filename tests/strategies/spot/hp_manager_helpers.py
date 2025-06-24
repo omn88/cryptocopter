@@ -160,6 +160,10 @@ def get_default_buy_position(trading_system_factory) -> HpStrategy:
     assert isinstance(strategy, HpStrategy)
     buy_cfg = strategy.buy.data.config
     assert isinstance(buy_cfg, HPBuyConfig)
+
+    # Prepare orders before setting up the mock (simulate normal application flow)
+    strategy.buy.prepare_orders()
+
     strategy.client.create_order.side_effect = get_new_orders(
         orders=strategy.buy.orders
     )
