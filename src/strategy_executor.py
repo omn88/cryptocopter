@@ -467,11 +467,14 @@ class StrategyExecutor:
     async def setup_buy_position(
         self,
         new_hp: HPBuyData,
+        is_restoration: bool = False,
     ) -> None:
         logger.info("Setting up new position with config: %s", new_hp.config)
 
-        new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
-        new_hp.state_info.generate_open_time()
+        # For restoration, preserve existing HP ID; for new positions, generate new one
+        if not is_restoration:
+            new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
+            new_hp.state_info.generate_open_time()
 
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
@@ -509,8 +512,16 @@ class StrategyExecutor:
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
 
-        strategy.buy.prepare_orders()
-        strategy.buy.data.state_info.generate_open_time()
+        # Handle order preparation: restore from DB for restoration mode, create new for normal mode
+        if is_restoration:
+            # Restore existing orders from database instead of creating new ones
+            strategy.buy.orders = await self.restore_buy_orders(
+                buy_position=strategy.buy, worker_queue=worker_queue
+            )
+        else:
+            # Create new orders for normal setup
+            strategy.buy.prepare_orders()
+            strategy.buy.data.state_info.generate_open_time()
 
         self.strategies[new_hp.config.hp_id] = strategy
 
@@ -636,10 +647,18 @@ class StrategyExecutor:
         logger.debug("Sell position setup exit")
 
     async def setup_sell_position_with_new_hp(
-        self, strategy_data: SellPosition, sell_strategy: List[SymbolInfo]
-    ) -> None:
-        parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
-        strategy_data.config.hp_id = parent_hp_id
+        self,
+        strategy_data: SellPosition,
+        sell_strategy: List[SymbolInfo],
+        is_restoration: bool = False,
+    ) -> (
+        None
+    ):  # For restoration, preserve existing HP ID; for new positions, generate new one
+        if not is_restoration:
+            parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
+            strategy_data.config.hp_id = parent_hp_id
+        else:
+            parent_hp_id = strategy_data.config.hp_id
         logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
@@ -681,7 +700,18 @@ class StrategyExecutor:
             initial_state=State.BOUGHT,
         )
         config = strategy.sell.current_position.config
-        strategy.sell.current_position.state_info.generate_open_time()
+
+        # Handle restoration vs new position setup
+        if is_restoration:
+            # Restore existing sell orders from database
+            sell_orders = await self.restore_sell_orders(
+                sell_config=strategy_data.config, worker_queue=worker_queue
+            )
+            if sell_orders:
+                strategy.sell.current_position.sell_order = sell_orders[0]
+        else:
+            # Generate new timestamp for new positions
+            strategy.sell.current_position.state_info.generate_open_time()
 
         logger.info("Current position: %s", strategy.sell.current_position)
 
@@ -902,9 +932,8 @@ class StrategyExecutor:
         self, buy_position: HPPositionBuy, worker_queue: queue.Queue
     ) -> List[Order]:
         assert self.client
-        buy_config = buy_position.data.config
-        # Restore orders for buy position
-        orders = self.db.fetch_orders_for_price_level(
+        buy_config = buy_position.data.config  # Restore orders for buy position
+        orders = await self.db._fetch_orders_for_price_level(
             hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
         logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
@@ -975,9 +1004,8 @@ class StrategyExecutor:
     async def restore_sell_orders(
         self, sell_config: HPSellConfig, worker_queue: queue.Queue
     ) -> List[Order]:
-        assert self.client
-        # Restore orders for sell position
-        orders = self.db.fetch_orders_for_price_level(
+        assert self.client  # Restore orders for sell position
+        orders = await self.db._fetch_orders_for_price_level(
             hp_id=sell_config.hp_id,
             side=PositionSide.SHORT.value,
         )
@@ -1080,31 +1108,15 @@ class StrategyExecutor:
                 "Crash recovery found %d buy positions and %d sell positions",
                 len(buy_positions),
                 len(sell_positions),
-            )
-
-            # Restore buy positions using existing setup_buy_position method
+            )  # Restore buy positions using dedicated restore method (preserves HP IDs and state)
             for buy_data in buy_positions:
                 logger.info("Restoring buy position: %s", buy_data.config.hp_id)
-                await self.setup_buy_position(new_hp=buy_data)
+                await self.restore_buy_position(buy_data=buy_data)
 
-            # Restore sell positions using existing setup_sell_position_with_new_hp method
+            # Restore sell positions using dedicated restore method (preserves HP IDs and state)
             for sell_data in sell_positions:
                 logger.info("Restoring sell position: %s", sell_data.config.hp_id)
-
-                # Convert HPSellData to SellPosition format expected by setup method
-                sell_position = SellPosition(
-                    config=sell_data.config,
-                    state_info=sell_data.state_info,
-                    sell_order=Order(quantity=sell_data.config.quantity),
-                )
-
-                # Determine sell strategy for this position
-                sell_strategy = self.determine_sell_strategy(config=sell_data.config)
-
-                # Restore the sell position
-                await self.setup_sell_position_with_new_hp(
-                    strategy_data=sell_position, sell_strategy=sell_strategy
-                )
+                await self.restore_sell_position(sell_data=sell_data)
 
             logger.info("Crash recovery completed successfully")
 
@@ -1114,3 +1126,41 @@ class StrategyExecutor:
         except Exception as e:
             logger.error("Unexpected error during crash recovery: %s", e)
             # Don't raise - let the system continue with empty state
+
+    async def restore_buy_position(self, buy_data: HPBuyData) -> None:
+        """
+        Restore a buy position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        logger.info("Restoring buy position: %s", buy_data.config.hp_id)
+
+        # Use the normal setup process but in restoration mode
+        await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
+
+        logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
+
+    async def restore_sell_position(self, sell_data: HPSellData) -> None:
+        """
+        Restore a sell position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        logger.info("Restoring sell position: %s", sell_data.config.hp_id)
+
+        # Convert HPSellData to SellPosition format expected by setup method
+        sell_position = SellPosition(
+            config=sell_data.config,
+            state_info=sell_data.state_info,
+            sell_order=Order(quantity=sell_data.config.quantity),
+        )
+
+        # Determine sell strategy for this position
+        sell_strategy = self.determine_sell_strategy(config=sell_data.config)
+
+        # Use the normal setup process but in restoration mode
+        await self.setup_sell_position_with_new_hp(
+            strategy_data=sell_position,
+            sell_strategy=sell_strategy,
+            is_restoration=True,
+        )
+
+        logger.info("Sell position %s restored successfully", sell_data.config.hp_id)
