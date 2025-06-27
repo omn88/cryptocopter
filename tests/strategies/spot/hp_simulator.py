@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
@@ -23,6 +24,7 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
+from src.database.models import TradeType
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
@@ -51,17 +53,19 @@ class HPSimulator:
         price_low: float = 1000.0,
         price_high: float = 1400.0,
         order_trigger: float = 1.0,
+        hp_id: str = "0",
+        coin: str = "BTC",
     ):
         hp = HPBuyData(
             HPBuyConfig(
-                hp_id="0",
+                hp_id=hp_id,
                 symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
                 price_low=price_low,
                 price_high=price_high,
                 order_trigger=order_trigger,
                 budget=budget,
                 mode=mode,
-                coin="BTC",
+                coin=coin,
             ),
             state_info=StateInfo(),
         )
@@ -501,6 +505,7 @@ class HPSimulator:
         sell_price: float,
         end_currency: str,
         coin: str,
+        trade_type: Optional[TradeType] = None,
     ):
         sell_config = HPSellData(
             config=HPSellConfig(

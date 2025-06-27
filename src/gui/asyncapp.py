@@ -1,7 +1,11 @@
 """Main module for managing trading strategies.
 
-This module contains the `AsyncApp` class, which is responsible for creating and managing instances
-of `StrategyTab` for each trading strategy. It also sets up a logging handler
+This module contains the `AsyncApp` class, which is responsible for creating and managing instance        for strategy in active_strategies:
+            if strategy.get("name") == "HPManager":
+                logger.info("Found instance of HPManager, restoring last known state.")
+                self.setup_hp_manager(
+                    strategy_id=strategy.get("strategy_id"), symbols_info=self.symbols_info
+                )`StrategyTab` for each trading strategy. It also sets up a logging handler
 for each strategy.
 """
 
@@ -24,9 +28,15 @@ from src.identifiers import (
     SubscriptionType,
     BinanceClient,
 )
+from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
+from src.gui.widgets import (
+    ColorChangingQuantity,
+    SymbolMarkPrice,
+    PnL,
+)  # Import custom widgets
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.database import Database
 from src.broker import BrokerSpot
@@ -136,22 +146,29 @@ class AsyncApp(App):
         tab = TabbedPanelItem(
             text="Portfolio",
             content=frontend,
-        )
-        # Add the tab to the root tab panel
+        )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
     async def load_all_active_strategies(self):
-        active_strategies = self.db.fetch_all_active_strategies()
+        active_strategies = await self.db._fetch_all_active_strategies()
         if not active_strategies:
             logger.info("No active strategy found")
             return
         logger.info("Current active strategies: %s", active_strategies)
-        for strategy in active_strategies:
-            if strategy.get("name") == "HPManager":
-                logger.info("Found instance of HPManager, restoring last known state.")
-                self.setup_hp_manager(
-                    strategy_id=strategy.get("id"), symbols_info=self.symbols_info
-                )
+
+        # Check if there are any HPManager strategies
+        hp_manager_strategies = [
+            s for s in active_strategies if s.get("name") == "HPManager"
+        ]
+        if hp_manager_strategies:
+            logger.info(
+                f"Found {len(hp_manager_strategies)} HPManager strategies, creating single HPManager instance"
+            )
+            # Use the first strategy ID as the primary one, but HPManager will load positions from all strategies
+            primary_strategy_id = hp_manager_strategies[0].get("strategy_id")
+            self.setup_hp_manager(
+                strategy_id=primary_strategy_id, symbols_info=self.symbols_info
+            )
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
         Builder.load_file("src/gui/hpfront.kv")
@@ -221,9 +238,8 @@ class AsyncApp(App):
             self.active_strategies.append(strat)
             logger.info("Starting HP manager strategy")
 
-            strategy_id = self.db.insert_strategy(
-                name="HPManager", description="HPManager"
-            )
+            strategy = Strategy(name="HPManager", description="HPManager")
+            strategy_id = await self.db.save_strategy(strategy)
 
             self.setup_hp_manager(
                 strategy_id=strategy_id, symbols_info=self.symbols_info

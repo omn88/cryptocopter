@@ -89,7 +89,7 @@ class PortfolioUI(BoxLayout):
                 continue
 
         # Set the data for the RecycleView (this will update the list in the UI)
-        logger.debug(f"Coin list data: {self.coin_list_data}")
+        # logger.debug(f"Coin list data: {self.coin_list_data}")
 
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
@@ -169,6 +169,6 @@ class PortfolioUI(BoxLayout):
         # Notify the UI to refresh the view (in case you're using RecycleView)
         self.ids.coin_list.refresh_from_data()
 
-        logger.debug(
-            "Coin list after updating with account positions: %s", self.coin_list_data
-        )
+        # logger.debug(
+        #     "Coin list after updating with account positions: %s", self.coin_list_data
+        # )

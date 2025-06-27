@@ -86,7 +86,7 @@ async def main():
             logger.error(f"Error closing client connection: {e}")
 
         try:
-            db.close_pool()
+            await db.close()
         except Exception as e:
             logger.error(f"Error closing database pool: {e}")
 

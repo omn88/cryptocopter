@@ -25,7 +25,7 @@ class UsdPriceResolver:
             for item in prices
             if item["symbol"] in self.symbols_info
         }
-        logger.debug("Latest prices: %s", self.latest_prices)
+        # logger.debug("Latest prices: %s", self.latest_prices)
 
     def resolve_usd(self, coin: str) -> float:
         raw_price = None

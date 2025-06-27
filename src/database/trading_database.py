@@ -8,11 +8,10 @@ This module provides a SQLite-based database implementation focused on:
 - Simple, reliable operations
 """
 
-import shutil
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Any, AsyncGenerator, Union
+from typing import List, Dict, Tuple, Any, AsyncGenerator, Union
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
@@ -88,14 +87,12 @@ class TradingDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
-        )
-
-        # Positions table - the core of our recovery system
+        )  # Positions table - the core of our recovery system
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS positions (
                 id TEXT PRIMARY KEY,
-                hp_id TEXT NOT NULL,
+                hp_id TEXT NOT NULL UNIQUE,
                 strategy_id TEXT,
                 position_type TEXT NOT NULL,
                 status TEXT NOT NULL,
@@ -234,9 +231,13 @@ class TradingDatabase:
         Save a position to the database.
 
         This is the core method for persistence - handles both new and updated positions.
+        Uses hp_id as the unique identifier to prevent duplicates.
         """
         try:
             async with self.get_connection() as conn:
+                # Use hp_id as the primary key to prevent duplicates
+                position_id = position.hp_id
+
                 await conn.execute(
                     """
                     INSERT OR REPLACE INTO positions 
@@ -248,7 +249,7 @@ class TradingDatabase:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
-                        position.id,
+                        position_id,  # Use hp_id as the primary key
                         position.hp_id,
                         position.strategy_id,
                         position.position_type.value,
@@ -291,7 +292,7 @@ class TradingDatabase:
                     position.hp_id,
                     position.status.value,
                 )
-                return position.id
+                return position_id
         except Exception as e:
             raise DatabaseError(f"Failed to save position {position.hp_id}: {e}") from e
 
@@ -546,6 +547,11 @@ class TradingDatabase:
             side: PositionSide enum
         """
         try:
+            # Get the position to extract the symbol
+            positions = await self.get_active_positions()
+            position = next((p for p in positions if p.hp_id == hp_id), None)
+            symbol = position.symbol if position else ""
+
             # Convert trading order to database order
             db_order = Order(
                 position_id=hp_id,  # Use hp_id as position_id for compatibility
@@ -554,7 +560,7 @@ class TradingDatabase:
                     if hasattr(order, "order_id") and order.order_id > 0
                     else None
                 ),
-                symbol="",  # Will need to be filled from context
+                symbol=symbol,
                 side=side.value if hasattr(side, "value") else str(side),
                 status=self._convert_order_status_string(
                     order.status if hasattr(order, "status") else "NEW"
@@ -668,19 +674,20 @@ class TradingDatabase:
 
     def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
         """
-        Compatibility method for fetch_all_active_strategies.
-
-        Returns:
+        Compatibility method for fetch_all_active_strategies.        Returns:
             List of strategy dictionaries
         """
         try:
-            # Try to get current event loop, if it exists, create a task
+            # Simple workaround: just return empty list if called from async context
+            # This prevents the asyncio.run() error during startup
             try:
                 asyncio.get_running_loop()
-                # We're in an event loop, need to use a different approach
-                logger.warning(
+                import traceback
+
+                logger.debug(
                     "fetch_all_active_strategies called from async context - returning empty list"
                 )
+                logger.debug("Stack trace: %s", "".join(traceback.format_stack()))
                 return []
             except RuntimeError:
                 # No event loop running, can use asyncio.run
@@ -913,17 +920,25 @@ class TradingDatabase:
         Args:
             name: Strategy name
             description: Strategy description
-            status: Strategy status
-
-        Returns:
-            Strategy ID"""
+            status: Strategy status        Returns:
+            Strategy ID
+        """
         try:
             strategy = Strategy(
                 name=name,
                 description=description,
                 status=status,
             )
-            return asyncio.run(self.save_strategy(strategy))
+            # Check if we're in an event loop
+            try:
+                asyncio.get_running_loop()
+                logger.error(
+                    "insert_strategy called from async context - cannot proceed synchronously"
+                )
+                return ""
+            except RuntimeError:
+                # No event loop running, can use asyncio.run
+                return asyncio.run(self.save_strategy(strategy))
         except Exception as e:
             logger.error("Failed to insert strategy (compatibility): %s", e)
             return ""

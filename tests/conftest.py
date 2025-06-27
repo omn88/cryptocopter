@@ -143,30 +143,6 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
 
 
 @pytest.fixture
-async def frontend_backend_setup(
-    hp_gui: HpFront, strategy_executor_fixture: StrategyExecutor
-):
-    """
-    Fixture to set up an integrated frontend-backend system.
-
-    - Ensures frontend (HpManager) can send commands to backend (StrategyExecutor).
-    - Provides a test scenario where state updates and order handling can be asserted.
-    """
-
-    # Ensure frontend has the correct reference to the backend's queue
-    hp_gui.config_queue = strategy_executor_fixture.config_queue
-    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
-    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
-    yield hp_gui, strategy_executor_fixture  # Provide both components
-
-    for strategy in strategy_executor_fixture.strategies.values():
-        strategy.stop_event.set()
-        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
-
-    # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
-
-
-@pytest.fixture
 async def test_db() -> AsyncGenerator[TradingDatabase, None]:
     """Create a test SQLite database for testing."""  # Create a temporary SQLite database file for testing
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
@@ -222,6 +198,31 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 
         gui.stop_event.set()
         await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
+
+
+@pytest.fixture
+async def frontend_backend_setup(
+    hp_gui: HpFront, strategy_executor_fixture: StrategyExecutor
+):
+    """
+    Fixture to set up an integrated frontend-backend system.
+
+    - Ensures frontend (HpManager) can send commands to backend (StrategyExecutor).
+    - Provides a test scenario where state updates and order handling can be asserted.
+    """
+
+    # Ensure frontend has the correct reference to the backend's queue
+    hp_gui.config_queue = strategy_executor_fixture.config_queue
+    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
+    hp_gui.db = strategy_executor_fixture.db
+    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+    yield hp_gui, strategy_executor_fixture  # Provide both components
+
+    for strategy in strategy_executor_fixture.strategies.values():
+        strategy.stop_event.set()
+        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+
+    # Cleanup is handled in individual fixtures (strategy_executor_fixture, hp_gui)
 
 
 @pytest.fixture
