@@ -32,13 +32,8 @@ from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
 from src.gui.hpfront import HpFront
-from src.gui.widgets import (
-    ColorChangingQuantity,
-    SymbolMarkPrice,
-    PnL,
-)  # Import custom widgets
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.database import Database
+from src.database import TradingDatabase
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
@@ -69,7 +64,7 @@ class AsyncApp(App):
     def __init__(
         self,
         client: BinanceClient,
-        db: Database,
+        db: TradingDatabase,
         symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
         balances: Dict[str, float],

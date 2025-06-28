@@ -25,7 +25,7 @@ from src.portfolio.usd_price_resolver import UsdPriceResolver
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
 from kivy.core.window import Window
 from src.gui.asyncapp import AsyncApp
-from src.database import Database
+from src.database import TradingDatabase
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -52,7 +52,7 @@ async def main():
 
     Returns:
         None"""  # Initialize SQLite database
-    db = Database()  # Uses default "trading.db" file
+    db = TradingDatabase()  # Uses default "trading.db" file
 
     client = BinanceClient(
         api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")

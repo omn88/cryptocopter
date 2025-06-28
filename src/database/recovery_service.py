@@ -8,6 +8,7 @@ verifying their state with the exchange, and ensuring consistency.
 import logging
 from typing import List, Dict, Optional, Tuple, Any
 
+from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     BinanceClient,
     HPBuyConfig,
@@ -20,7 +21,6 @@ from src.identifiers import (
     Mode,
 )
 from src.common.symbol_info import SymbolInfo
-from .trading_database import TradingDatabase
 from .models import (
     Position,
     Order as DatabaseOrder,
@@ -47,9 +47,9 @@ class RecoveryService:
 
     def __init__(
         self,
+        symbols_info: Dict[str, SymbolInfo],
         database: TradingDatabase,
         client: BinanceClient,
-        symbols_info: Dict[str, SymbolInfo],
     ):
         self.database = database
         self.client = client

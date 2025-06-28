@@ -26,12 +26,8 @@ from .exceptions import (
 from .recovery_service import RecoveryService
 from .position_manager import PositionManager
 
-# For backwards compatibility, alias TradingDatabase as Database
-Database = TradingDatabase
-
 __all__ = [
     "TradingDatabase",
-    "Database",  # Backwards compatibility alias
     "Position",
     "Trade",
     "Order",

@@ -13,7 +13,7 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.symbol_info import SymbolInfo
-from src.database import Database
+from src.database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
     Event,
@@ -51,7 +51,7 @@ class HpStrategy:
         ui_queue: queue.Queue,
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
-        db: Database,
+        db: TradingDatabase,
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
         initial_state: State = State.NEW,

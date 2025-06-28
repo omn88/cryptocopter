@@ -5,11 +5,11 @@ import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.common import generate_hp_id
-from src.database import Database
+from src.database import TradingDatabase
 from src.identifiers import (
     Event,
     EventName,
@@ -67,7 +67,7 @@ logger = logging.getLogger("strategy_executor")
 class StrategyExecutor:
     def __init__(
         self,
-        db: Database,
+        db: TradingDatabase,
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
@@ -81,6 +81,7 @@ class StrategyExecutor:
         self.ui_queue = ui_queue
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
+        self.recovery_service: Optional[RecoveryService] = None
         self.symbols_info = symbols_info
         self.balances = balances
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
@@ -896,37 +897,93 @@ class StrategyExecutor:
             )
             await self.db.upsert_sell_price_level(data=sell.current_position)
 
-    def recover_price_levels(self, hp_id: str) -> Tuple[List[Dict], List[Dict]]:
-        buy_level, sell_level = self.db.fetch_price_levels_for_hp(hp_id=hp_id)
-        logger.info(
-            "HP: %s\nBuy price level: %s\nSell price level: %s",
-            hp_id,
-            buy_level,
-            sell_level,
-        )
-        return buy_level, sell_level
+    async def recover_positions_from_crash(self) -> None:
+        """
+        Recover all active trading positions from database after system crash/restart.
 
-    def recover_broker_subscriptions(
-        self, symbol: str, hp_id: str, worker_queue: queue.Queue
-    ) -> None:
-        self.broker.subscribe(
-            system_id=hp_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol=symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+        This is the main crash recovery method that:
+        1. Uses TradingDatabase to get active positions
+        2. Verifies them with the exchange via RecoveryService
+        3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
+        """
+        logger.info("Starting crash recovery process...")
+
+        try:
+            # Ensure client is available for recovery
+            if not self.client:
+                logger.error("No client available for crash recovery")
+                return
+
+            # Create recovery service with the same database instance
+            self.recovery_service = RecoveryService(
+                symbols_info=self.symbols_info, client=self.client, database=self.db
+            )
+
+            # Recover all positions and convert them to trading objects
+            buy_positions, sell_positions = (
+                await self.recovery_service.recover_all_positions()
+            )
+
+            logger.info(
+                "Crash recovery found %d buy positions and %d sell positions",
+                len(buy_positions),
+                len(sell_positions),
+            )  # Restore buy positions using dedicated restore method (preserves HP IDs and state)
+            for buy_data in buy_positions:
+                logger.info("Restoring buy position: %s", buy_data.config.hp_id)
+                await self.restore_buy_position(buy_data=buy_data)
+
+            # Restore sell positions using dedicated restore method (preserves HP IDs and state)
+            for sell_data in sell_positions:
+                logger.info("Restoring sell position: %s", sell_data.config.hp_id)
+                await self.restore_sell_position(sell_data=sell_data)
+
+            logger.info("Crash recovery completed successfully")
+
+        except RecoveryError as e:
+            logger.error("Crash recovery failed: %s", e)
+            # Don't raise - let the system continue with empty state
+        except Exception as e:
+            logger.error("Unexpected error during crash recovery: %s", e)
+            # Don't raise - let the system continue with empty state
+
+    async def restore_buy_position(self, buy_data: HPBuyData) -> None:
+        """
+        Restore a buy position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        logger.info("Restoring buy position: %s", buy_data.config.hp_id)
+
+        # Use the normal setup process but in restoration mode
+        await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
+
+        logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
+
+    async def restore_sell_position(self, sell_data: HPSellData) -> None:
+        """
+        Restore a sell position from crash recovery with its existing HP ID and state.
+        Uses the normal setup process but with restoration flag to preserve state.
+        """
+        logger.info("Restoring sell position: %s", sell_data.config.hp_id)
+
+        # Convert HPSellData to SellPosition format expected by setup method
+        sell_position = SellPosition(
+            config=sell_data.config,
+            state_info=sell_data.state_info,
+            sell_order=Order(quantity=sell_data.config.quantity),
         )
-        self.broker.subscribe(
-            system_id=hp_id,
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol=symbol,
-                target=SubscriptionTarget.BACKEND,
-                queue=worker_queue,
-            ),
+
+        # Determine sell strategy for this position
+        sell_strategy = self.determine_sell_strategy(config=sell_data.config)
+
+        # Use the normal setup process but in restoration mode
+        await self.setup_sell_position_with_new_hp(
+            strategy_data=sell_position,
+            sell_strategy=sell_strategy,
+            is_restoration=True,
         )
+
+        logger.info("Sell position %s restored successfully", sell_data.config.hp_id)
 
     async def restore_buy_orders(
         self, buy_position: HPPositionBuy, worker_queue: queue.Queue
@@ -1067,100 +1124,3 @@ class StrategyExecutor:
                 else:
                     logger.info("No changes detected for order %s.", order.order_id)
         return order_list
-
-    def extract_coin_from_symbol(self, symbol: str) -> str:
-        known_quote_currencies = ["BTC", "USDC", "PLN", "BNB", "USDT"]
-        for quote in known_quote_currencies:
-            if symbol.endswith(quote):
-                return symbol[: -len(quote)]
-        raise ValueError(f"Symbol '{symbol}' does not end with a known quote currency")
-
-    async def recover_positions_from_crash(self) -> None:
-        """
-        Recover all active trading positions from database after system crash/restart.
-
-        This is the main crash recovery method that:
-        1. Uses TradingDatabase to get active positions
-        2. Verifies them with the exchange via RecoveryService
-        3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
-        """
-        logger.info("Starting crash recovery process...")
-
-        try:
-            # Ensure client is available for recovery
-            if not self.client:
-                logger.error("No client available for crash recovery")
-                return
-
-            # Create recovery service with the same database instance
-            recovery_service = RecoveryService(
-                database=self.db,
-                client=self.client,
-                symbols_info=self.symbols_info,
-            )
-
-            # Recover all positions and convert them to trading objects
-            buy_positions, sell_positions = (
-                await recovery_service.recover_all_positions()
-            )
-
-            logger.info(
-                "Crash recovery found %d buy positions and %d sell positions",
-                len(buy_positions),
-                len(sell_positions),
-            )  # Restore buy positions using dedicated restore method (preserves HP IDs and state)
-            for buy_data in buy_positions:
-                logger.info("Restoring buy position: %s", buy_data.config.hp_id)
-                await self.restore_buy_position(buy_data=buy_data)
-
-            # Restore sell positions using dedicated restore method (preserves HP IDs and state)
-            for sell_data in sell_positions:
-                logger.info("Restoring sell position: %s", sell_data.config.hp_id)
-                await self.restore_sell_position(sell_data=sell_data)
-
-            logger.info("Crash recovery completed successfully")
-
-        except RecoveryError as e:
-            logger.error("Crash recovery failed: %s", e)
-            # Don't raise - let the system continue with empty state
-        except Exception as e:
-            logger.error("Unexpected error during crash recovery: %s", e)
-            # Don't raise - let the system continue with empty state
-
-    async def restore_buy_position(self, buy_data: HPBuyData) -> None:
-        """
-        Restore a buy position from crash recovery with its existing HP ID and state.
-        Uses the normal setup process but with restoration flag to preserve state.
-        """
-        logger.info("Restoring buy position: %s", buy_data.config.hp_id)
-
-        # Use the normal setup process but in restoration mode
-        await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
-
-        logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
-
-    async def restore_sell_position(self, sell_data: HPSellData) -> None:
-        """
-        Restore a sell position from crash recovery with its existing HP ID and state.
-        Uses the normal setup process but with restoration flag to preserve state.
-        """
-        logger.info("Restoring sell position: %s", sell_data.config.hp_id)
-
-        # Convert HPSellData to SellPosition format expected by setup method
-        sell_position = SellPosition(
-            config=sell_data.config,
-            state_info=sell_data.state_info,
-            sell_order=Order(quantity=sell_data.config.quantity),
-        )
-
-        # Determine sell strategy for this position
-        sell_strategy = self.determine_sell_strategy(config=sell_data.config)
-
-        # Use the normal setup process but in restoration mode
-        await self.setup_sell_position_with_new_hp(
-            strategy_data=sell_position,
-            sell_strategy=sell_strategy,
-            is_restoration=True,
-        )
-
-        logger.info("Sell position %s restored successfully", sell_data.config.hp_id)

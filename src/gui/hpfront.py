@@ -16,7 +16,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
-from src.database import Database
+from src.database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
@@ -106,7 +106,7 @@ class HpFront(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
-        db: Database,
+        db: TradingDatabase,
         price_resolver: UsdPriceResolver,
         test_mode=False,
         **kwargs,
