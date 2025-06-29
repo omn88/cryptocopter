@@ -225,6 +225,89 @@ async def frontend_backend_setup(
 
 
 @pytest.fixture
+async def recovery_frontend_backend_setup(test_db: TradingDatabase, mock_async_client):
+    """
+    Fixture to create a fresh frontend-backend setup for recovery testing.
+
+    This simulates what happens when the application restarts:
+    - Creates new HpFront and StrategyExecutor instances
+    - Uses the same database (simulating persistent storage)
+    - Starts with empty in-memory state
+    - Can be used to test crash recovery scenarios
+    """
+
+    # Create fresh instances (simulating application restart)
+    ui_queue: queue.Queue = queue.Queue()
+    config_queue: queue.Queue = queue.Queue()
+
+    # Mock symbol info and price resolver
+    symbols_info = {
+        "BTCUSDC": SymbolInfo(
+            symbol="BTCUSDC",
+            min_notional=10.0,
+            lot_size=0.00001,
+            min_qty=0.00001,
+            max_qty=9000.0,
+            price_filter=0.01,
+            precision=5,
+            price_precision=2,
+        )
+    }
+
+    price_resolver = UsdPriceResolver(
+        client=mock_async_client, symbols_info=symbols_info
+    )
+
+    balances = {"BTC": 1.0, "USDC": 10000.0}
+
+    # Create fresh strategy executor
+    mock_broker = MagicMock(spec=BrokerSpot)
+    fresh_back = StrategyExecutor(
+        db=test_db,  # Same database as original
+        broker=mock_broker,
+        ui_queue=ui_queue,
+        symbols_info=symbols_info,
+        balances=balances,
+        price_resolver=price_resolver,
+        test_mode=True,
+    )
+    fresh_back.client = mock_async_client
+
+    # Create fresh frontend
+    fresh_front = HpFront(
+        client=mock_async_client,
+        strategy_id="fresh_test_strategy",
+        config_queue=config_queue,
+        db=test_db,  # Same database as original
+        ui_queue=ui_queue,
+        symbols_info=symbols_info,
+        test_mode=True,
+        price_resolver=price_resolver,
+    )
+
+    fresh_front.initialize()
+
+    # Connect frontend and backend
+    fresh_front.config_queue = fresh_back.config_queue
+    fresh_back.ui_queue = fresh_front.ui_queue
+    fresh_front.db = fresh_back.db
+    fresh_front.symbols_info = fresh_back.symbols_info
+
+    # Verify fresh instances start empty
+    assert len(fresh_back.strategies) == 0
+
+    yield fresh_front, fresh_back
+
+    # Cleanup
+    for strategy in fresh_back.strategies.values():
+        strategy.stop_event.set()
+        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+
+    fresh_front.stop_event.set()
+    await wait_for_condition(condition_func=lambda: fresh_front.ui_queue_closed)
+
+
+@pytest.fixture
 def recovery_service(test_db, mock_async_client):
     """Create recovery service using the test database."""
     # Create mock symbols_info

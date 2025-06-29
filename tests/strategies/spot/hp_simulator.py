@@ -24,7 +24,7 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.database.models import TradeType
+from src.database.models import PositionStatus, PositionType, TradeType
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
@@ -1744,36 +1744,8 @@ class HPSimulator:
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
 
-    async def simulate_application_crash(self) -> None:
-        """Simulate a complete application crash by clearing all in-memory state."""
-        logger.info("=== SIMULATING APPLICATION CRASH ===")
-
-        # Clear all strategies from executor (simulates app restart)
-        self.back.strategies.clear()
-
-        # The database should remain intact (persistent storage)
-        # but all in-memory structures should be cleared
-        logger.info(
-            "✓ All in-memory state cleared - simulating fresh application start"
-        )
-
-    async def verify_crash_simulation(self) -> None:
-        """Verify that the crash simulation properly cleared in-memory state."""
-        # Verify strategies are cleared
-        assert (
-            len(self.back.strategies) == 0
-        ), "Strategies should be cleared after crash simulation"
-
-        # Database should still have positions (persistent storage survives crash)
-        positions = await self.front.db.get_active_positions()
-        assert len(positions) > 0, "Database positions should survive crash simulation"
-
-        logger.info("✓ Crash simulation verified - in-memory cleared, database intact")
-
     async def assert_application_db_state_match(self, hp_id: str = "1000") -> None:
         """Assert that the in-memory application state matches the database state for a position."""
-
-        from src.database.models import PositionType, PositionStatus
 
         logger.info(
             "=== ASSERTING APPLICATION <-> DATABASE STATE MATCH for %s ===", hp_id
