@@ -96,6 +96,9 @@ class HpStrategy:
             queued=True,
         )
         self.worker_active = False
+        self.worker_task: Optional[asyncio.Task] = (
+            None  # Track the worker task for cleanup
+        )
 
     def _get_transitions(self):
         return [

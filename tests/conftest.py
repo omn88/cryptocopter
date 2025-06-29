@@ -225,86 +225,220 @@ async def frontend_backend_setup(
 
 
 @pytest.fixture
-async def recovery_frontend_backend_setup(test_db: TradingDatabase, mock_async_client):
+async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
     """
-    Fixture to create a fresh frontend-backend setup for recovery testing.
+    Factory fixture for crash recovery testing.
 
-    This simulates what happens when the application restarts:
-    - Creates new HpFront and StrategyExecutor instances
-    - Uses the same database (simulating persistent storage)
-    - Starts with empty in-memory state
-    - Can be used to test crash recovery scenarios
+    Returns a factory function that can create frontend-backend pairs on demand.
+    This allows tests to:
+    1. Create original setup
+    2. Run operations and save state
+    3. Simulate crash
+    4. Create recovery setup with same database
+    5. Verify recovery
     """
 
-    # Create fresh instances (simulating application restart)
-    ui_queue: queue.Queue = queue.Queue()
-    config_queue: queue.Queue = queue.Queue()
+    created_instances = []  # Track all created instances for cleanup
 
-    # Mock symbol info and price resolver
-    symbols_info = {
-        "BTCUSDC": SymbolInfo(
-            symbol="BTCUSDC",
-            min_notional=10.0,
-            lot_size=0.00001,
-            min_qty=0.00001,
-            max_qty=9000.0,
-            price_filter=0.01,
-            precision=5,
-            price_precision=2,
+    def create_frontend_backend_pair(instance_name=""):
+        """Create a new frontend-backend pair"""
+        ui_queue = queue.Queue()
+        config_queue = queue.Queue()
+
+        symbols_info = {
+            "BTCUSDC": SymbolInfo(
+                symbol="BTCUSDC",
+                min_notional=10.0,
+                lot_size=0.00001,
+                min_qty=0.00001,
+                max_qty=9000.0,
+                price_filter=0.01,
+                precision=5,
+                price_precision=2,
+            )
+        }
+
+        price_resolver = UsdPriceResolver(
+            client=mock_async_client, symbols_info=symbols_info
         )
-    }
+        balances = {"BTC": 1.0, "USDC": 10000.0}
 
-    price_resolver = UsdPriceResolver(
-        client=mock_async_client, symbols_info=symbols_info
-    )
+        # Create backend
+        mock_broker = MagicMock(spec=BrokerSpot)
+        backend = StrategyExecutor(
+            db=test_db,  # Always use the same database
+            broker=mock_broker,
+            ui_queue=ui_queue,
+            symbols_info=symbols_info,
+            balances=balances,
+            price_resolver=price_resolver,
+            test_mode=True,
+        )
+        backend.client = mock_async_client
 
-    balances = {"BTC": 1.0, "USDC": 10000.0}
+        # Create frontend
+        frontend = HpFront(
+            client=mock_async_client,
+            strategy_id=f"test_strategy{instance_name}",
+            config_queue=config_queue,
+            db=test_db,  # Always use the same database
+            ui_queue=ui_queue,
+            symbols_info=symbols_info,
+            test_mode=True,
+            price_resolver=price_resolver,
+        )
+        frontend.initialize()
 
-    # Create fresh strategy executor
-    mock_broker = MagicMock(spec=BrokerSpot)
-    fresh_back = StrategyExecutor(
-        db=test_db,  # Same database as original
-        broker=mock_broker,
-        ui_queue=ui_queue,
-        symbols_info=symbols_info,
-        balances=balances,
-        price_resolver=price_resolver,
-        test_mode=True,
-    )
-    fresh_back.client = mock_async_client
+        # Connect them
+        frontend.config_queue = backend.config_queue
+        backend.ui_queue = frontend.ui_queue
+        frontend.db = backend.db
+        frontend.symbols_info = backend.symbols_info
 
-    # Create fresh frontend
-    fresh_front = HpFront(
-        client=mock_async_client,
-        strategy_id="fresh_test_strategy",
-        config_queue=config_queue,
-        db=test_db,  # Same database as original
-        ui_queue=ui_queue,
-        symbols_info=symbols_info,
-        test_mode=True,
-        price_resolver=price_resolver,
-    )
+        # Track for cleanup
+        created_instances.extend([frontend, backend])
 
-    fresh_front.initialize()
+        return frontend, backend
 
-    # Connect frontend and backend
-    fresh_front.config_queue = fresh_back.config_queue
-    fresh_back.ui_queue = fresh_front.ui_queue
-    fresh_front.db = fresh_back.db
-    fresh_front.symbols_info = fresh_back.symbols_info
+    async def simulate_crash(frontend, backend):
+        """Simulate application crash by stopping all tasks without graceful shutdown"""
+        # In a real crash, processes just terminate abruptly
+        # We cannot set stop events as that would trigger graceful cleanup
 
-    # Verify fresh instances start empty
-    assert len(fresh_back.strategies) == 0
+        # Cancel strategy worker tasks directly without graceful shutdown
+        for strategy in backend.strategies.values():
+            # Forcefully mark as inactive without graceful stop
+            if hasattr(strategy, "worker_active"):
+                strategy.worker_active = False
+            # Cancel the worker task abruptly
+            if (
+                hasattr(strategy, "worker_task")
+                and strategy.worker_task
+                and not strategy.worker_task.done()
+            ):
+                strategy.worker_task.cancel()
 
-    yield fresh_front, fresh_back
+        # Cancel frontend tasks - these belong to the current event loop
+        tasks_to_cancel = []
+        if (
+            hasattr(frontend, "queue_task")
+            and frontend.queue_task
+            and not frontend.queue_task.done()
+        ):
+            try:
+                frontend.queue_task.cancel()
+                tasks_to_cancel.append(frontend.queue_task)
+            except Exception as e:
+                logger.warning("Failed to cancel queue_task: %s", e)
 
-    # Cleanup
-    for strategy in fresh_back.strategies.values():
-        strategy.stop_event.set()
-        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+        if (
+            hasattr(frontend, "refresh_task")
+            and frontend.refresh_task
+            and not frontend.refresh_task.done()
+        ):
+            try:
+                frontend.refresh_task.cancel()
+                tasks_to_cancel.append(frontend.refresh_task)
+            except Exception as e:
+                logger.warning("Failed to cancel refresh_task: %s", e)
 
-    fresh_front.stop_event.set()
-    await wait_for_condition(condition_func=lambda: fresh_front.ui_queue_closed)
+        # Wait for cancelled tasks to finish with short timeout
+        if tasks_to_cancel:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                    timeout=1.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Some tasks didn't complete within timeout during crash simulation"
+                )
+            except Exception as e:
+                logger.warning("Error during task cancellation: %s", e)
+
+        # For the backend thread, we need a different approach
+        # In a real crash, the process would just die, but here we need to simulate that
+        # The database state should remain intact (no graceful cleanup)
+        logger.info(
+            "Simulated crash completed - tasks cancelled, database state preserved"
+        )
+
+    # Return factory functions
+    yield create_frontend_backend_pair, simulate_crash
+
+    # Cleanup all created instances
+    for i in range(0, len(created_instances), 2):
+        if i + 1 < len(created_instances):
+            frontend, backend = created_instances[i], created_instances[i + 1]
+
+            # For cleanup, we DO want to gracefully stop to ensure clean test teardown
+            frontend.stop_event.set()
+            backend.stop_event.set()
+
+            # Clean up strategies gracefully
+            for strategy in backend.strategies.values():
+                strategy.stop_event.set()
+                try:
+                    await wait_for_condition(
+                        condition_func=lambda: not strategy.worker_active, timeout=1
+                    )
+                except:
+                    # If graceful stop fails, force cancel the worker task
+                    if (
+                        hasattr(strategy, "worker_task")
+                        and strategy.worker_task
+                        and not strategy.worker_task.done()
+                    ):
+                        strategy.worker_task.cancel()
+
+            # Wait for frontend queue to close
+            try:
+                await wait_for_condition(
+                    condition_func=lambda: frontend.ui_queue_closed, timeout=1
+                )
+            except:
+                # If graceful stop fails, force cancel frontend tasks
+                if (
+                    hasattr(frontend, "queue_task")
+                    and frontend.queue_task
+                    and not frontend.queue_task.done()
+                ):
+                    frontend.queue_task.cancel()
+                if (
+                    hasattr(frontend, "refresh_task")
+                    and frontend.refresh_task
+                    and not frontend.refresh_task.done()
+                ):
+                    frontend.refresh_task.cancel()
+
+            # Force cancel any remaining tasks
+            current_task = asyncio.current_task()
+            remaining_tasks = [
+                task
+                for task in asyncio.all_tasks()
+                if task != current_task and not task.done()
+            ]
+
+            if remaining_tasks:
+                for task in remaining_tasks:
+                    if not task.cancelled():
+                        task.cancel()
+
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*remaining_tasks, return_exceptions=True),
+                        timeout=1.0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Some tasks didn't complete within timeout during cleanup"
+                    )
+
+            # Stop backend thread
+            if hasattr(backend, "thread") and backend.thread.is_alive():
+                backend.thread.join(timeout=1.0)
+
+    logger.info("Cleaned up all created frontend/backend instances.")
 
 
 @pytest.fixture

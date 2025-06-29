@@ -554,7 +554,7 @@ class StrategyExecutor:
 
         await self.db.upsert_buy_price_level(data=strategy.buy.data)
 
-        asyncio.create_task(strategy.worker())
+        strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
     def send_buy_position_to_ui(
@@ -755,7 +755,7 @@ class StrategyExecutor:
 
         await self.db.upsert_sell_price_level(data=strategy.sell.current_position)
 
-        asyncio.create_task(strategy.worker())
+        strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
 
     async def remove_record(self, hp_id: str, side: PositionSide) -> None:

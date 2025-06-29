@@ -11,10 +11,11 @@ from tests.strategies.spot.hp_simulator import HPSimulator
 logger = logging.getLogger("hp_e2e_test")
 
 
-async def test_get_default_buy_position_crash_recovery(
-    frontend_backend_setup, recovery_frontend_backend_setup
-):
-    front, back = frontend_backend_setup
+async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
+    create_pair, simulate_crash = crash_recovery_factory
+
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
 
     sim = HPSimulator(front=front, back=back)
     assert isinstance(front, HpFront)
@@ -64,13 +65,12 @@ async def test_get_default_buy_position_crash_recovery(
         "mode": strategy.buy.data.config.mode.value,
     }
 
-    # === PHASE 2: SIMULATE APPLICATION RESTART ===
-    # Get fresh frontend-backend setup (simulates app restart with same database)
-    new_front, new_back = recovery_frontend_backend_setup
+    # === SIMULATE CRASH: Forcefully terminate original instances ===
+    await simulate_crash(front, back)
 
-    # CRITICAL: Ensure new instances use the SAME database with existing data
-    new_front.db = front.db  # Share the same database instance
-    new_back.db = front.db  # Share the same database instance
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    # Create fresh frontend-backend setup (simulates app restart with same database)
+    new_front, new_back = create_pair("_recovery")
 
     # Verify database has the position data before recovery
     positions_before_recovery = await new_front.db.get_active_positions()
@@ -144,12 +144,12 @@ async def test_get_default_buy_position_crash_recovery(
     logger.info("Database consistency verified before and after crash recovery")
 
 
-async def test_default_buy_position_send_orders_recovery(
-    frontend_backend_setup, recovery_frontend_backend_setup
-):
+async def test_default_buy_position_send_orders_recovery(crash_recovery_factory):
     """Test crash recovery for a position in BUYING state with active orders."""
+    create_pair, simulate_crash = crash_recovery_factory
+
     # === PHASE 1: CREATE INITIAL STATE ===
-    front, back = frontend_backend_setup
+    front, back = create_pair("_original")
     sim = HPSimulator(front=front, back=back)
     assert isinstance(front, HpFront)
     assert isinstance(back, StrategyExecutor)
@@ -217,13 +217,12 @@ async def test_default_buy_position_send_orders_recovery(
         "mode": strategy.buy.data.config.mode,
     }
 
-    # === PHASE 2: SIMULATE APPLICATION RESTART ===
-    # Get fresh frontend-backend setup (simulates app restart with same database)
-    new_front, new_back = recovery_frontend_backend_setup
+    # === SIMULATE CRASH: Forcefully terminate original instances ===
+    await simulate_crash(front, back)
 
-    # CRITICAL: Ensure new instances use the SAME database with existing data
-    new_front.db = front.db  # Share the same database instance
-    new_back.db = front.db  # Share the same database instance
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    # Create fresh frontend-backend setup (simulates app restart with same database)
+    new_front, new_back = create_pair("_recovery")
 
     # Verify database has the position data before recovery
     positions_before_recovery = await new_front.db.get_active_positions()
