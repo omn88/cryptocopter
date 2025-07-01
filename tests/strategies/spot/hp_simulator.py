@@ -1799,20 +1799,15 @@ class HPSimulator:
             db_position.mode == strategy.buy.data.config.mode.value
         ), f"Mode mismatch: DB={db_position.mode}, Memory={strategy.buy.data.config.mode.value}"
 
-        # Map state to status (simplified mapping for now)
-        state_to_status_map = {
-            State.NEW: PositionStatus.NEW,
-            State.BUYING: PositionStatus.OPEN,
-            State.PARTIALLY_BOUGHT: PositionStatus.PARTIALLY_FILLED,
-            State.BOUGHT: PositionStatus.FILLED,
-            # Add more mappings as needed
-        }
-
-        expected_status = state_to_status_map.get(strategy.state)
-        if expected_status:
-            assert (
-                db_position.status == expected_status
-            ), f"Status mismatch: DB={db_position.status}, Memory state={strategy.state} -> expected status={expected_status}"
+        # Verify strategy execution state matches
+        expected_strategy_state = (
+            strategy.state.value
+            if hasattr(strategy.state, "value")
+            else str(strategy.state)
+        )
+        assert (
+            db_position.strategy_state == expected_strategy_state
+        ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={expected_strategy_state}"
 
         # Verify position type is BUY (for buy positions)
         assert (
@@ -1822,16 +1817,19 @@ class HPSimulator:
         logger.info("✓ Application and database state match verified successfully")
 
         # Log the matched fields for debugging
-        logger.debug("Matched fields:")
-        logger.debug("  HP ID: %s", db_position.hp_id)
-        logger.debug("  Symbol: %s", db_position.symbol)
-        logger.debug("  Coin: %s", db_position.coin)
-        logger.debug("  Budget: %s", db_position.budget)
-        logger.debug(
+        logger.info("Matched fields:")
+        logger.info("  HP ID: %s", db_position.hp_id)
+        logger.info("  Symbol: %s", db_position.symbol)
+        logger.info("  Coin: %s", db_position.coin)
+        logger.info("  Budget: %s", db_position.budget)
+        logger.info(
             "  Price range: %s - %s", db_position.price_low, db_position.price_high
         )
-        logger.debug("  Order trigger: %s", db_position.order_trigger)
-        logger.debug("  Mode: %s", db_position.mode)
-        logger.debug(
-            "  Status: %s (from state: %s)", db_position.status, strategy.state
+        logger.info("  Order trigger: %s", db_position.order_trigger)
+        logger.info("  Mode: %s", db_position.mode)
+        logger.info(
+            "  Strategy state: %s (matches: %s)",
+            db_position.strategy_state,
+            strategy.state,
         )
+        logger.info("  Position status: %s", db_position.status)

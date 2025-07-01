@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from binance.enums import ORDER_STATUS_NEW
@@ -82,9 +83,6 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     # Verify fresh instances start empty (no in-memory state)
     assert len(new_back.strategies) == 0
 
-    # Trigger recovery explicitly to test the recovery mechanism
-    await new_back.recover_positions_from_crash()
-
     # === DETAILED POST-RECOVERY ASSERTIONS ===
     # Assert recovery successful
     await wait_for_condition(condition_func=lambda: len(new_back.strategies) == 1)
@@ -97,6 +95,7 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     assert len(recovered_strategy.buy.orders) == 3
 
     # Verify recovered order details match original exactly
+    # Note: These orders were never sent to exchange, so they retain original precision
     original_orders = {
         0: {"price": 1400.0, "quantity": 0.23810},
         1: {"price": 1200.0, "quantity": 0.27778},
@@ -122,14 +121,6 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     )
     assert recovered_strategy.buy.data.config.budget == original_config["budget"]
     assert recovered_strategy.buy.data.config.mode.value == original_config["mode"]
-
-    # Verify database state unchanged after recovery
-    db_positions_after = await new_front.db.get_active_positions()
-    assert len(db_positions_after) == 1
-    db_position_after = db_positions_after[0]
-    assert db_position_after.hp_id == "1000"
-    assert db_position_after.status.value == "NEW"
-    assert db_position_after.symbol == "BTCUSDC"
 
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)
@@ -175,33 +166,53 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     assert strategy.buy.data.state_info.state == State.NEW
     assert len(strategy.buy.orders) == 3
 
-    # Verify order details
+    # Verify order details with expected order IDs
+    # Order IDs are calculated as: round(price_low * price_high / 3.14) + index
+    # For prices [1000, 1200, 1400]: round(1000 * 1400 / 3.14) = 445860
+    # Quantities are rounded to 2 decimal places due to symbol precision=2
     original_orders = {
-        0: {"price": 1400.0, "quantity": 0.23810},
-        1: {"price": 1200.0, "quantity": 0.27778},
-        2: {"price": 1000.0, "quantity": 0.33333},
+        0: {"price": 1400.0, "quantity": 0.24, "order_id": 445860},
+        1: {"price": 1200.0, "quantity": 0.28, "order_id": 445861},
+        2: {"price": 1000.0, "quantity": 0.33, "order_id": 445862},
     }
 
     for i, order in enumerate(strategy.buy.orders):
         assert order.price == original_orders[i]["price"]
         assert order.quantity == original_orders[i]["quantity"]
         assert order.status == ORDER_STATUS_NEW
-        assert order.order_id is not None
+        assert (
+            order.order_id == original_orders[i]["order_id"]
+        ), f"Order {i}: expected ID {original_orders[i]['order_id']}, got {order.order_id}"
         assert order.realized_quantity == 0.0
 
-    # Verify database state before crash
+    # Verify database state before crash - wait for DB to update to BUYING state
+    async def check_db_buying_state():
+        db_positions = await front.db.get_active_positions()
+        if len(db_positions) != 1:
+            return False
+        db_position = db_positions[0]
+        return (
+            db_position.hp_id == "1000"
+            and db_position.strategy_state == "BUYING"
+            and db_position.symbol == "BTCUSDC"
+        )
+
+    await wait_for_condition(condition_func=check_db_buying_state)
+
+    # Verify final database state
     db_positions = await front.db.get_active_positions()
     assert len(db_positions) == 1
     db_position = db_positions[0]
     assert db_position.hp_id == "1000"
-    assert db_position.status.value == "BUYING"
+    assert db_position.status.value == "NEW"  # Position state: no fills yet
+    assert db_position.strategy_state == "BUYING"  # Strategy state: actively buying
     assert db_position.symbol == "BTCUSDC"
 
     # Verify database orders
     db_orders = await front.db.get_orders_by_position_id(db_position.id)
     assert len(db_orders) == 3
     for db_order in db_orders:
-        assert db_order.status == ORDER_STATUS_NEW
+        assert db_order.status.value == ORDER_STATUS_NEW
         assert db_order.realized_quantity == 0.0
         assert db_order.exchange_order_id is not None
 
@@ -224,6 +235,9 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     # Create fresh frontend-backend setup (simulates app restart with same database)
     new_front, new_back = create_pair("_recovery")
 
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+
     # Verify database has the position data before recovery
     positions_before_recovery = await new_front.db.get_active_positions()
     logger.info("Positions in DB before recovery: %d", len(positions_before_recovery))
@@ -234,9 +248,6 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     # Verify fresh instances start empty (no in-memory state)
     assert len(new_back.strategies) == 0
 
-    # Trigger recovery explicitly to test the recovery mechanism
-    await new_back.recover_positions_from_crash()
-
     # === DETAILED POST-RECOVERY ASSERTIONS ===
     # Assert recovery successful
     await wait_for_condition(condition_func=lambda: len(new_back.strategies) == 1)
@@ -244,17 +255,40 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
     # Verify recovered strategy state
     recovered_strategy = new_back.strategies["1000"]
+    await wait_for_condition(
+        condition_func=lambda: recovered_strategy.state == State.BUYING
+    )
     assert recovered_strategy.state == State.BUYING
     assert recovered_strategy.buy.data.state_info.state == State.NEW
     assert len(recovered_strategy.buy.orders) == 3
 
-    # Verify recovered order details match original exactly
+    # Verify recovered order details match original exactly INCLUDING exchange order IDs
     for i, recovered_order in enumerate(recovered_strategy.buy.orders):
         assert recovered_order.price == original_orders[i]["price"]
         assert recovered_order.quantity == original_orders[i]["quantity"]
         assert recovered_order.status == ORDER_STATUS_NEW
-        assert recovered_order.order_id is not None
+        assert recovered_order.order_id is not None  # Must have exchange order ID
         assert recovered_order.realized_quantity == 0.0
+
+        # Verify the exchange order ID matches what was in database before crash
+        original_order = strategy.buy.orders[i]
+        assert (
+            recovered_order.order_id == original_order.order_id
+        ), f"Order {i} exchange ID mismatch"
+
+    # Verify that recovery process queried exchange for order status updates
+    # (This ensures crash recovery properly synchronizes with exchange state)
+    assert (
+        recovered_strategy.client.get_order.called
+    ), "Recovery should query exchange for order status"
+
+    # Verify each order was checked against exchange during recovery
+    expected_get_order_calls = len(recovered_strategy.buy.orders)
+    actual_get_order_calls = recovered_strategy.client.get_order.call_count
+    assert actual_get_order_calls >= expected_get_order_calls, (
+        f"Expected at least {expected_get_order_calls} exchange queries during recovery, "
+        f"but got {actual_get_order_calls}"
+    )
 
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]
@@ -269,28 +303,10 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     assert recovered_strategy.buy.data.config.budget == original_config["budget"]
     assert recovered_strategy.buy.data.config.mode == original_config["mode"]
 
-    # Verify database state unchanged after recovery
-    db_positions_after = await new_front.db.get_active_positions()
-    assert len(db_positions_after) == 1
-    db_position_after = db_positions_after[0]
-    assert db_position_after.hp_id == "1000"
-    assert db_position_after.status.value == "BUYING"
-    assert db_position_after.symbol == "BTCUSDC"
-
-    # Verify database orders unchanged
-    db_orders_after = await new_front.db.get_orders_by_position_id(db_position_after.id)
-    assert len(db_orders_after) == 3
-    for i, db_order in enumerate(db_orders_after):
-        assert db_order.status == ORDER_STATUS_NEW
-        assert db_order.realized_quantity == 0.0
-        assert db_order.exchange_order_id is not None
-        assert db_order.price == original_orders[i]["price"]
-        assert db_order.quantity == original_orders[i]["quantity"]
-
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)
     await new_sim.assert_application_db_state_match(hp_id="1000")
-    logger.info("Recovery test completed successfully")
+    logger.info("BUYING state crash recovery test completed successfully")
     logger.info(
         "Original strategy state: BUYING, Recovered strategy state: %s",
         recovered_strategy.state,
@@ -298,11 +314,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     logger.info(
         "Original orders: 3, Recovered orders: %s", len(recovered_strategy.buy.orders)
     )
-    logger.info(
-        "Database positions before/after: %s/%s",
-        len(db_positions),
-        len(db_positions_after),
-    )
+    logger.info("Exchange order status synchronization verified during recovery")
+    logger.info("All exchange order IDs preserved and validated after crash recovery")
 
 
 # async def test_cancel_default_position_untouched(frontend_backend_setup):

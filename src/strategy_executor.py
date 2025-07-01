@@ -990,9 +990,12 @@ class StrategyExecutor:
     ) -> List[Order]:
         assert self.client
         buy_config = buy_position.data.config  # Restore orders for buy position
-        orders = await self.db._fetch_orders_for_price_level(
+
+        # Use the dedicated method to fetch orders for this HP and side
+        orders = await self.db.fetch_orders_for_price_level(
             hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
+
         logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
             buy_position.prepare_orders()
@@ -1002,20 +1005,21 @@ class StrategyExecutor:
             )
             return buy_position.orders
 
+        # Convert order dictionaries to trading Order objects
         order_list: List[Order] = []
-        order_list = [
-            Order(
-                order_id=order["order_id"],
-                quantity=order["quantity"],
+        for order_dict in orders:
+            trading_order = Order(
+                order_id=order_dict["order_id"],
+                quantity=order_dict["quantity"],
                 precision=buy_config.symbol_info.precision,
                 price_precision=buy_config.symbol_info.price_precision,
-                price=order["price"],
-                quantity_stable=order["quantity_stable"],
-                realized_quantity=order["realized_quantity"],
-                status=order["status"],
+                price=order_dict["price"],
+                quantity_stable=order_dict["quantity_stable"],
+                realized_quantity=order_dict["realized_quantity"],
+                status=order_dict["status"],
             )
-            for order in orders
-        ]
+            order_list.append(trading_order)
+
         logger.info("Buy orders restored from DB: %s.", order_list)
 
         # Confirm buy position state with the exchange
@@ -1062,27 +1066,32 @@ class StrategyExecutor:
         self, sell_config: HPSellConfig, worker_queue: queue.Queue
     ) -> List[Order]:
         assert self.client  # Restore orders for sell position
-        orders = await self.db._fetch_orders_for_price_level(
+
+        # Use the dedicated method to fetch orders for this HP and side
+        orders = await self.db.fetch_orders_for_price_level(
             hp_id=sell_config.hp_id,
             side=PositionSide.SHORT.value,
         )
+
         if not orders:
             logger.info("No sell orders found in DB")
             return []
 
-        order_list = [
-            Order(
-                order_id=order["order_id"],
-                quantity=order["quantity"],
+        # Convert order dictionaries to trading Order objects
+        order_list = []
+        for order_dict in orders:
+            trading_order = Order(
+                order_id=order_dict["order_id"],
+                quantity=order_dict["quantity"],
                 precision=sell_config.symbol_info.precision,
                 price_precision=sell_config.symbol_info.price_precision,
-                price=order["price"],
-                quantity_stable=order["quantity_stable"],
-                realized_quantity=order["realized_quantity"],
-                status=order["status"],
+                price=order_dict["price"],
+                quantity_stable=order_dict["quantity_stable"],
+                realized_quantity=order_dict["realized_quantity"],
+                status=order_dict["status"],
             )
-            for order in orders
-        ]
+            order_list.append(trading_order)
+
         logger.info("Sell orders restored from DB: %s.", order_list)
 
         for order in order_list:
