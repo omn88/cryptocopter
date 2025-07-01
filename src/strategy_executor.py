@@ -470,10 +470,10 @@ class StrategyExecutor:
         new_hp: HPBuyData,
         is_restoration: bool = False,
     ) -> None:
-        logger.info("Setting up new position with config: %s", new_hp.config)
-
         # For restoration, preserve existing HP ID; for new positions, generate new one
         if not is_restoration:
+            logger.info("Setting up new position with config: %s", new_hp.config)
+
             new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
             new_hp.state_info.generate_open_time()
 
@@ -519,6 +519,15 @@ class StrategyExecutor:
             strategy.buy.orders = await self.restore_buy_orders(
                 buy_position=strategy.buy, worker_queue=worker_queue
             )
+            # Restore strategy execution state from database
+            strategy_state_str = await self._get_strategy_state_from_db(new_hp.config.hp_id)
+            try:
+                strategy.state = State(strategy_state_str) if strategy_state_str else State.NEW
+                logger.info("Restored strategy state %s for HP %s", strategy.state, new_hp.config.hp_id)
+            except ValueError:
+                logger.warning("Invalid strategy state '%s' for HP %s, defaulting to NEW",
+                              strategy_state_str, new_hp.config.hp_id)
+                strategy.state = State.NEW
         else:
             # Create new orders for normal setup
             strategy.buy.prepare_orders()
@@ -930,7 +939,6 @@ class StrategyExecutor:
                 len(sell_positions),
             )  # Restore buy positions using dedicated restore method (preserves HP IDs and state)
             for buy_data in buy_positions:
-                logger.info("Restoring buy position: %s", buy_data.config.hp_id)
                 await self.restore_buy_position(buy_data=buy_data)
 
             # Restore sell positions using dedicated restore method (preserves HP IDs and state)
@@ -1133,3 +1141,29 @@ class StrategyExecutor:
                 else:
                     logger.info("No changes detected for order %s.", order.order_id)
         return order_list
+
+    async def _get_strategy_state_from_db(self, hp_id: str) -> Optional[str]:
+        """
+        Get the strategy execution state for a given HP ID from the database.
+
+        Args:
+            hp_id: The HP ID to query for
+
+        Returns:
+            The strategy_state string from the database, or None if not found
+        """
+        try:
+            async with self.db.get_connection() as conn:
+                cursor = await conn.execute(
+                    "SELECT strategy_state FROM positions WHERE hp_id = ? LIMIT 1",
+                    (hp_id,),
+                )
+                row = await cursor.fetchone()
+                if row:
+                    return row["strategy_state"]
+                else:
+                    logger.warning("No strategy state found for HP ID: %s", hp_id)
+                    return None
+        except Exception as e:
+            logger.error("Failed to get strategy state for HP %s: %s", hp_id, e)
+            return None
