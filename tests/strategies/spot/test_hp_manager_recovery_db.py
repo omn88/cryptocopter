@@ -130,13 +130,6 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     await new_sim.assert_default_buy_position()
     await new_sim.assert_application_db_state_match(hp_id="1000")
 
-    logger.info("Basic NEW position crash recovery test completed successfully")
-    logger.info("Original state: NEW, Recovered state: %s", recovered_strategy.state)
-    logger.info(
-        "Original orders: 3, Recovered orders: %s", len(recovered_strategy.buy.orders)
-    )
-    logger.info("Database consistency verified before and after crash recovery")
-
 
 async def test_default_buy_position_send_orders_recovery(crash_recovery_factory):
     """Test crash recovery for a position in BUYING state with active orders."""
@@ -336,10 +329,10 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     assert "1000" in new_back.strategies
 
     # Verify recovered strategy state
-    recovered_strategy = new_back.strategies["1000"]
     await wait_for_condition(
-        condition_func=lambda: recovered_strategy.state == State.BUYING
+        condition_func=lambda: new_back.strategies["1000"].state == State.BUYING
     )
+    recovered_strategy = new_back.strategies["1000"]
     assert recovered_strategy.state == State.BUYING
     assert recovered_strategy.buy.data.state_info.state == State.BUYING
     assert len(recovered_strategy.buy.orders) == 3
@@ -435,17 +428,6 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)
     await new_sim.assert_application_db_state_match(hp_id="1000")
-    logger.info("BUYING state crash recovery test completed successfully")
-    logger.info(
-        "Original strategy state: BUYING, Recovered strategy state: %s",
-        recovered_strategy.state,
-    )
-    logger.info(
-        "Original orders: 3, Recovered orders: %s", len(recovered_strategy.buy.orders)
-    )
-    logger.info("Exchange order status synchronization verified during recovery")
-    logger.info("All exchange order IDs preserved and validated after crash recovery")
-    logger.info("Recovery process correctly detected no changes in order status")
 
 
 # async def test_cancel_default_position_untouched(frontend_backend_setup):
