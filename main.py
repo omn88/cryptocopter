@@ -14,6 +14,7 @@ Functions:
 import os
 import asyncio
 import warnings
+import kivy_config  # noinspection PyUnresolvedReferences
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
