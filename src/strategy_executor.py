@@ -118,7 +118,7 @@ class StrategyExecutor:
         )
 
         if not self.test_mode:
-            self._client = BinanceClient(
+            self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
             logger.info("Production client initialized")
