@@ -265,6 +265,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
 
         # Create backend
         mock_broker = MagicMock(spec=BrokerSpot)
+        logger.info("Creating StrategyExecutor in test mode")
         backend = StrategyExecutor(
             db=test_db,  # Always use the same database
             broker=mock_broker,
@@ -274,7 +275,14 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
             price_resolver=price_resolver,
             test_mode=True,
         )
+        logger.info("StrategyExecutor created, assigning mock client")
         backend.client = mock_async_client
+        logger.info("Mock client assigned to backend")
+
+        # Give a small delay to ensure the client assignment happens before crash recovery
+        import time
+
+        time.sleep(0.1)
 
         # Create frontend
         frontend = HpFront(

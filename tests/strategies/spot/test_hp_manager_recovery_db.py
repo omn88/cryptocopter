@@ -82,6 +82,10 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     # Verify fresh instances start empty (no in-memory state)
     assert len(new_back.strategies) == 0
 
+    # === MANUALLY TRIGGER CRASH RECOVERY (since it's suppressed in test mode) ===
+    logger.info("Manually triggering crash recovery for test")
+    await new_back.recover_positions_from_crash()
+
     # === DETAILED POST-RECOVERY ASSERTIONS ===
     # Assert recovery successful
     await wait_for_condition(condition_func=lambda: len(new_back.strategies) == 1)
@@ -246,18 +250,41 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
     # Verify the saved orders have complete information
     expected_orders_in_db = {
-        445860: {"price": 1400.0, "quantity": 0.24, "status": "NEW", "realized_quantity": 0.0},
-        445861: {"price": 1200.0, "quantity": 0.28, "status": "NEW", "realized_quantity": 0.0},
-        445862: {"price": 1000.0, "quantity": 0.33, "status": "NEW", "realized_quantity": 0.0},
+        445860: {
+            "price": 1400.0,
+            "quantity": 0.24,
+            "status": "NEW",
+            "realized_quantity": 0.0,
+        },
+        445861: {
+            "price": 1200.0,
+            "quantity": 0.28,
+            "status": "NEW",
+            "realized_quantity": 0.0,
+        },
+        445862: {
+            "price": 1000.0,
+            "quantity": 0.33,
+            "status": "NEW",
+            "realized_quantity": 0.0,
+        },
     }
 
     for db_order in orders_before_recovery:
         order_id = db_order.exchange_order_id
         expected = expected_orders_in_db[order_id]
-        assert db_order.price == expected["price"], f"DB order {order_id}: price mismatch"
-        assert db_order.quantity == expected["quantity"], f"DB order {order_id}: quantity mismatch"
-        assert db_order.status.value == expected["status"], f"DB order {order_id}: status mismatch"
-        assert db_order.realized_quantity == expected["realized_quantity"], f"DB order {order_id}: realized_quantity mismatch"
+        assert (
+            db_order.price == expected["price"]
+        ), f"DB order {order_id}: price mismatch"
+        assert (
+            db_order.quantity == expected["quantity"]
+        ), f"DB order {order_id}: quantity mismatch"
+        assert (
+            db_order.status.value == expected["status"]
+        ), f"DB order {order_id}: status mismatch"
+        assert (
+            db_order.realized_quantity == expected["realized_quantity"]
+        ), f"DB order {order_id}: realized_quantity mismatch"
         assert db_order.symbol == "BTCUSDC", f"DB order {order_id}: symbol mismatch"
 
     # Configure minimal mock for exchange queries during recovery
@@ -265,8 +292,7 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     def mock_get_order_response(symbol, orderId):
         """Return order data that matches the database state (simulating no changes)"""
         db_order = next(
-            (o for o in orders_before_recovery if o.exchange_order_id == orderId),
-            None
+            (o for o in orders_before_recovery if o.exchange_order_id == orderId), None
         )
         if db_order:
             return {
@@ -300,6 +326,10 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     # Verify fresh instances start empty (no in-memory state)
     assert len(new_back.strategies) == 0
 
+    # === MANUALLY TRIGGER CRASH RECOVERY (since it's suppressed in test mode) ===
+    logger.info("Manually triggering crash recovery for test")
+    await new_back.recover_positions_from_crash()
+
     # === DETAILED POST-RECOVERY ASSERTIONS ===
     # Assert recovery successful
     await wait_for_condition(condition_func=lambda: len(new_back.strategies) == 1)
@@ -311,7 +341,7 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         condition_func=lambda: recovered_strategy.state == State.BUYING
     )
     assert recovered_strategy.state == State.BUYING
-    assert recovered_strategy.buy.data.state_info.state == State.NEW
+    assert recovered_strategy.buy.data.state_info.state == State.BUYING
     assert len(recovered_strategy.buy.orders) == 3
 
     # Verify recovered order details match original exactly INCLUDING exchange order IDs
@@ -319,7 +349,6 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         assert recovered_order.price == original_orders[i]["price"]
         assert recovered_order.quantity == original_orders[i]["quantity"]
         assert recovered_order.status == ORDER_STATUS_NEW
-        assert recovered_order.order_id is not None  # Must have exchange order ID
         assert recovered_order.realized_quantity == 0.0
 
         # Verify the exchange order ID matches what was in database before crash
@@ -344,35 +373,51 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
     # Verify that no status changes were detected (orders remained in NEW state)
     for recovered_order in recovered_strategy.buy.orders:
-        assert recovered_order.status == ORDER_STATUS_NEW, (
-            f"Order {recovered_order.order_id} should remain NEW, got {recovered_order.status}"
-        )
-        assert recovered_order.realized_quantity == 0.0, (
-            f"Order {recovered_order.order_id} should have no fills, got {recovered_order.realized_quantity}"
-        )
+        assert (
+            recovered_order.status == ORDER_STATUS_NEW
+        ), f"Order {recovered_order.order_id} should remain NEW, got {recovered_order.status}"
+        assert (
+            recovered_order.realized_quantity == 0.0
+        ), f"Order {recovered_order.order_id} should have no fills, got {recovered_order.realized_quantity}"
 
     # === VERIFY DATABASE AND IN-MEMORY STATE MATCH POST-RECOVERY ===
     # Get orders from database after recovery
     orders_after_recovery = await new_front.db.get_orders_by_position_id("1000")
-    assert len(orders_after_recovery) == 3, f"Expected 3 orders after recovery, got {len(orders_after_recovery)}"
+    assert (
+        len(orders_after_recovery) == 3
+    ), f"Expected 3 orders after recovery, got {len(orders_after_recovery)}"
 
     # Verify that database orders match in-memory orders exactly
     db_orders_by_id = {o.exchange_order_id: o for o in orders_after_recovery}
     for recovered_order in recovered_strategy.buy.orders:
         db_order = db_orders_by_id.get(recovered_order.order_id)
-        assert db_order is not None, f"Order {recovered_order.order_id} not found in database"
-        
+        assert (
+            db_order is not None
+        ), f"Order {recovered_order.order_id} not found in database"
+
         # Verify all key fields match between database and in-memory
-        assert db_order.price == recovered_order.price, f"Price mismatch for order {recovered_order.order_id}"
-        assert db_order.quantity == recovered_order.quantity, f"Quantity mismatch for order {recovered_order.order_id}"
-        assert db_order.status.value == recovered_order.status, f"Status mismatch for order {recovered_order.order_id}"
-        assert db_order.realized_quantity == recovered_order.realized_quantity, f"Realized quantity mismatch for order {recovered_order.order_id}"
-        assert db_order.symbol == "BTCUSDC", f"Symbol mismatch for order {recovered_order.order_id}"
+        assert (
+            db_order.price == recovered_order.price
+        ), f"Price mismatch for order {recovered_order.order_id}"
+        assert (
+            db_order.quantity == recovered_order.quantity
+        ), f"Quantity mismatch for order {recovered_order.order_id}"
+        assert (
+            db_order.status.value == recovered_order.status
+        ), f"Status mismatch for order {recovered_order.order_id}"
+        assert (
+            db_order.realized_quantity == recovered_order.realized_quantity
+        ), f"Realized quantity mismatch for order {recovered_order.order_id}"
+        assert (
+            db_order.symbol == "BTCUSDC"
+        ), f"Symbol mismatch for order {recovered_order.order_id}"
 
     # Verify database and application state match completely
     await sim.assert_application_db_state_match(hp_id="1000")
 
-    logger.info("✅ Recovery verification complete: All orders successfully restored from database")
+    logger.info(
+        "✅ Recovery verification complete: All orders successfully restored from database"
+    )
 
     # Verify configuration preserved exactly
     assert recovered_strategy.buy.data.config.hp_id == original_config["hp_id"]

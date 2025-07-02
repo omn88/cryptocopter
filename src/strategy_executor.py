@@ -75,6 +75,7 @@ class StrategyExecutor:
         price_resolver: UsdPriceResolver,
         test_mode: bool = False,
     ):
+        logger.info("StrategyExecutor.__init__ called with test_mode=%s", test_mode)
         self.client: Optional[BinanceClient] = None
         self.db = db
         self.broker = broker
@@ -94,26 +95,47 @@ class StrategyExecutor:
         self._websocket_error_suppression_time = 600  # 10 minutes
         self.loop = None
         self.stop_event = threading.Event()
+        logger.info("Starting StrategyExecutor thread")
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
+        logger.info("StrategyExecutor thread started")
 
     def start_loop(self):
         """Starts the asyncio loop in a new thread."""
+        logger.info("start_loop called - creating new event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        logger.info("About to call run() method")
         self.loop.run_until_complete(self.run())
+        logger.info("run() method completed")
 
     async def run(self) -> None:
         logger.info("Strategy executor ready to retrieve the first config")
+        logger.info(
+            "Test mode: %s, Client available: %s",
+            self.test_mode,
+            self.client is not None,
+        )
+
         if not self.test_mode:
-            self.client = BinanceClient(
+            self._client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-            )  # Set up WebSocket error handling (for both test and real mode)
+            )
+            logger.info("Production client initialized")
+            # Always run crash recovery after client is available (will be no-op if database is empty)
+            logger.info(
+                "About to start crash recovery, client available: %s",
+                self.client is not None,
+            )
+            await self.recover_positions_from_crash()
+        else:
+            logger.info(
+                "Test mode - crash recovery will be triggered manually when client is assigned"
+            )
+
+        # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
-
-        # Always run crash recovery (will be no-op if database is empty)
-        await self.recover_positions_from_crash()
 
         while not self.stop_event.is_set():
             try:
@@ -470,16 +492,26 @@ class StrategyExecutor:
         new_hp: HPBuyData,
         is_restoration: bool = False,
     ) -> None:
+        logger.info(
+            "setup_buy_position called: hp_id=%s, is_restoration=%s",
+            new_hp.config.hp_id,
+            is_restoration,
+        )
+
         # For restoration, preserve existing HP ID; for new positions, generate new one
         if not is_restoration:
             logger.info("Setting up new position with config: %s", new_hp.config)
 
             new_hp.config.hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
             new_hp.state_info.generate_open_time()
+        else:
+            logger.info("Restoration mode: preserving HP ID %s", new_hp.config.hp_id)
 
+        logger.info("Client check: %s", self.client is not None)
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
 
+        logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
@@ -512,6 +544,7 @@ class StrategyExecutor:
         )
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
+        logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
 
         # Handle order preparation: restore from DB for restoration mode, create new for normal mode
         if is_restoration:
@@ -520,13 +553,24 @@ class StrategyExecutor:
                 buy_position=strategy.buy, worker_queue=worker_queue
             )
             # Restore strategy execution state from database
-            strategy_state_str = await self._get_strategy_state_from_db(new_hp.config.hp_id)
+            strategy_state_str = await self._get_strategy_state_from_db(
+                new_hp.config.hp_id
+            )
             try:
-                strategy.state = State(strategy_state_str) if strategy_state_str else State.NEW
-                logger.info("Restored strategy state %s for HP %s", strategy.state, new_hp.config.hp_id)
+                strategy.state = (
+                    State(strategy_state_str) if strategy_state_str else State.NEW
+                )
+                logger.info(
+                    "Restored strategy state %s for HP %s",
+                    strategy.state,
+                    new_hp.config.hp_id,
+                )
             except ValueError:
-                logger.warning("Invalid strategy state '%s' for HP %s, defaulting to NEW",
-                              strategy_state_str, new_hp.config.hp_id)
+                logger.warning(
+                    "Invalid strategy state '%s' for HP %s, defaulting to NEW",
+                    strategy_state_str,
+                    new_hp.config.hp_id,
+                )
                 strategy.state = State.NEW
         else:
             # Create new orders for normal setup
@@ -916,19 +960,35 @@ class StrategyExecutor:
         3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
         """
         logger.info("Starting crash recovery process...")
+        logger.info(
+            "Recovery debug: test_mode=%s, client=%s",
+            self.test_mode,
+            type(self.client).__name__ if self.client else None,
+        )
 
         try:
             # Ensure client is available for recovery
             if not self.client:
-                logger.error("No client available for crash recovery")
+                logger.error(
+                    "No client available for crash recovery (test_mode=%s)",
+                    self.test_mode,
+                )
+                if self.test_mode:
+                    logger.error(
+                        "In test mode but client was not assigned before recovery started"
+                    )
                 return
+
+            logger.info("Client is available, proceeding with crash recovery")
 
             # Create recovery service with the same database instance
             self.recovery_service = RecoveryService(
                 symbols_info=self.symbols_info, client=self.client, database=self.db
             )
+            logger.info("Recovery service created successfully")
 
             # Recover all positions and convert them to trading objects
+            logger.info("Calling recovery_service.recover_all_positions()")
             buy_positions, sell_positions = (
                 await self.recovery_service.recover_all_positions()
             )
@@ -937,22 +997,44 @@ class StrategyExecutor:
                 "Crash recovery found %d buy positions and %d sell positions",
                 len(buy_positions),
                 len(sell_positions),
-            )  # Restore buy positions using dedicated restore method (preserves HP IDs and state)
-            for buy_data in buy_positions:
+            )
+
+            # Restore buy positions using dedicated restore method (preserves HP IDs and state)
+            for i, buy_data in enumerate(buy_positions):
+                logger.info(
+                    "Restoring buy position %d/%d: %s",
+                    i + 1,
+                    len(buy_positions),
+                    buy_data.config.hp_id,
+                )
                 await self.restore_buy_position(buy_data=buy_data)
+                logger.info(
+                    "Successfully restored buy position %s", buy_data.config.hp_id
+                )
 
             # Restore sell positions using dedicated restore method (preserves HP IDs and state)
-            for sell_data in sell_positions:
-                logger.info("Restoring sell position: %s", sell_data.config.hp_id)
+            for i, sell_data in enumerate(sell_positions):
+                logger.info(
+                    "Restoring sell position %d/%d: %s",
+                    i + 1,
+                    len(sell_positions),
+                    sell_data.config.hp_id,
+                )
                 await self.restore_sell_position(sell_data=sell_data)
+                logger.info(
+                    "Successfully restored sell position %s", sell_data.config.hp_id
+                )
 
-            logger.info("Crash recovery completed successfully")
+            logger.info(
+                "Crash recovery completed successfully. Total strategies now: %d",
+                len(self.strategies),
+            )
 
         except RecoveryError as e:
             logger.error("Crash recovery failed: %s", e)
             # Don't raise - let the system continue with empty state
         except Exception as e:
-            logger.error("Unexpected error during crash recovery: %s", e)
+            logger.error("Unexpected error during crash recovery: %s", e, exc_info=True)
             # Don't raise - let the system continue with empty state
 
     async def restore_buy_position(self, buy_data: HPBuyData) -> None:
@@ -961,11 +1043,25 @@ class StrategyExecutor:
         Uses the normal setup process but with restoration flag to preserve state.
         """
         logger.info("Restoring buy position: %s", buy_data.config.hp_id)
+        logger.info(
+            "Buy position details: symbol=%s, coin=%s, budget=%s",
+            buy_data.config.symbol_info.symbol,
+            buy_data.config.coin,
+            buy_data.config.budget,
+        )
 
-        # Use the normal setup process but in restoration mode
-        await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
-
-        logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
+        try:
+            # Use the normal setup process but in restoration mode
+            await self.setup_buy_position(new_hp=buy_data, is_restoration=True)
+            logger.info("Buy position %s restored successfully", buy_data.config.hp_id)
+        except Exception as e:
+            logger.error(
+                "Failed to restore buy position %s: %s",
+                buy_data.config.hp_id,
+                e,
+                exc_info=True,
+            )
+            raise
 
     async def restore_sell_position(self, sell_data: HPSellData) -> None:
         """
@@ -1007,10 +1103,6 @@ class StrategyExecutor:
         logger.info("Orders for HP: %s, %s", buy_config.hp_id, orders)
         if not orders:
             buy_position.prepare_orders()
-            logger.info(
-                "No orders found in DB, prepared new: %s",
-                buy_position.orders,
-            )
             return buy_position.orders
 
         # Convert order dictionaries to trading Order objects
