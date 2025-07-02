@@ -102,12 +102,9 @@ class StrategyExecutor:
 
     def start_loop(self):
         """Starts the asyncio loop in a new thread."""
-        logger.info("start_loop called - creating new event loop")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        logger.info("About to call run() method")
         self.loop.run_until_complete(self.run())
-        logger.info("run() method completed")
 
     async def run(self) -> None:
         logger.info("Strategy executor ready to retrieve the first config")
