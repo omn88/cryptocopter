@@ -279,11 +279,6 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
         backend.client = mock_async_client
         logger.info("Mock client assigned to backend")
 
-        # Give a small delay to ensure the client assignment happens before crash recovery
-        import time
-
-        time.sleep(0.1)
-
         # Create frontend
         frontend = HpFront(
             client=mock_async_client,
