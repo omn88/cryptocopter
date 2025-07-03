@@ -448,6 +448,137 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
     logger.info("Recovery process correctly detected no changes in order status")
 
 
+async def test_cancel_default_position_untouched_recovery(crash_recovery_factory):
+    create_pair, simulate_crash = crash_recovery_factory
+
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
+    sim = HPSimulator(front=front, back=back)
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    assert len(back.strategies) == 0
+
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
+
+    # Move to active buy and then cancel (all orders become CANCELED, state returns to NEW)
+    await sim.move_to_position_active_buy()
+    strategy = back.strategies["1000"]
+    assert strategy.buy.orders_cancel_price == 1428.0
+    sim.new_price(price=1428)
+
+    await wait_for_condition(
+        condition_func=lambda: all(
+            order.status == "CANCELED" for order in strategy.buy.orders
+        )
+    )
+
+    assert len(strategy.buy.orders) == 3
+    assert strategy.buy.data.state_info.state == State.NEW
+    assert strategy.state == State.NEW
+
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == State.NEW.value
+    )
+
+    item = front.hp_list_data[0]
+    assert item["hp_id"] == "1000"
+    assert item["coin"] == "BTCUSD"
+    assert item["buy_price"] == "1400.0"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["sell_price"] == "0.0"
+    assert item["expected_return"] == "0.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "NEW"
+
+    # === SIMULATE CRASH ===
+    await simulate_crash(front, back)
+
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+
+    # Verify DB state before recovery
+    positions_before_recovery = await new_front.db.get_active_positions()
+    assert len(positions_before_recovery) == 1
+    db_position = positions_before_recovery[0]
+    assert db_position.hp_id == "1000"
+    assert db_position.status.value == "NEW"
+    assert db_position.symbol == "BTCUSDC"
+    assert db_position.price_low == 1000.0
+    assert db_position.price_high == 1400.0
+    assert db_position.budget == 1000.0
+    assert db_position.strategy_state == "NEW"
+
+    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
+    assert len(db_orders) == 3
+    for db_order in db_orders:
+        assert db_order.status.value == "CANCELED"
+        assert db_order.realized_quantity == 0.0
+        assert db_order.symbol == "BTCUSDC"
+
+    # Verify fresh instances start empty
+    assert len(new_back.strategies) == 0
+
+    # === MOCK EXCHANGE CLIENT FOR RECOVERY ===
+    # Ensure get_order returns CANCELED for all orders
+    def mock_get_order_response(symbol, orderId):
+        db_order = next((o for o in db_orders if o.exchange_order_id == orderId), None)
+        if db_order:
+            return {
+                "symbol": symbol,
+                "orderId": orderId,
+                "status": db_order.status.value,
+                "executedQty": str(db_order.realized_quantity),
+                "origQty": str(db_order.quantity),
+                "price": str(db_order.price),
+            }
+        return {
+            "symbol": symbol,
+            "orderId": orderId,
+            "status": "CANCELED",
+            "executedQty": "0.00000000",
+            "origQty": "0.00000000",
+            "price": "0.00",
+        }
+
+    new_back.client.get_order.side_effect = mock_get_order_response
+
+    # === MANUALLY TRIGGER CRASH RECOVERY ===
+    await new_back.recover_positions_from_crash()
+
+    # === POST-RECOVERY ASSERTIONS ===
+    await wait_for_condition(lambda: len(new_back.strategies) == 1)
+    assert "1000" in new_back.strategies
+    recovered_strategy = new_back.strategies["1000"]
+    assert recovered_strategy.state == State.NEW
+    assert recovered_strategy.buy.data.state_info.state == State.NEW
+    assert len(recovered_strategy.buy.orders) == 3
+    for order in recovered_strategy.buy.orders:
+        assert order.status == "CANCELED"
+        assert order.realized_quantity == 0.0
+
+    # DB and in-memory state match
+    orders_after_recovery = await new_front.db.get_orders_by_position_id(db_position.id)
+    assert len(orders_after_recovery) == 3
+    db_orders_by_id = {o.exchange_order_id: o for o in orders_after_recovery}
+    for order in recovered_strategy.buy.orders:
+        db_order = db_orders_by_id.get(order.order_id)
+        assert db_order is not None
+        assert db_order.status.value == order.status
+        assert db_order.realized_quantity == order.realized_quantity
+        assert db_order.symbol == "BTCUSDC"
+
+    await sim.assert_application_db_state_match(hp_id="1000")
+
+    logger.info("CANCELED orders crash recovery test completed successfully")
+
+
 # async def test_cancel_default_position_untouched(frontend_backend_setup):
 #     front, back = frontend_backend_setup
 #     assert isinstance(front, HpFront)
@@ -469,7 +600,7 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
 #     await wait_for_condition(
 #         condition_func=lambda: all(
-#             order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
+#             order.status == "CANCELED" for order in strategy.buy.orders
 #         )
 #     )
 
@@ -1174,8 +1305,6 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 #     sim.simulate_buy_position(symbol="BTCUSDC")
 #     await sim.assert_default_buy_position()
 
-#     await sim.move_to_position_active_buy()
-
 #     # Simulate first buy order fill
 #     strategy = await sim.simulate_first_buy_order_fill()
 
@@ -1777,6 +1906,302 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 #     assert item["expected_return"] == "0.0"
 #     assert item["current_price"] == "0.0"
 #     assert item["net"] == "0.0"
+#         assert item["net_percent"] == "0.0"
+#     assert item["state"] == "NEW"
+
+#     await wait_for_condition(
+#         condition_func=lambda: back.strategies["1000"].sell.current_position.sell_order
+#     )
+
+#     await sim.move_to_position_active_buy()  # Simulate partial fill
+#     strategy = await sim.simulate_partial_fill_with_sell_price()
+
+#     # Cancel position
+#     assert strategy.buy.orders_cancel_price == 1428.0
+#     sim.new_price(price=1428.0)
+
+#     assert len(strategy.buy.orders) == 3
+
+#     await wait_for_condition(
+#         lambda: strategy.buy.orders[0].status == ORDER_STATUS_CANCELED
+#     )
+#     await wait_for_condition(
+#         lambda: strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
+#     )
+#     await wait_for_condition(
+#         lambda: strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+#     )
+
+#     assert strategy.buy.orders[0].realized_quantity == 0.12
+#     assert strategy.buy.orders[1].realized_quantity == 0.0
+#     assert strategy.buy.orders[2].realized_quantity == 0.0
+
+#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+#     assert strategy.state == State.PARTIALLY_BOUGHT
+
+#     await wait_for_condition(
+#         condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+#     )
+
+#     item = front.hp_list_data[0]
+#     assert item["hp_id"] == "1000"
+#     assert item["coin"] == "BTCUSD"
+#     assert item["buy_price"] == "1400.0"
+#     assert item["quantity"] == "0.12"
+#     assert item["quantity_usd"] == "168.0"
+#     assert item["sell_price"] == "0.0"
+#     assert item["expected_return"] == "0.0"
+#     assert item["current_price"] == "0.0"
+#     assert item["net"] == "0.0"
+#     assert item["net_percent"] == "0.0"
+#     assert item["state"] == "PARTIALLY_BOUGHT"
+
+#     logger.info("HP List after the update: %s", front.hp_list_data)
+
+#     # Reopen position
+#     strategy.client.create_order.side_effect = get_new_orders(
+#         orders=strategy.buy.orders
+#     )
+
+#     # Price trigger is now related to the middle order as the top order is already filled.
+#     sim.new_price(price=1212)
+
+#     assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+#     await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
+#     assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+#     assert strategy.buy.orders[0].realized_quantity == 0.24
+#     assert strategy.buy.orders[1].realized_quantity == 0.0
+#     assert strategy.buy.orders[2].realized_quantity == 0.0
+
+#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+#     assert strategy.state == State.BUYING
+
+#     await wait_for_condition(
+#         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+#     )
+
+
+# async def test_start_new_sell_position_for_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+
+# async def test_send_order_for_first_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+
+# async def test_fill_partially_first_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_partial_fill_in_first_hop()
+
+
+# async def test_fill_first_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_fill_in_first_hop()
+
+
+# async def test_start_second_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_fill_in_first_hop()
+
+#     await sim.open_second_sell_position_from_two_hop_trade()
+
+
+# async def test_partial_fill_second_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_fill_in_first_hop()
+
+#     await sim.open_second_sell_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_partial_fill_in_second_hop()
+
+
+# async def test_fill_second_sell_position_in_two_hop_trade(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     await sim.open_first_sell_position_from_two_hop_trade()
+
+#     await sim.send_orders_for_first_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_fill_in_first_hop()
+
+#     await sim.open_second_sell_position_from_two_hop_trade()
+
+#     await sim.simulate_sell_order_fill_in_second_hop()
+
+
+# async def test_no_sell_orders_send_if_buy_position_not_realized(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     assert len(back.strategies) == 0
+
+#     # Get default buy position
+#     sim.simulate_buy_position(symbol="BTCUSDC")
+#     await sim.assert_default_buy_position()
+
+#     strategy = back.strategies["1000"]
+#     sell_config = HPSellData(
+#         config=HPSellConfig(
+#             hp_id="1000",
+#             coin="BTC",
+#             buy_price=0.0,
+#             sell_price=4200.0,
+#             quantity=0.0,
+#             symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+#         ),
+#         state_info=StateInfo(side=PositionSide.SHORT),
+#     )
+#     front.config_queue.put_nowait(sell_config)
+#     logger.info("Sell config added to the queue: %s", sell_config.config)
+
+#     await wait_for_condition(
+#         condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+#     )
+
+#     item = front.hp_list_data[0]
+#     assert item["hp_id"] == "1000"
+#     assert item["coin"] == "BTCUSD"
+#     assert item["buy_price"] == "0.0", item["buy_price"]
+#     assert item["quantity"] == "0.0"
+#     assert item["quantity_usd"] == "0.0"
+#     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+#     assert item["expected_return"] == "0.0"
+#     assert item["current_price"] == "0.0"
+#     assert item["net"] == "0.0"
+#     assert item["net_percent"] == "0.0"
+#     assert item["state"] == "NEW"
+
+#     await wait_for_condition(
+#         condition_func=lambda: back.strategies["1000"].sell.current_position.sell_order
+#     )
+
+#     sim.new_price(price=4200.0)
+
+#     await asyncio.sleep(0.1)
+
+#     item = front.hp_list_data[0]
+#     assert item["hp_id"] == "1000"
+#     assert item["coin"] == "BTCUSD"
+#     assert item["buy_price"] == "0.0", item["buy_price"]
+#     assert item["quantity"] == "0.0"
+#     assert item["quantity_usd"] == "0.0"
+#     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+#     assert item["expected_return"] == "0.0"
+#     assert item["current_price"] == "0.0"
+#     assert item["net"] == "0.0"
+#     assert item["net_percent"] == "0.0"
+#     assert item["state"] == "NEW"
+
+
+# async def test_sell_orders_send_if_buy_position_realized_partially(
+#     frontend_backend_setup,
+# ):
+#     front, back = frontend_backend_setup
+#     assert isinstance(front, HpFront)
+#     assert isinstance(back, StrategyExecutor)
+#     sim = HPSimulator(front=front, back=back)
+
+#     assert len(back.strategies) == 0
+
+#     # Get default buy position
+#     sim.simulate_buy_position(symbol="BTCUSDC")
+#     await sim.assert_default_buy_position()
+
+#     strategy = back.strategies["1000"]
+#     sell_config = HPSellData(
+#         config=HPSellConfig(
+#             hp_id="1000",
+#             coin="BTC",
+#             buy_price=0.0,
+#             sell_price=4200.0,
+#             quantity=0.0,
+#             symbol_info=SymbolInfo(symbol="BTCUSDC", precision=2, price_precision=2),
+#         ),
+#         state_info=StateInfo(side=PositionSide.SHORT),
+#     )
+#     front.config_queue.put_nowait(sell_config)
+#     logger.info("Sell config added to the queue: %s", sell_config.config)
+
+#     await wait_for_condition(
+#         condition_func=lambda: front.hp_list_data[0]["sell_price"] == "4200.0"
+#     )
+
+#     item = front.hp_list_data[0]
+#     assert item["hp_id"] == "1000"
+#     assert item["coin"] == "BTCUSD"
+#     assert item["buy_price"] == "0.0", item["buy_price"]
+#     assert item["quantity"] == "0.0"
+#     assert item["quantity_usd"] == "0.0"
+#     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
+#     assert item["expected_return"] == "0.0"
+#     assert item["current_price"] == "0.0"
+#     assert item["net"] == "0.0"
 #     assert item["net_percent"] == "0.0"
 #     assert item["state"] == "NEW"
 
@@ -1820,8 +2245,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 #     assert item["buy_price"] == "1400.0"
 #     assert item["quantity"] == "0.12"
 #     assert item["quantity_usd"] == "168.0"
-#     assert item["sell_price"] == "4200.0"
-#     assert item["expected_return"] == "336.0"
+#     assert item["sell_price"] == "0.0"
+#     assert item["expected_return"] == "0.0"
 #     assert item["current_price"] == "0.0"
 #     assert item["net"] == "0.0"
 #     assert item["net_percent"] == "0.0"
@@ -1829,44 +2254,25 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
 #     logger.info("HP List after the update: %s", front.hp_list_data)
 
+#     # Reopen position
 #     strategy.client.create_order.side_effect = get_new_orders(
-#         orders=[strategy.sell.current_position.sell_order]
+#         orders=strategy.buy.orders
 #     )
-#     sim.new_price(price=4200.0)
+
+#     # Price trigger is now related to the middle order as the top order is already filled.
+#     sim.new_price(price=1212)
+
+#     assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+#     await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
+#     assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+#     assert strategy.buy.orders[0].realized_quantity == 0.24
+#     assert strategy.buy.orders[1].realized_quantity == 0.0
+#     assert strategy.buy.orders[2].realized_quantity == 0.0
+
+#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+#     assert strategy.state == State.BUYING
 
 #     await wait_for_condition(
-#         condition_func=lambda: front.hp_list_data[0]["state"] == "SELLING"
+#         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
 #     )
-
-#     item = front.hp_list_data[0]
-#     assert item["hp_id"] == "1000"
-#     assert item["coin"] == "BTCUSD"
-#     assert item["buy_price"] == "1400.0"
-#     assert item["quantity"] == "0.12"
-#     assert item["quantity_usd"] == "168.0"
-#     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
-#     assert item["expected_return"] == "336.0"
-#     assert item["current_price"] == "0.0"
-#     assert item["net"] == "0.0"
-#     assert item["net_percent"] == "0.0"
-#     assert item["state"] == "SELLING"
-
-#     await wait_for_condition(
-#         condition_func=lambda: strategy.sell.current_position.sell_order.status
-#         == ORDER_STATUS_NEW
-#     )
-#     assert strategy.sell.current_position.sell_order.quantity == 0.12
-#     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
-
-#     active_sell_item = front.active_records_sell[0]
-
-#     assert active_sell_item["hp_id"] == "1000"
-#     assert active_sell_item["symbol"] == "BTCUSDC"
-#     assert active_sell_item["buy_price"] == "1400.0"
-#     assert active_sell_item["quantity"] == "0.12"
-#     assert active_sell_item["end_currency"] == "USDC"
-#     assert (
-#         active_sell_item["sell_price"] == "4200.0"
-#     ), f"Item sell price: {item['sell_price']}"
-#     assert active_sell_item["side"] == "SELL"
-#     assert active_sell_item["completeness"] == "0.0"

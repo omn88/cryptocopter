@@ -25,6 +25,7 @@ from src.identifiers import (
     UiState,
     BinanceClient,
     Mode,
+    State,  # <-- Added import for State enum
 )
 
 
@@ -91,7 +92,20 @@ class HPPositionBuy:
                     side=self.data.state_info.side,
                 )
 
-        self.data.state_info.get_completeness(orders=self.orders)
+        # If all orders are canceled and none are filled, set state to NEW and completeness to 0
+        all_canceled = all(
+            order.status == ORDER_STATUS_CANCELED for order in self.orders
+        )
+        any_filled = any(order.status == ORDER_STATUS_FILLED for order in self.orders)
+        if all_canceled and not any_filled:
+            self.data.state_info.state = State.NEW
+            self.data.state_info.completeness = 0.0
+            logger.info(
+                "All buy orders canceled and none filled: setting state to NEW and completeness to 0.0"
+            )
+        else:
+            self.data.state_info.get_completeness(orders=self.orders)
+
         self.data.state_info.ui_state = UiState.STAGNATED
 
         await self.db.upsert_buy_price_level(data=self.data)
@@ -224,7 +238,6 @@ class HPPositionBuy:
             if order.status == ORDER_STATUS_PARTIALLY_FILLED and order.order_id:
                 await self._cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
-
                 logger.info(
                     "Cancelled partially filled order with id: %s", order.order_id
                 )
@@ -232,7 +245,7 @@ class HPPositionBuy:
                 await self._cancel_order(order_id=order.order_id, symbol=symbol)
                 order.status = ORDER_STATUS_CANCELED
                 logger.info("Cancelled new order with id: %s", order.order_id)
-
+            # No new Order object is created; status is updated in-place
         return orders
 
     def calculate_avg_buy_price(self) -> float:

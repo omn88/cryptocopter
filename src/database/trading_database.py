@@ -302,6 +302,25 @@ class TradingDatabase:
         """Save an order to the database."""
         try:
             async with self.get_connection() as conn:
+                # Defensive: handle None for created_at and updated_at
+                created_at = None
+                updated_at = None
+                if hasattr(order, "created_at") and order.created_at is not None:
+                    try:
+                        created_at = order.created_at.isoformat()
+                    except Exception:
+                        created_at = datetime.now().isoformat()
+                else:
+                    created_at = datetime.now().isoformat()
+
+                if hasattr(order, "updated_at") and order.updated_at is not None:
+                    try:
+                        updated_at = order.updated_at.isoformat()
+                    except Exception:
+                        updated_at = datetime.now().isoformat()
+                else:
+                    updated_at = datetime.now().isoformat()
+
                 await conn.execute(
                     """
                     INSERT OR REPLACE INTO orders
@@ -324,12 +343,8 @@ class TradingDatabase:
                         order.realized_quantity,
                         order.time_in_force,
                         order.filled_at.isoformat() if order.filled_at else None,
-                        (
-                            order.created_at.isoformat()
-                            if hasattr(order, "created_at")
-                            else datetime.now().isoformat()
-                        ),
-                        datetime.now().isoformat(),
+                        created_at,
+                        updated_at,
                     ),
                 )
                 await conn.commit()
@@ -557,8 +572,24 @@ class TradingDatabase:
             position = next((p for p in positions if p.hp_id == hp_id), None)
             symbol = position.symbol if position else ""
 
-            # Convert trading order to database order
+            # Always preserve the original order.id if present, else fallback to uuid
+            db_order_id = getattr(order, "id", None)
+            if not db_order_id:
+                # fallback: use exchange_order_id or generate new
+                db_order_id = str(getattr(order, "order_id", ""))
+
+            # Ensure created_at and updated_at are always datetime objects
+            import datetime as _dt
+
+            created_at = getattr(order, "created_at", None)
+            if not created_at:
+                created_at = _dt.datetime.now()
+            updated_at = getattr(order, "updated_at", None)
+            if not updated_at:
+                updated_at = _dt.datetime.now()
+
             db_order = Order(
+                id=db_order_id,
                 position_id=hp_id,  # Use hp_id as position_id for compatibility
                 exchange_order_id=(
                     order.order_id
@@ -583,6 +614,8 @@ class TradingDatabase:
                 time_in_force=(
                     order.time_in_force if hasattr(order, "time_in_force") else "GTC"
                 ),
+                created_at=created_at,
+                updated_at=updated_at,
             )
             await self.save_order(db_order)
             logger.debug("Saved order for hp_id %s", hp_id)

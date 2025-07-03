@@ -189,8 +189,24 @@ class RecoveryService:
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
         )
 
-        # Update status based on completeness
-        if position.completeness == 0.0:
+        # Explicitly check for all orders canceled and none filled
+        all_canceled = all(
+            (order.status.value if hasattr(order.status, "value") else order.status)
+            == "CANCELED"
+            for order in orders
+        )
+        any_filled = any(
+            (order.status.value if hasattr(order.status, "value") else order.status)
+            == "FILLED"
+            for order in orders
+        )
+        if all_canceled and not any_filled:
+            position.status = PositionStatus.NEW
+            position.completeness = 0.0
+            logger.info(
+                f"[Recovery] All buy orders canceled and none filled for position {position.hp_id}: setting status to NEW and completeness to 0.0"
+            )
+        elif position.completeness == 0.0:
             if any(
                 (order.status.value if hasattr(order.status, "value") else order.status)
                 in ["NEW", "PARTIALLY_FILLED"]
