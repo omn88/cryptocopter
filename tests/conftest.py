@@ -394,12 +394,11 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
     # Return factory functions
     yield create_frontend_backend_pair, simulate_crash
 
-    # Cleanup all created instances
+    # Cleanup all created instances - need to properly cancel frontend tasks
     for i in range(0, len(created_instances), 2):
         if i + 1 < len(created_instances):
             frontend, backend = created_instances[i], created_instances[i + 1]
 
-            # For cleanup, we DO want to gracefully stop to ensure clean test teardown
             # Cancel frontend tasks first
             if (
                 hasattr(frontend, "refresh_task")
@@ -414,6 +413,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
             ):
                 frontend.queue_task.cancel()
 
+            # Set stop events
             frontend.stop_event.set()
             backend.stop_event.set()
 
@@ -435,52 +435,15 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
                         "Frontend tasks didn't complete within timeout during cleanup"
                     )
 
-            # Clean up strategies gracefully
+            # Cancel strategy worker tasks
             for strategy in backend.strategies.values():
                 strategy.stop_event.set()
-                try:
-                    await wait_for_condition(
-                        condition_func=lambda: not strategy.worker_active, timeout=1
-                    )
-                except:
-                    # If graceful stop fails, force cancel the worker task
-                    if (
-                        hasattr(strategy, "worker_task")
-                        and strategy.worker_task
-                        and not strategy.worker_task.done()
-                    ):
-                        strategy.worker_task.cancel()
-
-            # Wait for frontend queue to close
-            try:
-                await wait_for_condition(
-                    condition_func=lambda: frontend.ui_queue_closed, timeout=1
-                )
-            except:
-                logger.warning("Frontend queue didn't close gracefully")
-
-            # Force cancel any remaining tasks
-            current_task = asyncio.current_task()
-            remaining_tasks = [
-                task
-                for task in asyncio.all_tasks()
-                if task != current_task and not task.done()
-            ]
-
-            if remaining_tasks:
-                for task in remaining_tasks:
-                    if not task.cancelled():
-                        task.cancel()
-
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*remaining_tasks, return_exceptions=True),
-                        timeout=1.0,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Some tasks didn't complete within timeout during cleanup"
-                    )
+                if (
+                    hasattr(strategy, "worker_task")
+                    and strategy.worker_task
+                    and not strategy.worker_task.done()
+                ):
+                    strategy.worker_task.cancel()
 
             # Stop backend thread
             if hasattr(backend, "thread") and backend.thread.is_alive():
