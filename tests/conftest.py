@@ -2,6 +2,7 @@ import os
 
 # Import kivy configuration first (must be before any Kivy imports)
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import kivy_config
 
@@ -190,25 +191,28 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
         yield gui
 
         # Cancel tasks first, then wait for cleanup
-        if hasattr(gui, 'refresh_task') and gui.refresh_task and not gui.refresh_task.done():
+        if (
+            hasattr(gui, "refresh_task")
+            and gui.refresh_task
+            and not gui.refresh_task.done()
+        ):
             gui.refresh_task.cancel()
-        if hasattr(gui, 'queue_task') and gui.queue_task and not gui.queue_task.done():
+        if hasattr(gui, "queue_task") and gui.queue_task and not gui.queue_task.done():
             gui.queue_task.cancel()
 
         gui.stop_event.set()
-        
+
         # Wait for tasks to be cancelled
         tasks_to_wait = []
-        if hasattr(gui, 'refresh_task') and gui.refresh_task:
+        if hasattr(gui, "refresh_task") and gui.refresh_task:
             tasks_to_wait.append(gui.refresh_task)
-        if hasattr(gui, 'queue_task') and gui.queue_task:
+        if hasattr(gui, "queue_task") and gui.queue_task:
             tasks_to_wait.append(gui.queue_task)
-            
+
         if tasks_to_wait:
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*tasks_to_wait, return_exceptions=True),
-                    timeout=2.0
+                    asyncio.gather(*tasks_to_wait, return_exceptions=True), timeout=2.0
                 )
             except asyncio.TimeoutError:
                 logger.warning("Some GUI tasks didn't complete within timeout")
@@ -299,18 +303,19 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
         backend.client = mock_async_client
         logger.info("Mock client assigned to backend")
 
-        # Create frontend
-        frontend = HpFront(
-            client=mock_async_client,
-            strategy_id=f"test_strategy{instance_name}",
-            config_queue=config_queue,
-            db=test_db,  # Always use the same database
-            ui_queue=ui_queue,
-            symbols_info=symbols_info,
-            test_mode=True,
-            price_resolver=price_resolver,
-        )
-        frontend.initialize()
+        # Create frontend with proper Kivy mocking
+        with patch("kivy.base.EventLoop.ensure_window"):
+            frontend = HpFront(
+                client=mock_async_client,
+                strategy_id=f"test_strategy{instance_name}",
+                config_queue=config_queue,
+                db=test_db,  # Always use the same database
+                ui_queue=ui_queue,
+                symbols_info=symbols_info,
+                test_mode=True,
+                price_resolver=price_resolver,
+            )
+            frontend.initialize()
 
         # Connect them
         frontend.config_queue = backend.config_queue
@@ -395,8 +400,40 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
             frontend, backend = created_instances[i], created_instances[i + 1]
 
             # For cleanup, we DO want to gracefully stop to ensure clean test teardown
+            # Cancel frontend tasks first
+            if (
+                hasattr(frontend, "refresh_task")
+                and frontend.refresh_task
+                and not frontend.refresh_task.done()
+            ):
+                frontend.refresh_task.cancel()
+            if (
+                hasattr(frontend, "queue_task")
+                and frontend.queue_task
+                and not frontend.queue_task.done()
+            ):
+                frontend.queue_task.cancel()
+
             frontend.stop_event.set()
             backend.stop_event.set()
+
+            # Wait for frontend tasks to be cancelled
+            frontend_tasks = []
+            if hasattr(frontend, "refresh_task") and frontend.refresh_task:
+                frontend_tasks.append(frontend.refresh_task)
+            if hasattr(frontend, "queue_task") and frontend.queue_task:
+                frontend_tasks.append(frontend.queue_task)
+
+            if frontend_tasks:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*frontend_tasks, return_exceptions=True),
+                        timeout=1.0,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Frontend tasks didn't complete within timeout during cleanup"
+                    )
 
             # Clean up strategies gracefully
             for strategy in backend.strategies.values():
@@ -420,19 +457,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
                     condition_func=lambda: frontend.ui_queue_closed, timeout=1
                 )
             except:
-                # If graceful stop fails, force cancel frontend tasks
-                if (
-                    hasattr(frontend, "queue_task")
-                    and frontend.queue_task
-                    and not frontend.queue_task.done()
-                ):
-                    frontend.queue_task.cancel()
-                if (
-                    hasattr(frontend, "refresh_task")
-                    and frontend.refresh_task
-                    and not frontend.refresh_task.done()
-                ):
-                    frontend.refresh_task.cancel()
+                logger.warning("Frontend queue didn't close gracefully")
 
             # Force cancel any remaining tasks
             current_task = asyncio.current_task()
