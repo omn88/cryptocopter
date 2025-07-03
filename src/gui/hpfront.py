@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 import queue
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -16,7 +16,7 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
-from src.database import Database
+from src.database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
@@ -106,7 +106,7 @@ class HpFront(BoxLayout):
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
-        db: Database,
+        db: TradingDatabase,
         price_resolver: UsdPriceResolver,
         test_mode=False,
         **kwargs,
@@ -130,6 +130,11 @@ class HpFront(BoxLayout):
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
         self.price_resolver = price_resolver
+
+        # Initialize task references for proper cleanup
+        self.refresh_task: Optional[asyncio.Task] = None
+        self.queue_task: Optional[asyncio.Task] = None
+
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
             self.symbol_input = SearchableDropDown(
@@ -140,8 +145,8 @@ class HpFront(BoxLayout):
 
     def initialize(self):
         if not self.test_mode:
-            asyncio.create_task(self._refresh_ui())
-        asyncio.create_task(self.process_ui_queue())
+            self.refresh_task = asyncio.create_task(self._refresh_ui())
+        self.queue_task = asyncio.create_task(self.process_ui_queue())
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():

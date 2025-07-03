@@ -77,6 +77,7 @@ class Position:
     # Position details
     position_type: PositionType = PositionType.BUY
     status: PositionStatus = PositionStatus.NEW
+    strategy_state: str = "NEW"  # Strategy execution state (NEW, BUYING, SELLING, etc.)
     symbol: str = ""
     coin: str = ""
 

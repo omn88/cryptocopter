@@ -6,6 +6,7 @@ sample_data.txt
 .pytest_cache/
 .buildozer/
 .env
+.claude
 .coverage
 *.txt
 *.csv

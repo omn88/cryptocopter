@@ -138,6 +138,9 @@ class PositionManager:
         """
         Save a multihop sell position chain to the database.
 
+        IMPORTANT: This method ensures parent positions are ALWAYS created first,
+        and that parent-child relationships are properly maintained.
+
         Args:
             sell_positions: List of SellPosition objects from HPPositionSell
             parent_hp_id: The original position ID
@@ -148,7 +151,17 @@ class PositionManager:
         try:
             position_ids = []
 
+            # Step 1: Create parent position FIRST if it doesn't exist
+            await self._ensure_parent_position_exists(parent_hp_id, sell_positions)
+
+            # Step 2: Create child positions in correct order
             for i, sell_pos in enumerate(sell_positions):
+                # Skip creating positions that are already completed
+                if await self._position_is_completed(sell_pos.config.hp_id):
+                    logger.info(f"Skipping completed position {sell_pos.config.hp_id}")
+                    position_ids.append(sell_pos.config.hp_id)
+                    continue
+
                 trade_type = (
                     TradeType.TWOHOP if len(sell_positions) > 1 else TradeType.DIRECT
                 )
@@ -166,26 +179,18 @@ class PositionManager:
                     sell_price=sell_pos.config.sell_price,
                     end_currency=sell_pos.config.end_currency,
                     parent_position_id=(
-                        parent_hp_id if sell_pos.config.is_child else None
+                        parent_hp_id if i == 0 else sell_positions[i - 1].config.hp_id
                     ),
                     trade_type=trade_type,
-                    hop_sequence=i,
+                    hop_sequence=i + 1,  # Start from 1 (parent is 0)
                     completeness=sell_pos.state_info.completeness,
                 )
 
                 position_id = await self.database.save_position(position)
                 position_ids.append(position_id)
 
-                # Update parent with child IDs
-                if i == 0 and len(sell_positions) > 1:
-                    # This is a multihop trade, we'll need to update relationships
-                    pass
-
-            # Update parent position with child relationships
-            if len(position_ids) > 1:
-                await self._update_parent_child_relationships(
-                    parent_hp_id, position_ids
-                )
+            # Step 3: Update parent with child relationships
+            await self._update_parent_child_relationships(parent_hp_id, position_ids)
 
             logger.info(
                 "Saved %s multihop sell positions for parent %s",
@@ -196,6 +201,63 @@ class PositionManager:
 
         except Exception as e:
             raise DatabaseError(f"Failed to save multihop sell positions: {e}") from e
+
+    async def _ensure_parent_position_exists(
+        self, parent_hp_id: str, sell_positions: List[SellPosition]
+    ) -> None:
+        """Ensure parent position exists before creating children."""
+        try:
+            positions = await self.database.get_active_positions()
+            parent_exists = any(p.hp_id == parent_hp_id for p in positions)
+
+            if not parent_exists:
+                logger.info(f"Creating missing parent position {parent_hp_id}")
+
+                # Create parent position from first sell position data
+                first_pos = sell_positions[0]
+                last_pos = sell_positions[-1]
+
+                parent_position = Position(
+                    hp_id=parent_hp_id,
+                    position_type=PositionType.SELL,
+                    status=PositionStatus.NEW,
+                    symbol=f"{first_pos.config.coin}{last_pos.config.end_currency}",
+                    coin=first_pos.config.coin,
+                    quantity=first_pos.config.quantity,
+                    buy_price=first_pos.config.buy_price,
+                    sell_price=last_pos.config.sell_price,
+                    end_currency=last_pos.config.end_currency,
+                    trade_type=(
+                        TradeType.TWOHOP
+                        if len(sell_positions) > 1
+                        else TradeType.DIRECT
+                    ),
+                    child_position_ids=[pos.config.hp_id for pos in sell_positions],
+                    hop_sequence=0,  # Parent is always 0
+                    completeness=0.0,
+                    created_at=datetime.now(),
+                )
+
+                await self.database.save_position(parent_position)
+                logger.info(f"✅ Created parent position {parent_hp_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to ensure parent position exists: {e}")
+            raise
+
+    async def _position_is_completed(self, hp_id: str) -> bool:
+        """Check if a position is already completed and should be skipped."""
+        try:
+            positions = await self.database.get_active_positions()
+            position = next((p for p in positions if p.hp_id == hp_id), None)
+
+            if position:
+                return position.status in [PositionStatus.FILLED, PositionStatus.CLOSED]
+            return False
+
+        except Exception as e:
+            logger.error(f"Failed to check if position is completed: {e}")
+            return False
 
     async def save_order(
         self, order: TradingOrder, position_id: str, side: PositionSide
@@ -212,10 +274,15 @@ class PositionManager:
             Order ID
         """
         try:
+            # Get the position to extract the symbol
+            positions = await self.database.get_active_positions()
+            position = next((p for p in positions if p.hp_id == position_id), None)
+            symbol = position.symbol if position else ""
+
             db_order = Order(
                 position_id=position_id,
                 exchange_order_id=order.order_id if order.order_id > 0 else None,
-                symbol="",  # Will be filled from position
+                symbol=symbol,
                 side=side.value,
                 status=self._convert_order_status(order.status),
                 price=order.price,

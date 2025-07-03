@@ -19,7 +19,9 @@ from binance.exceptions import (
 from src.broker import BrokerSpot
 from src.common.symbol_info import SymbolInfo
 
-from src.database import Database  # This will use the old database.py file in src/
+from src.database import (
+    TradingDatabase,
+)  # This will use the old database.py file in src/
 from src.identifiers import (
     ExecutionReport,
     HPSellConfig,
@@ -47,7 +49,7 @@ class HPPositionSell:
         client: BinanceClient,
         original_position: SellPosition,
         sell_strategy: List[SymbolInfo],
-        db: Database,
+        db: TradingDatabase,
         price_resolver: UsdPriceResolver,
         broker: BrokerSpot,
         worker_queue: queue.Queue,

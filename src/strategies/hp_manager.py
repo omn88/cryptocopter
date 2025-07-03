@@ -13,7 +13,7 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
 )
 from src.common.symbol_info import SymbolInfo
-from src.database import Database
+from src.database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
     Event,
@@ -51,7 +51,7 @@ class HpStrategy:
         ui_queue: queue.Queue,
         worker_queue: queue.Queue,
         config_queue: queue.Queue,
-        db: Database,
+        db: TradingDatabase,
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
         initial_state: State = State.NEW,
@@ -96,6 +96,9 @@ class HpStrategy:
             queued=True,
         )
         self.worker_active = False
+        self.worker_task: Optional[asyncio.Task] = (
+            None  # Track the worker task for cleanup
+        )
 
     def _get_transitions(self):
         return [
@@ -550,7 +553,9 @@ class HpStrategy:
             "Orders sent, updating DB with price level: %s",
             self.buy.data.state_info,
         )
-        await self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(
+            data=self.buy.data, strategy_state=self.state
+        )
         self.send_buy_position_to_ui()
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
@@ -653,7 +658,9 @@ class HpStrategy:
                 hp_id=self.buy.data.config.hp_id,
                 side=self.buy.data.state_info.side,
             )
-        await self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(
+            data=self.buy.data, strategy_state=self.state
+        )
 
         self.send_buy_position_to_ui()
 
