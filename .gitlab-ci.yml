@@ -26,5 +26,11 @@ linting:
 
 testing:
   stage: testing
+  variables:
+    ENVIRONMENT: GITLAB
+  before_script:
+    - python -V
+    - pip install --upgrade pip
+    - pip install -r requirements/develop.txt
   script:
     - pytest

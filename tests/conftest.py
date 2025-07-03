@@ -1,6 +1,9 @@
 import os
 
-os.environ["KIVY_NO_CONSOLELOG"] = "1"
+# Import kivy configuration first (must be before any Kivy imports)
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import kivy_config
 
 # Suppress aiosqlite debug logging in tests
 import logging
@@ -16,13 +19,10 @@ from src.strategy_executor import StrategyExecutor
 from src.database.recovery_service import RecoveryService
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
-# Use dummy window for Kivy in headless testing
-os.environ["KIVY_WINDOW"] = "dummy"
 import asyncio
 import logging
 import queue
 import tempfile
-import warnings
 import pytest
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
@@ -31,13 +31,11 @@ from pytest_mock import MockerFixture
 from decouple import Config, RepositoryEnv
 from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
-from src.gui.identifiers.spot import HPGuiDataBuy, HPUpdate
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
-    HPSellData,
     Order,
     PositionSide,
     SellPosition,
@@ -45,7 +43,6 @@ from src.identifiers import (
     StateInfo,
 )
 from src.strategies.hp_manager import HpStrategy
-from tests.spot import get_new_orders
 
 logger = logging.getLogger("conftest")
 
@@ -176,6 +173,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
         )
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
+
         gui = HpFront(
             client=mock_async_client,
             strategy_id="test_strategy",
@@ -191,12 +189,34 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 
         yield gui
 
+        # Cancel tasks first, then wait for cleanup
+        if hasattr(gui, 'refresh_task') and gui.refresh_task and not gui.refresh_task.done():
+            gui.refresh_task.cancel()
+        if hasattr(gui, 'queue_task') and gui.queue_task and not gui.queue_task.done():
+            gui.queue_task.cancel()
+
+        gui.stop_event.set()
+        
+        # Wait for tasks to be cancelled
+        tasks_to_wait = []
+        if hasattr(gui, 'refresh_task') and gui.refresh_task:
+            tasks_to_wait.append(gui.refresh_task)
+        if hasattr(gui, 'queue_task') and gui.queue_task:
+            tasks_to_wait.append(gui.queue_task)
+            
+        if tasks_to_wait:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks_to_wait, return_exceptions=True),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Some GUI tasks didn't complete within timeout")
+
+        # Clean up logging handlers
         for handler in logging.root.handlers[:]:
             handler.close()
             logging.root.removeHandler(handler)
-
-        gui.stop_event.set()
-        await wait_for_condition(condition_func=lambda: gui.ui_queue_closed)
 
 
 @pytest.fixture
