@@ -92,16 +92,28 @@ class HPPositionBuy:
                     side=self.data.state_info.side,
                 )
 
-        # If all orders are canceled and none are filled, set state to NEW and completeness to 0
         all_canceled = all(
             order.status == ORDER_STATUS_CANCELED for order in self.orders
         )
         any_filled = any(order.status == ORDER_STATUS_FILLED for order in self.orders)
-        if all_canceled and not any_filled:
+        any_partially_filled = any(
+            order.status == ORDER_STATUS_PARTIALLY_FILLED or order.realized_quantity > 0
+            for order in self.orders
+        )
+
+        # If all orders are canceled and none are filled or partially filled, set state to NEW
+        if all_canceled and not any_filled and not any_partially_filled:
             self.data.state_info.state = State.NEW
             self.data.state_info.completeness = 0.0
             logger.info(
                 "All buy orders canceled and none filled: setting state to NEW and completeness to 0.0"
+            )
+        # If any order is filled or partially filled, set state to PARTIALLY_BOUGHT
+        elif any_filled or any_partially_filled:
+            self.data.state_info.state = State.PARTIALLY_BOUGHT
+            self.data.state_info.get_completeness(orders=self.orders)
+            logger.info(
+                "Some buy orders filled or partially filled: setting state to PARTIALLY_BOUGHT"
             )
         else:
             self.data.state_info.get_completeness(orders=self.orders)
