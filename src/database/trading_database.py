@@ -717,16 +717,38 @@ class TradingDatabase:
     # Legacy compatibility methods - To be implemented via TDD
     # ========================================================================
 
-    def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
+    async def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
         """
-        Fetch all active strategies.
+        Fetch all active strategies (async).
 
         Returns:
             List of strategy dictionaries
         """
-        # TODO: Implement via TDD
-        logger.warning("fetch_all_active_strategies not yet implemented")
-        return []
+        try:
+            async with self.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT * FROM strategies WHERE status = 'ACTIVE' ORDER BY created_at ASC
+                    """
+                )
+                rows = await cursor.fetchall()
+                strategies = []
+                for row in rows:
+                    strategies.append(
+                        {
+                            "id": row["id"],
+                            "name": row["name"],
+                            "description": row["description"],
+                            "status": row["status"],
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                        }
+                    )
+                logger.info("Fetched %d active strategies", len(strategies))
+                return strategies
+        except Exception as e:
+            logger.error("Failed to fetch active strategies: %s", e)
+            return []
 
     def fetch_active_hp_list(self) -> List[Dict[str, Any]]:
         """
