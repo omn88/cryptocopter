@@ -579,53 +579,6 @@ async def test_cancel_default_position_untouched_recovery(crash_recovery_factory
     logger.info("CANCELED orders crash recovery test completed successfully")
 
 
-# async def test_cancel_default_position_untouched(frontend_backend_setup):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-
-#     sim = HPSimulator(front=front, back=back)
-
-#     assert len(back.strategies) == 0
-
-#     # Get default buy position
-#     sim.simulate_buy_position(symbol="BTCUSDC")
-#     await sim.assert_default_buy_position()
-
-#     await sim.move_to_position_active_buy()
-#     strategy = back.strategies["1000"]
-
-#     assert strategy.buy.orders_cancel_price == 1428.0
-#     sim.new_price(price=1428)
-
-#     await wait_for_condition(
-#         condition_func=lambda: all(
-#             order.status == "CANCELED" for order in strategy.buy.orders
-#         )
-#     )
-
-#     assert len(strategy.buy.orders) == 3
-#     assert strategy.buy.data.state_info.state == State.NEW
-#     assert strategy.state == State.NEW
-
-#     await wait_for_condition(
-#         condition_func=lambda: front.hp_list_data[0]["state"] == State.NEW.value
-#     )
-
-#     item = front.hp_list_data[0]
-#     assert item["hp_id"] == "1000"
-#     assert item["coin"] == "BTCUSD"
-#     assert item["buy_price"] == "1400.0"
-#     assert item["quantity"] == "0.0"
-#     assert item["quantity_usd"] == "0.0"
-#     assert item["sell_price"] == "0.0"
-#     assert item["expected_return"] == "0.0"
-#     assert item["current_price"] == "0.0"
-#     assert item["net"] == "0.0"
-#     assert item["net_percent"] == "0.0"
-#     assert item["state"] == "NEW"
-
-
 # async def test_cancel_default_position_untouched_then_resend_orders(
 #     frontend_backend_setup,
 # ):
