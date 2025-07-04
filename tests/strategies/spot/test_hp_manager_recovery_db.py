@@ -1,5 +1,6 @@
 import logging
 
+
 from binance.enums import ORDER_STATUS_NEW
 from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
@@ -7,6 +8,7 @@ from src.gui.hpfront import HpFront
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 from tests.strategies.spot.hp_simulator import HPSimulator
+from tests.strategies.spot.crash_recovery import CrashRecoveryHelper
 
 logger = logging.getLogger("hp_e2e_test")
 
@@ -287,34 +289,10 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         ), f"DB order {order_id}: realized_quantity mismatch"
         assert db_order.symbol == "BTCUSDC", f"DB order {order_id}: symbol mismatch"
 
-    # Configure minimal mock for exchange queries during recovery
-    # This will simulate that exchange state matches what's in the database (no changes)
-    def mock_get_order_response(symbol, orderId):
-        """Return order data that matches the database state (simulating no changes)"""
-        db_order = next(
-            (o for o in orders_before_recovery if o.exchange_order_id == orderId), None
-        )
-        if db_order:
-            return {
-                "symbol": symbol,
-                "orderId": orderId,
-                "status": db_order.status.value,
-                "executedQty": str(db_order.realized_quantity),
-                "origQty": str(db_order.quantity),
-                "price": str(db_order.price),
-            }
-        # Fallback for unexpected orders
-        return {
-            "symbol": symbol,
-            "orderId": orderId,
-            "status": ORDER_STATUS_NEW,
-            "executedQty": "0.00000000",
-            "origQty": "0.24000000",
-            "price": "1400.00",
-        }
-
-    # Configure the mock for the recovery process
-    new_back.client.get_order.side_effect = mock_get_order_response
+    # Use CrashRecoveryHelper to mock exchange queries during recovery
+    new_back.client.get_order.side_effect = CrashRecoveryHelper.mock_orders_from_db(
+        orders_before_recovery
+    )
 
     # Verify database has the position data before recovery
     positions_before_recovery = await new_front.db.get_active_positions()
@@ -525,29 +503,10 @@ async def test_cancel_default_position_untouched_recovery(crash_recovery_factory
     # Verify fresh instances start empty
     assert len(new_back.strategies) == 0
 
-    # === MOCK EXCHANGE CLIENT FOR RECOVERY ===
-    # Ensure get_order returns CANCELED for all orders
-    def mock_get_order_response(symbol, orderId):
-        db_order = next((o for o in db_orders if o.exchange_order_id == orderId), None)
-        if db_order:
-            return {
-                "symbol": symbol,
-                "orderId": orderId,
-                "status": db_order.status.value,
-                "executedQty": str(db_order.realized_quantity),
-                "origQty": str(db_order.quantity),
-                "price": str(db_order.price),
-            }
-        return {
-            "symbol": symbol,
-            "orderId": orderId,
-            "status": "CANCELED",
-            "executedQty": "0.00000000",
-            "origQty": "0.00000000",
-            "price": "0.00",
-        }
-
-    new_back.client.get_order.side_effect = mock_get_order_response
+    # Use CrashRecoveryHelper to mock exchange queries during recovery (CANCELED orders)
+    new_back.client.get_order.side_effect = CrashRecoveryHelper.mock_orders_from_db(
+        db_orders
+    )
 
     # === MANUALLY TRIGGER CRASH RECOVERY ===
     await new_back.recover_positions_from_crash()
