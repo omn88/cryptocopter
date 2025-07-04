@@ -55,7 +55,8 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     assert db_position.budget == 1000.0
 
     # Assert that database state matches application state (before crash)
-    await sim.assert_application_db_state_match(hp_id="1000")
+    crash_recovery = CrashRecoveryHelper(front, back)
+    await crash_recovery.assert_application_db_state_match(hp_id="1000")
 
     # Store original configuration for comparison
     original_config = {
@@ -130,7 +131,8 @@ async def test_get_default_buy_position_crash_recovery(crash_recovery_factory):
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)
     await new_sim.assert_default_buy_position()
-    await new_sim.assert_application_db_state_match(hp_id="1000")
+    crash_recovery = CrashRecoveryHelper(new_front, new_back)
+    await crash_recovery.assert_application_db_state_match(hp_id="1000")
 
     logger.info("Basic NEW position crash recovery test completed successfully")
     logger.info("Original state: NEW, Recovered state: %s", recovered_strategy.state)
@@ -221,7 +223,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         assert db_order.realized_quantity == 0.0
         assert db_order.exchange_order_id is not None
 
-    await sim.assert_application_db_state_match(hp_id="1000")
+    crash_recovery = CrashRecoveryHelper(front, back)
+    await crash_recovery.assert_application_db_state_match(hp_id="1000")
 
     # Store original configuration for comparison
     original_config = {
@@ -290,7 +293,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         assert db_order.symbol == "BTCUSDC", f"DB order {order_id}: symbol mismatch"
 
     # Use CrashRecoveryHelper to mock exchange queries during recovery
-    new_back.client.get_order.side_effect = CrashRecoveryHelper.mock_orders_from_db(
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
         orders_before_recovery
     )
 
@@ -391,7 +395,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
         ), f"Symbol mismatch for order {recovered_order.order_id}"
 
     # Verify database and application state match completely
-    await sim.assert_application_db_state_match(hp_id="1000")
+    crash_recovery = CrashRecoveryHelper(new_front, new_back)
+    await crash_recovery.assert_application_db_state_match(hp_id="1000")
 
     logger.info(
         "✅ Recovery verification complete: All orders successfully restored from database"
@@ -412,7 +417,8 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
     # Update simulator to use new backend and verify state consistency
     new_sim = HPSimulator(front=new_front, back=new_back)
-    await new_sim.assert_application_db_state_match(hp_id="1000")
+    crash_recovery = CrashRecoveryHelper(new_front, new_back)
+    await crash_recovery.assert_application_db_state_match(hp_id="1000")
     logger.info("BUYING state crash recovery test completed successfully")
     logger.info(
         "Original strategy state: BUYING, Recovered strategy state: %s",
@@ -504,7 +510,8 @@ async def test_cancel_default_position_untouched_recovery(crash_recovery_factory
     assert len(new_back.strategies) == 0
 
     # Use CrashRecoveryHelper to mock exchange queries during recovery (CANCELED orders)
-    new_back.client.get_order.side_effect = CrashRecoveryHelper.mock_orders_from_db(
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
         db_orders
     )
 
@@ -533,7 +540,7 @@ async def test_cancel_default_position_untouched_recovery(crash_recovery_factory
         assert db_order.realized_quantity == order.realized_quantity
         assert db_order.symbol == "BTCUSDC"
 
-    await sim.assert_application_db_state_match(hp_id="1000")
+    await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
     logger.info("CANCELED orders crash recovery test completed successfully")
 

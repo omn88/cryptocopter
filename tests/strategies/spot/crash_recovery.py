@@ -1,6 +1,103 @@
+import logging
+from src.database.models import PositionType
+
+logger = logging.getLogger("crash_recovery_helper")
+
+
 class CrashRecoveryHelper:
-    @staticmethod
-    def mock_orders_from_db(order_db_list):
+    def __init__(self, front, back):
+        self.front = front
+        self.back = back
+
+    async def assert_application_db_state_match(self, hp_id: str = "1000") -> None:
+        """Assert that the in-memory application state matches the database state for a position."""
+
+        logger.info(
+            "=== ASSERTING APPLICATION <-> DATABASE STATE MATCH for %s ===", hp_id
+        )
+
+        # Get the in-memory strategy
+        strategy = self.back.strategies.get(hp_id)
+        assert strategy is not None, f"Strategy {hp_id} not found in memory"
+
+        # Get the corresponding position from database
+        positions = await self.front.db.get_active_positions()
+        db_position = None
+        for pos in positions:
+            if pos.hp_id == hp_id:
+                db_position = pos
+                break
+
+        assert db_position is not None, f"Position {hp_id} not found in database"
+
+        # Compare core identification fields
+        assert (
+            db_position.hp_id == strategy.buy.data.config.hp_id
+        ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={strategy.buy.data.config.hp_id}"
+
+        assert (
+            db_position.symbol == strategy.buy.data.config.symbol_info.symbol
+        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={strategy.buy.data.config.symbol_info.symbol}"
+
+        assert (
+            db_position.coin == strategy.buy.data.config.coin
+        ), f"Coin mismatch: DB={db_position.coin}, Memory={strategy.buy.data.config.coin}"
+
+        # Compare configuration fields
+        assert (
+            db_position.budget == strategy.buy.data.config.budget
+        ), f"Budget mismatch: DB={db_position.budget}, Memory={strategy.buy.data.config.budget}"
+
+        assert (
+            db_position.price_low == strategy.buy.data.config.price_low
+        ), f"Price low mismatch: DB={db_position.price_low}, Memory={strategy.buy.data.config.price_low}"
+
+        assert (
+            db_position.price_high == strategy.buy.data.config.price_high
+        ), f"Price high mismatch: DB={db_position.price_high}, Memory={strategy.buy.data.config.price_high}"
+
+        assert (
+            db_position.order_trigger == strategy.buy.data.config.order_trigger
+        ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={strategy.buy.data.config.order_trigger}"
+
+        assert (
+            db_position.mode == strategy.buy.data.config.mode.value
+        ), f"Mode mismatch: DB={db_position.mode}, Memory={strategy.buy.data.config.mode.value}"
+
+        # Verify strategy execution state matches
+        expected_strategy_state = (
+            strategy.state.value
+            if hasattr(strategy.state, "value")
+            else str(strategy.state)
+        )
+        assert (
+            db_position.strategy_state == expected_strategy_state
+        ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={expected_strategy_state}"
+
+        # Verify position type is BUY (for buy positions)
+        assert (
+            db_position.position_type == PositionType.BUY
+        ), f"Position type should be BUY, got: {db_position.position_type}"
+
+        logger.info("✓ Application and database state match verified successfully")
+        logger.info("Matched fields:")
+        logger.info("  HP ID: %s", db_position.hp_id)
+        logger.info("  Symbol: %s", db_position.symbol)
+        logger.info("  Coin: %s", db_position.coin)
+        logger.info("  Budget: %s", db_position.budget)
+        logger.info(
+            "  Price range: %s - %s", db_position.price_low, db_position.price_high
+        )
+        logger.info("  Order trigger: %s", db_position.order_trigger)
+        logger.info("  Mode: %s", db_position.mode)
+        logger.info(
+            "  Strategy state: %s (matches: %s)",
+            db_position.strategy_state,
+            strategy.state,
+        )
+        logger.info("  Position status: %s", db_position.status)
+
+    def mock_orders_from_db(self, order_db_list):
         """
         Returns a mock function that returns the actual status, realized_quantity, etc., for each order from the DB.
         Args:
