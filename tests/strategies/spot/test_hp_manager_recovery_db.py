@@ -672,8 +672,7 @@ async def test_cancel_default_position_untouched_then_resend_orders_recovery(
     )
 
 
-
-async def test_default_position_first_order_filled_then_cancel(crash_recovery_factory):
+async def test_default_position_first_order_filled_then_cancel_recovery(crash_recovery_factory):
     """
     Crash recovery: default position, first order filled, then cancel (partially bought, rest canceled).
     """
