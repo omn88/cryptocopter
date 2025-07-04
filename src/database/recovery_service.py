@@ -189,7 +189,7 @@ class RecoveryService:
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
         )
 
-        # Explicitly check for all orders canceled and none filled
+        # Explicitly check for all orders canceled
         all_canceled = all(
             (order.status.value if hasattr(order.status, "value") else order.status)
             == "CANCELED"
@@ -200,12 +200,25 @@ class RecoveryService:
             == "FILLED"
             for order in orders
         )
+        any_partial = any(
+            (order.realized_quantity if hasattr(order, "realized_quantity") else 0.0)
+            > 0.0
+            for order in orders
+        )
         if all_canceled and not any_filled:
-            position.status = PositionStatus.NEW
-            position.completeness = 0.0
-            logger.info(
-                f"[Recovery] All buy orders canceled and none filled for position {position.hp_id}: setting status to NEW and completeness to 0.0"
-            )
+            if any_partial:
+                position.status = PositionStatus.PARTIALLY_FILLED
+                logger.info(
+                    "[Recovery] All buy orders canceled but some partially filled for position %s: setting status to PARTIALLY_FILLED",
+                    position.hp_id,
+                )
+            else:
+                position.status = PositionStatus.NEW
+                position.completeness = 0.0
+                logger.info(
+                    "[Recovery] All buy orders canceled and none filled for position %s: setting status to NEW and completeness to 0.0",
+                    position.hp_id,
+                )
         elif position.completeness == 0.0:
             if any(
                 (order.status.value if hasattr(order.status, "value") else order.status)
