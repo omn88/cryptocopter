@@ -75,12 +75,14 @@ class HPSimulator:
 
     async def assert_default_buy_position(self):
         await wait_for_condition(condition_func=lambda: len(self.back.strategies) == 1)
-        assert not self.back.config_queue.qsize()
+        await wait_for_condition(
+            condition_func=lambda: not self.back.config_queue.qsize()
+        )
         assert len(self.back.strategies) == 1
         strategy = self.back.strategies["1000"]
 
         assert isinstance(strategy, HpStrategy)
-        assert strategy.state == State.NEW
+        assert strategy.state == State.NEW, strategy.state
         assert len(strategy.buy.orders) == 3
 
         await wait_for_condition(
@@ -485,16 +487,14 @@ class HPSimulator:
         return strategy
 
     async def simulate_bought_position(self, symbol="BTCUSDC"):
-        # Get default buy position
-        self.simulate_buy_position(symbol=symbol)
+        # Assumes position is already created and in default state
         await self.assert_default_buy_position()
-
         await self.move_to_position_active_buy()
-
-        # Simulate first order fill
-        await self.simulate_first_buy_order_fill()
-        await self.simulate_second_buy_order_fill()
-        await self.simulate_third_buy_order_fill()
+        # Simulate all three buy order fills
+        strategy = await self.simulate_first_buy_order_fill()
+        strategy = await self.simulate_second_buy_order_fill()
+        strategy = await self.simulate_third_buy_order_fill()
+        return strategy
 
     async def setup_sell_position(
         self,
