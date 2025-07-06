@@ -1212,8 +1212,6 @@ async def test_default_position_all_buy_orders_filled_recovery(crash_recovery_fa
     assert len(back.strategies) == 0
 
     # Create default buy position, then fill all orders (fully bought)
-    sim.simulate_buy_position(symbol="BTCUSDC")
-    await sim.assert_default_buy_position()
     strategy = await sim.simulate_bought_position()
 
     # Assert state after all orders filled

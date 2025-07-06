@@ -74,6 +74,10 @@ class HPSimulator:
         logger.info("HP Buy Data added to the queue: %s", hp)
 
     async def assert_default_buy_position(self):
+        logger.info(
+            "=== ASSERTING DEFAULT BUY POSITION === len self back stragies: %s",
+            len(self.back.strategies),
+        )
         await wait_for_condition(condition_func=lambda: len(self.back.strategies) == 1)
         await wait_for_condition(
             condition_func=lambda: not self.back.config_queue.qsize()
@@ -488,6 +492,7 @@ class HPSimulator:
 
     async def simulate_bought_position(self, symbol="BTCUSDC"):
         # Assumes position is already created and in default state
+        self.simulate_buy_position(symbol=symbol)
         await self.assert_default_buy_position()
         await self.move_to_position_active_buy()
         # Simulate all three buy order fills
