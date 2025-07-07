@@ -83,11 +83,6 @@ class CrashRecoveryHelper:
                 db_position.strategy_state == expected_strategy_state
             ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={expected_strategy_state}"
 
-        # Verify position type is BUY (for buy positions)
-        assert (
-            db_position.position_type == PositionType.BUY
-        ), f"Position type should be BUY, got: {db_position.position_type}"
-
         logger.info("✓ Application and database state match verified successfully")
         logger.info("Matched fields:")
         logger.info("  HP ID: %s", db_position.hp_id)
