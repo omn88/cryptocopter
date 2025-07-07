@@ -316,11 +316,13 @@ class HPPositionSell:
             )
             self.current_position.sell_order.price = (
                 execution_report.last_executed_price
-            )  # self.db.upsert_order(
-            #     order=self.current_position.sell_order,
-            #     hp_id=self.current_position.config.hp_id,
-            #     side=self.current_position.state_info.side,
-            # )
+            )
+            # Persist the updated sell order to the database
+            await self.db.upsert_order(
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
+            )
             logger.info(
                 "Order: %s partially filled", self.current_position.sell_order.order_id
             )

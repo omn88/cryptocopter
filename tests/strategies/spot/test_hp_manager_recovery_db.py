@@ -1,7 +1,12 @@
 import logging
 
 
-from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED
+from binance.enums import (
+    ORDER_STATUS_NEW,
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_PARTIALLY_FILLED,
+)
 from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
@@ -1826,7 +1831,11 @@ async def test_recovery_cancel_unfilled_sell_orders(crash_recovery_factory):
 
     db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
     # Only check sell orders for canceled status
-    sell_orders = [order for order in db_orders if getattr(order.side, 'value', order.side) == "SELL"]
+    sell_orders = [
+        order
+        for order in db_orders
+        if getattr(order.side, "value", order.side) == "SELL"
+    ]
     assert len(sell_orders) > 0, "No sell orders found for this position!"
     for order in sell_orders:
         assert (
@@ -1856,7 +1865,6 @@ async def test_recovery_cancel_unfilled_sell_orders(crash_recovery_factory):
     )
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
-
 
 
 async def test_recovery_resend_unfilled_sell_orders(crash_recovery_factory):
@@ -1903,14 +1911,22 @@ async def test_recovery_resend_unfilled_sell_orders(crash_recovery_factory):
 
     db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
     # Only check sell orders for NEW status (resent)
-    sell_orders = [order for order in db_orders if getattr(order.side, 'value', order.side) == "SELL"]
+    sell_orders = [
+        order
+        for order in db_orders
+        if getattr(order.side, "value", order.side) == "SELL"
+    ]
     assert len(sell_orders) > 0, "No sell orders found for this position!"
     for order in sell_orders:
-        assert order.status.value == "NEW", f"Sell order {order.exchange_order_id} status is {order.status.value}, expected NEW"
+        assert (
+            order.status.value == "NEW"
+        ), f"Sell order {order.exchange_order_id} status is {order.status.value}, expected NEW"
 
     # Use CrashRecoveryHelper to mock exchange queries during recovery
     recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(db_orders)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
 
     # === MANUALLY TRIGGER CRASH RECOVERY ===
     await new_back.recover_positions_from_crash()
@@ -1923,33 +1939,92 @@ async def test_recovery_resend_unfilled_sell_orders(crash_recovery_factory):
     assert recovered_strategy.sell is not None
     assert recovered_strategy.sell.current_position is not None
     # Sell order should be NEW (resent)
-    assert recovered_strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
+    assert (
+        recovered_strategy.sell.current_position.sell_order.status == ORDER_STATUS_NEW
+    )
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-# async def test_sell_position_first_order_filled_partially(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     await sim.simulate_bought_position()
+async def test_recovery_sell_position_first_order_filled_partially(
+    crash_recovery_factory,
+):
+    create_pair, simulate_crash = crash_recovery_factory
 
-#     await sim.setup_sell_position(
-#         hp_id="1000",
-#         symbol="BTCUSDC",
-#         quantity=0.85,
-#         buy_price=1178.82,
-#         sell_price=4200.0,
-#         end_currency="USDC",
-#         coin="BTC",
-#     )
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
 
-#     await sim.send_sell_order_for_bought_position()
+    await sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        coin="BTC",
+    )
 
-#     await sim.simulate_sell_order_partial_fill()
+    await sim.send_sell_order_for_bought_position()
+    await sim.simulate_sell_order_partial_fill()
+
+    # Assert that the sell order is partially filled before crash (in memory)
+    strategy = back.strategies["1000"]
+    sell_order = strategy.sell.current_position.sell_order
+    assert sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
+    assert sell_order.realized_quantity > 0.0
+
+    # Ensure the DB is updated with the partial fill before crash
+    db_positions = await front.db.get_active_positions()
+    assert len(db_positions) == 1
+    db_position = db_positions[0]
+    db_orders = await front.db.get_orders_by_position_id(db_position.id)
+    db_sell_orders = [
+        o for o in db_orders if getattr(o.side, "value", o.side) == "SELL"
+    ]
+    assert len(db_sell_orders) == 1
+    db_sell_order = db_sell_orders[0]
+    assert (
+        db_sell_order.status.value == ORDER_STATUS_PARTIALLY_FILLED
+    ), f"DB sell order status before crash: {db_sell_order.status.value}"
+    assert (
+        db_sell_order.realized_quantity > 0.0
+    ), f"DB sell order realized_quantity before crash: {db_sell_order.realized_quantity}"
+
+    # === SIMULATE CRASH ===
+    await simulate_crash(front, back)
+
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+
+    # Use CrashRecoveryHelper to mock exchange queries during recovery
+    db_positions = await new_front.db.get_active_positions()
+    assert len(db_positions) == 1
+    db_position = db_positions[0]
+    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
+
+    # === MANUALLY TRIGGER CRASH RECOVERY ===
+    await new_back.recover_positions_from_crash()
+
+    # === POST-RECOVERY ASSERTIONS ===
+    await wait_for_condition(lambda: len(new_back.strategies) == 1)
+    assert "1000" in new_back.strategies
+    recovered_strategy = new_back.strategies["1000"]
+    assert recovered_strategy.state == State.SELLING
+    recovered_sell_order = recovered_strategy.sell.current_position.sell_order
+    assert recovered_sell_order.status == ORDER_STATUS_PARTIALLY_FILLED
+    assert recovered_sell_order.realized_quantity > 0.0
+
+    await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
 # async def test_sell_position_first_order_filled(
