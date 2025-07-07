@@ -2027,28 +2027,54 @@ async def test_recovery_sell_position_first_order_filled_partially(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-# async def test_sell_position_first_order_filled(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
-#     await sim.simulate_bought_position()
 
-#     await sim.setup_sell_position(
-#         hp_id="1000",
-#         symbol="BTCUSDC",
-#         quantity=0.85,
-#         buy_price=1178.82,
-#         sell_price=4200.0,
-#         end_currency="USDC",
-#         coin="BTC",
-#     )
+async def test_sell_position_first_order_filled(crash_recovery_factory):
+    """
+    Sell order is fully filled, so after crash there should be nothing to recover (position is SOLD).
+    """
+    create_pair, simulate_crash = crash_recovery_factory
 
-#     await sim.send_sell_order_for_bought_position()
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
+    sim = HPSimulator(front=front, back=back)
+    await sim.simulate_bought_position()
+    await sim.setup_sell_position(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=0.85,
+        buy_price=1178.82,
+        sell_price=4200.0,
+        end_currency="USDC",
+        coin="BTC",
+    )
+    await sim.send_sell_order_for_bought_position()
+    await sim.simulate_sell_order_fill()
 
-#     await sim.simulate_sell_order_fill()
+    # Assert that the sell order is fully filled before crash
+    strategy = back.strategies["1000"]
+    sell_order = strategy.sell.current_position.sell_order
+    assert sell_order.status == ORDER_STATUS_FILLED
+    assert sell_order.realized_quantity == 0.85
+
+    # Ensure the DB is updated with the fill before crash
+    db_positions = await front.db.get_active_positions()
+    # The position should be marked as SOLD or not present in active positions
+    assert len(db_positions) == 0 or all(p.status.value in ("SOLD", "FILLED") for p in db_positions)
+
+    # === SIMULATE CRASH ===
+    await simulate_crash(front, back)
+
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+
+    # After recovery, there should be no active positions to recover
+    positions_after_recovery = await new_front.db.get_active_positions()
+    assert len(positions_after_recovery) == 0 or all(p.status.value in ("SOLD", "FILLED") for p in positions_after_recovery)
+
+    # Optionally, check that no strategies are loaded in memory
+    assert len(new_back.strategies) == 0
 
 
 # async def test_cancel_sell_position_first_order_filled_partially(
