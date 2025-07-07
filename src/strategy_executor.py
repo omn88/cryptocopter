@@ -689,7 +689,9 @@ class StrategyExecutor:
             )
             strategy.sell.current_position.state_info.ui_state = UiState.CLOSED
 
-        await self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=strategy.sell.current_position, strategy_state=strategy.state
+        )
         self.send_sell_position_to_ui(
             config=strategy.sell.current_position.config,
             state_info=strategy.sell.current_position.state_info,
@@ -760,6 +762,11 @@ class StrategyExecutor:
             )
             if sell_orders:
                 strategy.sell.current_position.sell_order = sell_orders[0]
+                if (
+                    sell_orders[0].order_id
+                    and sell_orders[0].status != ORDER_STATUS_CANCELED
+                ):
+                    strategy.state = State.SELLING
         else:
             # Generate new timestamp for new positions
             strategy.sell.current_position.state_info.generate_open_time()
@@ -803,7 +810,9 @@ class StrategyExecutor:
                 ),
             )
 
-        await self.db.upsert_sell_price_level(data=strategy.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=strategy.sell.current_position, strategy_state=strategy.state
+        )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
@@ -945,7 +954,9 @@ class StrategyExecutor:
                 state_info=strategy.sell.current_position.state_info,
                 state=strategy.state,
             )
-            await self.db.upsert_sell_price_level(data=sell.current_position)
+            await self.db.upsert_sell_price_level(
+                data=sell.current_position, strategy_state=strategy.state
+            )
 
     async def recover_positions_from_crash(self) -> None:
         """

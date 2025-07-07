@@ -677,7 +677,7 @@ class TradingDatabase:
             logger.error("Failed to upsert buy price level: %s", e)
 
     async def upsert_sell_price_level(
-        self, data: Union[SellPosition, HPSellData], strategy_state: Any = None
+        self, data: Union[SellPosition, HPSellData], strategy_state: State
     ) -> None:
         """
         Save sell position data to the database.

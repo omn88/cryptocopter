@@ -723,7 +723,10 @@ class HpStrategy:
             side=self.sell.current_position.state_info.side,
             hp_id=self.sell.current_position.config.hp_id,
         )
-        await self.db.upsert_sell_price_level(data=self.sell.current_position)
+        # Persist SELLING state in DB when sending sell order
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
 
         self.send_sell_position_to_ui()
 
@@ -981,7 +984,9 @@ class HpStrategy:
             side=self.sell.current_position.state_info.side,
             hp_id=self.sell.current_position.config.hp_id,
         )
-        await self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
 
         self.send_sell_position_to_ui()
 
@@ -1034,7 +1039,9 @@ class HpStrategy:
             self.sell.current_position.sell_order
         )
 
-        await self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
         self.send_sell_position_to_ui()
         if len(self.sell.sell_positions) == 1:
             self.config_queue.put_nowait(
@@ -1233,7 +1240,9 @@ class HpStrategy:
         )
         self.sell.current_position.state_info.ui_state = UiState.CLOSED
         self.send_sell_position_to_ui()
-        await self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs
