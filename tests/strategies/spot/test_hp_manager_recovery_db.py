@@ -2027,7 +2027,6 @@ async def test_recovery_sell_position_first_order_filled_partially(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-
 async def test_sell_position_first_order_filled(crash_recovery_factory):
     """
     Sell order is fully filled, so after crash there should be nothing to recover (position is SOLD).
@@ -2059,7 +2058,9 @@ async def test_sell_position_first_order_filled(crash_recovery_factory):
     # Ensure the DB is updated with the fill before crash
     db_positions = await front.db.get_active_positions()
     # The position should be marked as SOLD or not present in active positions
-    assert len(db_positions) == 0 or all(p.status.value in ("SOLD", "FILLED") for p in db_positions)
+    assert len(db_positions) == 0 or all(
+        p.status.value in ("SOLD", "FILLED") for p in db_positions
+    )
 
     # === SIMULATE CRASH ===
     await simulate_crash(front, back)
@@ -2071,7 +2072,9 @@ async def test_sell_position_first_order_filled(crash_recovery_factory):
 
     # After recovery, there should be no active positions to recover
     positions_after_recovery = await new_front.db.get_active_positions()
-    assert len(positions_after_recovery) == 0 or all(p.status.value in ("SOLD", "FILLED") for p in positions_after_recovery)
+    assert len(positions_after_recovery) == 0 or all(
+        p.status.value in ("SOLD", "FILLED") for p in positions_after_recovery
+    )
 
     # Optionally, check that no strategies are loaded in memory
     assert len(new_back.strategies) == 0
