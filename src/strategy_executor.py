@@ -767,6 +767,29 @@ class StrategyExecutor:
                     and sell_orders[0].status != ORDER_STATUS_CANCELED
                 ):
                     strategy.state = State.SELLING
+
+            # --- Restore buy position state and orders if they exist in DB ---
+            # Check if there are buy orders for this hp_id
+            buy_orders = await self.db.fetch_orders_for_price_level(
+                hp_id=parent_hp_id, side=PositionSide.LONG.value
+            )
+            if buy_orders:
+                # Use the existing restore_buy_orders logic to populate strategy.buy.orders
+                strategy.buy.orders = await self.restore_buy_orders(
+                    buy_position=strategy.buy, worker_queue=worker_queue
+                )
+                # Optionally restore buy state_info.state from DB if needed
+                strategy_state_str = await self._get_strategy_state_from_db(
+                    parent_hp_id
+                )
+                try:
+                    strategy.buy.data.state_info.state = (
+                        State(strategy_state_str)
+                        if strategy_state_str
+                        else State.BOUGHT
+                    )
+                except Exception:
+                    strategy.buy.data.state_info.state = State.BOUGHT
         else:
             # Generate new timestamp for new positions
             strategy.sell.current_position.state_info.generate_open_time()

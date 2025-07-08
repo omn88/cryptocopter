@@ -843,7 +843,7 @@ class TradingDatabase:
                 # Get orders for this position and side
                 cursor = await conn.execute(
                     """
-                    SELECT * FROM orders 
+                    SELECT * FROM orders
                     WHERE position_id = ? AND side = ?
                     ORDER BY created_at ASC
                     """,
