@@ -324,19 +324,26 @@ class RecoveryService:
         # Handle fully filled (or completeness >= 1.0, even if status is PARTIALLY_FILLED)
         if completeness >= 1.0:
             logger.info(
-                f"[Recovery] Mapping to state: completeness >= 1.0, status={status}, side={side} -> BOUGHT/SOLD"
+                "[Recovery] Mapping to state: completeness >= 1.0, status=%s, side=%s -> BOUGHT/SOLD",
+                status,
+                side,
             )
             return State.BOUGHT if side == PositionSide.LONG else State.SOLD
         # Handle fully filled by status (legacy safety)
         if status == PositionStatus.FILLED:
             logger.info(
-                f"[Recovery] Mapping to state: status == FILLED, completeness={completeness}, side={side} -> BOUGHT/SOLD"
+                "[Recovery] Mapping to state: status == FILLED, completeness=%s, side=%s -> BOUGHT/SOLD",
+                completeness,
+                side,
             )
             return State.BOUGHT if side == PositionSide.LONG else State.SOLD
         # Handle partially filled
         if status == PositionStatus.PARTIALLY_FILLED or (0.0 < completeness < 1.0):
             logger.info(
-                f"[Recovery] Mapping to state: PARTIALLY_FILLED, status={status}, completeness={completeness}, side={side}"
+                "[Recovery] Mapping to state: PARTIALLY_FILLED, status=%s, completeness=%s, side=%s",
+                status,
+                completeness,
+                side,
             )
             if side == PositionSide.LONG:
                 return State.PARTIALLY_BOUGHT
@@ -344,29 +351,32 @@ class RecoveryService:
                 return State.PARTIALLY_SOLD
         # Handle open (orders sent, not filled)
         if status == PositionStatus.OPEN:
-            logger.info(f"[Recovery] Mapping to state: OPEN, side={side}")
+            logger.info("[Recovery] Mapping to state: OPEN, side=%s", side)
             if side == PositionSide.LONG:
                 return State.BUYING
             elif side == PositionSide.SHORT:
                 return State.SELLING
         # New
         if status == PositionStatus.NEW:
-            logger.info(f"[Recovery] Mapping to state: NEW, side={side}")
+            logger.info("[Recovery] Mapping to state: NEW, side=%s", side)
             return State.NEW
         # Closed/canceled
         if status == PositionStatus.CANCELED or status == PositionStatus.CLOSED:
-            logger.info(f"[Recovery] Mapping to state: CANCELED/CLOSED, side={side}")
+            logger.info("[Recovery] Mapping to state: CANCELED/CLOSED, side=%s", side)
             return State.CLOSED
         # Waiting
         if (
             status == PositionStatus.WAITING_PARENT
             or status == PositionStatus.WAITING_CHILD
         ):
-            logger.info(f"[Recovery] Mapping to state: WAITING, side={side}")
+            logger.info("[Recovery] Mapping to state: WAITING, side=%s", side)
             return State.WAITING_CHILD
         # Fallback
         logger.warning(
-            f"[Recovery] Mapping to state: FALLBACK to NEW, status={status}, completeness={completeness}, side={side}"
+            "[Recovery] Mapping to state: FALLBACK to NEW, status=%s, completeness=%s, side=%s",
+            status,
+            completeness,
+            side,
         )
         return State.NEW
 

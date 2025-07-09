@@ -559,7 +559,11 @@ class StrategyExecutor:
             logger.info("[Recovery][Buy] Orders for completeness calculation:")
             for idx, order in enumerate(strategy.buy.orders):
                 logger.info(
-                    f"[Recovery][Buy] Order {idx}: status={order.status}, quantity={order.quantity}, realized_quantity={order.realized_quantity}"
+                    "[Recovery][Buy] Order %d: status=%s, quantity=%s, realized_quantity=%s",
+                    idx,
+                    order.status,
+                    order.quantity,
+                    order.realized_quantity,
                 )
 
             all_filled = all(
@@ -586,13 +590,15 @@ class StrategyExecutor:
             )
             total_quantity = sum(order.quantity for order in strategy.buy.orders)
             logger.info(
-                f"[Recovery][Buy] total_realized_quantity={total_realized}, total_order_quantity={total_quantity}"
+                "[Recovery][Buy] total_realized_quantity=%s, total_order_quantity=%s",
+                total_realized,
+                total_quantity,
             )
             if total_quantity > 0:
                 completeness = total_realized / total_quantity
             else:
                 completeness = 0.0
-            logger.info(f"[Recovery][Buy] Calculated completeness={completeness}")
+            logger.info("[Recovery][Buy] Calculated completeness=%s", completeness)
 
             # Default state logic
             recovered_state = None
@@ -675,7 +681,8 @@ class StrategyExecutor:
             else:
                 strategy.buy.data.state_info.state = recovered_state
                 logger.info(
-                    f"[Recovery] Setting buy state_info.state to {recovered_state} after restoration"
+                    "[Recovery] Setting buy state_info.state to %s after restoration",
+                    recovered_state,
                 )
 
             # Restore strategy execution state from database (for main state)
