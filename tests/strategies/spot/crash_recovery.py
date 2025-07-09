@@ -64,24 +64,11 @@ class CrashRecoveryHelper:
             db_position.mode == strategy.buy.data.config.mode.value
         ), f"Mode mismatch: DB={db_position.mode}, Memory={strategy.buy.data.config.mode.value}"
 
-        # Verify strategy execution state matches
-        expected_strategy_state = (
-            strategy.state.value
-            if hasattr(strategy.state, "value")
-            else str(strategy.state)
-        )
         # Tolerate DB state == PARTIALLY_BOUGHT and memory == BUYING after cancel/resend recovery
-        if (
-            db_position.strategy_state == "PARTIALLY_BOUGHT"
-            and expected_strategy_state == "BUYING"
-        ):
-            logger.warning(
-                "Tolerating strategy state mismatch after cancel/resend: DB=PARTIALLY_BOUGHT, Memory=BUYING"
-            )
-        else:
-            assert (
-                db_position.strategy_state == expected_strategy_state
-            ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={expected_strategy_state}"
+
+        assert (
+            db_position.strategy_state == strategy.state.value
+        ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={strategy.state}"
 
         logger.info("✓ Application and database state match verified successfully")
         logger.info("Matched fields:")

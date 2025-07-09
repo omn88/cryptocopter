@@ -7,7 +7,12 @@ import threading
 import time  # Add time import for WebSocket error handling
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
-from binance.enums import ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from binance.enums import (
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_PARTIALLY_FILLED,
+    ORDER_STATUS_NEW,
+)
 from src.common.common import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
@@ -549,7 +554,50 @@ class StrategyExecutor:
             strategy.buy.orders = await self.restore_buy_orders(
                 buy_position=strategy.buy, worker_queue=worker_queue
             )
-            # Restore strategy execution state from database
+            # --- Patch: recalculate state from orders after restoration ---
+            all_filled = all(
+                order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+            )
+            any_filled = any(
+                order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+            )
+            any_partially_filled = any(
+                order.status == ORDER_STATUS_PARTIALLY_FILLED
+                or order.realized_quantity > 0
+                for order in strategy.buy.orders
+            )
+            all_new = all(
+                order.status == ORDER_STATUS_NEW for order in strategy.buy.orders
+            )
+            all_canceled = all(
+                order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
+            )
+            if all_filled and len(strategy.buy.orders) > 0:
+                strategy.buy.data.state_info.state = State.BOUGHT
+                logger.info(
+                    "[Recovery] All buy orders filled after restoration, setting state_info.state to BOUGHT"
+                )
+            elif any_filled or any_partially_filled:
+                strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+                logger.info(
+                    "[Recovery] Some buy orders are filled/partially filled after restoration, setting state_info.state to PARTIALLY_BOUGHT"
+                )
+            elif all_new and len(strategy.buy.orders) > 0:
+                strategy.buy.data.state_info.state = State.NEW
+                logger.info(
+                    "[Recovery] All buy orders are NEW after restoration, setting state_info.state to NEW"
+                )
+            elif all_canceled and len(strategy.buy.orders) > 0:
+                strategy.buy.data.state_info.state = State.NEW
+                logger.info(
+                    "[Recovery] All buy orders are CANCELED after restoration, setting state_info.state to NEW"
+                )
+            else:
+                strategy.buy.data.state_info.state = State.NEW
+                logger.info(
+                    "[Recovery] Defaulting buy state_info.state to NEW after restoration"
+                )
+            # Restore strategy execution state from database (for main state)
             strategy_state_str = await self._get_strategy_state_from_db(
                 new_hp.config.hp_id
             )
@@ -602,7 +650,9 @@ class StrategyExecutor:
             ),
         )
 
-        await self.db.upsert_buy_price_level(data=strategy.buy.data)
+        await self.db.upsert_buy_price_level(
+            data=strategy.buy.data, strategy_state=strategy.state
+        )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)

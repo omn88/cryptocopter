@@ -114,7 +114,25 @@ class RecoveryService:
                 # Get position orders from database
                 orders = await self.database.get_position_orders(position.id)
 
-                # Verify each order with exchange
+                # Optimization: If all orders are FILLED, skip exchange verification
+                all_filled = all(
+                    (
+                        order.status.value
+                        if hasattr(order.status, "value")
+                        else order.status
+                    )
+                    == "FILLED"
+                    for order in orders
+                )
+                if all_filled and len(orders) > 0:
+                    # Just update position from orders, do not query exchange
+                    updated_position = await self._update_position_from_orders(
+                        position, orders
+                    )
+                    verified_positions.append(updated_position)
+                    continue
+
+                # Otherwise, verify each order with exchange
                 updated_orders = []
                 for order in orders:
                     if order.exchange_order_id:
@@ -240,6 +258,48 @@ class RecoveryService:
 
         return position
 
+    def _convert_to_state_info_state(
+        self, status: PositionStatus, completeness: float, side: PositionSide
+    ) -> State:
+        """
+        Convert database PositionStatus and side to the nested state_info.state for HPBuyData/HPSellData.
+        This state should never be BUYING or SELLING, only terminal/summary states.
+        Handles both buy and sell sides, and complex/edge states.
+        For OPEN status, return BUYING/SELLING for the nested state to match the main strategy state.
+        """
+        # Handle fully filled (or completeness >= 1.0, even if status is PARTIALLY_FILLED)
+        if completeness >= 1.0:
+            return State.BOUGHT if side == PositionSide.LONG else State.SOLD
+        # Handle fully filled by status (legacy safety)
+        if status == PositionStatus.FILLED:
+            return State.BOUGHT if side == PositionSide.LONG else State.SOLD
+        # Handle partially filled
+        if status == PositionStatus.PARTIALLY_FILLED or (0.0 < completeness < 1.0):
+            if side == PositionSide.LONG:
+                return State.PARTIALLY_BOUGHT
+            elif side == PositionSide.SHORT:
+                return State.PARTIALLY_SOLD
+        # Handle open (orders sent, not filled)
+        if status == PositionStatus.OPEN:
+            if side == PositionSide.LONG:
+                return State.BUYING
+            elif side == PositionSide.SHORT:
+                return State.SELLING
+        # New
+        if status == PositionStatus.NEW:
+            return State.NEW
+        # Closed/canceled
+        if status == PositionStatus.CANCELED or status == PositionStatus.CLOSED:
+            return State.CLOSED
+        # Waiting
+        if (
+            status == PositionStatus.WAITING_PARENT
+            or status == PositionStatus.WAITING_CHILD
+        ):
+            return State.WAITING_CHILD
+        # Fallback
+        return State.NEW
+
     async def _convert_to_buy_data(self, position: Position) -> Optional[HPBuyData]:
         """Convert database Position to HPBuyData for the trading system."""
         try:
@@ -247,6 +307,17 @@ class RecoveryService:
             if not symbol_info:
                 logger.error("Symbol info not found for %s", position.symbol)
                 return None
+
+            # Ensure that if all buy orders are filled, state and completeness are correct
+            if position.status == PositionStatus.FILLED and position.completeness < 1.0:
+                position.completeness = 1.0
+
+            # Main strategy state (can be BUYING etc.)
+            state = self._convert_to_state(position.status)
+            # Nested state_info.state (never BUYING/SELLING), pass side explicitly
+            state_info_state = self._convert_to_state_info_state(
+                position.status, position.completeness, PositionSide.LONG
+            )
 
             config = HPBuyConfig(
                 symbol_info=symbol_info,
@@ -264,7 +335,7 @@ class RecoveryService:
             )
 
             state_info = StateInfo(
-                state=self._convert_to_state(position.status),
+                state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.LONG,
                 completeness=position.completeness,
@@ -298,8 +369,13 @@ class RecoveryService:
                 parent_hp_id=position.parent_position_id,
             )
 
+            # Nested state_info.state (never BUYING/SELLING), pass side explicitly
+            state_info_state = self._convert_to_state_info_state(
+                position.status, position.completeness, PositionSide.SHORT
+            )
+
             state_info = StateInfo(
-                state=self._convert_to_state(position.status),
+                state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.SHORT,
                 completeness=position.completeness,

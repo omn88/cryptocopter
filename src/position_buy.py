@@ -53,6 +53,19 @@ class HPPositionBuy:
         """
         logger.debug("Entered open position")
         self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
+        logger.info(
+            "Orders cancel price set to: %s for position: %s",
+            self.orders_cancel_price,
+            self.data.config.symbol_info.symbol,
+        )
+        logger.info("Orders: %s", self.orders)
+        for order in self.orders:
+            if order.status != ORDER_STATUS_FILLED:
+                order.status = ORDER_STATUS_NEW
+                order.order_id = 0
+
+        logger.info("Orders after update: %s", self.orders)
+
         results = await asyncio.gather(
             *[
                 self._create_order(order=order)
@@ -108,13 +121,21 @@ class HPPositionBuy:
             logger.info(
                 "All buy orders canceled and none filled: setting state to NEW and completeness to 0.0"
             )
-        # If any order is filled or partially filled, set state to PARTIALLY_BOUGHT
+        # If any order is filled or partially filled, set state to PARTIALLY_BOUGHT, unless all are filled
         elif any_filled or any_partially_filled:
-            self.data.state_info.state = State.PARTIALLY_BOUGHT
             self.data.state_info.get_completeness(orders=self.orders)
-            logger.info(
-                "Some buy orders filled or partially filled: setting state to PARTIALLY_BOUGHT"
-            )
+            if all(order.status == ORDER_STATUS_FILLED for order in self.orders):
+                self.data.state_info.state = State.BOUGHT
+                logger.info(
+                    "All buy orders filled: setting state to BOUGHT (completeness=%.4f)",
+                    self.data.state_info.completeness,
+                )
+            else:
+                self.data.state_info.state = State.PARTIALLY_BOUGHT
+                logger.info(
+                    "Some buy orders filled or partially filled: setting state to PARTIALLY_BOUGHT (completeness=%.4f)",
+                    self.data.state_info.completeness,
+                )
         else:
             self.data.state_info.get_completeness(orders=self.orders)
 
