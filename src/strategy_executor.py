@@ -601,6 +601,13 @@ class StrategyExecutor:
             logger.info("[Recovery][Buy] Calculated completeness=%s", completeness)
 
             # Default state logic
+
+            strategy.buy.data.state_info.state = (
+                State.BOUGHT
+                if all_filled
+                else State.NEW if all_new or all_canceled else State.PARTIALLY_BOUGHT
+            )
+
             recovered_state = None
             if all_filled and len(strategy.buy.orders) > 0:
                 recovered_state = State.BOUGHT
@@ -623,10 +630,6 @@ class StrategyExecutor:
             logger.info(
                 "[Recovery] fetch_orders_for_price_level returned: %s", sell_orders
             )
-            sell_order_restored = False
-            sell_order_status = None
-            sell_order_realized_qty = 0
-            sell_order_qty = 0
             if sell_orders:
                 logger.info(
                     "[Recovery] Found %d sell orders for HP %s",
@@ -657,10 +660,6 @@ class StrategyExecutor:
                     "realized_quantity"
                 ]
                 strategy.sell.current_position.sell_order.status = db_order["status"]
-                sell_order_restored = True
-                sell_order_status = db_order["status"]
-                sell_order_realized_qty = db_order["realized_quantity"]
-                sell_order_qty = db_order["quantity"]
                 logger.info(
                     "[Recovery] Patched sell order for HP %s: %s",
                     new_hp.config.hp_id,
@@ -689,34 +688,7 @@ class StrategyExecutor:
             strategy_state_str = await self._get_strategy_state_from_db(
                 new_hp.config.hp_id
             )
-            try:
-                # If all buy orders are filled, but sell order is canceled with realized_quantity > 0, set strategy.state to PARTIALLY_SOLD
-                if (
-                    all_filled
-                    and sell_order_restored
-                    and sell_order_status == ORDER_STATUS_CANCELED
-                    and sell_order_realized_qty > 0
-                ):
-                    strategy.state = State.PARTIALLY_SOLD
-                    logger.info(
-                        "[Recovery] All buy orders filled and sell order was CANCELED with realized_quantity > 0, setting strategy.state to PARTIALLY_SOLD"
-                    )
-                else:
-                    strategy.state = (
-                        State(strategy_state_str) if strategy_state_str else State.NEW
-                    )
-                    logger.info(
-                        "Restored strategy state %s for HP %s",
-                        strategy.state,
-                        new_hp.config.hp_id,
-                    )
-            except ValueError:
-                logger.warning(
-                    "Invalid strategy state '%s' for HP %s, defaulting to NEW",
-                    strategy_state_str,
-                    new_hp.config.hp_id,
-                )
-                strategy.state = State.NEW
+            strategy.state = State(strategy_state_str)
         else:
             # Create new orders for normal setup
             strategy.buy.prepare_orders()
@@ -924,11 +896,6 @@ class StrategyExecutor:
                     "[Recovery] In-memory sell order after assignment: %s",
                     strategy.sell.current_position.sell_order,
                 )
-                if (
-                    sell_orders[0].order_id
-                    and sell_orders[0].status != ORDER_STATUS_CANCELED
-                ):
-                    strategy.state = State.SELLING
             else:
                 logger.info(
                     "[Recovery] No sell orders found in DB for HP %s", parent_hp_id
@@ -951,54 +918,30 @@ class StrategyExecutor:
                     "[Recovery] In-memory buy orders after restore: %s",
                     strategy.buy.orders,
                 )
-                # Optionally restore buy state_info.state from DB if needed
                 strategy_state_str = await self._get_strategy_state_from_db(
                     parent_hp_id
                 )
                 logger.info("[Recovery] Strategy state from DB: %s", strategy_state_str)
-                try:
-                    strategy.buy.data.state_info.state = (
-                        State(strategy_state_str)
-                        if strategy_state_str
-                        else State.BOUGHT
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "[Recovery] Exception setting buy state_info.state: %s", e
-                    )
-                    strategy.buy.data.state_info.state = State.BOUGHT
+                strategy.state = State(strategy_state_str)
 
-                # --- Restore associated sell orders for this HP if they exist in DB ---
-                sell_orders_db = await self.db.fetch_orders_for_price_level(
-                    hp_id=parent_hp_id, side=PositionSide.SHORT.value
+                # Set buy state based on actual buy order statuses
+                all_filled = all(
+                    o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders
                 )
-                logger.info(
-                    "[Recovery] fetch_orders_for_price_level(SELL) returned: %s",
-                    sell_orders_db,
+                all_new = all(o.status == ORDER_STATUS_NEW for o in strategy.buy.orders)
+                buy_filled = any(o.status == "FILLED" for o in strategy.buy.orders)
+                buy_open = any(
+                    o.status in ("NEW", "PARTIALLY_FILLED") for o in strategy.buy.orders
                 )
-                if sell_orders_db:
-                    # Use the existing restore_sell_orders logic to populate strategy.sell.current_position.sell_order
-                    restored_sell_orders = await self.restore_sell_orders(
-                        sell_config=strategy.sell.current_position.config,
-                        worker_queue=worker_queue,
-                    )
-                    logger.info(
-                        "[Recovery] restore_sell_orders() (second call) returned: %s",
-                        restored_sell_orders,
-                    )
-                    if restored_sell_orders:
-                        logger.info(
-                            "[Recovery] Assigning restored sell order (second call) to in-memory: %s",
-                            restored_sell_orders[0],
-                        )
-                        strategy.sell.current_position.sell_order = (
-                            restored_sell_orders[0]
-                        )
-                        logger.info(
-                            "[Recovery] Restored sell order for HP %s: %s",
-                            parent_hp_id,
-                            restored_sell_orders[0],
-                        )
+                if buy_filled and buy_open:
+                    strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
+                elif all_filled:
+                    strategy.buy.data.state_info.state = State.BOUGHT
+                elif all_new:
+                    strategy.buy.data.state_info.state = State.NEW
+                else:
+                    strategy.buy.data.state_info.state = State.CLOSED
+
         else:
             # Generate new timestamp for new positions
             strategy.sell.current_position.state_info.generate_open_time()
