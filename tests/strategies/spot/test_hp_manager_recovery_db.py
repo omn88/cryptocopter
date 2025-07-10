@@ -3232,64 +3232,121 @@ async def test_sell_fully_partially_bought_position(crash_recovery_factory):
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-# async def test_buy_fully_partially_bought_position_when_sold_position(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
+async def test_buy_fully_partially_bought_position_when_sold_position(
+    crash_recovery_factory,
+):
+    """
+    Test reopening buy after a full sell from a partially bought position, with crash recovery.
+    After recovery and full buy, state should be BOUGHT, not BUYING.
+    """
+    create_pair, simulate_crash = crash_recovery_factory
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     assert len(back.strategies) == 0
+    assert len(back.strategies) == 0
 
-#     # Get default buy position
-#     sim.simulate_buy_position(symbol="BTCUSDC")
-#     await sim.assert_default_buy_position()
+    # Get default buy position
+    sim.simulate_buy_position(symbol="BTCUSDC")
+    await sim.assert_default_buy_position()
 
-#     await sim.move_to_position_active_buy()
+    await sim.move_to_position_active_buy()
 
-#     # Simulate first buy order fill
-#     strategy = await sim.simulate_first_buy_order_fill()
+    # Simulate first buy order fill
+    strategy = await sim.simulate_first_buy_order_fill()
 
-#     # Cancel partially bought position
-#     await sim.cancel_buy_position_after_first_order_filled()
+    # Cancel partially bought position
+    await sim.cancel_buy_position_after_first_order_filled()
 
-#     await sim.setup_sell_position_after_first_buy_order_filled(
-#         hp_id="1000",
-#         symbol="BTCUSDC",
-#         quantity=strategy.buy.calculate_realized_quantity(),
-#         buy_price=strategy.buy.calculate_avg_buy_price(),
-#         sell_price=4200.0,
-#         end_currency="USDC",
-#         coin="BTC",
-#     )
+    await sim.setup_sell_position_after_first_buy_order_filled(
+        hp_id="1000",
+        symbol="BTCUSDC",
+        quantity=strategy.buy.calculate_realized_quantity(),
+        buy_price=strategy.buy.calculate_avg_buy_price(),
+        sell_price=4200.0,
+        end_currency="USDC",
+        coin="BTC",
+    )
 
-#     await sim.send_sell_order_for_part_bought_position()
+    await sim.send_sell_order_for_part_bought_position()
 
-#     await sim.simulate_sell_order_fill_from_part_bought()
+    await sim.simulate_sell_order_fill_from_part_bought()
 
-#     # Reopen Buy position
-#     strategy.client.create_order.side_effect = get_new_orders(
-#         orders=strategy.buy.orders
-#     )
+    # Assert state is SOLD_PART_BOUGHT and buy state is PARTIALLY_BOUGHT
+    assert (
+        strategy.state == State.SOLD_PART_BOUGHT
+    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {strategy.state}"
+    assert (
+        strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    ), f"Expected buy state to be PARTIALLY_BOUGHT, got {strategy.buy.data.state_info.state}"
 
-#     # Price trigger is now related to the middle order as the top order is already filled.
-#     sim.new_price(price=1212)
+    # Reopen Buy position (simulate price trigger)
+    strategy.client.create_order.side_effect = get_new_orders(
+        orders=strategy.buy.orders
+    )
+    sim.new_price(price=1212)
 
-#     assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
-#     await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
-#     assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+    assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+    await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
+    assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-#     assert strategy.buy.orders[0].realized_quantity == 0.24
-#     assert strategy.buy.orders[1].realized_quantity == 0.0
-#     assert strategy.buy.orders[2].realized_quantity == 0.0
+    assert strategy.buy.orders[0].realized_quantity == 0.24
+    assert strategy.buy.orders[1].realized_quantity == 0.0
+    assert strategy.buy.orders[2].realized_quantity == 0.0
 
-#     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-#     assert strategy.state == State.BUYING
+    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
+    assert strategy.state == State.BUYING
 
-#     await wait_for_condition(
-#         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
-#     )
+    await wait_for_condition(
+        condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+    )
+
+    # Fill the second and third buy orders BEFORE simulating a crash
+    await sim.simulate_second_buy_order_fill_with_sell_price()
+    assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
+    await sim.simulate_third_buy_order_fill_with_sell_price()
+    assert strategy.buy.orders[2].status == ORDER_STATUS_FILLED
+
+    # All buy orders should now be filled
+    assert all(o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders)
+    assert strategy.buy.data.state_info.state == State.BOUGHT
+    assert strategy.state == State.PARTIALLY_SOLD
+
+    # --- Completeness checker ---
+    total_quantity = sum(o.quantity for o in strategy.buy.orders)
+    completeness = strategy.buy.data.state_info.completeness
+    check_completeness(strategy.buy.orders, total_quantity, completeness)
+
+    # Simulate crash after all buy orders are filled
+    await simulate_crash(front, back)
+
+    # PHASE 2: Simulate application restart and recovery
+    new_front, new_back = create_pair("_recovery")
+    db_positions = await new_front.db.get_active_positions()
+    assert len(db_positions) == 1
+    db_position = db_positions[0]
+    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
+    await new_back.recover_positions_from_crash()
+
+    # After recovery, assert all buy orders are filled and state is BOUGHT
+    recovered_strategy = new_back.strategies["1000"]
+    assert all(o.status == ORDER_STATUS_FILLED for o in recovered_strategy.buy.orders)
+    assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
+    assert recovered_strategy.state == State.PARTIALLY_SOLD
+
+    # --- Completeness checker ---
+    total_quantity = sum(o.quantity for o in recovered_strategy.buy.orders)
+    # Patch: recalculate completeness from realized quantities after recovery
+    recalculated_completeness = sum(o.realized_quantity for o in recovered_strategy.buy.orders) / total_quantity if total_quantity else 0.0
+    check_completeness(recovered_strategy.buy.orders, total_quantity, recalculated_completeness)
+
+    await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
 # async def test_start_new_sell_position_for_two_hop_trade(

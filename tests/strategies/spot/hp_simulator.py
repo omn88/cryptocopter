@@ -409,17 +409,21 @@ class HPSimulator:
         )
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
+        # Calculate realized buy quantity minus realized sell quantity (always one sell order)
+        realized_buy_quantity = sum(
+            order.realized_quantity for order in strategy.buy.orders
         )
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
-            == realized_quantity
+        net_quantity = str(
+            round(
+                realized_buy_quantity
+                - strategy.sell.current_position.sell_order.realized_quantity,
+                2,
+            )
         )
 
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == net_quantity
         )
 
         assert len(self.front.hp_list_data) == 1
@@ -427,8 +431,8 @@ class HPSimulator:
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1292.31"
-        assert item["quantity"] == "0.52"
-        assert item["quantity_usd"] == "672.0"
+        assert item["quantity"] == "0.28"
+        assert item["quantity_usd"] == "361.85"
         assert item["sell_price"] == "4200.0", item["sell_price"]
         assert item["expected_return"] == "1512.0"
         assert item["current_price"] == "0.0"
@@ -464,7 +468,13 @@ class HPSimulator:
         )
 
         realized_quantity = str(
-            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
+            round(
+                (
+                    sum(order.realized_quantity for order in strategy.buy.orders)
+                    - strategy.sell.current_position.sell_order.realized_quantity
+                ),
+                2,
+            )
         )
 
         await wait_for_condition(
@@ -477,14 +487,14 @@ class HPSimulator:
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1178.82"
-        assert item["quantity"] == "0.85"
-        assert item["quantity_usd"] == "1002.0"
+        assert item["quantity"] == "0.61"
+        assert item["quantity_usd"] == "719.08"
         assert item["sell_price"] == "4200.0"
         assert item["expected_return"] == "2568.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "BOUGHT"
+        assert item["state"] == "PARTIALLY_SOLD"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
