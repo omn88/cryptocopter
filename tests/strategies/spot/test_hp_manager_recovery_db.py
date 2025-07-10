@@ -2479,8 +2479,6 @@ async def test_fill_orders_for_previously_partially_bought_position(
     )
     sim.new_price(price=1212)
 
-    logger.info("aaaaaaaaaaaaaaaaaaaaaaaa New price 1212")
-
     assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
     await wait_for_condition(lambda: strategy.buy.orders[1].status == ORDER_STATUS_NEW)
     assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
@@ -2497,9 +2495,9 @@ async def test_fill_orders_for_previously_partially_bought_position(
     )
 
     # Fill the second and third buy orders BEFORE simulating a crash
-    await sim.simulate_second_buy_order_fill_with_sell_price()
+    await sim.simulate_second_buy_order_fill_with_sell_price_no_fill()
     assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
-    await sim.simulate_third_buy_order_fill_with_sell_price()
+    await sim.simulate_third_buy_order_fill_with_sell_price_no_fill()
     assert strategy.buy.orders[2].status == ORDER_STATUS_FILLED
 
     # All buy orders should now be filled
@@ -3343,8 +3341,14 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     # --- Completeness checker ---
     total_quantity = sum(o.quantity for o in recovered_strategy.buy.orders)
     # Patch: recalculate completeness from realized quantities after recovery
-    recalculated_completeness = sum(o.realized_quantity for o in recovered_strategy.buy.orders) / total_quantity if total_quantity else 0.0
-    check_completeness(recovered_strategy.buy.orders, total_quantity, recalculated_completeness)
+    recalculated_completeness = (
+        sum(o.realized_quantity for o in recovered_strategy.buy.orders) / total_quantity
+        if total_quantity
+        else 0.0
+    )
+    check_completeness(
+        recovered_strategy.buy.orders, total_quantity, recalculated_completeness
+    )
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
