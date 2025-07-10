@@ -569,19 +569,8 @@ class StrategyExecutor:
             all_filled = all(
                 order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
             )
-            any_filled = any(
-                order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
-            )
-            any_partially_filled = any(
-                order.status == ORDER_STATUS_PARTIALLY_FILLED
-                or order.realized_quantity > 0
-                for order in strategy.buy.orders
-            )
-            all_new = all(
-                order.status == ORDER_STATUS_NEW for order in strategy.buy.orders
-            )
-            all_canceled = all(
-                order.status == ORDER_STATUS_CANCELED for order in strategy.buy.orders
+            part_bought = any(
+                order.realized_quantity > 0 for order in strategy.buy.orders
             )
 
             # Detailed completeness calculation logging
@@ -605,20 +594,8 @@ class StrategyExecutor:
             strategy.buy.data.state_info.state = (
                 State.BOUGHT
                 if all_filled
-                else State.NEW if all_new or all_canceled else State.PARTIALLY_BOUGHT
+                else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
             )
-
-            recovered_state = None
-            if all_filled and len(strategy.buy.orders) > 0:
-                recovered_state = State.BOUGHT
-            elif any_filled or any_partially_filled:
-                recovered_state = State.PARTIALLY_BOUGHT
-            elif all_new and len(strategy.buy.orders) > 0:
-                recovered_state = State.NEW
-            elif all_canceled and len(strategy.buy.orders) > 0:
-                recovered_state = State.NEW
-            else:
-                recovered_state = State.NEW
 
             # --- Restore sell position state and orders if they exist in DB ---
             logger.info(
@@ -671,24 +648,13 @@ class StrategyExecutor:
                     new_hp.config.hp_id,
                 )
 
-            # Patch: Ensure buy state is BOUGHT if all buy orders are filled, regardless of sell order state
-            if all_filled and len(strategy.buy.orders) > 0:
-                strategy.buy.data.state_info.state = State.BOUGHT
-                logger.info(
-                    "[Recovery] All buy orders filled, setting buy state_info.state to BOUGHT"
-                )
-            else:
-                strategy.buy.data.state_info.state = recovered_state
-                logger.info(
-                    "[Recovery] Setting buy state_info.state to %s after restoration",
-                    recovered_state,
-                )
-
             # Restore strategy execution state from database (for main state)
             strategy_state_str = await self._get_strategy_state_from_db(
                 new_hp.config.hp_id
             )
             strategy.state = State(strategy_state_str)
+
+            logger.info("strategy.state restored from DB: %s", strategy.state)
         else:
             # Create new orders for normal setup
             strategy.buy.prepare_orders()
@@ -929,16 +895,13 @@ class StrategyExecutor:
                     o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders
                 )
                 all_new = all(o.status == ORDER_STATUS_NEW for o in strategy.buy.orders)
-                buy_filled = any(o.status == "FILLED" for o in strategy.buy.orders)
-                buy_open = any(
-                    o.status in ("NEW", "PARTIALLY_FILLED") for o in strategy.buy.orders
-                )
-                if buy_filled and buy_open:
-                    strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
-                elif all_filled:
+
+                if all_filled:
                     strategy.buy.data.state_info.state = State.BOUGHT
                 elif all_new:
                     strategy.buy.data.state_info.state = State.NEW
+                elif any(o.realized_quantity > 0 for o in strategy.buy.orders):
+                    strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
                 else:
                     strategy.buy.data.state_info.state = State.CLOSED
 

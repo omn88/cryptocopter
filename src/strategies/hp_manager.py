@@ -843,6 +843,11 @@ class HpStrategy:
 
         await self.db.upsert_buy_price_level(data=self.buy.data)
 
+        if self.sell.current_position.state_info.state == State.PARTIALLY_SOLD:
+            await self.db.upsert_sell_price_level(
+                data=self.sell.current_position, strategy_state=State.PARTIALLY_SOLD
+            )
+
     def conditions_for_cancelling_unfilled_sell_orders_from_partially_bought_position(
         self, *args, **kwargs
     ) -> bool:
@@ -868,7 +873,14 @@ class HpStrategy:
     async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
         logger.info("Cancelling %s", self.sell.current_position.state_info.side.value)
         await self.sell.cancel_position()
-
+        self.state = (
+            State.BOUGHT
+            if all(order.status == ORDER_STATUS_FILLED for order in self.buy.orders)
+            else State.PARTIALLY_BOUGHT
+        )
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
         self.send_sell_position_to_ui()
 
     def conditions_for_sending_sell_orders(self, *args, **kwargs) -> bool:
@@ -1131,7 +1143,9 @@ class HpStrategy:
         self.sell.current_position.state_info = StateInfo(
             side=PositionSide.SHORT, state=State.PARTIALLY_SOLD
         )
-
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
         self.send_sell_position_to_ui()
 
     def conditions_for_resending_sell_orders_from_part_sold_and_bought_orders(
@@ -1372,7 +1386,9 @@ class HpStrategy:
 
         await self.sell.handle_order_filled(execution_report=self.execution_report)
 
-        # self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
 
         self.send_sell_position_to_ui()
 
@@ -1415,7 +1431,9 @@ class HpStrategy:
 
         logger.info("Sell order: %s", self.sell.current_position.sell_order)
 
-        # self.db.upsert_sell_price_level(data=self.sell.current_position)
+        await self.db.upsert_sell_price_level(
+            data=self.sell.current_position, strategy_state=self.state
+        )
         self.send_sell_position_to_ui()
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:

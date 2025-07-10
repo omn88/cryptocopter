@@ -3069,6 +3069,12 @@ async def test_buy_fully_partially_sold_position(crash_recovery_factory):
     assert all(o.status == ORDER_STATUS_FILLED for o in strategy.buy.orders)
     assert strategy.buy.data.state_info.state == State.BOUGHT
     assert strategy.state == State.PARTIALLY_SOLD
+    assert strategy.sell.current_position.state_info.state == State.PARTIALLY_SOLD
+
+    db_positions = await front.db.get_active_positions()
+    assert len(db_positions) == 1
+    db_position = db_positions[0]
+    logger.info("db position: %s", db_position)
 
     # --- Completeness checker ---
     total_quantity = sum(o.quantity for o in strategy.buy.orders)
@@ -3173,7 +3179,7 @@ async def test_sell_fully_partially_bought_position(crash_recovery_factory):
     # Assert state is SOLD_PART_BOUGHT and buy state is BOUGHT
     assert (
         strategy.state == State.SOLD_PART_BOUGHT
-    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {recovered_strategy.state}"
+    ), f"Expected strategy state to be SOLD_PART_BOUGHT, got {strategy.state}"
     assert (
         strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     ), f"Expected buy state to be PARTIALLY BOUGHT, got {recovered_strategy.buy.data.state_info.state}"
