@@ -162,6 +162,9 @@ class StrategyExecutor:
                         await self.setup_sell_position_with_new_hp(
                             strategy_data=sell_position, sell_strategy=sell_strategy
                         )
+                        await self.db.upsert_sell_price_level(
+                            data=sell_position, strategy_state=State.BOUGHT
+                        )
                     else:
                         await self.setup_sell_position(
                             strategy_data=sell_position, sell_strategy=sell_strategy
@@ -545,7 +548,6 @@ class StrategyExecutor:
                 worker_queue=worker_queue,
             ),
         )
-        # await strategy.sell.initialize_positions()
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
@@ -773,7 +775,6 @@ class StrategyExecutor:
                 "Current position in standard setup sell: %s",
                 strategy.sell.current_position,
             )
-        # await strategy.sell.initialize_positions()
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -856,7 +857,6 @@ class StrategyExecutor:
             initial_state=State.BOUGHT,
         )
 
-        # await strategy.sell.initialize_positions()
         config = strategy.sell.current_position.config
 
         # Handle restoration vs new position setup
