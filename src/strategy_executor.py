@@ -10,7 +10,6 @@ from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_FILLED,
-    ORDER_STATUS_PARTIALLY_FILLED,
     ORDER_STATUS_NEW,
 )
 from src.common.common import generate_hp_id
@@ -866,7 +865,8 @@ class StrategyExecutor:
             )
             # Restore existing sell orders from database
             sell_orders = await self.restore_sell_orders(
-                sell_config=strategy_data.config, worker_queue=worker_queue
+                sell_config=strategy.sell.current_position.config,
+                worker_queue=worker_queue,
             )
             logger.info("[Recovery] restore_sell_orders() returned: %s", sell_orders)
             if sell_orders:
