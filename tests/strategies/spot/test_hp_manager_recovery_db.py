@@ -3353,15 +3353,87 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-# async def test_start_new_sell_position_for_two_hop_trade(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
+async def test_start_new_sell_position_for_two_hop_trade(crash_recovery_factory):
+    """
+    Refactored: Test starting a new sell position for a two-hop trade, with crash recovery and parent/child linkage assertions.
+    """
+    create_pair, simulate_crash = crash_recovery_factory
+    front, back = create_pair("_original")
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     await sim.open_first_sell_position_from_two_hop_trade()
+    await sim.open_first_sell_position_from_two_hop_trade()
+
+    # Assert sell_positions structure before crash
+    strategy = back.strategies["1000"]
+    sell_positions = strategy.sell.sell_positions
+    assert (
+        len(sell_positions) == 2
+    ), f"Expected 2 sell positions for two-hop trade, got {len(sell_positions)}"
+
+    # Both sell positions should be children of the original hp_id
+    hp_ids = [sp.config.hp_id for sp in sell_positions]
+    assert all(
+        sp.config.is_child for sp in sell_positions
+    ), "All sell positions should have is_child=True"
+    assert all(
+        sp.config.parent_hp_id == "1000" for sp in sell_positions
+    ), "All sell positions should have parent_hp_id='1000'"
+    assert set(hp_ids) == {
+        "1000a",
+        "1000b",
+    }, f"Sell positions should have hp_ids '1000a' and '1000b', got {hp_ids}"
+
+    # Simulate crash
+    await simulate_crash(front, back)
+
+    # Simulate recovery
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+    db_positions = await new_front.db.get_active_positions()
+    assert len(db_positions) == 1, "Should have one hop after recovery"
+    db_orders = []
+    for db_position in db_positions:
+        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
+    await new_back.recover_positions_from_crash()
+
+    # Assert sell_positions structure after recovery
+
+    await wait_for_condition(lambda: len(new_back.strategies) == 1)
+    assert (
+        "1000" in new_back.strategies
+    ), "Recovered strategies should contain only '1000'"
+    recovered_strategy = new_back.strategies["1000"]
+    recovered_sell_positions = recovered_strategy.sell.sell_positions
+    assert (
+        recovered_sell_positions is not None
+    ), "Recovered strategy.sell.sell_positions should not be None"
+    assert isinstance(
+        recovered_sell_positions, list
+    ), "Recovered strategy.sell.sell_positions should be a list"
+    assert (
+        len(recovered_sell_positions) == 2
+    ), f"Expected 2 sell positions after recovery, got {len(recovered_sell_positions)}"
+
+    rec_hp_ids = [sp.config.hp_id for sp in recovered_sell_positions]
+    assert all(
+        sp.config.is_child for sp in recovered_sell_positions
+    ), "All recovered sell positions should have is_child=True"
+    assert all(
+        sp.config.parent_hp_id == "1000" for sp in recovered_sell_positions
+    ), "All recovered sell positions should have parent_hp_id='1000'"
+    assert set(rec_hp_ids) == {
+        "1000a",
+        "1000b",
+    }, f"Recovered sell positions should have hp_ids '1000a' and '1000b', got {rec_hp_ids}"
+
+    await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
 # async def test_send_order_for_first_sell_position_in_two_hop_trade(
@@ -3647,4 +3719,3 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 #     await wait_for_condition(
 #         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
 #     )
-

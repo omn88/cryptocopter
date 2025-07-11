@@ -69,6 +69,8 @@ class RecoveryService:
             active_positions = await self.database.get_active_positions()
             logger.info("Found %d active positions in database", len(active_positions))
 
+            logger.info("Active positions: %s", active_positions)
+
             # Verify positions with exchange
             verified_positions = await self._verify_positions_with_exchange(
                 active_positions

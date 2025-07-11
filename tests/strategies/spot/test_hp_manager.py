@@ -466,6 +466,10 @@ async def test_send_sell_order_for_bought_position(
     )
     assert isinstance(strategy, HpStrategy)
 
+    logger.info("Strategy state before sending sell order: %s", strategy.state)
+
+    logger.info("Strategy sell current position: %s", strategy.sell.current_position)
+
     strategy, hp_list = await send_sell_order_for_bought_position(
         strategy=strategy, hp_gui=hp_gui, hp_list=hp_list
     )

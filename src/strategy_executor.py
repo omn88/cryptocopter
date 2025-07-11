@@ -26,6 +26,7 @@ from src.identifiers import (
     Order,
     RemoveRecord,
     SellPosition,
+    SellType,
     State,
     StateInfo,
     SubscriptionInfo,
@@ -544,6 +545,7 @@ class StrategyExecutor:
                 worker_queue=worker_queue,
             ),
         )
+        # await strategy.sell.initialize_positions()
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
         logger.info("HpStrategy created successfully for HP %s", new_hp.config.hp_id)
@@ -767,7 +769,11 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=strategy.worker_queue,
             )
-            logger.info("Current position: %s", strategy.sell.current_position)
+            logger.info(
+                "Current position in standard setup sell: %s",
+                strategy.sell.current_position,
+            )
+        # await strategy.sell.initialize_positions()
         if strategy_data.state_info.state == State.CLOSED:
             logger.info("Closing sell position")
             if strategy.state == State.SELLING:
@@ -827,6 +833,15 @@ class StrategyExecutor:
                     config=strategy_data.config,
                     state_info=strategy_data.state_info,
                     sell_order=Order(quantity=strategy_data.config.quantity),
+                    sell_type=(
+                        SellType.TWOHOPS
+                        if len(sell_strategy) == 2
+                        else (
+                            SellType.CONVERT
+                            if sell_strategy[0].is_convert_only
+                            else SellType.DIRECT
+                        )
+                    ),
                 ),
                 db=self.db,
                 sell_strategy=sell_strategy,
@@ -840,6 +855,8 @@ class StrategyExecutor:
             config_queue=self.config_queue,
             initial_state=State.BOUGHT,
         )
+
+        # await strategy.sell.initialize_positions()
         config = strategy.sell.current_position.config
 
         # Handle restoration vs new position setup

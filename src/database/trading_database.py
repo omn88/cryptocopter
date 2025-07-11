@@ -19,6 +19,8 @@ import asyncio
 import aiosqlite
 
 from src.identifiers import (
+    HPSellConfig,
+    SellType,
     State,
     HPBuyData,
     HPSellData,
@@ -354,19 +356,24 @@ class TradingDatabase:
 
     async def get_active_positions(self) -> List[Position]:
         """
-        Get all active positions for recovery.
+        Get all active parent positions for recovery.
 
-        This is the primary recovery method - returns all positions that need
-        to be restored after system restart.
+        Only returns parent positions (hop_sequence == 0 and parent_position_id is NULL or '').
+        Child hops are not returned here.
         """
         try:
+
             async with self.get_connection() as conn:
                 cursor = await conn.execute(
                     """
                     SELECT * FROM positions
                     WHERE status NOT IN ('CLOSED', 'CANCELED')
+                      AND (parent_position_id IS NULL OR parent_position_id = '')
+                      AND hop_sequence = 0
+                      AND hp_id NOT LIKE '%a'
+                      AND hp_id NOT LIKE '%b'
                     ORDER BY created_at ASC
-                """
+                    """
                 )
                 rows = await cursor.fetchall()
 
@@ -376,7 +383,7 @@ class TradingDatabase:
                     positions.append(position)
 
                 logger.info(
-                    "Retrieved %s active positions for recovery", len(positions)
+                    "Retrieved %s active parent positions for recovery", len(positions)
                 )
                 return positions
         except Exception as e:
@@ -677,7 +684,7 @@ class TradingDatabase:
             logger.error("Failed to upsert buy price level: %s", e)
 
     async def upsert_sell_price_level(
-        self, data: Union[SellPosition, HPSellData], strategy_state: State
+        self, data: SellPosition, strategy_state: State
     ) -> None:
         """
         Save sell position data to the database.
@@ -687,16 +694,9 @@ class TradingDatabase:
             strategy_state: Optional strategy state
         """
         try:
-            # Handle both SellPosition and HPSellData
-            if hasattr(data, "config") and hasattr(data, "state_info"):
-                config = data.config
-                state_info = data.state_info
-            elif hasattr(data, "config"):
-                config = data.config
-                state_info = data.state_info
-            else:
-                logger.error("Unknown data type in upsert_sell_price_level")
-                return
+
+            config: HPSellConfig = data.config
+            state_info: StateInfo = data.state_info
 
             position = Position(
                 hp_id=config.hp_id,
@@ -721,7 +721,15 @@ class TradingDatabase:
                 buy_price=config.buy_price,
                 sell_price=config.sell_price,
                 end_currency=config.end_currency,
-                trade_type=TradeType.DIRECT,
+                trade_type=(
+                    TradeType.DIRECT
+                    if data.sell_type == SellType.DIRECT
+                    else (
+                        TradeType.TWOHOP
+                        if data.sell_type == SellType.TWOHOPS
+                        else TradeType.CONVERT
+                    )
+                ),
                 completeness=state_info.completeness,
                 created_at=(
                     datetime.strptime(state_info.open_time, "%Y-%m-%d %H:%M:%S")

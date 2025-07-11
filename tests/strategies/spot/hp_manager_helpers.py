@@ -40,7 +40,7 @@ logger = logging.getLogger("hp_helpers")
 
 
 async def wait_for_condition(
-    condition_func, timeout: float = 5.0, interval: float = 0.05
+    condition_func, timeout: float = 2.0, interval: float = 0.05
 ):
     """
     Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
@@ -1845,7 +1845,9 @@ async def send_sell_order_for_bought_position(
         [strategy.sell.current_position.sell_order]
     )
 
-    assert strategy.sell.current_position.config.hp_id == "1000"
+    assert (
+        strategy.sell.current_position.config.hp_id == "1000"
+    ), f"To kurwa jaki: {strategy.sell.current_position.config.hp_id}"
     assert strategy.sell.current_position.config.sell_price == 4200.0
     assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
 

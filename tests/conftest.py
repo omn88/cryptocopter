@@ -279,13 +279,20 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
                 price_filter=0.01,
                 precision=5,
                 price_precision=2,
-            )
+            ),
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
+            "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
+            "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
+            "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
         }
 
         price_resolver = UsdPriceResolver(
             client=mock_async_client, symbols_info=symbols_info
         )
         balances = {"BTC": 1.0, "USDC": 10000.0}
+        price_resolver.latest_prices["BTCPLN"] = 320000.0
+        price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
         # Create backend
         mock_broker = MagicMock(spec=BrokerSpot)
