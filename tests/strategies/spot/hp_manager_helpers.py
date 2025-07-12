@@ -22,7 +22,6 @@ from src.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPSellConfig,
-    HPSellData,
     Mode,
     PositionSide,
     SellPosition,

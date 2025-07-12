@@ -1,3 +1,5 @@
+from typing import Dict, List, Optional
+from decouple import Config, RepositoryEnv
 import asyncio
 import csv
 import logging
@@ -70,6 +72,26 @@ logger = logging.getLogger("strategy_executor")
 
 
 class StrategyExecutor:
+    def _restore_current_sell_position_for_multihop(self, strategy):
+        """
+        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
+        """
+        sell_positions = getattr(strategy.sell, "sell_positions", None)
+        if sell_positions and len(sell_positions) == 2:
+            first_leg = sell_positions[0]
+            second_leg = sell_positions[1]
+            if (
+                hasattr(first_leg, "sell_order")
+                and first_leg.sell_order is not None
+                and getattr(first_leg.sell_order, "status", None) == ORDER_STATUS_FILLED
+            ):
+                # Advance current_position to the second leg
+                strategy.sell.current_position = second_leg
+                logger.info(
+                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
+                    second_leg.config.hp_id,
+                )
+
     def __init__(
         self,
         db: TradingDatabase,
@@ -921,6 +943,9 @@ class StrategyExecutor:
                     strategy.buy.data.state_info.state = State.PARTIALLY_BOUGHT
                 else:
                     strategy.buy.data.state_info.state = State.CLOSED
+
+            # --- Patch: For two-hop sells, advance current_position to second leg if first leg is FILLED ---
+            self._restore_current_sell_position_for_multihop(strategy)
 
         else:
             # Generate new timestamp for new positions

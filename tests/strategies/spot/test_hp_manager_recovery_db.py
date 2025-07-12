@@ -3578,19 +3578,91 @@ async def test_fill_partially_first_sell_position_in_two_hop_trade(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-# async def test_fill_first_sell_position_in_two_hop_trade(
-#     frontend_backend_setup,
-# ):
-#     front, back = frontend_backend_setup
-#     assert isinstance(front, HpFront)
-#     assert isinstance(back, StrategyExecutor)
-#     sim = HPSimulator(front=front, back=back)
+async def test_fill_first_sell_position_in_two_hop_trade(crash_recovery_factory):
+    """
+    Refactored: Test full fill of the first sell position in a two-hop trade, with crash recovery.
+    """
+    create_pair, simulate_crash = crash_recovery_factory
+    front, back = create_pair("_original")
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    sim = HPSimulator(front=front, back=back)
 
-#     await sim.open_first_sell_position_from_two_hop_trade()
+    await sim.open_first_sell_position_from_two_hop_trade()
+    await sim.send_orders_for_first_position_from_two_hop_trade()
+    await sim.simulate_sell_order_fill_in_first_hop()
 
-#     await sim.send_orders_for_first_position_from_two_hop_trade()
+    # Assert that the first sell position has a filled order before crash
+    strategy = back.strategies["1000"]
+    sell_positions = strategy.sell.sell_positions
+    assert (
+        len(sell_positions) == 2
+    ), f"Expected 2 sell positions, got {len(sell_positions)}"
+    first_sell_position = sell_positions[0]
+    sell_order = first_sell_position.sell_order
+    assert sell_order is not None, "First sell position should have a sell order"
 
-#     await sim.simulate_sell_order_fill_in_first_hop()
+    await wait_for_condition(lambda: sell_order.status == ORDER_STATUS_FILLED)
+
+    logger.info("Current sell order: %s", sell_order)
+    assert (
+        sell_order.realized_quantity > 0.0
+    ), "Sell order should have non-zero realized quantity"
+
+    # Assert that the second leg is the current sell position before crash
+    second_sell_position = sell_positions[1]
+    await wait_for_condition(
+        lambda: strategy.sell.current_position is second_sell_position
+    )
+    assert (
+        strategy.sell.current_position is second_sell_position
+    ), f"Expected current_position to be the second leg before crash, got {strategy.sell.current_position.config.hp_id}"
+
+    # Simulate crash
+    await simulate_crash(front, back)
+
+    # Simulate recovery
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+    db_positions = await new_front.db.get_active_positions()
+    assert len(db_positions) == 1, "Should have one hop after recovery"
+    db_orders = []
+    for db_position in db_positions:
+        db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
+    await new_back.recover_positions_from_crash()
+
+    # Assert that the first sell position has a filled order after recovery
+    await wait_for_condition(lambda: len(new_back.strategies) == 1)
+    assert "1000" in new_back.strategies
+    recovered_strategy = new_back.strategies["1000"]
+    recovered_sell_positions = recovered_strategy.sell.sell_positions
+    assert (
+        len(recovered_sell_positions) == 2
+    ), f"Expected 2 sell positions after recovery, got {len(recovered_sell_positions)}"
+    recovered_first_sell_position = recovered_sell_positions[0]
+    recovered_sell_order = recovered_first_sell_position.sell_order
+    assert (
+        recovered_sell_order is not None
+    ), "First sell position after recovery should have a sell order"
+    assert (
+        recovered_sell_order.status == ORDER_STATUS_FILLED
+    ), f"Sell order status after recovery should be FILLED, got {recovered_sell_order.status}"
+    assert (
+        recovered_sell_order.realized_quantity > 0.0
+    ), "Sell order after recovery should have non-zero realized quantity"
+
+    # Assert that the second leg is the current sell position after recovery
+    recovered_second_sell_position = recovered_sell_positions[1]
+    assert (
+        recovered_strategy.sell.current_position is recovered_second_sell_position
+    ), f"Expected current_position to be the second leg after recovery, got {recovered_strategy.sell.current_position.config.hp_id}"
+
+    await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
 # async def test_start_second_sell_position_in_two_hop_trade(
