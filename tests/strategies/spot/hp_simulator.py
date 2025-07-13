@@ -153,7 +153,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -198,7 +198,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -243,7 +243,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.24,
             last_executed_price=1400,
             cumulative_filled_quantity=0.24,
@@ -288,7 +288,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -342,7 +342,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -508,7 +508,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -560,7 +560,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -755,7 +755,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=3570,
             last_executed_quantity=0.42,
             last_executed_price=4200,
             cumulative_filled_quantity=0.42,
@@ -798,7 +798,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=3570,
             last_executed_quantity=0.85,
             last_executed_price=4200,
             cumulative_filled_quantity=0.85,
@@ -926,7 +926,7 @@ class HPSimulator:
 
     async def send_sell_order_for_part_bought_position(self):
         strategy = self.back.strategies["1000"]
-        logger.info("Sell orders: %s", strategy.sell.current_position.sell_order)
+
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
@@ -958,6 +958,8 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         active_sell_item = self.front.active_records_sell[0]
+
+        logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
 
         assert active_sell_item["hp_id"] == "1000"
         assert active_sell_item["symbol"] == "BTCUSDC"
@@ -1105,7 +1107,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=1008,
             last_executed_quantity=0.14,
             last_executed_price=4200,
             cumulative_filled_quantity=0.14,
@@ -1183,7 +1185,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.14,
             last_executed_price=1200,
             cumulative_filled_quantity=0.14,
@@ -1273,7 +1275,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1330,7 +1332,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1386,7 +1388,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=1008,
             last_executed_quantity=0.24,
             last_executed_price=4200,
             cumulative_filled_quantity=0.24,
@@ -1431,7 +1433,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1488,7 +1490,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1624,7 +1626,7 @@ class HPSimulator:
         )
 
         assert strategy.sell.current_position.state_info.state == State.NEW
-        assert sell_order.order_id == 12345
+        assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
         assert sell_order.quantity == 1000
         assert sell_order.price == 0.00000356
@@ -1638,7 +1640,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=112800750,
             last_executed_quantity=500,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=500,
@@ -1679,7 +1681,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=112800750,
             last_executed_quantity=1000,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=1000,
@@ -1720,21 +1722,23 @@ class HPSimulator:
     async def open_second_sell_position_from_two_hop_trade(self):
         strategy = self.back.strategies["1000"]
 
+        assert strategy.sell.current_position is strategy.sell.sell_positions[0]
         # Mock sending the sell order
         strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.current_position.sell_order]
+            orders=[strategy.sell.sell_positions[1].sell_order]
         )
-
+        logger.info("currente sell position: %s", strategy.sell.current_position)
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.config.symbol_info.symbol
             == "BTCPLN"
         )
+
         sell_order = strategy.sell.current_position.sell_order
 
         assert sell_order.quantity == 0.00356
         assert sell_order.price == 320000.0
         assert sell_order.realized_quantity == 0.0
-        assert sell_order.order_id == 12345
+        assert sell_order.order_id == 842844787, f"Order ID: {sell_order.order_id}"
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         assert strategy.state == State.SELLING, f"State to: {strategy.state}"
 
@@ -1766,7 +1770,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=842844787,
             last_executed_quantity=0.00178,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00178,
@@ -1807,7 +1811,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=842844787,
             last_executed_quantity=0.00356,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00356,
@@ -1824,7 +1828,6 @@ class HPSimulator:
         assert isinstance(
             strategy.sell.current_position.sell_order, Order
         ), f"..... it is: {type(strategy.sell.current_position.sell_order)}"
-        logger.info("DUPA")
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_FILLED

@@ -237,7 +237,7 @@ async def test_default_position_first_order_filled(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
 
@@ -260,7 +260,7 @@ async def test_default_position_first_order_filled_then_cancel(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -288,14 +288,14 @@ async def test_default_position_all_buy_orders_filled(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     strategy, hp_list = await simulate_second_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=95830862
     )
     strategy, hp_list = await simulate_third_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=40613711
     )
 
 
@@ -439,7 +439,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -597,7 +597,7 @@ async def test_sell_position_first_order_filled(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=12345,
+        order_id=3570,
         last_executed_quantity=0.85,
         last_executed_price=4200.0,
         cumulative_filled_quantity=0.85,
@@ -814,7 +814,7 @@ async def test_send_sell_order_for_partially_bought_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -846,7 +846,7 @@ async def test_cancel_unfilled_sell_orders_for_partially_bought_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -882,7 +882,7 @@ async def test_fill_orders_for_previously_partially_bought_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -908,13 +908,13 @@ async def test_fill_orders_for_previously_partially_bought_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445861,
+        order_id=95830862,
     )
     strategy, hp_list = await simulate_third_buy_order_fill_with_sell_price(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445862,
+        order_id=40613711,
     )
 
 
@@ -936,7 +936,7 @@ async def test_sell_partially_partially_bought_position(
     )
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -972,7 +972,7 @@ async def test_buy_partially_partially_sold_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -1024,7 +1024,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -1039,7 +1039,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1173,7 +1173,7 @@ async def test_buy_fully_partially_sold_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -1188,7 +1188,7 @@ async def test_buy_fully_partially_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1259,7 +1259,7 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445861,
+        order_id=95830862,
     )
     (
         strategy,
@@ -1268,7 +1268,7 @@ async def test_buy_fully_partially_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445862,
+        order_id=40613711,
     )
 
 
@@ -1291,7 +1291,7 @@ async def test_sell_fully_partially_bought_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -1306,7 +1306,7 @@ async def test_sell_fully_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,
@@ -1427,7 +1427,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Cancel partially bought position
@@ -1442,7 +1442,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.24,
         last_executed_price=4200,
         cumulative_filled_quantity=0.24,
@@ -1558,7 +1558,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445861,
+        order_id=95830862,
     )
     (
         strategy,
@@ -1567,5 +1567,5 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
         strategy=strategy,
         hp_gui=hp_gui,
         hp_list=hp_list,
-        order_id=445862,
+        order_id=40613711,
     )

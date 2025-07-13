@@ -624,6 +624,9 @@ class TradingDatabase:
                 created_at=created_at,
                 updated_at=updated_at,
             )
+            logger.info(
+                f"[DB UPSERT] Saving order: id={db_order.id}, hp_id={hp_id}, side={db_order.side}, status={db_order.status}, symbol={db_order.symbol}, realized_quantity={db_order.realized_quantity}"
+            )
             await self.save_order(db_order)
             logger.debug("Saved order for hp_id %s", hp_id)
         except Exception as e:
@@ -791,32 +794,6 @@ class TradingDatabase:
             logger.error("Failed to fetch active strategies: %s", e)
             return []
 
-    def fetch_active_hp_list(self) -> List[Dict[str, Any]]:
-        """
-        Fetch all active positions.
-
-        Returns:
-            List of active position dictionaries
-        """
-        # TODO: Implement via TDD
-        logger.warning("fetch_active_hp_list not yet implemented")
-        return []
-
-    def fetch_price_levels_for_hp(
-        self, hp_id: str
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """
-        Fetch price levels for a specific position.
-
-        Args:
-            hp_id: Position HP ID
-
-        Returns:
-            Tuple of (buy_levels, sell_levels)
-        """
-        # TODO: Implement via TDD
-        logger.warning("fetch_price_levels_for_hp not yet implemented")
-        return ([], [])
 
     async def fetch_orders_for_price_level(
         self, hp_id: str, side: str
@@ -882,37 +859,6 @@ class TradingDatabase:
                 f"Failed to fetch orders for HP {hp_id}, side {side}: {e}"
             ) from e
 
-    def insert_strategy(
-        self, name: str, description: str = "", status: str = "ACTIVE"
-    ) -> str:
-        """
-        Insert a new strategy.
-
-        Args:
-            name: Strategy name
-            description: Strategy description
-            status: Strategy status
-
-        Returns:
-            Strategy ID
-        """
-        # TODO: Implement via TDD
-        logger.warning("insert_strategy not yet implemented")
-        return ""
-
-    def assert_db_buy_price_level_content(
-        self, config: HPBuyConfig, state_info: StateInfo
-    ) -> None:
-        """
-        Assert database buy price level content.
-
-        Args:
-            config: HPBuyConfig object
-            state_info: StateInfo object
-        """
-        # TODO: Implement via TDD
-        logger.warning("assert_db_buy_price_level_content not yet implemented")
-        pass
 
     # ========================================================================
     # Helper methods

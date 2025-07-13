@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional
-from decouple import Config, RepositoryEnv
 import asyncio
 import csv
 import logging
@@ -72,26 +70,6 @@ logger = logging.getLogger("strategy_executor")
 
 
 class StrategyExecutor:
-    def _restore_current_sell_position_for_multihop(self, strategy):
-        """
-        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
-        """
-        sell_positions = getattr(strategy.sell, "sell_positions", None)
-        if sell_positions and len(sell_positions) == 2:
-            first_leg = sell_positions[0]
-            second_leg = sell_positions[1]
-            if (
-                hasattr(first_leg, "sell_order")
-                and first_leg.sell_order is not None
-                and getattr(first_leg.sell_order, "status", None) == ORDER_STATUS_FILLED
-            ):
-                # Advance current_position to the second leg
-                strategy.sell.current_position = second_leg
-                logger.info(
-                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
-                    second_leg.config.hp_id,
-                )
-
     def __init__(
         self,
         db: TradingDatabase,
@@ -206,6 +184,94 @@ class StrategyExecutor:
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    def _restore_current_sell_position_for_multihop(self, strategy: HpStrategy):
+        """
+        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if sell_positions and len(sell_positions) == 2:
+            first_leg = sell_positions[0]
+            second_leg = sell_positions[1]
+            if first_leg.sell_order.status == ORDER_STATUS_FILLED:
+                # Advance current_position to the second leg
+                strategy.sell.current_position = second_leg
+                logger.info(
+                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
+                    second_leg.config.hp_id,
+                )
+
+    async def _restore_all_child_sell_positions_for_multihop(
+        self, strategy: HpStrategy
+    ):
+        """
+        For two-hop sells, after recovery, restore both child sell positions (e.g., hp_id ending with 'a' and 'b') from DB.
+        Set their orders and state, and set current_position to the correct child based on the status of the child positions in the DB.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if not (sell_positions and len(sell_positions) == 2):
+            return
+
+        # Restore each child sell position's order from DB (as before)
+        for pos in sell_positions:
+            orders = await self.db.fetch_orders_for_price_level(
+                hp_id=pos.config.hp_id, side=PositionSide.SHORT.value
+            )
+            if orders:
+                order_dict = orders[0]
+                pos.sell_order.order_id = order_dict["order_id"]
+                pos.sell_order.quantity = order_dict["quantity"]
+                pos.sell_order.precision = pos.config.symbol_info.precision
+                pos.sell_order.price_precision = pos.config.symbol_info.price_precision
+                pos.sell_order.price = order_dict["price"]
+                pos.sell_order.quantity_stable = order_dict["quantity_stable"]
+                pos.sell_order.realized_quantity = order_dict["realized_quantity"]
+                pos.sell_order.status = order_dict["status"]
+                logger.info(
+                    "[Recovery] Patched sell order for child %s: %s",
+                    pos.config.hp_id,
+                    pos.sell_order,
+                )
+            else:
+                logger.info(
+                    "[Recovery] No sell orders found in DB for child %s",
+                    pos.config.hp_id,
+                )
+
+        # Set current_position based on child leg order status
+        first_leg = sell_positions[0]
+        second_leg = sell_positions[1]
+        first_status = first_leg.sell_order.status
+        second_status = second_leg.sell_order.status
+
+        if first_status == ORDER_STATUS_FILLED:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg after first leg FILLED: %s",
+                second_leg.config.hp_id,
+            )
+        elif first_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = first_leg
+            logger.info(
+                "[Recovery] Set current_position to first leg (open): %s",
+                first_leg.config.hp_id,
+            )
+        elif second_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg (open): %s",
+                second_leg.config.hp_id,
+            )
+        else:
+            # Fallback: set to 'b' if present
+            for pos in sell_positions:
+                if pos.config.hp_id.endswith("b"):
+                    strategy.sell.current_position = pos
+                    logger.info(
+                        "[Recovery] Fallback: Set current_position to child leg 'b': %s",
+                        pos.config.hp_id,
+                    )
+                    break
 
     async def _handle_websocket_error(self, error_msg):
         """Handle WebSocket errors, especially keepalive timeouts"""
@@ -944,8 +1010,15 @@ class StrategyExecutor:
                 else:
                     strategy.buy.data.state_info.state = State.CLOSED
 
+            logger.info(
+                "Before restoration, current_position: %s",
+                strategy.sell.current_position,
+            )
             # --- Patch: For two-hop sells, advance current_position to second leg if first leg is FILLED ---
             self._restore_current_sell_position_for_multihop(strategy)
+            # logger.info("After restoration, current_position: %s", strategy.sell.current_position)
+            # # --- General: For two-hop sells, restore both child legs and set current_position appropriately ---
+            # await self._restore_all_child_sell_positions_for_multihop(strategy)
 
         else:
             # Generate new timestamp for new positions

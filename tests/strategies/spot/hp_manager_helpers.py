@@ -322,7 +322,7 @@ async def simulate_partial_fill(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445860,
+        order_id=132729677,
         last_executed_quantity=0.12,
         last_executed_price=1400,
         cumulative_filled_quantity=0.12,
@@ -1239,7 +1239,7 @@ async def simulate_second_buy_order_partial_fill(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445861,
+        order_id=95830862,
         last_executed_quantity=0.14,
         last_executed_price=1200,
         cumulative_filled_quantity=0.14,
@@ -1568,7 +1568,7 @@ async def sell_partially_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1798,17 +1798,17 @@ async def simulate_bought_position(
     )
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Simulate full order fill
     strategy, hp_list = await simulate_second_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=95830862
     )
 
     # Simulate full order fill
     strategy, hp_list = await simulate_third_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=40613711
     )
 
     return strategy, hp_list
@@ -2074,7 +2074,7 @@ async def simulate_partial_fill_sell(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=3570,
         last_executed_quantity=0.425,
         last_executed_price=4200,
         cumulative_filled_quantity=0.425,
