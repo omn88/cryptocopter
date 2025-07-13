@@ -211,7 +211,7 @@ class PositionManager:
             parent_exists = any(p.hp_id == parent_hp_id for p in positions)
 
             if not parent_exists:
-                logger.info(f"Creating missing parent position {parent_hp_id}")
+                logger.info("Creating missing parent position %s", parent_hp_id)
 
                 # Create parent position from first sell position data
                 first_pos = sell_positions[0]
@@ -221,6 +221,7 @@ class PositionManager:
                     hp_id=parent_hp_id,
                     position_type=PositionType.SELL,
                     status=PositionStatus.NEW,
+                    strategy_state=State.BOUGHT.value,  # For pure sell parent, set as BOUGHT for DB consistency
                     symbol=f"{first_pos.config.coin}{last_pos.config.end_currency}",
                     coin=first_pos.config.coin,
                     quantity=first_pos.config.quantity,

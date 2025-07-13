@@ -22,7 +22,6 @@ from src.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPSellConfig,
-    HPSellData,
     Mode,
     PositionSide,
     SellPosition,
@@ -40,7 +39,7 @@ logger = logging.getLogger("hp_helpers")
 
 
 async def wait_for_condition(
-    condition_func, timeout: float = 5.0, interval: float = 0.05
+    condition_func, timeout: float = 2.0, interval: float = 0.05
 ):
     """
     Waits for a given condition function to return True, otherwise raises an AssertionError after timeout.
@@ -125,23 +124,6 @@ async def simulate_order_partially_filled(
         cumulative_filled_quantity=last_realized_quantity,
     )
     await strategy.process_order()  # type: ignore[attr-defined]  # type: ignore
-
-
-async def db_and_gui_assertions(
-    strategy: HpStrategy,
-    completeness: float,
-):
-    db = strategy.buy.db
-    db.assert_db_buy_price_level_content(
-        config=strategy.buy.data.config,
-        state_info=strategy.buy.data.state_info,
-    )
-    assert_gui_position_data_content_buy(
-        ui_queue=strategy.ui_queue,
-        config=strategy.buy.data.config,
-        state_info=strategy.buy.data.state_info,
-        completeness=completeness,
-    )
 
 
 def get_default_buy_position(trading_system_factory) -> HpStrategy:
@@ -323,7 +305,7 @@ async def simulate_partial_fill(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445860,
+        order_id=132729677,
         last_executed_quantity=0.12,
         last_executed_price=1400,
         cumulative_filled_quantity=0.12,
@@ -1240,7 +1222,7 @@ async def simulate_second_buy_order_partial_fill(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=445861,
+        order_id=95830862,
         last_executed_quantity=0.14,
         last_executed_price=1200,
         cumulative_filled_quantity=0.14,
@@ -1569,7 +1551,7 @@ async def sell_partially_partially_bought_position(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=1008,
         last_executed_quantity=0.12,
         last_executed_price=4200,
         cumulative_filled_quantity=0.12,
@@ -1799,17 +1781,17 @@ async def simulate_bought_position(
     )
     # Simulate full order fill
     strategy, hp_list = await simulate_first_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445860
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=132729677
     )
 
     # Simulate full order fill
     strategy, hp_list = await simulate_second_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445861
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=95830862
     )
 
     # Simulate full order fill
     strategy, hp_list = await simulate_third_buy_order_fill(
-        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=445862
+        strategy=strategy, hp_gui=hp_gui, hp_list=hp_list, order_id=40613711
     )
 
     return strategy, hp_list
@@ -1845,7 +1827,9 @@ async def send_sell_order_for_bought_position(
         [strategy.sell.current_position.sell_order]
     )
 
-    assert strategy.sell.current_position.config.hp_id == "1000"
+    assert (
+        strategy.sell.current_position.config.hp_id == "1000"
+    ), f"To kurwa jaki: {strategy.sell.current_position.config.hp_id}"
     assert strategy.sell.current_position.config.sell_price == 4200.0
     assert strategy.sell.current_position.config.symbol_info.symbol == "BTCUSDC"
 
@@ -2073,7 +2057,7 @@ async def simulate_partial_fill_sell(
     strategy.execution_report = ExecutionReport(
         order_type=ORDER_TYPE_LIMIT,
         current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-        order_id=12345,
+        order_id=3570,
         last_executed_quantity=0.425,
         last_executed_price=4200,
         cumulative_filled_quantity=0.425,

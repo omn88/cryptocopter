@@ -74,13 +74,19 @@ class HPSimulator:
         logger.info("HP Buy Data added to the queue: %s", hp)
 
     async def assert_default_buy_position(self):
+        logger.info(
+            "=== ASSERTING DEFAULT BUY POSITION === len self back stragies: %s",
+            len(self.back.strategies),
+        )
         await wait_for_condition(condition_func=lambda: len(self.back.strategies) == 1)
-        assert not self.back.config_queue.qsize()
+        await wait_for_condition(
+            condition_func=lambda: not self.back.config_queue.qsize()
+        )
         assert len(self.back.strategies) == 1
         strategy = self.back.strategies["1000"]
 
         assert isinstance(strategy, HpStrategy)
-        assert strategy.state == State.NEW
+        assert strategy.state == State.NEW, strategy.state
         assert len(strategy.buy.orders) == 3
 
         await wait_for_condition(
@@ -147,7 +153,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -192,7 +198,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -237,7 +243,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445860,
+            order_id=336,
             last_executed_quantity=0.24,
             last_executed_price=1400,
             cumulative_filled_quantity=0.24,
@@ -282,7 +288,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -336,7 +342,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -386,7 +392,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -403,17 +409,131 @@ class HPSimulator:
         )
         assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
 
-        realized_quantity = str(
-            strategy.buy.orders[0].realized_quantity
-            + strategy.buy.orders[1].realized_quantity
+        # Calculate realized buy quantity minus realized sell quantity (always one sell order)
+        realized_buy_quantity = sum(
+            order.realized_quantity for order in strategy.buy.orders
         )
+        net_quantity = str(
+            round(
+                realized_buy_quantity
+                - strategy.sell.current_position.sell_order.realized_quantity,
+                2,
+            )
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == net_quantity
+        )
+
+        assert len(self.front.hp_list_data) == 1
+        item = self.front.hp_list_data[0]
+        assert item["hp_id"] == "1000"
+        assert item["coin"] == "BTCUSD"
+        assert item["buy_price"] == "1292.31"
+        assert item["quantity"] == "0.28"
+        assert item["quantity_usd"] == "361.85"
+        assert item["sell_price"] == "4200.0", item["sell_price"]
+        assert item["expected_return"] == "1512.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "BUYING"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+        return strategy
+
+    async def simulate_third_buy_order_fill_with_sell_price(self) -> HpStrategy:
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=332,
+            last_executed_quantity=0.33,
+            last_executed_price=1000,
+            cumulative_filled_quantity=0.33,
+            price=1000,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.BUYING
+        logger.info("Orders: %s", strategy.buy.orders)
+        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+        assert strategy.buy.orders[1].status == ORDER_STATUS_FILLED
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_FILLED
+        )
+
+        realized_quantity = str(
+            round(
+                (
+                    sum(order.realized_quantity for order in strategy.buy.orders)
+                    - strategy.sell.current_position.sell_order.realized_quantity
+                ),
+                2,
+            )
+        )
+
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
             == realized_quantity
         )
 
-        logger.info(
-            "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
+        assert len(self.front.hp_list_data) == 1
+        item = self.front.hp_list_data[0]
+        assert item["hp_id"] == "1000"
+        assert item["coin"] == "BTCUSD"
+        assert item["buy_price"] == "1178.82"
+        assert item["quantity"] == "0.61"
+        assert item["quantity_usd"] == "719.08"
+        assert item["sell_price"] == "4200.0"
+        assert item["expected_return"] == "2568.0"
+        assert item["current_price"] == "0.0"
+        assert item["net"] == "0.0"
+        assert item["net_percent"] == "0.0"
+        assert item["state"] == "PARTIALLY_SOLD"
+
+        logger.info("HP List after the update: %s", self.front.hp_list_data)
+
+        return strategy
+
+    async def simulate_second_buy_order_fill_with_sell_price_no_fill(
+        self,
+    ) -> HpStrategy:
+        strategy = self.back.strategies["1000"]
+
+        exc_report = ExecutionReport(
+            order_type=ORDER_TYPE_LIMIT,
+            current_order_status=ORDER_STATUS_FILLED,
+            order_id=131409,
+            last_executed_quantity=0.28,
+            last_executed_price=1200,
+            cumulative_filled_quantity=0.28,
+            price=1200,
+        )
+        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
+        logger.info("Put event to the worker: %s", exc_report)
+
+        assert strategy.state == State.BUYING
+        logger.info("Orders: %s", strategy.buy.orders)
+        assert strategy.buy.orders[0].status == ORDER_STATUS_FILLED
+        await wait_for_condition(
+            condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_FILLED
+        )
+        assert strategy.buy.orders[2].status == ORDER_STATUS_NEW
+
+        # Calculate realized buy quantity minus realized sell quantity (always one sell order)
+        realized_buy_quantity = str(
+            strategy.buy.orders[0].realized_quantity
+            + strategy.buy.orders[1].realized_quantity
+        )
+        logger.info("Realized buy quantity: %s", realized_buy_quantity)
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"]
+            == realized_buy_quantity
         )
 
         assert len(self.front.hp_list_data) == 1
@@ -434,13 +554,13 @@ class HPSimulator:
 
         return strategy
 
-    async def simulate_third_buy_order_fill_with_sell_price(self) -> HpStrategy:
+    async def simulate_third_buy_order_fill_with_sell_price_no_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -458,7 +578,10 @@ class HPSimulator:
         )
 
         realized_quantity = str(
-            round(sum(order.realized_quantity for order in strategy.buy.orders), 2)
+            round(
+                (sum(order.realized_quantity for order in strategy.buy.orders)),
+                2,
+            )
         )
 
         await wait_for_condition(
@@ -485,16 +608,15 @@ class HPSimulator:
         return strategy
 
     async def simulate_bought_position(self, symbol="BTCUSDC"):
-        # Get default buy position
+        # Assumes position is already created and in default state
         self.simulate_buy_position(symbol=symbol)
         await self.assert_default_buy_position()
-
         await self.move_to_position_active_buy()
-
-        # Simulate first order fill
-        await self.simulate_first_buy_order_fill()
-        await self.simulate_second_buy_order_fill()
-        await self.simulate_third_buy_order_fill()
+        # Simulate all three buy order fills
+        strategy = await self.simulate_first_buy_order_fill()
+        strategy = await self.simulate_second_buy_order_fill()
+        strategy = await self.simulate_third_buy_order_fill()
+        return strategy
 
     async def setup_sell_position(
         self,
@@ -633,7 +755,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=3570,
             last_executed_quantity=0.42,
             last_executed_price=4200,
             cumulative_filled_quantity=0.42,
@@ -676,7 +798,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=3570,
             last_executed_quantity=0.85,
             last_executed_price=4200,
             cumulative_filled_quantity=0.85,
@@ -804,7 +926,7 @@ class HPSimulator:
 
     async def send_sell_order_for_part_bought_position(self):
         strategy = self.back.strategies["1000"]
-        logger.info("Sell orders: %s", strategy.sell.current_position.sell_order)
+
         strategy.client.create_order.side_effect = get_new_orders(
             [strategy.sell.current_position.sell_order]
         )
@@ -836,6 +958,8 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
         active_sell_item = self.front.active_records_sell[0]
+
+        logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
 
         assert active_sell_item["hp_id"] == "1000"
         assert active_sell_item["symbol"] == "BTCUSDC"
@@ -983,7 +1107,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=1008,
             last_executed_quantity=0.14,
             last_executed_price=4200,
             cumulative_filled_quantity=0.14,
@@ -1061,7 +1185,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.14,
             last_executed_price=1200,
             cumulative_filled_quantity=0.14,
@@ -1151,7 +1275,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1208,7 +1332,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1264,7 +1388,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=1008,
             last_executed_quantity=0.24,
             last_executed_price=4200,
             cumulative_filled_quantity=0.24,
@@ -1309,7 +1433,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1366,7 +1490,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1502,7 +1626,7 @@ class HPSimulator:
         )
 
         assert strategy.sell.current_position.state_info.state == State.NEW
-        assert sell_order.order_id == 12345
+        assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
         assert sell_order.quantity == 1000
         assert sell_order.price == 0.00000356
@@ -1516,7 +1640,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=112800750,
             last_executed_quantity=500,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=500,
@@ -1557,7 +1681,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=112800750,
             last_executed_quantity=1000,
             last_executed_price=0.00000365,
             cumulative_filled_quantity=1000,
@@ -1598,21 +1722,23 @@ class HPSimulator:
     async def open_second_sell_position_from_two_hop_trade(self):
         strategy = self.back.strategies["1000"]
 
+        assert strategy.sell.current_position is strategy.sell.sell_positions[0]
         # Mock sending the sell order
         strategy.client.create_order.side_effect = get_new_orders(
-            orders=[strategy.sell.current_position.sell_order]
+            orders=[strategy.sell.sell_positions[1].sell_order]
         )
-
+        logger.info("currente sell position: %s", strategy.sell.current_position)
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.config.symbol_info.symbol
             == "BTCPLN"
         )
+
         sell_order = strategy.sell.current_position.sell_order
 
         assert sell_order.quantity == 0.00356
         assert sell_order.price == 320000.0
         assert sell_order.realized_quantity == 0.0
-        assert sell_order.order_id == 12345
+        assert sell_order.order_id == 842844787, f"Order ID: {sell_order.order_id}"
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         assert strategy.state == State.SELLING, f"State to: {strategy.state}"
 
@@ -1644,7 +1770,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=12345,
+            order_id=842844787,
             last_executed_quantity=0.00178,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00178,
@@ -1685,7 +1811,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=12345,
+            order_id=842844787,
             last_executed_quantity=0.00356,
             last_executed_price=320000.0,
             cumulative_filled_quantity=0.00356,
@@ -1702,7 +1828,6 @@ class HPSimulator:
         assert isinstance(
             strategy.sell.current_position.sell_order, Order
         ), f"..... it is: {type(strategy.sell.current_position.sell_order)}"
-        logger.info("DUPA")
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_FILLED
@@ -1744,92 +1869,4 @@ class HPSimulator:
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
 
-    async def assert_application_db_state_match(self, hp_id: str = "1000") -> None:
-        """Assert that the in-memory application state matches the database state for a position."""
-
-        logger.info(
-            "=== ASSERTING APPLICATION <-> DATABASE STATE MATCH for %s ===", hp_id
-        )
-
-        # Get the in-memory strategy
-        strategy = self.back.strategies.get(hp_id)
-        assert strategy is not None, f"Strategy {hp_id} not found in memory"
-
-        # Get the corresponding position from database
-        positions = await self.front.db.get_active_positions()
-        db_position = None
-        for pos in positions:
-            if pos.hp_id == hp_id:
-                db_position = pos
-                break
-
-        assert db_position is not None, f"Position {hp_id} not found in database"
-
-        # Compare core identification fields
-        assert (
-            db_position.hp_id == strategy.buy.data.config.hp_id
-        ), f"HP ID mismatch: DB={db_position.hp_id}, Memory={strategy.buy.data.config.hp_id}"
-
-        assert (
-            db_position.symbol == strategy.buy.data.config.symbol_info.symbol
-        ), f"Symbol mismatch: DB={db_position.symbol}, Memory={strategy.buy.data.config.symbol_info.symbol}"
-
-        assert (
-            db_position.coin == strategy.buy.data.config.coin
-        ), f"Coin mismatch: DB={db_position.coin}, Memory={strategy.buy.data.config.coin}"
-
-        # Compare configuration fields
-        assert (
-            db_position.budget == strategy.buy.data.config.budget
-        ), f"Budget mismatch: DB={db_position.budget}, Memory={strategy.buy.data.config.budget}"
-
-        assert (
-            db_position.price_low == strategy.buy.data.config.price_low
-        ), f"Price low mismatch: DB={db_position.price_low}, Memory={strategy.buy.data.config.price_low}"
-
-        assert (
-            db_position.price_high == strategy.buy.data.config.price_high
-        ), f"Price high mismatch: DB={db_position.price_high}, Memory={strategy.buy.data.config.price_high}"
-
-        assert (
-            db_position.order_trigger == strategy.buy.data.config.order_trigger
-        ), f"Order trigger mismatch: DB={db_position.order_trigger}, Memory={strategy.buy.data.config.order_trigger}"
-
-        assert (
-            db_position.mode == strategy.buy.data.config.mode.value
-        ), f"Mode mismatch: DB={db_position.mode}, Memory={strategy.buy.data.config.mode.value}"
-
-        # Verify strategy execution state matches
-        expected_strategy_state = (
-            strategy.state.value
-            if hasattr(strategy.state, "value")
-            else str(strategy.state)
-        )
-        assert (
-            db_position.strategy_state == expected_strategy_state
-        ), f"Strategy state mismatch: DB={db_position.strategy_state}, Memory={expected_strategy_state}"
-
-        # Verify position type is BUY (for buy positions)
-        assert (
-            db_position.position_type == PositionType.BUY
-        ), f"Position type should be BUY, got: {db_position.position_type}"
-
-        logger.info("✓ Application and database state match verified successfully")
-
-        # Log the matched fields for debugging
-        logger.info("Matched fields:")
-        logger.info("  HP ID: %s", db_position.hp_id)
-        logger.info("  Symbol: %s", db_position.symbol)
-        logger.info("  Coin: %s", db_position.coin)
-        logger.info("  Budget: %s", db_position.budget)
-        logger.info(
-            "  Price range: %s - %s", db_position.price_low, db_position.price_high
-        )
-        logger.info("  Order trigger: %s", db_position.order_trigger)
-        logger.info("  Mode: %s", db_position.mode)
-        logger.info(
-            "  Strategy state: %s (matches: %s)",
-            db_position.strategy_state,
-            strategy.state,
-        )
-        logger.info("  Position status: %s", db_position.status)
+    # The assert_application_db_state_match method has been moved to CrashRecoveryHelper for centralized use in tests.

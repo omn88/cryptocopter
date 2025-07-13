@@ -37,6 +37,7 @@ from src.database import TradingDatabase
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
+from src.gui.widgets import ColorChangingQuantity, SymbolMarkPrice
 
 logger = logging.getLogger("async_app")
 
@@ -145,7 +146,7 @@ class AsyncApp(App):
         self.root.add_widget(tab)
 
     async def load_all_active_strategies(self):
-        active_strategies = await self.db._fetch_all_active_strategies()
+        active_strategies = await self.db.fetch_all_active_strategies()
         if not active_strategies:
             logger.info("No active strategy found")
             return

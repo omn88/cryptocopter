@@ -69,6 +69,8 @@ class RecoveryService:
             active_positions = await self.database.get_active_positions()
             logger.info("Found %d active positions in database", len(active_positions))
 
+            logger.info("Active positions: %s", active_positions)
+
             # Verify positions with exchange
             verified_positions = await self._verify_positions_with_exchange(
                 active_positions
@@ -114,7 +116,25 @@ class RecoveryService:
                 # Get position orders from database
                 orders = await self.database.get_position_orders(position.id)
 
-                # Verify each order with exchange
+                # Optimization: If all orders are FILLED, skip exchange verification
+                all_filled = all(
+                    (
+                        order.status.value
+                        if hasattr(order.status, "value")
+                        else order.status
+                    )
+                    == "FILLED"
+                    for order in orders
+                )
+                if all_filled and len(orders) > 0:
+                    # Just update position from orders, do not query exchange
+                    updated_position = await self._update_position_from_orders(
+                        position, orders
+                    )
+                    verified_positions.append(updated_position)
+                    continue
+
+                # Otherwise, verify each order with exchange
                 updated_orders = []
                 for order in orders:
                     if order.exchange_order_id:
@@ -189,8 +209,37 @@ class RecoveryService:
             realized_quantity / total_quantity if total_quantity > 0 else 0.0
         )
 
-        # Update status based on completeness
-        if position.completeness == 0.0:
+        # Explicitly check for all orders canceled
+        all_canceled = all(
+            (order.status.value if hasattr(order.status, "value") else order.status)
+            == "CANCELED"
+            for order in orders
+        )
+        any_filled = any(
+            (order.status.value if hasattr(order.status, "value") else order.status)
+            == "FILLED"
+            for order in orders
+        )
+        any_partial = any(
+            (order.realized_quantity if hasattr(order, "realized_quantity") else 0.0)
+            > 0.0
+            for order in orders
+        )
+        if all_canceled and not any_filled:
+            if any_partial:
+                position.status = PositionStatus.PARTIALLY_FILLED
+                logger.info(
+                    "[Recovery] All buy orders canceled but some partially filled for position %s: setting status to PARTIALLY_FILLED",
+                    position.hp_id,
+                )
+            else:
+                position.status = PositionStatus.NEW
+                position.completeness = 0.0
+                logger.info(
+                    "[Recovery] All buy orders canceled and none filled for position %s: setting status to NEW and completeness to 0.0",
+                    position.hp_id,
+                )
+        elif position.completeness == 0.0:
             if any(
                 (order.status.value if hasattr(order.status, "value") else order.status)
                 in ["NEW", "PARTIALLY_FILLED"]
@@ -207,9 +256,131 @@ class RecoveryService:
             position.status = PositionStatus.PARTIALLY_FILLED
 
         # Save updated position
-        await self.database.save_position(position)
 
+        # --- PATCH: Check for PARTIALLY_SOLD after full buy and partial/canceled sell ---
+        try:
+            # Only run this for BUY positions
+            if (
+                position.position_type == PositionType.BUY
+                and position.status == PositionStatus.FILLED
+            ):
+                # Try to find a related SELL position (same hp_id, type SELL)
+                related_sell_positions = []
+                if hasattr(self.database, "get_positions_by_hp_id"):
+                    related_sell_positions = await self.database.get_positions_by_hp_id(
+                        position.hp_id, PositionType.SELL
+                    )
+                # Fallback: try to get all positions and filter
+                elif hasattr(self.database, "get_active_positions"):
+                    all_positions = await self.database.get_active_positions()
+                    related_sell_positions = [
+                        p
+                        for p in all_positions
+                        if getattr(p, "hp_id", None) == position.hp_id
+                        and getattr(p, "position_type", None) == PositionType.SELL
+                    ]
+                for sell_pos in related_sell_positions:
+                    # Get all orders for the sell position
+                    sell_orders = []
+                    if hasattr(self.database, "get_position_orders"):
+                        sell_orders = await self.database.get_position_orders(
+                            sell_pos.id
+                        )
+                    # If any sell order is CANCELED and realized_quantity > 0, set PARTIALLY_SOLD
+                    for so in sell_orders:
+                        so_status = (
+                            so.status.value
+                            if hasattr(so.status, "value")
+                            else so.status
+                        )
+                        if (
+                            so_status == "CANCELED"
+                            and getattr(so, "realized_quantity", 0.0) > 0.0
+                        ):
+                            logger.warning(
+                                "[Recovery] Detected fully filled buy and partially filled/canceled sell for hp_id=%s: setting strategy_state to PARTIALLY_SOLD",
+                                position.hp_id,
+                            )
+                            position.strategy_state = "PARTIALLY_SOLD"
+                            break
+
+        except Exception as e:
+            logger.error(
+                "[Recovery] Error in PARTIALLY_SOLD patch logic for hp_id=%s: %s",
+                getattr(position, "hp_id", None),
+                e,
+            )
+
+        await self.database.save_position(position)
         return position
+
+    def _convert_to_state_info_state(
+        self, status: PositionStatus, completeness: float, side: PositionSide
+    ) -> State:
+        """
+        Convert database PositionStatus and side to the nested state_info.state for HPBuyData/HPSellData.
+        This state should never be BUYING or SELLING, only terminal/summary states.
+        Handles both buy and sell sides, and complex/edge states.
+        For OPEN status, return BUYING/SELLING for the nested state to match the main strategy state.
+        """
+        # Handle fully filled (or completeness >= 1.0, even if status is PARTIALLY_FILLED)
+        if completeness >= 1.0:
+            logger.info(
+                "[Recovery] Mapping to state: completeness >= 1.0, status=%s, side=%s -> BOUGHT/SOLD",
+                status,
+                side,
+            )
+            return State.BOUGHT if side == PositionSide.LONG else State.SOLD
+        # Handle fully filled by status (legacy safety)
+        if status == PositionStatus.FILLED:
+            logger.info(
+                "[Recovery] Mapping to state: status == FILLED, completeness=%s, side=%s -> BOUGHT/SOLD",
+                completeness,
+                side,
+            )
+            return State.BOUGHT if side == PositionSide.LONG else State.SOLD
+        # Handle partially filled
+        if status == PositionStatus.PARTIALLY_FILLED or (0.0 < completeness < 1.0):
+            logger.info(
+                "[Recovery] Mapping to state: PARTIALLY_FILLED, status=%s, completeness=%s, side=%s",
+                status,
+                completeness,
+                side,
+            )
+            if side == PositionSide.LONG:
+                return State.PARTIALLY_BOUGHT
+            elif side == PositionSide.SHORT:
+                return State.PARTIALLY_SOLD
+        # Handle open (orders sent, not filled)
+        if status == PositionStatus.OPEN:
+            logger.info("[Recovery] Mapping to state: OPEN, side=%s", side)
+            if side == PositionSide.LONG:
+                return State.BUYING
+            elif side == PositionSide.SHORT:
+                return State.SELLING
+        # New
+        if status == PositionStatus.NEW:
+            logger.info("[Recovery] Mapping to state: NEW, side=%s", side)
+            return State.NEW
+        # Closed/canceled
+        if status == PositionStatus.CANCELED or status == PositionStatus.CLOSED:
+            logger.info("[Recovery] Mapping to state: CANCELED/CLOSED, side=%s", side)
+            return State.CLOSED
+        # Waiting
+        if (
+            status == PositionStatus.WAITING_PARENT
+            or status == PositionStatus.WAITING_CHILD
+        ):
+            logger.info("[Recovery] Mapping to state: WAITING, side=%s", side)
+            return State.WAITING_CHILD
+        # Fallback
+        logger.warning(
+            "[Recovery] Mapping to state: FALLBACK to NEW, status=%s, completeness=%s, side=%s",
+            status,
+            completeness,
+            side,
+        )
+        return State.NEW
 
     async def _convert_to_buy_data(self, position: Position) -> Optional[HPBuyData]:
         """Convert database Position to HPBuyData for the trading system."""
@@ -218,6 +389,40 @@ class RecoveryService:
             if not symbol_info:
                 logger.error("Symbol info not found for %s", position.symbol)
                 return None
+
+            # Ensure that if all buy orders are filled, completeness is correct
+            if position.status == PositionStatus.FILLED and position.completeness < 1.0:
+                position.completeness = 1.0
+
+            # Always enforce: if completeness >= 1.0, buy state must be BOUGHT (never PARTIALLY_SOLD), regardless of any strategy state
+            state_info_state = self._convert_to_state_info_state(
+                position.status, position.completeness, PositionSide.LONG
+            )
+            if position.completeness >= 1.0:
+                if state_info_state != State.BOUGHT:
+                    logger.warning(
+                        "[Recovery] For hp_id=%s, completeness=%.3f, forcibly setting buy state to BOUGHT (was %s)",
+                        position.hp_id,
+                        position.completeness,
+                        state_info_state,
+                    )
+                # Explicitly set buy state to BOUGHT if all buy orders are filled
+                state_info_state = State.BOUGHT
+            else:
+                # If for any reason the mapping returns PARTIALLY_SOLD for a buy, force to PARTIALLY_BOUGHT
+                if state_info_state == State.PARTIALLY_SOLD:
+                    logger.error(
+                        "[Recovery] Invalid buy state PARTIALLY_SOLD detected for hp_id=%s, forcing to PARTIALLY_BOUGHT",
+                        position.hp_id,
+                    )
+                    state_info_state = State.PARTIALLY_BOUGHT
+                else:
+                    logger.info(
+                        "[Recovery] For hp_id=%s, completeness=%.3f, buy state mapped to %s",
+                        position.hp_id,
+                        position.completeness,
+                        state_info_state,
+                    )
 
             config = HPBuyConfig(
                 symbol_info=symbol_info,
@@ -235,7 +440,7 @@ class RecoveryService:
             )
 
             state_info = StateInfo(
-                state=self._convert_to_state(position.status),
+                state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.LONG,
                 completeness=position.completeness,
@@ -269,8 +474,13 @@ class RecoveryService:
                 parent_hp_id=position.parent_position_id,
             )
 
+            # Nested state_info.state (never BUYING/SELLING), pass side explicitly
+            state_info_state = self._convert_to_state_info_state(
+                position.status, position.completeness, PositionSide.SHORT
+            )
+
             state_info = StateInfo(
-                state=self._convert_to_state(position.status),
+                state=state_info_state,
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.SHORT,
                 completeness=position.completeness,

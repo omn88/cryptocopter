@@ -70,9 +70,9 @@ class HPPositionSell:
             sell_type=SellType.DIRECT,
         )
 
-        self._initialize_positions()
+        self.initialize_positions()
 
-    def _initialize_positions(self) -> None:
+    def initialize_positions(self) -> None:
         """Initializes sell positions and sets the current active position."""
 
         self._build_sell_positions()
@@ -109,6 +109,13 @@ class HPPositionSell:
                 queue=self.worker_queue,
             ),
         )
+
+        logger.info("Dummy comment to trigger a rebuild of the sell positions")
+
+        # await self.db.upsert_sell_price_level(
+        #     data=self.original_position,
+        #     strategy_state=State.BOUGHT,
+        # )
 
     def _build_sell_positions(self) -> None:
         if not self.sell_strategy:
@@ -316,11 +323,13 @@ class HPPositionSell:
             )
             self.current_position.sell_order.price = (
                 execution_report.last_executed_price
-            )  # self.db.upsert_order(
-            #     order=self.current_position.sell_order,
-            #     hp_id=self.current_position.config.hp_id,
-            #     side=self.current_position.state_info.side,
-            # )
+            )
+            # Persist the updated sell order to the database
+            await self.db.upsert_order(
+                order=self.current_position.sell_order,
+                hp_id=self.current_position.config.hp_id,
+                side=self.current_position.state_info.side,
+            )
             logger.info(
                 "Order: %s partially filled", self.current_position.sell_order.order_id
             )

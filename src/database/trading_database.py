@@ -19,6 +19,8 @@ import asyncio
 import aiosqlite
 
 from src.identifiers import (
+    HPSellConfig,
+    SellType,
     State,
     HPBuyData,
     HPSellData,
@@ -302,6 +304,25 @@ class TradingDatabase:
         """Save an order to the database."""
         try:
             async with self.get_connection() as conn:
+                # Defensive: handle None for created_at and updated_at
+                created_at = None
+                updated_at = None
+                if hasattr(order, "created_at") and order.created_at is not None:
+                    try:
+                        created_at = order.created_at.isoformat()
+                    except Exception:
+                        created_at = datetime.now().isoformat()
+                else:
+                    created_at = datetime.now().isoformat()
+
+                if hasattr(order, "updated_at") and order.updated_at is not None:
+                    try:
+                        updated_at = order.updated_at.isoformat()
+                    except Exception:
+                        updated_at = datetime.now().isoformat()
+                else:
+                    updated_at = datetime.now().isoformat()
+
                 await conn.execute(
                     """
                     INSERT OR REPLACE INTO orders
@@ -324,12 +345,8 @@ class TradingDatabase:
                         order.realized_quantity,
                         order.time_in_force,
                         order.filled_at.isoformat() if order.filled_at else None,
-                        (
-                            order.created_at.isoformat()
-                            if hasattr(order, "created_at")
-                            else datetime.now().isoformat()
-                        ),
-                        datetime.now().isoformat(),
+                        created_at,
+                        updated_at,
                     ),
                 )
                 await conn.commit()
@@ -339,19 +356,24 @@ class TradingDatabase:
 
     async def get_active_positions(self) -> List[Position]:
         """
-        Get all active positions for recovery.
+        Get all active parent positions for recovery.
 
-        This is the primary recovery method - returns all positions that need
-        to be restored after system restart.
+        Only returns parent positions (hop_sequence == 0 and parent_position_id is NULL or '').
+        Child hops are not returned here.
         """
         try:
+
             async with self.get_connection() as conn:
                 cursor = await conn.execute(
                     """
                     SELECT * FROM positions
                     WHERE status NOT IN ('CLOSED', 'CANCELED')
+                      AND (parent_position_id IS NULL OR parent_position_id = '')
+                      AND hop_sequence = 0
+                      AND hp_id NOT LIKE '%a'
+                      AND hp_id NOT LIKE '%b'
                     ORDER BY created_at ASC
-                """
+                    """
                 )
                 rows = await cursor.fetchall()
 
@@ -361,7 +383,7 @@ class TradingDatabase:
                     positions.append(position)
 
                 logger.info(
-                    "Retrieved %s active positions for recovery", len(positions)
+                    "Retrieved %s active parent positions for recovery", len(positions)
                 )
                 return positions
         except Exception as e:
@@ -557,8 +579,24 @@ class TradingDatabase:
             position = next((p for p in positions if p.hp_id == hp_id), None)
             symbol = position.symbol if position else ""
 
-            # Convert trading order to database order
+            # Always preserve the original order.id if present, else fallback to uuid
+            db_order_id = getattr(order, "id", None)
+            if not db_order_id:
+                # fallback: use exchange_order_id or generate new
+                db_order_id = str(getattr(order, "order_id", ""))
+
+            # Ensure created_at and updated_at are always datetime objects
+            import datetime as _dt
+
+            created_at = getattr(order, "created_at", None)
+            if not created_at:
+                created_at = _dt.datetime.now()
+            updated_at = getattr(order, "updated_at", None)
+            if not updated_at:
+                updated_at = _dt.datetime.now()
+
             db_order = Order(
+                id=db_order_id,
                 position_id=hp_id,  # Use hp_id as position_id for compatibility
                 exchange_order_id=(
                     order.order_id
@@ -583,6 +621,11 @@ class TradingDatabase:
                 time_in_force=(
                     order.time_in_force if hasattr(order, "time_in_force") else "GTC"
                 ),
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+            logger.info(
+                f"[DB UPSERT] Saving order: id={db_order.id}, hp_id={hp_id}, side={db_order.side}, status={db_order.status}, symbol={db_order.symbol}, realized_quantity={db_order.realized_quantity}"
             )
             await self.save_order(db_order)
             logger.debug("Saved order for hp_id %s", hp_id)
@@ -644,7 +687,7 @@ class TradingDatabase:
             logger.error("Failed to upsert buy price level: %s", e)
 
     async def upsert_sell_price_level(
-        self, data: Union[SellPosition, HPSellData], strategy_state: Any = None
+        self, data: SellPosition, strategy_state: State
     ) -> None:
         """
         Save sell position data to the database.
@@ -654,16 +697,9 @@ class TradingDatabase:
             strategy_state: Optional strategy state
         """
         try:
-            # Handle both SellPosition and HPSellData
-            if hasattr(data, "config") and hasattr(data, "state_info"):
-                config = data.config
-                state_info = data.state_info
-            elif hasattr(data, "config"):
-                config = data.config
-                state_info = data.state_info
-            else:
-                logger.error("Unknown data type in upsert_sell_price_level")
-                return
+
+            config: HPSellConfig = data.config
+            state_info: StateInfo = data.state_info
 
             position = Position(
                 hp_id=config.hp_id,
@@ -688,7 +724,15 @@ class TradingDatabase:
                 buy_price=config.buy_price,
                 sell_price=config.sell_price,
                 end_currency=config.end_currency,
-                trade_type=TradeType.DIRECT,
+                trade_type=(
+                    TradeType.DIRECT
+                    if data.sell_type == SellType.DIRECT
+                    else (
+                        TradeType.TWOHOP
+                        if data.sell_type == SellType.TWOHOPS
+                        else TradeType.CONVERT
+                    )
+                ),
                 completeness=state_info.completeness,
                 created_at=(
                     datetime.strptime(state_info.open_time, "%Y-%m-%d %H:%M:%S")
@@ -717,43 +761,38 @@ class TradingDatabase:
     # Legacy compatibility methods - To be implemented via TDD
     # ========================================================================
 
-    def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
+    async def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
         """
-        Fetch all active strategies.
+        Fetch all active strategies (async).
 
         Returns:
             List of strategy dictionaries
         """
-        # TODO: Implement via TDD
-        logger.warning("fetch_all_active_strategies not yet implemented")
-        return []
-
-    def fetch_active_hp_list(self) -> List[Dict[str, Any]]:
-        """
-        Fetch all active positions.
-
-        Returns:
-            List of active position dictionaries
-        """
-        # TODO: Implement via TDD
-        logger.warning("fetch_active_hp_list not yet implemented")
-        return []
-
-    def fetch_price_levels_for_hp(
-        self, hp_id: str
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """
-        Fetch price levels for a specific position.
-
-        Args:
-            hp_id: Position HP ID
-
-        Returns:
-            Tuple of (buy_levels, sell_levels)
-        """
-        # TODO: Implement via TDD
-        logger.warning("fetch_price_levels_for_hp not yet implemented")
-        return ([], [])
+        try:
+            async with self.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT * FROM strategies WHERE status = 'ACTIVE' ORDER BY created_at ASC
+                    """
+                )
+                rows = await cursor.fetchall()
+                strategies = []
+                for row in rows:
+                    strategies.append(
+                        {
+                            "id": row["id"],
+                            "name": row["name"],
+                            "description": row["description"],
+                            "status": row["status"],
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                        }
+                    )
+                logger.info("Fetched %d active strategies", len(strategies))
+                return strategies
+        except Exception as e:
+            logger.error("Failed to fetch active strategies: %s", e)
+            return []
 
     async def fetch_orders_for_price_level(
         self, hp_id: str, side: str
@@ -788,7 +827,7 @@ class TradingDatabase:
                 # Get orders for this position and side
                 cursor = await conn.execute(
                     """
-                    SELECT * FROM orders 
+                    SELECT * FROM orders
                     WHERE position_id = ? AND side = ?
                     ORDER BY created_at ASC
                     """,
@@ -818,38 +857,6 @@ class TradingDatabase:
             raise DatabaseError(
                 f"Failed to fetch orders for HP {hp_id}, side {side}: {e}"
             ) from e
-
-    def insert_strategy(
-        self, name: str, description: str = "", status: str = "ACTIVE"
-    ) -> str:
-        """
-        Insert a new strategy.
-
-        Args:
-            name: Strategy name
-            description: Strategy description
-            status: Strategy status
-
-        Returns:
-            Strategy ID
-        """
-        # TODO: Implement via TDD
-        logger.warning("insert_strategy not yet implemented")
-        return ""
-
-    def assert_db_buy_price_level_content(
-        self, config: HPBuyConfig, state_info: StateInfo
-    ) -> None:
-        """
-        Assert database buy price level content.
-
-        Args:
-            config: HPBuyConfig object
-            state_info: StateInfo object
-        """
-        # TODO: Implement via TDD
-        logger.warning("assert_db_buy_price_level_content not yet implemented")
-        pass
 
     # ========================================================================
     # Helper methods

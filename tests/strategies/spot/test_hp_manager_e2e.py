@@ -827,8 +827,8 @@ async def test_fill_orders_for_previously_partially_bought_position(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
-    await sim.simulate_second_buy_order_fill_with_sell_price()
-    await sim.simulate_third_buy_order_fill_with_sell_price()
+    await sim.simulate_second_buy_order_fill_with_sell_price_no_fill()
+    await sim.simulate_third_buy_order_fill_with_sell_price_no_fill()
 
 
 async def test_sell_partially_partially_bought_position(
