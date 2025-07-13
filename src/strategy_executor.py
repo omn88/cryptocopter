@@ -952,17 +952,17 @@ class StrategyExecutor:
                 "[Recovery] Entering sell position restoration for HP %s", parent_hp_id
             )
             # Restore existing sell orders from database
-            sell_orders = await self.restore_sell_orders(
+            sell_order = await self.restore_sell_orders(
                 sell_config=strategy.sell.current_position.config,
                 worker_queue=worker_queue,
             )
-            logger.info("[Recovery] restore_sell_orders() returned: %s", sell_orders)
-            if sell_orders:
+            logger.info("[Recovery] restore_sell_orders() returned: %s", sell_order)
+            if sell_order:
                 logger.info(
                     "[Recovery] Assigning restored sell order to in-memory: %s",
-                    sell_orders[0],
+                    sell_order,
                 )
-                strategy.sell.current_position.sell_order = sell_orders[0]
+                strategy.sell.current_position.sell_order = sell_order
                 logger.info(
                     "[Recovery] In-memory sell order after assignment: %s",
                     strategy.sell.current_position.sell_order,
@@ -1356,7 +1356,7 @@ class StrategyExecutor:
         assert self.client
         buy_config = buy_position.data.config  # Restore orders for buy position
 
-        # Use the dedicated method to fetch orders for this HP and side
+        # Use the dedicated method to fetch all orders for this HP and side
         orders = await self.db.fetch_orders_for_price_level(
             hp_id=buy_config.hp_id, side=PositionSide.LONG.value
         )
@@ -1366,25 +1366,47 @@ class StrategyExecutor:
             buy_position.prepare_orders()
             return buy_position.orders
 
-        # Convert order dictionaries to trading Order objects
-        order_list: List[Order] = []
+        # Group orders by price level (price, quantity)
+        from collections import defaultdict
+
+        grouped_orders = defaultdict(list)
         for order_dict in orders:
+            key = (order_dict["price"], order_dict["quantity"])
+            grouped_orders[key].append(order_dict)
+
+        restored_orders: List[Order] = []
+        for (price, quantity), order_dicts in grouped_orders.items():
+            # Aggregate realized_quantity from all orders for this price level
+            total_realized = sum(o["realized_quantity"] for o in order_dicts)
+            # Find the latest open order (not FILLED or CANCELED), else the latest order
+            open_orders = [
+                o
+                for o in order_dicts
+                if o["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]
+            ]
+            if open_orders:
+                # Use the latest open order (by order_id or timestamp if available)
+                latest_order = max(open_orders, key=lambda o: o.get("order_id", 0))
+            else:
+                # Use the latest order overall
+                latest_order = max(order_dicts, key=lambda o: o.get("order_id", 0))
+
             trading_order = Order(
-                order_id=order_dict["order_id"],
-                quantity=order_dict["quantity"],
+                order_id=latest_order["order_id"],
+                quantity=latest_order["quantity"],
                 precision=buy_config.symbol_info.precision,
                 price_precision=buy_config.symbol_info.price_precision,
-                price=order_dict["price"],
-                quantity_stable=order_dict["quantity_stable"],
-                realized_quantity=order_dict["realized_quantity"],
-                status=order_dict["status"],
+                price=latest_order["price"],
+                quantity_stable=latest_order["quantity_stable"],
+                realized_quantity=total_realized,
+                status=latest_order["status"],
             )
-            order_list.append(trading_order)
+            restored_orders.append(trading_order)
 
-        logger.info("Buy orders restored from DB: %s.", order_list)
+        logger.info("Buy orders restored from DB (aggregated): %s.", restored_orders)
 
-        # Confirm buy position state with the exchange
-        for order in order_list:
+        # Confirm buy position state with the exchange for open orders
+        for order in restored_orders:
             if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
                 # Retrieve the latest order information from the API
                 resp = await self.client.get_order(
@@ -1421,11 +1443,11 @@ class StrategyExecutor:
                 else:
                     logger.info("No changes detected for order %s.", order.order_id)
 
-        return order_list
+        return restored_orders
 
     async def restore_sell_orders(
         self, sell_config: HPSellConfig, worker_queue: queue.Queue
-    ) -> List[Order]:
+    ) -> Optional[Order]:
         assert self.client  # Restore orders for sell position
 
         # Use the dedicated method to fetch orders for this HP and side
@@ -1436,64 +1458,78 @@ class StrategyExecutor:
 
         if not orders:
             logger.info("No sell orders found in DB")
-            return []
+            return None
+
+        if len(orders) == 2:
+            for order in orders:
+                if order["status"] == ORDER_STATUS_NEW:
+                    current_order = order
+                    break
+        if len(orders) == 1:
+            current_order = orders[0]
 
         # Convert order dictionaries to trading Order objects
-        order_list = []
-        for order_dict in orders:
-            trading_order = Order(
-                order_id=order_dict["order_id"],
-                quantity=order_dict["quantity"],
-                precision=sell_config.symbol_info.precision,
-                price_precision=sell_config.symbol_info.price_precision,
-                price=order_dict["price"],
-                quantity_stable=order_dict["quantity_stable"],
-                realized_quantity=order_dict["realized_quantity"],
-                status=order_dict["status"],
+        # Only restore orders that are not filled or canceled
+        logger.info(
+            "Restoring order %s with status %s",
+            current_order["order_id"],
+            current_order["status"],
+        )
+        trading_order = Order(
+            order_id=current_order["order_id"],
+            quantity=current_order["quantity"],
+            precision=sell_config.symbol_info.precision,
+            price_precision=sell_config.symbol_info.price_precision,
+            price=current_order["price"],
+            quantity_stable=current_order["quantity_stable"],
+            realized_quantity=current_order["realized_quantity"],
+            status=current_order["status"],
+        )
+
+        logger.info("Sell orders restored from DB: %s.", trading_order)
+
+        if current_order["status"] not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
+            # Retrieve the latest order information from the API
+            resp = await self.client.get_order(
+                symbol=sell_config.symbol_info.symbol,
+                orderId=current_order["order_id"],
             )
-            order_list.append(trading_order)
+            latest_status = resp["status"]
+            latest_realized_quantity = float(resp["executedQty"])
 
-        logger.info("Sell orders restored from DB: %s.", order_list)
+            # Check if status or realized quantity has changed
+            status_changed = latest_status != current_order["status"]
+            quantity_changed = (
+                latest_realized_quantity != current_order["realized_quantity"]
+            )
 
-        for order in order_list:
-            if order.status not in [ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED]:
-                # Retrieve the latest order information from the API
-                resp = await self.client.get_order(
+            if status_changed or quantity_changed:
+                # Send a message to the appropriate queue
+
+                ex_report = ExecutionReport(
                     symbol=sell_config.symbol_info.symbol,
-                    orderId=order.order_id,
+                    quantity=current_order["quantity"],
+                    price=current_order["price"],
+                    current_order_status=latest_status,
+                    order_id=current_order["order_id"],
+                    cumulative_filled_quantity=latest_realized_quantity,
                 )
-                latest_status = resp["status"]
-                latest_realized_quantity = float(resp["executedQty"])
-
-                # Check if status or realized quantity has changed
-                status_changed = latest_status != order.status
-                quantity_changed = latest_realized_quantity != order.realized_quantity
-
-                if status_changed or quantity_changed:
-                    # Send a message to the appropriate queue
-
-                    ex_report = ExecutionReport(
-                        symbol=sell_config.symbol_info.symbol,
-                        quantity=order.quantity,
-                        price=order.price,
-                        current_order_status=latest_status,
-                        order_id=order.order_id,
-                        cumulative_filled_quantity=latest_realized_quantity,
+                worker_queue.put_nowait(
+                    Event(
+                        name=EventName.EXECUTION_REPORT,
+                        content=ex_report,
                     )
-                    worker_queue.put_nowait(
-                        Event(
-                            name=EventName.EXECUTION_REPORT,
-                            content=ex_report,
-                        )
-                    )
-                    logger.info(
-                        "Order %s has been modified, execution report send: %s",
-                        order.order_id,
-                        ex_report,
-                    )
-                else:
-                    logger.info("No changes detected for order %s.", order.order_id)
-        return order_list
+                )
+                logger.info(
+                    "Order %s has been modified, execution report send: %s",
+                    current_order["order_id"],
+                    ex_report,
+                )
+            else:
+                logger.info(
+                    "No changes detected for order %s.", current_order["order_id"]
+                )
+        return trading_order
 
     async def _get_strategy_state_from_db(self, hp_id: str) -> Optional[str]:
         """

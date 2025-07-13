@@ -392,7 +392,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445861,
+            order_id=131409,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -450,7 +450,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=445862,
+            order_id=332,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,

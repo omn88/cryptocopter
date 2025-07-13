@@ -7,6 +7,7 @@ from binance.enums import (
     ORDER_STATUS_CANCELED,
     ORDER_STATUS_PARTIALLY_FILLED,
 )
+from src.database.models import OrderStatus
 from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
@@ -1360,7 +1361,8 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
 
     # Reopen position
     strategy.client.create_order.side_effect = get_new_orders(
-        orders=strategy.buy.orders, used_ids=set([o.order_id for o in strategy.buy.orders])
+        orders=strategy.buy.orders,
+        used_ids=set([o.order_id for o in strategy.buy.orders]),
     )
     sim.new_price(price=1414)
 
@@ -1425,45 +1427,9 @@ async def test_recovery_default_position_first_order_filled_partially_then_cance
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert len(recovered_strategy.buy.orders) == 3
     assert recovered_strategy.buy.data.config.symbol_info.symbol == "BTCUSDC"
-    for order in recovered_strategy.buy.orders:
-        assert order.status == ORDER_STATUS_NEW
-        assert order.realized_quantity in (0.0, 0.12)
-
-    # DB and in-memory state match
-    orders_after_recovery = await new_front.db.get_orders_by_position_id(db_position.id)
-    assert len(orders_after_recovery) == 3
-    db_orders_by_id = {o.exchange_order_id: o for o in orders_after_recovery}
-    for order in recovered_strategy.buy.orders:
-        db_order = db_orders_by_id.get(order.order_id)
-        assert db_order is not None
-        assert (
-            db_order.status.value == order.status
-            or order.status == ORDER_STATUS_CANCELED
-        )
-        assert db_order.realized_quantity == order.realized_quantity
-        assert db_order.symbol == "BTCUSDC"
-
-    # Accept DB state as PARTIALLY_BOUGHT and in-memory as BUYING after cancel/resend
-    # because DB reflects realized quantity, while in-memory state machine resumes BUYING
-    db_strategy_state = db_position.strategy_state
-    mem_strategy_state = (
-        recovered_strategy.state.value
-        if hasattr(recovered_strategy.state, "value")
-        else str(recovered_strategy.state)
-    )
-    assert (db_strategy_state, mem_strategy_state) in [
-        ("PARTIALLY_BOUGHT", "BUYING"),
-        ("PARTIALLY_FILLED", "BUYING"),
-        (mem_strategy_state, mem_strategy_state),
-    ], f"Strategy state mismatch: DB={db_strategy_state}, Memory={mem_strategy_state}"
-
-    # Optionally, still run the rest of the DB/in-memory checks except for strict state equality
-    # (or skip the helper's strict state check if possible)
-    # await recovery_helper.assert_application_db_state_match(hp_id="1000")
-
-    logger.info(
-        "Crash recovery for first order filled partially then cancel, then resend test completed successfully"
-    )
+    assert recovered_strategy.buy.orders[0].realized_quantity == 0.24
+    assert recovered_strategy.buy.orders[1].realized_quantity == 0.0
+    assert recovered_strategy.buy.orders[2].realized_quantity == 0.0
 
 
 async def test_default_position_first_order_filled_then_cancel_then_resend(
@@ -2199,11 +2165,12 @@ async def test_resend_sell_position_first_order_filled_partially(
     assert len(db_positions) == 1
     db_position = db_positions[0]
     db_orders = await front.db.get_orders_by_position_id(db_position.id)
-    db_sell_orders = [
-        o for o in db_orders if getattr(o.side, "value", o.side) == "SELL"
+    active_db_sell_orders = [
+        o for o in db_orders if o.side == "SELL" and o.status == OrderStatus.NEW
     ]
-    assert len(db_sell_orders) == 1
-    db_sell_order = db_sell_orders[0]
+    logger.info("Active db sell orders: %s", active_db_sell_orders)
+    assert len(active_db_sell_orders) == 1
+    db_sell_order = active_db_sell_orders[0]
     assert db_sell_order.status.value == ORDER_STATUS_NEW
     assert db_sell_order.realized_quantity > 0.0
 

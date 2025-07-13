@@ -126,23 +126,6 @@ async def simulate_order_partially_filled(
     await strategy.process_order()  # type: ignore[attr-defined]  # type: ignore
 
 
-async def db_and_gui_assertions(
-    strategy: HpStrategy,
-    completeness: float,
-):
-    db = strategy.buy.db
-    db.assert_db_buy_price_level_content(
-        config=strategy.buy.data.config,
-        state_info=strategy.buy.data.state_info,
-    )
-    assert_gui_position_data_content_buy(
-        ui_queue=strategy.ui_queue,
-        config=strategy.buy.data.config,
-        state_info=strategy.buy.data.state_info,
-        completeness=completeness,
-    )
-
-
 def get_default_buy_position(trading_system_factory) -> HpStrategy:
     strategy = trading_system_factory(
         hp_config=HPBuyConfig(

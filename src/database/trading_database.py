@@ -794,7 +794,6 @@ class TradingDatabase:
             logger.error("Failed to fetch active strategies: %s", e)
             return []
 
-
     async def fetch_orders_for_price_level(
         self, hp_id: str, side: str
     ) -> List[Dict[str, Any]]:
@@ -858,7 +857,6 @@ class TradingDatabase:
             raise DatabaseError(
                 f"Failed to fetch orders for HP {hp_id}, side {side}: {e}"
             ) from e
-
 
     # ========================================================================
     # Helper methods
