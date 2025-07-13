@@ -1018,7 +1018,7 @@ class StrategyExecutor:
             self._restore_current_sell_position_for_multihop(strategy)
             # logger.info("After restoration, current_position: %s", strategy.sell.current_position)
             # # --- General: For two-hop sells, restore both child legs and set current_position appropriately ---
-            # await self._restore_all_child_sell_positions_for_multihop(strategy)
+            await self._restore_all_child_sell_positions_for_multihop(strategy)
 
         else:
             # Generate new timestamp for new positions
