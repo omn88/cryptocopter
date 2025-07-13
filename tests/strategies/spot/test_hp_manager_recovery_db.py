@@ -3820,7 +3820,6 @@ async def test_partial_fill_second_sell_position_in_two_hop_trade(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-
 async def test_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory):
     """
     Test full fill of the second sell position in a two-hop trade, with crash recovery.
@@ -3841,12 +3840,20 @@ async def test_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory
     # Assert before crash: both legs are FILLED
     strategy = back.strategies["1000"]
     sell_positions = strategy.sell.sell_positions
-    assert len(sell_positions) == 2, f"Expected 2 sell positions, got {len(sell_positions)}"
+    assert (
+        len(sell_positions) == 2
+    ), f"Expected 2 sell positions, got {len(sell_positions)}"
     first_sell_position = sell_positions[0]
     second_sell_position = sell_positions[1]
-    assert first_sell_position.sell_order.status == ORDER_STATUS_FILLED, f"First leg should be FILLED before crash, got {first_sell_position.sell_order.status}"
-    assert second_sell_position.sell_order.status == ORDER_STATUS_FILLED, f"Second leg should be FILLED before crash, got {second_sell_position.sell_order.status}"
-    assert second_sell_position.sell_order.realized_quantity > 0.0, "Second leg's sell order should have non-zero realized quantity before crash"
+    assert (
+        first_sell_position.sell_order.status == ORDER_STATUS_FILLED
+    ), f"First leg should be FILLED before crash, got {first_sell_position.sell_order.status}"
+    assert (
+        second_sell_position.sell_order.status == ORDER_STATUS_FILLED
+    ), f"Second leg should be FILLED before crash, got {second_sell_position.sell_order.status}"
+    assert (
+        second_sell_position.sell_order.realized_quantity > 0.0
+    ), "Second leg's sell order should have non-zero realized quantity before crash"
 
     # Simulate crash
     await simulate_crash(front, back)
@@ -3859,7 +3866,9 @@ async def test_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory
     for db_position in db_positions:
         db_orders.extend(await new_front.db.get_orders_by_position_id(db_position.id))
     recovery_helper = CrashRecoveryHelper(new_front, new_back)
-    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(db_orders)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
     await new_back.recover_positions_from_crash()
 
     # Assert after recovery: both legs are FILLED
@@ -3867,7 +3876,9 @@ async def test_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
     recovered_sell_positions = recovered_strategy.sell.sell_positions
-    assert len(recovered_sell_positions) == 2, f"Expected 2 sell positions after recovery, got {len(recovered_sell_positions)}"
+    assert (
+        len(recovered_sell_positions) == 2
+    ), f"Expected 2 sell positions after recovery, got {len(recovered_sell_positions)}"
     recovered_second_sell_position = recovered_sell_positions[1]
     assert (
         recovered_second_sell_position.sell_order.status == ORDER_STATUS_FILLED
