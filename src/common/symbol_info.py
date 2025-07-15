@@ -29,7 +29,7 @@ class SymbolInfo:
             f"SymbolInfo(symbol={self.symbol}, min_notional={self.min_notional}, "
             f"lot_size={self.lot_size}, min_qty={self.min_qty}, max_qty={self.max_qty}, "
             f"price_filter={self.price_filter}, precision={self.precision}, "
-            f"price_precision={self.price_precision}, convert_only={self.is_convert_only})"
+            f"price_precision={self.price_precision}, is_convert_only={self.is_convert_only})"
         )
 
     def format_price(self, price: float) -> str:
