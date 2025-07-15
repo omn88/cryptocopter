@@ -1069,7 +1069,6 @@ class HpStrategy:
             self.sell.original_position.state_info.state = State.SOLD
             self.sell.original_position.sell_order.status = ORDER_STATUS_FILLED
             self.sell.original_position.state_info.completeness = 1.0
-            # self.send_sell_position_to_ui()
 
             self.sell.current_position = SellPosition(
                 sell_order=self.sell.original_position.sell_order,

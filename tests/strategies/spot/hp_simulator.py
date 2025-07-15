@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 from binance.enums import (
     ORDER_STATUS_NEW,
     ORDER_STATUS_CANCELED,
@@ -24,7 +23,6 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.database.models import PositionStatus, PositionType, TradeType
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.spot import get_new_orders
@@ -34,6 +32,41 @@ logger = logging.getLogger("hp_simulator")
 
 
 class HPSimulator:
+    async def simulate_convert_only_position(
+        self,
+        coin="DYM",
+        end_currency="USDC",
+        quantity=10.0,
+        buy_price=2.0,
+        sell_price=2.0,
+    ) -> HPSellData:
+        """
+        Simulates a convert-only position (e.g., DYM/USDC) for E2E tests.
+        - Assumes the config queue and backend are ready.
+        - Mocks the convert quote/accept and market price.
+        - Waits for the frontend to reflect the expected state.
+        """
+        symbol = f"{coin}{end_currency}"
+
+        # Simulate sending config for convert-only position
+        hp_sell_data = HPSellData(
+            config=HPSellConfig(
+                coin=coin,
+                buy_price=buy_price,
+                sell_price=sell_price,
+                quantity=quantity,
+                end_currency=end_currency,
+                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.front.config_queue.put_nowait(hp_sell_data)
+        logger.info(
+            "Convert-only sell config added to the queue: %s", hp_sell_data.config
+        )
+
+        return hp_sell_data
+
     def __init__(self, front: HpFront, back: StrategyExecutor):
         self.front = front
         self.back = back
@@ -627,7 +660,6 @@ class HPSimulator:
         sell_price: float,
         end_currency: str,
         coin: str,
-        trade_type: Optional[TradeType] = None,
     ):
         sell_config = HPSellData(
             config=HPSellConfig(
@@ -1868,5 +1900,3 @@ class HPSimulator:
         assert main_item["state"] == "SOLD"
         assert first_leg["state"] == "SOLD"
         assert second_leg["state"] == "SOLD"
-
-    # The assert_application_db_state_match method has been moved to CrashRecoveryHelper for centralized use in tests.

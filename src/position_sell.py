@@ -110,13 +110,6 @@ class HPPositionSell:
             ),
         )
 
-        logger.info("Dummy comment to trigger a rebuild of the sell positions")
-
-        # await self.db.upsert_sell_price_level(
-        #     data=self.original_position,
-        #     strategy_state=State.BOUGHT,
-        # )
-
     def _build_sell_positions(self) -> None:
         if not self.sell_strategy:
             self.sell_positions = []

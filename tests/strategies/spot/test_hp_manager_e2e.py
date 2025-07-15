@@ -1,17 +1,71 @@
 import asyncio
-import datetime
 import logging
-import pytest
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.symbol_info import SymbolInfo
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
-from src.identifiers import HPSellConfig, HPSellData, State, StateInfo, PositionSide
+from src.identifiers import (
+    HPSellConfig,
+    HPSellData,
+    SellType,
+    Signal,
+    State,
+    StateInfo,
+    PositionSide,
+    UiState,
+)
 from tests.spot import get_new_orders
 from tests.strategies.spot.hp_simulator import HPSimulator
 from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger("hp_e2e_test")
+
+
+async def test_convert_position_happy_path(frontend_backend_setup):
+    front, back = frontend_backend_setup
+    sim = HPSimulator(front=front, back=back)
+
+    buy_price = 10.0
+    sell_price = 12.0
+    quantity = 100.0
+
+    # Simulate convert-only position (DYM/USDC)
+    hp_sell_data = await sim.simulate_convert_only_position(
+        coin="DYM",
+        buy_price=buy_price,
+        sell_price=sell_price,
+        quantity=quantity,
+    )
+
+    # Wait for frontend to reflect the convert-only position
+    await wait_for_condition(condition_func=lambda: front.hp_list_data)
+    item = front.hp_list_data[0]
+    # Find the convert-only item
+    assert item["buy_price"] == str(buy_price), f"buy price: {item['buy_price']}"
+    assert item["quantity"] == str(quantity), f"quantity: {item['quantity']}"
+    assert item["quantity_usd"] == str(
+        round(quantity * buy_price, 2)
+    ), f"quantity_usd: {item['quantity_usd']}"
+    assert item["sell_price"] == str(sell_price), f"sell price: {item['sell_price']}"
+    assert item["expected_return"] == "200.0"
+    assert item["current_price"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["state"] == "BOUGHT"
+
+    strategy = back.strategies["1000"]
+
+    # Assert sell order is new
+    sell_position = strategy.sell.current_position
+    assert sell_position.sell_type == SellType.CONVERT
+    assert sell_position.sell_order.status == ORDER_STATUS_NEW
+    assert sell_position.sell_order.realized_quantity == 0.0
+    assert sell_position.state_info.state == State.NEW
+    assert sell_position.state_info.ui_state == UiState.NEW
+    assert sell_position.state_info.completeness == 0.0
+
+
+    sim.new_price(price=11.0)
 
 
 async def test_get_default_buy_position(frontend_backend_setup):

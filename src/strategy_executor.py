@@ -897,6 +897,7 @@ class StrategyExecutor:
         logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
+
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
 
