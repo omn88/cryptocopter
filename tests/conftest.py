@@ -119,7 +119,6 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     )
     price_resolver.latest_prices["BTCPLN"] = 320000.0
     price_resolver.latest_prices["BTCUSDC"] = 100000.0
-    price_resolver.latest_prices["DYMUSDT"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,
@@ -287,6 +286,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
             "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
             "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
             "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
+            "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
         }
 
         price_resolver = UsdPriceResolver(

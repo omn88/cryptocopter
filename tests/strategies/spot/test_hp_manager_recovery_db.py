@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import AsyncMock
 
 
 from binance.enums import (
@@ -3888,3 +3889,115 @@ async def test_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory
     ), "Second leg's sell order should have non-zero realized quantity after recovery"
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
+
+
+async def test_convert_only_position_crash_recovery(crash_recovery_factory):
+    create_pair, simulate_crash = crash_recovery_factory
+
+    # === PHASE 1: CREATE ORIGINAL SETUP ===
+    front, back = create_pair("_original")
+    sim = HPSimulator(front=front, back=back)
+    assert isinstance(front, HpFront)
+    assert isinstance(back, StrategyExecutor)
+    assert len(back.strategies) == 0
+
+    buy_price = 10.0
+    sell_price = 12.0
+    quantity = 100.0
+
+    # Simulate convert-only position (DYM/USDC)
+    await sim.simulate_convert_only_position(
+        coin="DYM",
+        buy_price=buy_price,
+        sell_price=sell_price,
+        quantity=quantity,
+    )
+
+    # Wait for frontend to reflect the convert-only position
+    await wait_for_condition(condition_func=lambda: front.hp_list_data)
+    item = front.hp_list_data[0]
+    assert item["buy_price"] == str(buy_price)
+    assert item["quantity"] == str(quantity)
+    assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
+    assert item["sell_price"] == str(sell_price)
+    assert item["expected_return"] == "200.0"
+    assert item["state"] == "BOUGHT"
+
+    # === SIMULATE CRASH ===
+    await simulate_crash(front, back)
+
+    # === PHASE 2: SIMULATE APPLICATION RESTART ===
+    new_front, new_back = create_pair("_recovery")
+    assert isinstance(new_front, HpFront)
+    assert isinstance(new_back, StrategyExecutor)
+
+    new_sim = HPSimulator(front=new_front, back=new_back)
+
+    # Verify database has the position data before recovery
+    db_positions = await new_front.db.get_active_positions()
+    assert len(db_positions) == 1
+    db_position = db_positions[0]
+    db_orders = await new_front.db.get_orders_by_position_id(db_position.id)
+    recovery_helper = CrashRecoveryHelper(new_front, new_back)
+    new_back.client.get_order.side_effect = recovery_helper.mock_orders_from_db(
+        db_orders
+    )
+
+    # === MANUALLY TRIGGER CRASH RECOVERY ===
+    await new_back.recover_positions_from_crash()
+
+    # === DETAILED POST-RECOVERY ASSERTIONS ===
+    await wait_for_condition(lambda: len(new_back.strategies) == 1)
+    assert "1000" in new_back.strategies
+    recovered_strategy = new_back.strategies["1000"]
+    assert recovered_strategy.sell.current_position.config.coin == "DYM"
+    assert recovered_strategy.sell.current_position.config.sell_price == sell_price
+    assert recovered_strategy.state == State.BOUGHT
+    assert recovered_strategy.sell.current_position.config.symbol_info.is_convert_only
+
+    # Wait for frontend to reflect the convert-only position
+    await wait_for_condition(condition_func=lambda: new_front.hp_list_data)
+    item = new_front.hp_list_data[0]
+    assert item["buy_price"] == str(buy_price)
+    assert item["quantity"] == str(quantity)
+    assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
+    assert item["sell_price"] == str(sell_price)
+    assert item["expected_return"] == "200.0"
+    assert item["state"] == "BOUGHT"
+
+    # Mock convert quote/accept methods on the client
+    convert_quote_result = {
+        "quoteId": "mock-quote-id",
+        "fromAsset": "DYM",
+        "toAsset": "USDC",
+        "fromAmount": str(quantity),
+        "toAmount": str(round(quantity * sell_price, 2)),
+        "ratio": str(sell_price),
+    }
+    convert_accept_result = {
+        "orderId": "mock-convert-order-id",
+        "status": "SUCCESS",
+        "filledAmount": str(quantity),
+        "receivedAmount": str(round(quantity * sell_price, 2)),
+    }
+    recovered_strategy.client.convert_request_quote = AsyncMock(
+        return_value=convert_quote_result
+    )
+    recovered_strategy.client.convert_accept_quote = AsyncMock(
+        return_value=convert_accept_result
+    )
+
+    # Trigger conversion by price
+    new_sim.new_price(price=12.0, symbol="DYMUSDT")
+
+    # Wait for conversion to be reflected in frontend
+    await wait_for_condition(lambda: new_front.hp_list_data[0]["state"] == "SOLD")
+    item = new_front.hp_list_data[0]
+    assert item["state"] == "SOLD"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["buy_price"] == str(buy_price)
+    assert item["sell_price"] == str(sell_price)
+    assert item["expected_return"] == "200.0"
