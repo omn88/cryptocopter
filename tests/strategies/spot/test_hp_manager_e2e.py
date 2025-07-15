@@ -22,7 +22,7 @@ from tests.strategies.spot.hp_manager_helpers import wait_for_condition
 logger = logging.getLogger("hp_e2e_test")
 
 
-async def test_convert_position_happy_path(frontend_backend_setup):
+async def test_default_convert_position(frontend_backend_setup):
     front, back = frontend_backend_setup
     sim = HPSimulator(front=front, back=back)
 
@@ -31,7 +31,7 @@ async def test_convert_position_happy_path(frontend_backend_setup):
     quantity = 100.0
 
     # Simulate convert-only position (DYM/USDC)
-    hp_sell_data = await sim.simulate_convert_only_position(
+    await sim.simulate_convert_only_position(
         coin="DYM",
         buy_price=buy_price,
         sell_price=sell_price,
