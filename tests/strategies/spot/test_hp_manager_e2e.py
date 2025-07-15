@@ -90,6 +90,52 @@ async def test_default_convert_position(frontend_backend_setup):
     assert item["expected_return"] == "200.0"
 
 
+async def test_convert_position_spread_too_high(frontend_backend_setup):
+    front, back = frontend_backend_setup
+    sim = HPSimulator(front=front, back=back)
+
+    buy_price = 10.0
+    sell_price = 12.0
+    quantity = 100.0
+
+    # Simulate convert-only position (DYM/USDC)
+    await sim.simulate_convert_only_position(
+        coin="DYM",
+        buy_price=buy_price,
+        sell_price=sell_price,
+        quantity=quantity,
+    )
+
+    # Wait for frontend to reflect the convert-only position
+    await wait_for_condition(condition_func=lambda: front.hp_list_data)
+    item = front.hp_list_data[0]
+    assert item["state"] == "BOUGHT"
+
+    strategy = back.strategies["1000"]
+
+    # Mock convert quote/accept methods on the client with a high spread (market price much lower than effective price)
+    convert_quote_result = {
+        "quoteId": "mock-quote-id",
+        "fromAsset": "DYM",
+        "toAsset": "USDC",
+        "fromAmount": str(quantity),
+        "toAmount": "1162.32",
+    }
+    strategy.client.convert_request_quote = AsyncMock(return_value=convert_quote_result)
+
+    # Set a market price much lower than the effective price to create a spread > 1%
+    sim.new_price(price=12.0, symbol="DYMUSDT")
+
+    # Wait a short time to ensure no state change
+    await asyncio.sleep(0.2)
+    item = front.hp_list_data[0]
+    assert (
+        item["state"] == "BOUGHT"
+    ), f"Expected state to remain BOUGHT, got {item['state']}"
+    assert item["quantity"] == str(quantity)
+    assert item["quantity_usd"] == str(round(quantity * buy_price, 2))
+
+
 async def test_get_default_buy_position(frontend_backend_setup):
     front, back = frontend_backend_setup
 
