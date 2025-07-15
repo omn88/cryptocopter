@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from unittest.mock import AsyncMock
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.symbol_info import SymbolInfo
 from src.strategy_executor import StrategyExecutor
@@ -55,17 +56,38 @@ async def test_convert_position_happy_path(frontend_backend_setup):
 
     strategy = back.strategies["1000"]
 
-    # Assert sell order is new
-    sell_position = strategy.sell.current_position
-    assert sell_position.sell_type == SellType.CONVERT
-    assert sell_position.sell_order.status == ORDER_STATUS_NEW
-    assert sell_position.sell_order.realized_quantity == 0.0
-    assert sell_position.state_info.state == State.NEW
-    assert sell_position.state_info.ui_state == UiState.NEW
-    assert sell_position.state_info.completeness == 0.0
+    # Mock convert quote/accept methods on the client
+    convert_quote_result = {
+        "quoteId": "mock-quote-id",
+        "fromAsset": "DYM",
+        "toAsset": "USDC",
+        "fromAmount": str(quantity),
+        "toAmount": str(round(quantity * sell_price, 2)),
+        "ratio": str(sell_price),
+    }
+    convert_accept_result = {
+        "orderId": "mock-convert-order-id",
+        "status": "SUCCESS",
+        "filledAmount": str(quantity),
+        "receivedAmount": str(round(quantity * sell_price, 2)),
+    }
+    strategy.client.convert_request_quote = AsyncMock(return_value=convert_quote_result)
+    strategy.client.convert_accept_quote = AsyncMock(return_value=convert_accept_result)
 
+    # Trigger conversion by price
+    sim.new_price(price=12.0, symbol="DYMUSDT")
 
-    sim.new_price(price=11.0)
+    # Wait for conversion to be reflected in frontend
+    await wait_for_condition(lambda: front.hp_list_data[0]["state"] == "SOLD")
+    item = front.hp_list_data[0]
+    assert item["state"] == "SOLD"
+    assert item["quantity"] == "0.0"
+    assert item["quantity_usd"] == "0.0"
+    assert item["net"] == "0.0"
+    assert item["net_percent"] == "0.0"
+    assert item["buy_price"] == str(buy_price)
+    assert item["sell_price"] == str(sell_price)
+    assert item["expected_return"] == "200.0"
 
 
 async def test_get_default_buy_position(frontend_backend_setup):

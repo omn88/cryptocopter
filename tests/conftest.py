@@ -119,6 +119,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     )
     price_resolver.latest_prices["BTCPLN"] = 320000.0
     price_resolver.latest_prices["BTCUSDC"] = 100000.0
+    price_resolver.latest_prices["DYMUSDT"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,

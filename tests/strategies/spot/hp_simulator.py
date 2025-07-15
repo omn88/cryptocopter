@@ -75,6 +75,7 @@ class HPSimulator:
         ticker_event = Event(
             name=EventName.TICKER, content=TickerUpdate(last_price=price, symbol=symbol)
         )
+        self.back.price_resolver.update_price(symbol, price)
         self.back.strategies["1000"].worker_queue.put_nowait(ticker_event)
         logger.info("Put event to the worker: %s", ticker_event)
 

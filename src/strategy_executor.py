@@ -150,7 +150,10 @@ class StrategyExecutor:
                         config=strategy_data.config
                     )
                     logger.info("Sell strategy determined: %s", sell_strategy)
-                    if sell_strategy[0].symbol.endswith("USDC"):
+                    # Patch: Set symbol_info if convert-only or USDC
+                    if sell_strategy[0].is_convert_only or sell_strategy[
+                        0
+                    ].symbol.endswith("USDC"):
                         strategy_data.config.symbol_info = sell_strategy[0]
                     sell_position = SellPosition(
                         sell_order=Order(quantity=0),
