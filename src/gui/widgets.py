@@ -1,5 +1,5 @@
 from kivy.uix.label import Label
-from kivy.properties import NumericProperty, ListProperty, StringProperty
+from kivy.properties import NumericProperty, ListProperty
 
 
 class ColorChangingQuantity(Label):
