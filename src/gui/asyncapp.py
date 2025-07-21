@@ -152,19 +152,17 @@ class AsyncApp(App):
             return
         logger.info("Current active strategies: %s", active_strategies)
 
-        # Check if there are any HPManager strategies
-        hp_manager_strategies = [
-            s for s in active_strategies if s.get("name") == "HPManager"
-        ]
-        if hp_manager_strategies:
-            logger.info(
-                f"Found {len(hp_manager_strategies)} HPManager strategies, creating single HPManager instance"
-            )
-            # Use the first strategy ID as the primary one, but HPManager will load positions from all strategies
-            primary_strategy_id = hp_manager_strategies[0].get("strategy_id")
-            self.setup_hp_manager(
-                strategy_id=primary_strategy_id, symbols_info=self.symbols_info
-            )
+        for strategy in active_strategies:
+            strategy_name = strategy.get("name")
+            if strategy_name == "HP Manager":
+                logger.info("Found instance of HPManager, restoring last known state.")
+                strat = {}
+                strat["name"] = strategy_name
+                self.active_strategies.append(strat)
+                self.setup_hp_manager(
+                    strategy_id=strategy.get("strategy_id"),
+                    symbols_info=self.symbols_info,
+                )
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
         Builder.load_file("src/gui/hpfront.kv")
@@ -234,7 +232,7 @@ class AsyncApp(App):
             self.active_strategies.append(strat)
             logger.info("Starting HP manager strategy")
 
-            strategy = Strategy(name="HPManager", description="HPManager")
+            strategy = Strategy(name="HP Manager", description="HP Manager")
             strategy_id = await self.db.save_strategy(strategy)
 
             self.setup_hp_manager(

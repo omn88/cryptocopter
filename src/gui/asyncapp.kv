@@ -14,7 +14,7 @@ TabbedPanel:
                 Spinner:
                     id: strategy_spinner
                     text: 'Choose Strategy'
-                    values: ('HP Manager', 'RSI Basic', 'RSI Extended', 'RSI Special')
+                    values: ('HP Manager',)
                     size_hint: (0.2, 1)
                     on_text: app.on_strategy_change(self.text)
 
@@ -60,39 +60,7 @@ TabbedPanel:
 
                     BoxLayout:
                         orientation: "vertical"
-                        BoxLayout:
-                            size_hint_y: None
-                            height: '30dp'
-                            Label:
-                                text: 'Strategy'
-                            Label:
-                                text: 'Symbol'
-                            Label:
-                                text: 'Leverage'
-                            Label:
-                                text: 'Quantity'
-                            Label:
-                                text: 'Entry Price'
-                            Label:
-                                text: 'Mark Price'
-                            Label:
-                                text: 'Liquidation Price'
-                            Label:
-                                text: 'Margin'
-                            Label:
-                                text: 'PnL'
-                            Label:
-                                text: 'State'
-                        RecycleView:
-                            id: active_strategies_list
-                            data: app.active_strategies
-                            viewclass: 'StrategyListItem'
-                            RecycleBoxLayout:
-                                default_size: None, dp(56)
-                                default_size_hint: 1, None
-                                size_hint_y: None
-                                height: self.minimum_height
-                                orientation: 'vertical'
+
                 TabbedPanelItem:
                     id: closed_strategies_tab
                     text: 'History'
@@ -101,36 +69,3 @@ TabbedPanel:
 
                     BoxLayout:
                         orientation: "vertical"
-                        BoxLayout:
-                            size_hint_y: None
-                            height: '30dp'
-                            Label:
-                                text: 'Strategy'
-                            Label:
-                                text: 'Symbol'
-                            Label:
-                                text: 'Leverage'
-                            Label:
-                                text: 'Quantity'
-                            Label:
-                                text: 'Entry Price'
-                            Label:
-                                text: 'Mark Price'
-                            Label:
-                                text: 'Liquidation Price'
-                            Label:
-                                text: 'Margin'
-                            Label:
-                                text: 'PnL'
-                            Label:
-                                text: 'State'
-                        RecycleView:
-                            id: closed_strategies_list
-                            data: app.closed_strategies
-                            viewclass: 'StrategyListItem'
-                            RecycleBoxLayout:
-                                default_size: None, dp(56)
-                                default_size_hint: 1, None
-                                size_hint_y: None
-                                height: self.minimum_height
-                                orientation: 'vertical'

@@ -1,148 +1,5 @@
 #:import dp kivy.metrics.dp
 
-<PositionListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
-    symbol: ''
-    leverage: ''
-    quantity: ''
-    margin: ''
-    entry_price: ''
-    mark_price: ''
-    liquidation_price: ''
-    pnl: ''
-    state: ''
-
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
-    Label:
-        text: root.symbol
-    Label:
-        text: root.leverage
-    ColorChangingQuantity:
-        quantity: 0 if root.quantity == '' else root.quantity
-        text: str(root.quantity)
-        color: self.color
-    Label:
-        text: root.entry_price
-    SymbolMarkPrice:
-        mark_price: 0 if root.mark_price == '' else root.mark_price
-        text: root.mark_price
-    Label:
-        text: root.liquidation_price
-    Label:
-        text: root.margin
-    PnL:
-        pnl: 0 if root.pnl == '' else root.pnl
-        text: '%s %%' % root.pnl
-    Label:
-        text: root.state
-
-<OrderListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
-    open_time: ''
-    symbol: ''
-    order_type: ''
-    side: ''
-    price: ''
-    quantity: ''
-    realized_quantity: ''
-    status: ''
-    order_id: ''
-
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
-
-    Label:
-        text: root.open_time
-        size_hint_x: 0.15
-    Label:
-        text: root.symbol
-        size_hint_x: 0.11
-    Label:
-        text: root.order_type
-        size_hint_x: 0.10
-    ColorChangingSide:
-        side: root.side
-        text: str(root.side)
-        color: self.color
-        size_hint_x: 0.08
-    Label:
-        text: root.price
-        size_hint_x: 0.08
-    Label:
-        text: root.quantity
-        size_hint_x: 0.09
-    Label:
-        text: root.realized_quantity
-        size_hint_x: 0.09
-    Label:
-        text: root.status
-        size_hint_x: 0.15
-    Label:
-        text: root.order_id
-        size_hint_x: 0.15
-
-
-<StrategyListItem@BoxLayout>:
-    orientation: "horizontal"
-    size_hint_y: None
-    height: '30dp'
-
-    name: ''
-    symbol: ''
-    leverage: ''
-    quantity: ''
-    margin: ''
-    entry_price: ''
-    mark_price: ''
-    liquidation_price: ''
-    pnl: ''
-    state: ''
-
-    canvas.before:
-        Color:
-            rgba: 1, 1, 1, 0.1  # Change this to the color you want for the line
-        Line:
-            points: [self.x, self.y, self.x + self.width, self.y]
-
-    Label:
-        text: root.name
-    Label:
-        text: root.symbol
-    Label:
-        text: root.leverage
-    ColorChangingQuantity:
-        quantity: 0 if root.quantity == '' else root.quantity
-        text: str(root.quantity)
-        color: self.color
-    Label:
-        text: root.entry_price
-    SymbolMarkPrice:
-        mark_price: 0 if root.mark_price == '' else root.mark_price
-        text: root.mark_price
-    Label:
-        text: root.liquidation_price
-    Label:
-        text: root.margin
-    PnL:
-        pnl: 0 if root.pnl == '' else root.pnl
-        text: '%s %%' % root.pnl
-    Label:
-        text: root.state
-
-
 <RecordListItemActiveBuy@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
@@ -201,7 +58,6 @@
         size_hint_x: 0.1
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_cancel)
 
-
 <RecordListItemIdleBuy@BoxLayout>:
     orientation: "horizontal"
     size_hint_y: None
@@ -259,7 +115,6 @@
         text: 'Remove'
         size_hint_x: 0.1
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side, root.mode, root.price_low, root.price_high, root.budget, root.order_trigger, root.current_price, root.completeness)
-
 
 <RecordListItemArchiveBuy@BoxLayout>:
     orientation: "horizontal"
@@ -368,7 +223,6 @@
         text: 'Remove'
         size_hint_x: 0.1
         on_release: self.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.trigger_remove_record(root.hp_id, root.symbol, root.side)
-
 
 <RecordListItemIdleSell@BoxLayout>:
     orientation: "horizontal"
@@ -538,13 +392,9 @@
 
     # Indentation for child items and expand/collapse button for parents
     BoxLayout:
-        size_hint_x: 0.05
-        orientation: 'horizontal'
-        padding: [20, 0, 0, 0] if root.is_child else [0, 0, 0, 0]  # Indent child items
-
         Button:
             text: "▼" if root.is_expanded else "▶" if root.has_children else ""
-            size_hint_x: None
+            size_hint_x: 0.03
             width: 20 if root.has_children else 0
             opacity: 1 if root.has_children else 0
             background_color: (0.3, 0.3, 0.3, 1)
@@ -553,64 +403,65 @@
         Label:
             text: root.hp_id
             font_size: '14sp'
+            size_hint_x: 0.07
 
-    Label:
-        text: root.coin
-        size_hint_x: 0.05
-        font_size: '14sp'
+        Label:
+            text: root.coin
+            size_hint_x: 0.12
+            font_size: '14sp'
 
-    Label:
-        text: root.buy_price
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.buy_price
+            size_hint_x: 0.08
+            font_size: '14sp'
 
-    Label:
-        text: root.quantity
-        size_hint_x: 0.05
-        font_size: '14sp'
+        Label:
+            text: root.quantity
+            size_hint_x: 0.06
+            font_size: '14sp'
 
-    Label:
-        text: root.quantity_usd
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.quantity_usd
+            size_hint_x: 0.08
+            font_size: '14sp'
 
-    Label:
-        text: root.current_price
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.current_price
+            size_hint_x: 0.08
+            font_size: '14sp'
 
-    Label:
-        text: root.net
-        size_hint_x: 0.1
-        font_size: '14sp'
-        color: (0.2, 0.8, 0.2, 1) if root.net and root.net != "0.0" and not root.net.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net and root.net.startswith("-") else (1, 1, 1, 1)
+        Label:
+            text: root.net
+            size_hint_x: 0.10
+            font_size: '14sp'
+            color: (0.2, 0.8, 0.2, 1) if root.net and root.net != "0.0" and not root.net.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net and root.net.startswith("-") else (1, 1, 1, 1)
 
-    Label:
-        text: root.net_percent + "%" if root.net_percent and root.net_percent != "0.0" else "0.0%"
-        size_hint_x: 0.05
-        font_size: '14sp'
-        color: (0.2, 0.8, 0.2, 1) if root.net_percent and root.net_percent != "0.0" and not root.net_percent.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net_percent and root.net_percent.startswith("-") else (1, 1, 1, 1)
+        Label:
+            text: root.net_percent + "%" if root.net_percent and root.net_percent != "0.0" else "0.0%"
+            size_hint_x: 0.06
+            font_size: '14sp'
+            color: (0.2, 0.8, 0.2, 1) if root.net_percent and root.net_percent != "0.0" and not root.net_percent.startswith("-") else (0.8, 0.2, 0.2, 1) if root.net_percent and root.net_percent.startswith("-") else (1, 1, 1, 1)
 
-    Label:
-        text: root.sell_price
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.sell_price
+            size_hint_x: 0.08
+            font_size: '14sp'
 
-    Label:
-        text: root.expected_return
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.expected_return
+            size_hint_x: 0.09
+            font_size: '14sp'
 
-    Label:
-        text: root.state
-        size_hint_x: 0.1
-        font_size: '14sp'
+        Label:
+            text: root.state
+            size_hint_x: 0.08
+            font_size: '14sp'
 
-    Button:
-        id: action_button
-        text: "SELL HP" if root.sell_price == "0.0" else "CANCEL"
-        size_hint_x: 0.1
-        on_release:
-            if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
-            else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
-        disabled: root.is_child or root.state == "SOLD"
+        Button:
+            id: action_button
+            text: "SELL HP" if root.sell_price == "0.0" else "CANCEL"
+            size_hint_x: 0.10
+            on_release:
+                if root.sell_price == "0.0": root.hp_manager.sell_hp_button(root.hp_id, root.coin, root.quantity, root.buy_price)
+                else: root.hp_manager.cancel_sell(root.hp_id, root.coin)
+            disabled: root.is_child or root.state == "SOLD"
