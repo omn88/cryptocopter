@@ -336,6 +336,7 @@
     quantity: ''
     price_usd: ''
     total_usd: ''
+    source: ''
 
     canvas.before:
         Color:
@@ -345,16 +346,19 @@
 
     Label:
         text: root.symbol
-        size_hint_x: 0.2
+        size_hint_x: 0.16
     Label:
         text: root.quantity
-        size_hint_x: 0.2
+        size_hint_x: 0.20
     Label:
         text: root.price_usd
-        size_hint_x: 0.3
+        size_hint_x: 0.18
     Label:
         text: root.total_usd
-        size_hint_x: 0.3
+        size_hint_x: 0.26
+    Label:
+        text: root.source
+        size_hint_x: 0.20
 
 <HPListItem@BoxLayout>:
     orientation: 'horizontal'

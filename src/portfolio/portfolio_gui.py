@@ -121,6 +121,7 @@ class PortfolioUI(BoxLayout):
                         "quantity": str(rounded),
                         "price_usd": "0.00",
                         "total_usd": "0.00",
+                        "source": "binance",
                     }
                     self.coin_list_data.append(coin_data)
             except KeyError as e:
@@ -129,9 +130,6 @@ class PortfolioUI(BoxLayout):
                     f"Symbol {symbol} not found in symbol info. Skipping. Error: {e}"
                 )
                 continue
-
-        # Set the data for the RecycleView (this will update the list in the UI)
-        # logger.debug(f"Coin list data: {self.coin_list_data}")
 
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
