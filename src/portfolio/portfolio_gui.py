@@ -16,6 +16,7 @@ from src.identifiers import (
     PriceUpdates,
 )
 from src.common.symbol_info import SymbolInfo
+from src.database import TradingDatabase
 
 logger = logging.getLogger("portfolio_gui_handler")
 
@@ -35,15 +36,49 @@ class PortfolioUI(BoxLayout):
     coin_list_data = ListProperty()
 
     def __init__(
-        self, ui_queue: queue.Queue, symbols_info: Dict[str, SymbolInfo], **kwargs
+        self,
+        ui_queue: queue.Queue,
+        symbols_info: Dict[str, SymbolInfo],
+        db: TradingDatabase,
+        **kwargs,
     ) -> None:
         # Initialize the base class (BoxLayout)
         super().__init__(**kwargs)  # This ensures proper widget initialization
         self.ui_queue = ui_queue
         self.symbols_info = symbols_info
         self.coin_list_data = []
+        self.db = db
+        # Restore remote positions from DB
+        asyncio.create_task(self.restore_remote_positions())
         # Start UI update loop
         asyncio.create_task(self.update_ui())
+
+    async def restore_remote_positions(self):
+        from src.database.models import PositionStatus
+
+        logger.info("Restoring remote positions from the database.")
+
+        try:
+            positions = await self.db.get_active_positions()
+            for pos in positions:
+                logger.info("Restoring position: %s", pos)
+                if pos.status == PositionStatus.REMOTE:
+                    wallet = (
+                        pos.metadata.get("wallet_name", "remote")
+                        if hasattr(pos, "metadata")
+                        else "remote"
+                    )
+                    self.coin_list_data.append(
+                        {
+                            "symbol": pos.symbol,
+                            "quantity": str(pos.quantity),
+                            "price_usd": "0.00",
+                            "total_usd": "0.00",
+                            "source": wallet,
+                        }
+                    )
+        except Exception as e:
+            logger.error(f"Failed to restore remote positions: {e}")
 
     def open_virtual_position_popup(self):
         layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
@@ -64,7 +99,7 @@ class PortfolioUI(BoxLayout):
 
                 pos = Position(
                     hp_id=str(uuid.uuid4()),
-                    position_type=PositionType.BUY,
+                    position_type=PositionType.SELL,
                     status=PositionStatus.REMOTE,
                     symbol=symbol,
                     coin=symbol,

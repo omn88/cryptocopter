@@ -136,7 +136,9 @@ class AsyncApp(App):
         )
 
         # Set up frontend UI for PortfolioManager
-        frontend = PortfolioUI(ui_queue=ui_queue, symbols_info=self.symbols_info)
+        frontend = PortfolioUI(
+            ui_queue=ui_queue, symbols_info=self.symbols_info, db=self.db
+        )
 
         # Add the PortfolioManager tab to the tabbed panel
         tab = TabbedPanelItem(
