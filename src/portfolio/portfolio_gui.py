@@ -141,6 +141,47 @@ class PortfolioUI(BoxLayout):
         )
         popup.open()
 
+    def remove_virtual_position(self, symbol, source):
+        """Remove a virtual/remote position from the UI and DB."""
+        # Find the matching coin in coin_list_data
+        idx_to_remove = None
+        for idx, coin in enumerate(self.coin_list_data):
+            if coin["symbol"] == symbol and (
+                coin["source"] == source or (not source and coin["source"] == "remote")
+            ):
+                idx_to_remove = idx
+                break
+        if idx_to_remove is not None:
+            removed = self.coin_list_data.pop(idx_to_remove)
+            # Remove from DB if possible
+            if hasattr(self, "db") and self.db:
+                import asyncio
+
+                asyncio.create_task(
+                    self._remove_virtual_position_from_db(symbol, source)
+                )
+            # Refresh UI
+            self.ids.coin_list.refresh_from_data()
+
+    async def _remove_virtual_position_from_db(self, symbol, source):
+        """Remove the virtual/remote position from the database."""
+        from src.database.models import PositionStatus
+
+        try:
+            positions = await self.db.get_active_positions()
+            for pos in positions:
+                if pos.status == PositionStatus.REMOTE and pos.symbol == symbol:
+                    wallet = (
+                        pos.metadata.get("wallet_name", "remote")
+                        if hasattr(pos, "metadata")
+                        else "remote"
+                    )
+                    if wallet == source:
+                        await self.db.delete_position(pos.hp_id)
+                        break
+        except Exception as e:
+            logger.error(f"Failed to remove remote position from DB: {e}")
+
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
         while True:

@@ -44,6 +44,16 @@ logger = logging.getLogger("trading_database")
 
 
 class TradingDatabase:
+    async def delete_position(self, hp_id: str) -> None:
+        """Delete a position from the database by hp_id."""
+        try:
+            async with self.get_connection() as conn:
+                await conn.execute("DELETE FROM positions WHERE hp_id = ?", (hp_id,))
+                await conn.commit()
+                logger.info(f"Deleted position with hp_id: {hp_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete position {hp_id}: {e}")
+
     """
     SQLite-based database for trading system with focus on recovery operations.
 
