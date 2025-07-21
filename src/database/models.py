@@ -30,6 +30,7 @@ class PositionStatus(Enum):
     CLOSED = "CLOSED"
     WAITING_PARENT = "WAITING_PARENT"
     WAITING_CHILD = "WAITING_CHILD"
+    REMOTE = "REMOTE"  # For remote/virtual positions
 
 
 class TradeType(Enum):

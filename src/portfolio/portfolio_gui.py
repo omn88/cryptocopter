@@ -59,8 +59,32 @@ class PortfolioUI(BoxLayout):
             quantity = quantity_input.text.strip()
             wallet = wallet_input.text.strip()
             if symbol and quantity:
-                self.virtual_positions.append(
-                    {"symbol": symbol, "quantity": quantity, "wallet": wallet}
+                from src.database.models import Position, PositionType, PositionStatus
+                import uuid
+
+                pos = Position(
+                    hp_id=str(uuid.uuid4()),
+                    position_type=PositionType.BUY,
+                    status=PositionStatus.REMOTE,
+                    symbol=symbol,
+                    coin=symbol,
+                    quantity=float(quantity),
+                    metadata={"wallet_name": wallet} if wallet else {},
+                )
+                # Save to DB if available
+                if hasattr(self, "db") and self.db:
+                    import asyncio
+
+                    asyncio.create_task(self.db.save_position(pos))
+                # Add to UI table
+                self.coin_list_data.append(
+                    {
+                        "symbol": symbol,
+                        "quantity": quantity,
+                        "price_usd": "0.00",
+                        "total_usd": "0.00",
+                        "source": wallet if wallet else "remote",
+                    }
                 )
                 popup.dismiss()
 
