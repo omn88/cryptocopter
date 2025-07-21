@@ -3,6 +3,10 @@ import queue
 from typing import Dict
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.label import Label
 
 from src.identifiers import (
     AccountPosition,
@@ -24,6 +28,7 @@ logger = logging.getLogger("portfolio_ui")
 
 
 class PortfolioUI(BoxLayout):
+    virtual_positions = ListProperty([])
     saldo_usd_label = ObjectProperty(None)  # Label for USD saldo in the GUI
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
 
@@ -39,6 +44,43 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data = []
         # Start UI update loop
         asyncio.create_task(self.update_ui())
+
+    def open_virtual_position_popup(self):
+        layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
+        symbol_input = TextInput(hint_text="Symbol", multiline=False)
+        quantity_input = TextInput(
+            hint_text="Quantity", multiline=False, input_filter="float"
+        )
+        wallet_input = TextInput(hint_text="Wallet name (optional)", multiline=False)
+        add_btn = Button(text="Add", size_hint_y=None, height=40)
+
+        def add_virtual_position_callback(instance):
+            symbol = symbol_input.text.strip().upper()
+            quantity = quantity_input.text.strip()
+            wallet = wallet_input.text.strip()
+            if symbol and quantity:
+                self.virtual_positions.append(
+                    {"symbol": symbol, "quantity": quantity, "wallet": wallet}
+                )
+                popup.dismiss()
+
+        add_btn.bind(on_release=add_virtual_position_callback)
+
+        layout.add_widget(
+            Label(text="Add Virtual Position", size_hint_y=None, height=30)
+        )
+        layout.add_widget(symbol_input)
+        layout.add_widget(quantity_input)
+        layout.add_widget(wallet_input)
+        layout.add_widget(add_btn)
+
+        popup = Popup(
+            title="Add Virtual Position",
+            content=layout,
+            size_hint=(0.5, 0.5),
+            auto_dismiss=True,
+        )
+        popup.open()
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
