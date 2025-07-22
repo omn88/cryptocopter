@@ -12,10 +12,10 @@ from src.database.models import OrderStatus
 from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
-from tests.spot import get_new_orders
-from tests.strategies.spot.hp_manager_helpers import wait_for_condition
-from tests.strategies.spot.hp_simulator import HPSimulator
-from tests.strategies.spot.crash_recovery import CrashRecoveryHelper
+from tests.helpers import get_new_orders
+from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_simulator import HPSimulator
+from tests.strategies.crash_recovery import CrashRecoveryHelper
 
 logger = logging.getLogger("hp_e2e_test")
 

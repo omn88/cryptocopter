@@ -25,8 +25,8 @@ from src.identifiers import (
 )
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
-from tests.spot import get_new_orders
-from tests.strategies.spot.hp_manager_helpers import wait_for_condition
+from tests.helpers import get_new_orders
+from tests.strategies.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger("hp_simulator")
 

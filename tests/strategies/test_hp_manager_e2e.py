@@ -8,16 +8,13 @@ from src.gui.hpfront import HpFront
 from src.identifiers import (
     HPSellConfig,
     HPSellData,
-    SellType,
-    Signal,
     State,
     StateInfo,
     PositionSide,
-    UiState,
 )
-from tests.spot import get_new_orders
-from tests.strategies.spot.hp_simulator import HPSimulator
-from tests.strategies.spot.hp_manager_helpers import wait_for_condition
+from tests.helpers import get_new_orders
+from tests.strategies.hp_simulator import HPSimulator
+from tests.strategies.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger("hp_e2e_test")
 
