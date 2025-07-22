@@ -1711,6 +1711,10 @@ class HPSimulator:
     async def simulate_sell_order_fill_in_first_hop(self) -> None:
         strategy = self.back.strategies["1000"]
 
+        strategy.client.create_order.side_effect = get_new_orders(
+            orders=[strategy.sell.sell_positions[1].sell_order]
+        )
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
