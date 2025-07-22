@@ -620,7 +620,7 @@ class StrategyExecutor:
 
         if self.client:
             try:
-                asyncio.create_task(self.client.close_connection())
+                asyncio.run(self.client.close_connection())
             except RuntimeError:
                 logger.warning("No running event loop, skipping async close.")
 
