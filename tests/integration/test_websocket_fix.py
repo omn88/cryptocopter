@@ -6,6 +6,7 @@ This script simulates the error messages that appear with python-binance + Pytho
 
 import asyncio
 import logging
+from unittest.mock import patch
 import pytest
 
 logger = logging.getLogger("test_websocket_fix")
@@ -36,29 +37,29 @@ class MockBroker:
 
 @pytest.mark.asyncio
 async def test_websocket_error_handling(
-    strategy_executor_fixture, mock_async_client, mocker
+    strategy_executor_fixture, mock_async_client
 ):
     """Test the WebSocket error handling functionality using the fixture."""
     logger.info("Starting WebSocket error handling test...")
-    mocker.patch("src.strategy_executor.BinanceClient", return_value=mock_async_client)
+    with patch("src.identifiers.BinanceClient", return_value=mock_async_client):
 
-    # Assign mock broker
-    mock_broker = MockBroker()
-    strategy_executor = strategy_executor_fixture
-    strategy_executor.broker = mock_broker
-    mock_broker.set_error_handler(strategy_executor._handle_websocket_error)
+        # Assign mock broker
+        mock_broker = MockBroker()
+        strategy_executor = strategy_executor_fixture
+        strategy_executor.broker = mock_broker
+        mock_broker.set_error_handler(strategy_executor._handle_websocket_error)
 
-    # Give the strategy executor time to initialize
-    await asyncio.sleep(1)
+        # Give the strategy executor time to initialize
+        await asyncio.sleep(1)
 
-    # Test 1: Simulate a keepalive timeout error
-    logger.info("Test 1: Simulating keepalive timeout error...")
-    await mock_broker.simulate_keepalive_error()
-
-    # Test 2: Simulate multiple errors to test suppression
-    logger.info("Test 2: Simulating multiple errors (should be suppressed)...")
-    for i in range(5):
+        # Test 1: Simulate a keepalive timeout error
+        logger.info("Test 1: Simulating keepalive timeout error...")
         await mock_broker.simulate_keepalive_error()
-        await asyncio.sleep(0.1)
 
-    logger.info("WebSocket error handling test completed successfully!")
+        # Test 2: Simulate multiple errors to test suppression
+        logger.info("Test 2: Simulating multiple errors (should be suppressed)...")
+        for i in range(5):
+            await mock_broker.simulate_keepalive_error()
+            await asyncio.sleep(0.1)
+
+        logger.info("WebSocket error handling test completed successfully!")
