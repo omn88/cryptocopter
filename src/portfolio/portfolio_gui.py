@@ -1,9 +1,15 @@
 import logging
 import queue
 from typing import Dict
+import uuid
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.label import Label
 
+from src.database.models import Position, PositionStatus, PositionType
 from src.identifiers import (
     AccountPosition,
     Balances,
@@ -12,6 +18,7 @@ from src.identifiers import (
     PriceUpdates,
 )
 from src.common.symbol_info import SymbolInfo
+from src.database import TradingDatabase
 
 logger = logging.getLogger("portfolio_gui_handler")
 
@@ -24,21 +31,152 @@ logger = logging.getLogger("portfolio_ui")
 
 
 class PortfolioUI(BoxLayout):
+    virtual_positions = ListProperty([])
     saldo_usd_label = ObjectProperty(None)  # Label for USD saldo in the GUI
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
 
     coin_list_data = ListProperty()
 
     def __init__(
-        self, ui_queue: queue.Queue, symbols_info: Dict[str, SymbolInfo], **kwargs
+        self,
+        ui_queue: queue.Queue,
+        symbols_info: Dict[str, SymbolInfo],
+        db: TradingDatabase,
+        **kwargs,
     ) -> None:
         # Initialize the base class (BoxLayout)
         super().__init__(**kwargs)  # This ensures proper widget initialization
         self.ui_queue = ui_queue
         self.symbols_info = symbols_info
         self.coin_list_data = []
+        self.db = db
+        # Restore remote positions from DB
+        asyncio.create_task(self.restore_remote_positions())
         # Start UI update loop
         asyncio.create_task(self.update_ui())
+
+    async def restore_remote_positions(self):
+        from src.database.models import PositionStatus
+
+        logger.info("Restoring remote positions from the database.")
+
+        try:
+            positions = await self.db.get_active_positions()
+            for pos in positions:
+                logger.info("Restoring position: %s", pos)
+                if pos.status == PositionStatus.REMOTE:
+                    wallet = (
+                        pos.metadata.get("wallet_name", "remote")
+                        if hasattr(pos, "metadata")
+                        else "remote"
+                    )
+                    self.coin_list_data.append(
+                        {
+                            "symbol": pos.symbol,
+                            "quantity": str(pos.quantity),
+                            "price_usd": "0.00",
+                            "total_usd": "0.00",
+                            "source": wallet,
+                        }
+                    )
+        except Exception as e:
+            logger.error(f"Failed to restore remote positions: {e}")
+
+    def open_virtual_position_popup(self):
+        layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
+        symbol_input = TextInput(hint_text="Symbol", multiline=False)
+        quantity_input = TextInput(
+            hint_text="Quantity", multiline=False, input_filter="float"
+        )
+        wallet_input = TextInput(hint_text="Wallet name (optional)", multiline=False)
+        add_btn = Button(text="Add", size_hint_y=None, height=40)
+
+        def add_virtual_position_callback(instance):
+            symbol = symbol_input.text.strip().upper()
+            quantity = quantity_input.text.strip()
+            wallet = wallet_input.text.strip()
+            if symbol and quantity:
+                pos = Position(
+                    hp_id=str(uuid.uuid4()),
+                    position_type=PositionType.SELL,
+                    status=PositionStatus.REMOTE,
+                    symbol=symbol,
+                    coin=symbol,
+                    quantity=float(quantity),
+                    metadata={"wallet_name": wallet} if wallet else {},
+                )
+                # Save to DB if available
+                if self.db:
+                    asyncio.create_task(self.db.save_position(pos))
+                # Add to UI table
+                self.coin_list_data.append(
+                    {
+                        "symbol": symbol,
+                        "quantity": quantity,
+                        "price_usd": "0.00",
+                        "total_usd": "0.00",
+                        "source": wallet if wallet else "remote",
+                    }
+                )
+                popup.dismiss()
+
+        add_btn.bind(on_release=add_virtual_position_callback)
+
+        layout.add_widget(
+            Label(text="Add Virtual Position", size_hint_y=None, height=30)
+        )
+        layout.add_widget(symbol_input)
+        layout.add_widget(quantity_input)
+        layout.add_widget(wallet_input)
+        layout.add_widget(add_btn)
+
+        popup = Popup(
+            title="Add Virtual Position",
+            content=layout,
+            size_hint=(0.5, 0.5),
+            auto_dismiss=True,
+        )
+        popup.open()
+
+    def remove_virtual_position(self, symbol, source):
+        """Remove a virtual/remote position from the UI and DB."""
+        # Find the matching coin in coin_list_data
+        idx_to_remove = None
+        for idx, coin in enumerate(self.coin_list_data):
+            if coin["symbol"] == symbol and (
+                coin["source"] == source or (not source and coin["source"] == "remote")
+            ):
+                idx_to_remove = idx
+                break
+        if idx_to_remove is not None:
+            removed = self.coin_list_data.pop(idx_to_remove)
+            # Remove from DB if possible
+            if hasattr(self, "db") and self.db:
+                import asyncio
+
+                asyncio.create_task(
+                    self._remove_virtual_position_from_db(symbol, source)
+                )
+            # Refresh UI
+            self.ids.coin_list.refresh_from_data()
+
+    async def _remove_virtual_position_from_db(self, symbol, source):
+        """Remove the virtual/remote position from the database."""
+
+        try:
+            positions = await self.db.get_active_positions()
+            for pos in positions:
+                if pos.status == PositionStatus.REMOTE and pos.symbol == symbol:
+                    wallet = (
+                        pos.metadata.get("wallet_name", "remote")
+                        if hasattr(pos, "metadata")
+                        else "remote"
+                    )
+                    if wallet == source:
+                        await self.db.delete_position(pos.hp_id)
+                        break
+        except Exception as e:
+            logger.error(f"Failed to remove remote position from DB: {e}")
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
@@ -79,6 +217,7 @@ class PortfolioUI(BoxLayout):
                         "quantity": str(rounded),
                         "price_usd": "0.00",
                         "total_usd": "0.00",
+                        "source": "binance",
                     }
                     self.coin_list_data.append(coin_data)
             except KeyError as e:
@@ -87,9 +226,6 @@ class PortfolioUI(BoxLayout):
                     f"Symbol {symbol} not found in symbol info. Skipping. Error: {e}"
                 )
                 continue
-
-        # Set the data for the RecycleView (this will update the list in the UI)
-        # logger.debug(f"Coin list data: {self.coin_list_data}")
 
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""

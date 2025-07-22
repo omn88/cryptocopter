@@ -65,6 +65,16 @@ class TradingDatabase:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_db_exists()
 
+    async def delete_position(self, hp_id: str) -> None:
+        """Delete a position from the database by hp_id."""
+        try:
+            async with self.get_connection() as conn:
+                await conn.execute("DELETE FROM positions WHERE hp_id = ?", (hp_id,))
+                await conn.commit()
+                logger.info(f"Deleted position with hp_id: {hp_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete position {hp_id}: {e}")
+
     def _ensure_db_exists(self) -> None:
         """Ensure database file exists and has proper structure."""
         try:

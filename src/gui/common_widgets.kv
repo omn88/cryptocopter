@@ -40,7 +40,7 @@
         size_hint_x: 0.08
     Label:
         text: root.price_high
-        size_hint_x: 0.08   
+        size_hint_x: 0.08
     Label:
         text: root.order_cancel
         size_hint_x: 0.1
@@ -336,6 +336,7 @@
     quantity: ''
     price_usd: ''
     total_usd: ''
+    source: ''
 
     canvas.before:
         Color:
@@ -345,16 +346,25 @@
 
     Label:
         text: root.symbol
-        size_hint_x: 0.2
+        size_hint_x: 0.16
     Label:
         text: root.quantity
-        size_hint_x: 0.2
+        size_hint_x: 0.20
     Label:
         text: root.price_usd
-        size_hint_x: 0.3
+        size_hint_x: 0.18
     Label:
         text: root.total_usd
-        size_hint_x: 0.3
+        size_hint_x: 0.26
+    Label:
+        text: root.source
+        size_hint_x: 0.14
+    Button:
+        text: "Remove"
+        size_hint_x: 0.06
+        opacity: 1 if root.source and root.source != "binance" else 0
+        disabled: not (root.source and root.source != "binance")
+        on_release: self.parent.parent.parent.parent.parent.remove_virtual_position(root.symbol, root.source)
 
 <HPListItem@BoxLayout>:
     orientation: 'horizontal'
