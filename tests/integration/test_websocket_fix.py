@@ -35,9 +35,10 @@ class MockBroker:
 
 
 @pytest.mark.asyncio
-async def test_websocket_error_handling(strategy_executor_fixture):
+async def test_websocket_error_handling(strategy_executor_fixture, mock_async_client, mocker):
     """Test the WebSocket error handling functionality using the fixture."""
     logger.info("Starting WebSocket error handling test...")
+    mocker.patch("src.strategy_executor.BinanceClient", return_value=mock_async_client)
 
     # Assign mock broker
     mock_broker = MockBroker()
