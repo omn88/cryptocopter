@@ -40,7 +40,7 @@
         size_hint_x: 0.08
     Label:
         text: root.price_high
-        size_hint_x: 0.08   
+        size_hint_x: 0.08
     Label:
         text: root.order_cancel
         size_hint_x: 0.1
@@ -365,6 +365,7 @@
         opacity: 1 if root.source and root.source != "binance" else 0
         disabled: not (root.source and root.source != "binance")
         on_release: self.parent.parent.parent.parent.parent.remove_virtual_position(root.symbol, root.source)
+
 <HPListItem@BoxLayout>:
     orientation: 'horizontal'
     size_hint_y: None

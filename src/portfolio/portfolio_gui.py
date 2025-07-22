@@ -1,6 +1,7 @@
 import logging
 import queue
 from typing import Dict
+import uuid
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
@@ -8,6 +9,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 
+from src.database.models import Position, PositionStatus, PositionType
 from src.identifiers import (
     AccountPosition,
     Balances,
@@ -94,9 +96,6 @@ class PortfolioUI(BoxLayout):
             quantity = quantity_input.text.strip()
             wallet = wallet_input.text.strip()
             if symbol and quantity:
-                from src.database.models import Position, PositionType, PositionStatus
-                import uuid
-
                 pos = Position(
                     hp_id=str(uuid.uuid4()),
                     position_type=PositionType.SELL,
@@ -107,9 +106,7 @@ class PortfolioUI(BoxLayout):
                     metadata={"wallet_name": wallet} if wallet else {},
                 )
                 # Save to DB if available
-                if hasattr(self, "db") and self.db:
-                    import asyncio
-
+                if self.db:
                     asyncio.create_task(self.db.save_position(pos))
                 # Add to UI table
                 self.coin_list_data.append(
@@ -165,7 +162,6 @@ class PortfolioUI(BoxLayout):
 
     async def _remove_virtual_position_from_db(self, symbol, source):
         """Remove the virtual/remote position from the database."""
-        from src.database.models import PositionStatus
 
         try:
             positions = await self.db.get_active_positions()
