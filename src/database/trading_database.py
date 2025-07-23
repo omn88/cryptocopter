@@ -11,11 +11,10 @@ This module provides a SQLite-based database implementation focused on:
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple, Any, AsyncGenerator, Union
+from typing import List, Dict, Any, AsyncGenerator
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
-import asyncio
 import aiosqlite
 
 from src.identifiers import (
@@ -23,9 +22,7 @@ from src.identifiers import (
     SellType,
     State,
     HPBuyData,
-    HPSellData,
     SellPosition,
-    HPBuyConfig,
     StateInfo,
 )
 
@@ -65,15 +62,96 @@ class TradingDatabase:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_db_exists()
 
+    async def insert_inventory_item(self, item) -> None:
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                """
+                INSERT INTO inventory (id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item.id,
+                    item.coin,
+                    item.buy_price,
+                    item.quantity,
+                    item.available_quantity,
+                    item.locked_quantity,
+                    item.source,
+                    (
+                        item.timestamp.isoformat()
+                        if hasattr(item.timestamp, "isoformat")
+                        else str(item.timestamp)
+                    ),
+                    item.notes,
+                ),
+            )
+            await conn.commit()
+
+    async def update_inventory_item(self, item) -> None:
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                """
+                UPDATE inventory SET coin=?, buy_price=?, quantity=?, available_quantity=?, locked_quantity=?, source=?, timestamp=?, notes=?
+                WHERE id=?
+                """,
+                (
+                    item.coin,
+                    item.buy_price,
+                    item.quantity,
+                    item.available_quantity,
+                    item.locked_quantity,
+                    item.source,
+                    (
+                        item.timestamp.isoformat()
+                        if hasattr(item.timestamp, "isoformat")
+                        else str(item.timestamp)
+                    ),
+                    item.notes,
+                    item.id,
+                ),
+            )
+            await conn.commit()
+
+    async def delete_inventory_item(self, item_id: str) -> None:
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                "DELETE FROM inventory WHERE id = ?",
+                (item_id,),
+            )
+            await conn.commit()
+
+    async def fetch_all_inventory_items(self):
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(
+                "SELECT id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes FROM inventory"
+            )
+            rows = await cursor.fetchall()
+            items = []
+            for row in rows:
+                items.append(
+                    {
+                        "id": row[0],
+                        "coin": row[1],
+                        "buy_price": row[2],
+                        "quantity": row[3],
+                        "available_quantity": row[4],
+                        "locked_quantity": row[5],
+                        "source": row[6],
+                        "timestamp": row[7],
+                        "notes": row[8],
+                    }
+                )
+            return items
+
     async def delete_position(self, hp_id: str) -> None:
         """Delete a position from the database by hp_id."""
         try:
             async with self.get_connection() as conn:
                 await conn.execute("DELETE FROM positions WHERE hp_id = ?", (hp_id,))
                 await conn.commit()
-                logger.info(f"Deleted position with hp_id: {hp_id}")
+                logger.info("Deleted position with hp_id: %s", hp_id)
         except Exception as e:
-            logger.error(f"Failed to delete position {hp_id}: {e}")
+            logger.error("Failed to delete position %s: %s", hp_id, e)
 
     def _ensure_db_exists(self) -> None:
         """Ensure database file exists and has proper structure."""
@@ -159,6 +237,23 @@ class TradingDatabase:
                 FOREIGN KEY (position_id) REFERENCES positions (id)
             )
         """
+        )
+
+        # Inventory table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory (
+                id TEXT PRIMARY KEY,
+                coin TEXT NOT NULL,
+                buy_price REAL NOT NULL,
+                quantity REAL NOT NULL,
+                available_quantity REAL NOT NULL,
+                locked_quantity REAL NOT NULL,
+                source TEXT,
+                timestamp TIMESTAMP NOT NULL,
+                notes TEXT
+            )
+            """
         )
 
         # Trades table
@@ -635,7 +730,13 @@ class TradingDatabase:
                 updated_at=updated_at,
             )
             logger.info(
-                f"[DB UPSERT] Saving order: id={db_order.id}, hp_id={hp_id}, side={db_order.side}, status={db_order.status}, symbol={db_order.symbol}, realized_quantity={db_order.realized_quantity}"
+                "[DB UPSERT] Saving order: id=%s, hp_id=%s, side=%s, status=%s, symbol=%s, realized_quantity=%s",
+                db_order.id,
+                hp_id,
+                db_order.side,
+                db_order.status,
+                db_order.symbol,
+                db_order.realized_quantity,
             )
             await self.save_order(db_order)
             logger.debug("Saved order for hp_id %s", hp_id)

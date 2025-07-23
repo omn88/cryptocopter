@@ -1,6 +1,6 @@
 import logging
 import queue
-from typing import Dict
+from typing import Dict, List
 import uuid
 from kivy.properties import ObjectProperty, ListProperty
 from kivy.uix.boxlayout import BoxLayout
@@ -15,6 +15,7 @@ from src.identifiers import (
     Balances,
     Event,
     EventName,
+    InventoryItem,
     PriceUpdates,
 )
 from src.common.symbol_info import SymbolInfo
@@ -49,6 +50,7 @@ class PortfolioUI(BoxLayout):
         self.ui_queue = ui_queue
         self.symbols_info = symbols_info
         self.coin_list_data = []
+        self.inventory: List[InventoryItem] = []
         self.db = db
         # Restore remote positions from DB
         asyncio.create_task(self.restore_remote_positions())
@@ -56,8 +58,6 @@ class PortfolioUI(BoxLayout):
         asyncio.create_task(self.update_ui())
 
     async def restore_remote_positions(self):
-        from src.database.models import PositionStatus
-
         logger.info("Restoring remote positions from the database.")
 
         try:

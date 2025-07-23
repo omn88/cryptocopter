@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 import threading
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
 from src.identifiers import (
@@ -11,6 +11,7 @@ from src.identifiers import (
     Balances,
     Event,
     EventName,
+    InventoryItem,
     PriceUpdates,
     SubscriptionInfo,
     SubscriptionTarget,
@@ -46,6 +47,7 @@ class PortfolioManager:
         self.usd_saldo = 0.0
         self.price_resolver = price_resolver
         self.symbols_info = symbols_info
+        self.inventory: List[InventoryItem] = []  # Inventory of buy lots/positions
 
         # Starting the async loop
         self.loop = asyncio.new_event_loop()
@@ -171,6 +173,27 @@ class PortfolioManager:
                 name=EventName.PRICE_UPDATES,
                 content=PriceUpdates(msg=self.price_updates),
             )
+        )
+
+    def update_inventory(self, new_inventory: List[InventoryItem]):
+        """Update the inventory and notify the UI."""
+        self.inventory = new_inventory
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+    def add_inventory_item(self, item: InventoryItem):
+        """Add a new inventory item and notify the UI."""
+        self.inventory.append(item)
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+    def remove_inventory_item(self, item_id: str):
+        """Remove an inventory item by id and notify the UI."""
+        self.inventory = [i for i in self.inventory if i.id != item_id]
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
 

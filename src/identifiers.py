@@ -11,6 +11,19 @@ from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
 
 
+@dataclass
+class InventoryItem:
+    id: str
+    coin: str
+    buy_price: float
+    quantity: float
+    available_quantity: float
+    locked_quantity: float
+    source: str
+    timestamp: datetime.datetime
+    notes: Optional[str] = None
+
+
 class State(Enum):
     NEW = "NEW"
     BUYING = "BUYING"
@@ -49,6 +62,7 @@ class EventName(Enum):
     ALL_TICKERS = "All"
     BALANCES = "Balances"
     PRICE_UPDATES = "PriceUpdates"
+    PORTFOLIO_INVENTORY = "PortfolioInventory"
 
 
 class CsvConfig(NamedTuple):
@@ -212,6 +226,7 @@ class Event(NamedTuple):
         Balances,
         PriceUpdates,
         ErrorMessage,
+        List[InventoryItem],
     ]
 
     def __repr__(self) -> str:
