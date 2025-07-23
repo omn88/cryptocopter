@@ -196,6 +196,41 @@ class PortfolioManager:
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
 
+    async def load_inventory_from_db(self, db) -> None:
+        """Load inventory from the database and update in-memory inventory, then notify UI."""
+        items = await db.fetch_all_inventory_items()
+        self.inventory = [InventoryItem(**item) for item in items]
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+    async def add_inventory_item_db(self, db, item: InventoryItem) -> None:
+        """Add inventory item to DB and in-memory, then notify UI."""
+        await db.insert_inventory_item(item)
+        self.inventory.append(item)
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+    async def update_inventory_item_db(self, db, item: InventoryItem) -> None:
+        """Update inventory item in DB and in-memory, then notify UI."""
+        await db.update_inventory_item(item)
+        for idx, inv in enumerate(self.inventory):
+            if inv.id == item.id:
+                self.inventory[idx] = item
+                break
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
+    async def remove_inventory_item_db(self, db, item_id: str) -> None:
+        """Remove inventory item from DB and in-memory, then notify UI."""
+        await db.delete_inventory_item(item_id)
+        self.inventory = [i for i in self.inventory if i.id != item_id]
+        self.ui_queue.put_nowait(
+            Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
+        )
+
 
 async def fetch_initial_balances(
     client: BinanceClient, resolver: UsdPriceResolver
