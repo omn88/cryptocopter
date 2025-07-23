@@ -1537,12 +1537,6 @@ class HpFront(BoxLayout):
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
 
-    def save_positions_to_csv(self):
-        filename = self.ids.filenameinput.text.strip()
-        if not filename:
-            logger.warning("No filename provided. Save aborted.")
-            return
-        self.config_queue.put_nowait(SaveConfig(filename=filename))
 
     def load_positions_from_csv(self):
         filename = self.ids.filenameinput.text.strip()
