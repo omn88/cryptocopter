@@ -118,8 +118,11 @@ class StrategyExecutor:
             self.test_mode,
             self.client is not None,
         )
-
-        if not self.test_mode:
+        if self.test_mode:
+            logger.info(
+                "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+            )
+        else:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
@@ -130,10 +133,6 @@ class StrategyExecutor:
                 self.client is not None,
             )
             await self.recover_positions_from_crash()
-        else:
-            logger.info(
-                "Test mode - crash recovery will be triggered manually when client is assigned"
-            )
 
         # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
