@@ -312,6 +312,7 @@ class StrategyExecutor:
             while True:
                 try:
                     # Stop current client if exists
+                    logger.info("Attempting to restart BinanceClient...")
                     if self.client:
                         try:
                             await self.client.close_connection()
@@ -319,10 +320,16 @@ class StrategyExecutor:
                             logger.warning("Error closing client: %s", e)
                         self.client = None
                     # Recreate client
-                    self.client = BinanceClient(
-                        api_key=config_env("API_KEY"),
-                        api_secret=config_env("API_SECRET"),
-                    )
+                    logger.info("Recreating BinanceClient...")
+                    if self.test_mode:
+                        logger.info(
+                            "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+                        )
+                    else:
+                        self.client = BinanceClient(
+                            api_key=config_env("API_KEY"),
+                            api_secret=config_env("API_SECRET"),
+                        )
                     logger.info("BinanceClient restarted successfully.")
                     # Resubscribe all strategies
                     await self._resubscribe_all_strategies()
