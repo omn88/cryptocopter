@@ -25,8 +25,8 @@ from src.identifiers import (
 )
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
-from tests.spot import get_new_orders
-from tests.strategies.spot.hp_manager_helpers import wait_for_condition
+from tests.helpers import get_new_orders
+from tests.strategies.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger("hp_simulator")
 
@@ -1710,6 +1710,10 @@ class HPSimulator:
 
     async def simulate_sell_order_fill_in_first_hop(self) -> None:
         strategy = self.back.strategies["1000"]
+
+        strategy.client.create_order.side_effect = get_new_orders(
+            orders=[strategy.sell.sell_positions[1].sell_order]
+        )
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,

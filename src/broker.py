@@ -53,6 +53,7 @@ class BrokerSpot:
 
         # WebSocket error handling
         self._error_handler = None
+        self._restart_lock = threading.Lock()  # Prevent double restart
         self._last_keepalive_error_log = 0  # Connection health monitoring
         self._connection_health_task: Optional[asyncio.Task] = None
         self._last_message_time: Dict[str, float] = {}
@@ -278,11 +279,14 @@ class BrokerSpot:
                 "keepalive ping timeout" in str(msg.get("m", ""))
                 or "ConnectionClosedError" in str(msg.get("type", ""))
             ):
-                # Call custom error handler asynchronously
-                if self.loop:
-                    asyncio.run_coroutine_threadsafe(
-                        self._error_handler(msg), self.loop
-                    )
+                # Call custom error handler asynchronously, with lock
+                if self.loop and self._restart_lock.acquire(blocking=False):
+                    try:
+                        asyncio.run_coroutine_threadsafe(
+                            self._error_handler(msg), self.loop
+                        )
+                    finally:
+                        self._restart_lock.release()
                 return  # Don't process this error further
 
             logger.warning("Received internal error event: %s", msg)
@@ -328,13 +332,28 @@ class BrokerSpot:
                         )  # SEND IT ALSO TO THE PARTICULAR STRATEGIES TO UPDATE THE BALANCE?
 
     def handle_ticker_message(self, msg: List[Dict]) -> None:
-        """Handle all market ticker WebSocket messages."""
+        """Handle all market ticker WebSocket messages, and invoke error handler if ticker stream is dead."""
 
         if isinstance(msg, str):
             logging.debug("Received control frame: %s", msg)
             return  # Ignore control messages like "pong"
         if not isinstance(msg, list):
             logging.warning("Unexpected message format(%s): %s", type(msg), msg)
+            # If error handler is set and this is a ticker error, call it (with lock)
+            if (
+                self._error_handler
+                and self.loop
+                and self._restart_lock.acquire(blocking=False)
+            ):
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        self._error_handler(
+                            {"type": "TickerStreamError", "m": str(msg)}
+                        ),
+                        self.loop,
+                    )
+                finally:
+                    self._restart_lock.release()
             return  # Defensive: Ignore unexpected types
         for _, subscriptions in self.subscriptions.items():
             for subscription_info in subscriptions:
@@ -354,7 +373,7 @@ class BrokerSpot:
             symbol = ticker.get("s")
             if not symbol:
                 logger.warning("Ticker without symbol: %s", ticker)
-                return
+                continue
 
             # Extract the relevant fields from the ticker message
             last_price = float(ticker.get("c", 0))  # Current last price

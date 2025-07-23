@@ -32,7 +32,7 @@ from src.identifiers import (
     Order,
     UiState,
 )
-from tests.spot import get_new_orders, get_sell_order
+from tests.helpers import get_new_orders, get_sell_order
 
 
 logger = logging.getLogger("hp_helpers")

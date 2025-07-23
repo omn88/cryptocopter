@@ -1,4 +1,3 @@
-import datetime
 import logging
 from typing import Dict, List
 from binance.enums import (
@@ -23,8 +22,8 @@ from src.identifiers import (
 )
 from src.strategies.hp_manager import HpStrategy
 from src.gui.hpfront import HpFront
-from tests.spot import get_new_orders
-from tests.strategies.spot.hp_manager_helpers import (
+from tests.helpers import get_new_orders
+from tests.strategies.hp_manager_helpers import (
     assert_default_buy_position_data,
     cancel_partially_bought_position_first_order_filled,
     cancel_partially_bought_position_first_order_filled_partially,

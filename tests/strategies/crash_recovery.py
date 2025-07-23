@@ -1,5 +1,4 @@
 import logging
-from src.database.models import PositionType
 
 logger = logging.getLogger("crash_recovery_helper")
 

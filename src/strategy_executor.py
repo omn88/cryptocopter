@@ -118,8 +118,11 @@ class StrategyExecutor:
             self.test_mode,
             self.client is not None,
         )
-
-        if not self.test_mode:
+        if self.test_mode:
+            logger.info(
+                "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+            )
+        else:
             self.client = BinanceClient(
                 api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
             )
@@ -130,10 +133,6 @@ class StrategyExecutor:
                 self.client is not None,
             )
             await self.recover_positions_from_crash()
-        else:
-            logger.info(
-                "Test mode - crash recovery will be triggered manually when client is assigned"
-            )
 
         # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
@@ -277,19 +276,84 @@ class StrategyExecutor:
                     break
 
     async def _handle_websocket_error(self, error_msg):
-        """Handle WebSocket errors, especially keepalive timeouts"""
+        """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
         current_time = time.time()
 
-        # Check if this is a keepalive timeout error
+        # Check for unrecoverable errors
+        unrecoverable_types = [
+            "BinanceWebsocketUnableToConnect",
+            "BinanceWebsocketClosed",
+            "ConnectionClosedError",
+        ]
+        unrecoverable_msgs = [
+            "Max reconnections",
+            "timed out during opening handshake",
+            "Cannot connect to host",
+            "Temporary failure in name resolution",
+            "getaddrinfo failed",
+        ]
+
+        is_unrecoverable = False
         if isinstance(error_msg, dict):
             error_type = error_msg.get("type", "")
             error_message = error_msg.get("m", "")
+            if any(t in error_type for t in unrecoverable_types) or any(
+                m in error_message for m in unrecoverable_msgs
+            ):
+                is_unrecoverable = True
 
+        # If unrecoverable, restart websocket client with infinite retry
+        if is_unrecoverable:
+            logger.error(
+                "Unrecoverable websocket error detected: %s. Restarting BinanceClient and resubscribing all strategies.",
+                error_msg,
+            )
+            retry_count = 0
+            while True:
+                try:
+                    # Stop current client if exists
+                    logger.info("Attempting to restart BinanceClient...")
+                    if self.client:
+                        try:
+                            await self.client.close_connection()
+                        except Exception as e:
+                            logger.warning("Error closing client: %s", e)
+                        self.client = None
+                    # Recreate client
+                    logger.info("Recreating BinanceClient...")
+                    if self.test_mode:
+                        logger.info(
+                            "Test mode - using injected client, crash recovery will be triggered manually when client is assigned"
+                        )
+                    else:
+                        self.client = BinanceClient(
+                            api_key=config_env("API_KEY"),
+                            api_secret=config_env("API_SECRET"),
+                        )
+                    logger.info("BinanceClient restarted successfully.")
+                    # Resubscribe all strategies
+                    await self._resubscribe_all_strategies()
+                    logger.info("Resubscription after restart complete.")
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    logger.error(
+                        "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
+                        retry_count,
+                        e,
+                        min(30, 2**retry_count),
+                    )
+                    await asyncio.sleep(min(30, 2**retry_count))
+            return
+
+        # Check if this is a keepalive timeout error (legacy logic)
+        if isinstance(error_msg, dict):
+            error_type = error_msg.get("type", "")
+            error_message = error_msg.get("m", "")
             if (
                 "keepalive ping timeout" in error_message
                 or "ConnectionClosedError" in error_type
             ):
-
                 # Suppress frequent logging of the same error
                 if (
                     current_time - self._last_websocket_error_time
@@ -302,20 +366,15 @@ class StrategyExecutor:
                     self._last_websocket_error_time = current_time
                     self._websocket_error_count = 1
                 else:
-                    self._websocket_error_count += (
-                        1  # If too many errors in short time, consider resubscribing
-                    )
-                if (
-                    self._websocket_error_count > 20
-                ):  # Reduced threshold for faster recovery
+                    self._websocket_error_count += 1
+                if self._websocket_error_count > 20:
                     logger.warning(
                         "Excessive WebSocket reconnections detected (%d errors), will resubscribe all streams",
                         self._websocket_error_count,
                     )
                     await self._resubscribe_all_strategies()
                     self._websocket_error_count = 0
-
-                return  # Don't process this error further
+                return
 
         # Handle other WebSocket errors normally
         logger.error("WebSocket error: %s", error_msg)
@@ -567,9 +626,7 @@ class StrategyExecutor:
 
         if self.client:
             try:
-                asyncio.run(
-                    self.client.close_connection()
-                )  # Ensure it's closed properly
+                asyncio.run(self.client.close_connection())
             except RuntimeError:
                 logger.warning("No running event loop, skipping async close.")
 
