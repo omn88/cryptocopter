@@ -166,10 +166,5 @@ class PriceData(NamedTuple):
 
 
 @dataclass
-class SaveConfig:
-    filename: str  # e.g. "backup1"
-
-
-@dataclass
 class LoadConfig:
     parsed_rows: List[Dict[str, str]]  # each row from CSV, parsed as a dict

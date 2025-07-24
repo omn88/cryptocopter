@@ -178,9 +178,6 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPClose):
                     await self.close_position(close_data=strategy_data)
 
-                if isinstance(strategy_data, SaveConfig):
-                    await self.save_all_configs_to_csv(filename=strategy_data.filename)
-
                 if isinstance(strategy_data, LoadConfig):
                     await self.load_configs_from_parsed_rows(strategy_data.parsed_rows)
 
@@ -421,114 +418,34 @@ class StrategyExecutor:
 
         logger.info("Finished resubscribing all strategies")
 
-    async def save_all_configs_to_csv(self, filename: str):
-        path = f"{filename}.csv"
-        try:
-            with open(path, "w", newline="", encoding="utf-8") as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(
-                    [
-                        "side",
-                        "symbol",
-                        "price_low",
-                        "price_high",
-                        "budget",
-                        "order_trigger",
-                        "mode",
-                        "hp_id",
-                        "coin",
-                        "buy_price",
-                        "sell_price",
-                        "quantity",
-                        "end_currency",
-                    ]
-                )
-
-                for strategy in self.strategies.values():
-                    if strategy.state in [State.NEW, State.BUYING]:
-                        buy_cfg = strategy.buy.data.config
-                        writer.writerow(
-                            [
-                                "BUY",
-                                buy_cfg.symbol_info.symbol,
-                                buy_cfg.price_low,
-                                buy_cfg.price_high,
-                                buy_cfg.budget,
-                                buy_cfg.order_trigger,
-                                buy_cfg.mode.name,
-                                "",
-                                buy_cfg.coin,
-                                "",
-                                "",
-                                "",
-                                "",
-                            ]
-                        )
-                    if strategy.state in [
-                        State.BOUGHT,
-                        State.SELLING,
-                        State.PARTIALLY_SOLD,
-                    ]:
-                        assert isinstance(
-                            strategy.sell.original_position.config, HPSellConfig
-                        )
-                        cfg = strategy.sell.original_position.config
-                        writer.writerow(
-                            [
-                                "SELL",
-                                cfg.symbol_info.symbol,
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                cfg.coin,
-                                cfg.buy_price,
-                                cfg.sell_price,
-                                cfg.quantity,
-                                cfg.end_currency or "USDC",
-                            ]
-                        )
-            logger.info("All strategies saved to %s", path)
-        except Exception as e:
-            logger.error("Failed to save config: %s", e)
-
-    async def load_configs_from_parsed_rows(self, parsed_rows):
+    async def load_configs_from_parsed_rows(self, parsed_rows, portfolio_manager=None, db=None):
+        """
+        Redesign: Import inventory from parsed rows (from XLS/CSV), add to in-memory and DB inventory (via PortfolioManager), and notify UI.
+        Each row should be mapped to an InventoryItem and added to the inventory.
+        """
+        if portfolio_manager is None or db is None:
+            logger.error("PortfolioManager and db must be provided for inventory import.")
+            return
+        imported_items = []
         for row in parsed_rows:
             try:
-                if row["side"] == "BUY":
-                    config = HPBuyConfig(
-                        hp_id=row["hp_id"],
-                        symbol_info=self.symbols_info[row["symbol"]],
-                        coin=row["coin"],
-                        price_low=float(row["price_low"]),
-                        price_high=float(row["price_high"]),
-                        budget=float(row["budget"]),
-                        order_trigger=float(row["order_trigger"]),
-                        mode=Mode[row["mode"]],
-                    )
-                    state_info = StateInfo(side=PositionSide.LONG)
-                    self.config_queue.put_nowait(
-                        HPBuyData(config=config, state_info=state_info)
-                    )
-
-                elif row["side"] == "SELL":
-                    config = HPSellConfig(
-                        hp_id=row["hp_id"] or None,
-                        symbol_info=self.symbols_info[row["symbol"]],
-                        coin=row["coin"],
-                        buy_price=float(row["buy_price"]),
-                        sell_price=float(row["sell_price"]),
-                        quantity=float(row["quantity"]),
-                        end_currency=row.get("end_currency", "USDC"),
-                    )
-                    state_info = StateInfo(side=PositionSide.SHORT)
-                    self.config_queue.put_nowait(
-                        HPSellData(config=config, state_info=state_info)
-                    )
+                # Map row to InventoryItem (assume columns: id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes)
+                item = InventoryItem(
+                    id=row.get("id") or str(uuid.uuid4()),
+                    coin=row["coin"],
+                    buy_price=float(row["buy_price"]),
+                    quantity=float(row["quantity"]),
+                    available_quantity=float(row.get("available_quantity", row["quantity"])),
+                    locked_quantity=float(row.get("locked_quantity", 0)),
+                    source=row.get("source", "import"),
+                    timestamp=datetime.datetime.fromisoformat(row["timestamp"]) if "timestamp" in row and row["timestamp"] else datetime.datetime.now(),
+                    notes=row.get("notes"),
+                )
+                await portfolio_manager.add_inventory_item_db(db, item)
+                imported_items.append(item)
             except Exception as e:
-                logger.error("Failed to parse config row: %s", e)
+                logger.error(f"Failed to import inventory row: {row} error: {e}")
+        logger.info(f"Imported {len(imported_items)} inventory items from file.")
 
     def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
         delisted_coins = {
