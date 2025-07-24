@@ -1,11 +1,12 @@
 import asyncio
-import csv
+import datetime
 import logging
 import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
 from typing import Dict, List, Optional
+import uuid
 from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
@@ -22,6 +23,7 @@ from src.identifiers import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    InventoryItem,
     Order,
     RemoveRecord,
     SellPosition,
@@ -33,7 +35,6 @@ from src.identifiers import (
     SubscriptionType,
     UiState,
     BinanceClient,
-    Mode,
     PositionSide,
 )
 from src.common.symbol_info import SymbolInfo
@@ -42,8 +43,6 @@ from src.gui.identifiers.spot import (
     HPGuiDataBuy,
     HPGuiDataSell,
     HPUpdate,
-    LoadConfig,
-    SaveConfig,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
@@ -177,9 +176,6 @@ class StrategyExecutor:
                     )
                 if isinstance(strategy_data, HPClose):
                     await self.close_position(close_data=strategy_data)
-
-                if isinstance(strategy_data, LoadConfig):
-                    await self.load_configs_from_parsed_rows(strategy_data.parsed_rows)
 
             except queue.Empty:
                 await asyncio.sleep(0.1)
@@ -417,35 +413,6 @@ class StrategyExecutor:
                 logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
 
         logger.info("Finished resubscribing all strategies")
-
-    async def load_configs_from_parsed_rows(self, parsed_rows, portfolio_manager=None, db=None):
-        """
-        Redesign: Import inventory from parsed rows (from XLS/CSV), add to in-memory and DB inventory (via PortfolioManager), and notify UI.
-        Each row should be mapped to an InventoryItem and added to the inventory.
-        """
-        if portfolio_manager is None or db is None:
-            logger.error("PortfolioManager and db must be provided for inventory import.")
-            return
-        imported_items = []
-        for row in parsed_rows:
-            try:
-                # Map row to InventoryItem (assume columns: id, coin, buy_price, quantity, available_quantity, locked_quantity, source, timestamp, notes)
-                item = InventoryItem(
-                    id=row.get("id") or str(uuid.uuid4()),
-                    coin=row["coin"],
-                    buy_price=float(row["buy_price"]),
-                    quantity=float(row["quantity"]),
-                    available_quantity=float(row.get("available_quantity", row["quantity"])),
-                    locked_quantity=float(row.get("locked_quantity", 0)),
-                    source=row.get("source", "import"),
-                    timestamp=datetime.datetime.fromisoformat(row["timestamp"]) if "timestamp" in row and row["timestamp"] else datetime.datetime.now(),
-                    notes=row.get("notes"),
-                )
-                await portfolio_manager.add_inventory_item_db(db, item)
-                imported_items.append(item)
-            except Exception as e:
-                logger.error(f"Failed to import inventory row: {row} error: {e}")
-        logger.info(f"Imported {len(imported_items)} inventory items from file.")
 
     def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
         delisted_coins = {

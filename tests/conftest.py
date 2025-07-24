@@ -185,6 +185,7 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
             symbols_info=symbols_info,
             test_mode=True,
             price_resolver=price_resolver,
+            portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
         )
 
         gui.initialize()

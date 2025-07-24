@@ -187,7 +187,6 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             balances=self.portfolio.balances,
             price_resolver=self.price_resolver,
-            portfolio_queue=self.portfolio_queue
         )
 
         self.trading_systems.append(back_end)
@@ -201,6 +200,7 @@ class AsyncApp(App):
             db=self.db,
             ui_queue=ui_queue,
             price_resolver=self.price_resolver,
+            portfolio_queue=self.portfolio.worker_queue,
         )
 
         front_end.initialize()

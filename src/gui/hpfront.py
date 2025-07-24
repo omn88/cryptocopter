@@ -5,6 +5,7 @@ import os
 import queue
 import logging
 from typing import Dict, List, Set, Optional
+import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -25,6 +26,7 @@ from src.identifiers import (
     Event,
     EventName,
     HPSellData,
+    InventoryItem,
     RemoveRecord,
     State,
     StateInfo,
@@ -44,8 +46,6 @@ from src.gui.identifiers.spot import (
     HPUpdate,
     IdlePositionBuy,
     IdlePositionSell,
-    LoadConfig,
-    SaveConfig,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -108,6 +108,7 @@ class HpFront(BoxLayout):
         symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
         price_resolver: UsdPriceResolver,
+        portfolio_queue: queue.Queue,
         test_mode=False,
         **kwargs,
     ):
@@ -130,6 +131,7 @@ class HpFront(BoxLayout):
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
         self.price_resolver = price_resolver
+        self.portfolio_queue = portfolio_queue
 
         # Initialize task references for proper cleanup
         self.refresh_task: Optional[asyncio.Task] = None
@@ -1537,7 +1539,6 @@ class HpFront(BoxLayout):
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
 
-
     def load_positions_from_csv(self):
         filename = self.ids.filenameinput.text.strip()
         if not filename:
@@ -1550,68 +1551,36 @@ class HpFront(BoxLayout):
                 reader = csv.DictReader(f)
                 parsed = [row for row in reader]
 
-            self.config_queue.put_nowait(LoadConfig(parsed_rows=parsed))
+            inventory_items = []
+            for row in parsed:
+                try:
+                    item = InventoryItem(
+                        id=row.get("id") or str(uuid.uuid4()),
+                        coin=row["coin"],
+                        buy_price=float(row["buy_price"]),
+                        quantity=float(row["quantity"]),
+                        available_quantity=float(
+                            row.get("available_quantity", row["quantity"])
+                        ),
+                        locked_quantity=float(row.get("locked_quantity", 0)),
+                        source=row.get("source", "import"),
+                        timestamp=(
+                            datetime.datetime.fromisoformat(row["timestamp"])
+                            if "timestamp" in row and row["timestamp"]
+                            else datetime.datetime.now()
+                        ),
+                        notes=row.get("notes"),
+                    )
+                    inventory_items.append(item)
+                except Exception as e:
+                    logger.error("Failed to parse inventory row: %s error: %s", row, e)
+
+            self.portfolio_queue.put_nowait(
+                Event(name=EventName.PORTFOLIO_INVENTORY, content=inventory_items)
+            )
             logger.info("Queued LoadConfig from %s", path)
         except Exception as e:
             logger.error("Failed to load CSV: %s", e)
-
-    def update_hp_state_filter(self, selected_states):
-        """Update the HP state filter and refresh the list"""
-        self.hp_state_filter = selected_states
-        self._update_hp_list_view()
-        logger.info("HP state filter updated to: %s", selected_states)
-
-    def on_hp_state_filter_change(self, filter_text):
-        """Handle HP state filter dropdown selection"""
-        if filter_text == "Active States (11)":
-            # Default filter excluding CLOSED and SOLD
-            self.hp_state_filter = [
-                "NEW",
-                "BUYING",
-                "PARTIALLY_BOUGHT",
-                "BOUGHT",
-                "READY_TO_SELL",
-                "SELLING",
-                "PARTIALLY_SOLD",
-                "SOLD_PART_BOUGHT",
-                "WAITING_CHILD",
-                "NONE",
-            ]
-            display_text = "Showing 11 states (excludes CLOSED, SOLD)"
-        elif filter_text == "All States (13)":
-            # Show all states
-            self.hp_state_filter = [
-                "NEW",
-                "BUYING",
-                "PARTIALLY_BOUGHT",
-                "BOUGHT",
-                "READY_TO_SELL",
-                "SELLING",
-                "PARTIALLY_SOLD",
-                "SOLD",
-                "PART_SOLD_PART_BOUGHT",
-                "SOLD_PART_BOUGHT",
-                "CLOSED",
-                "WAITING_CHILD",
-                "NONE",
-            ]
-            display_text = "Showing all 13 states"
-        elif filter_text == "CLOSED Only":
-            # Show only CLOSED states
-            self.hp_state_filter = ["CLOSED"]
-            display_text = "Showing only CLOSED states"
-        elif filter_text == "SOLD Only":
-            # Show only SOLD states
-            self.hp_state_filter = ["SOLD"]
-            display_text = "Showing only SOLD states"
-        else:
-            # For "Custom..." or other cases, keep current filter
-            return
-
-        self._update_hp_list_view()
-        if not self.test_mode:
-            self.ids.hp_state_filter_display.text = display_text
-        logger.info("HP state filter changed to: %s", filter_text)
 
     def reset_hp_state_filter(self):
         """Reset HP state filter to default (excludes CLOSED and SOLD)"""

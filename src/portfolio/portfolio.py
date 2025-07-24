@@ -47,7 +47,6 @@ class PortfolioManager:
         self.usd_saldo = 0.0
         self.price_resolver = price_resolver
         self.symbols_info = symbols_info
-        self.inventory: List[InventoryItem] = []  # Inventory of buy lots/positions
 
         # Starting the async loop
         self.loop = asyncio.new_event_loop()
@@ -99,6 +98,8 @@ class PortfolioManager:
                     await self.handle_account_position(event.content)
                 elif event.name == EventName.ALL_TICKERS:
                     await self.handle_tickers(event.content)
+                elif event.name == EventName.PORTFOLIO_INVENTORY:
+                    self.update_inventory(event.content)
             except queue.Empty:
                 await asyncio.sleep(0.1)  # Sleep briefly to prevent busy waiting
                 continue
