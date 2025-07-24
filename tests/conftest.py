@@ -324,6 +324,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
                 symbols_info=symbols_info,
                 test_mode=True,
                 price_resolver=price_resolver,
+                portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
             )
             frontend.initialize()
 
