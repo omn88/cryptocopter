@@ -1582,6 +1582,64 @@ class HpFront(BoxLayout):
         except Exception as e:
             logger.error("Failed to load CSV: %s", e)
 
+    def update_hp_state_filter(self, selected_states):
+        """Update the HP state filter and refresh the list"""
+        self.hp_state_filter = selected_states
+        self._update_hp_list_view()
+        logger.info("HP state filter updated to: %s", selected_states)
+
+    def on_hp_state_filter_change(self, filter_text):
+        """Handle HP state filter dropdown selection"""
+        if filter_text == "Active States (11)":
+            # Default filter excluding CLOSED and SOLD
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            display_text = "Showing 11 states (excludes CLOSED, SOLD)"
+        elif filter_text == "All States (13)":
+            # Show all states
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD",
+                "PART_SOLD_PART_BOUGHT",
+                "SOLD_PART_BOUGHT",
+                "CLOSED",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            display_text = "Showing all 13 states"
+        elif filter_text == "CLOSED Only":
+            # Show only CLOSED states
+            self.hp_state_filter = ["CLOSED"]
+            display_text = "Showing only CLOSED states"
+        elif filter_text == "SOLD Only":
+            # Show only SOLD states
+            self.hp_state_filter = ["SOLD"]
+            display_text = "Showing only SOLD states"
+        else:
+            # For "Custom..." or other cases, keep current filter
+            return
+
+        self._update_hp_list_view()
+        if not self.test_mode:
+            self.ids.hp_state_filter_display.text = display_text
+        logger.info("HP state filter changed to: %s", filter_text)
+
     def reset_hp_state_filter(self):
         """Reset HP state filter to default (excludes CLOSED and SOLD)"""
         self.hp_state_filter = [
