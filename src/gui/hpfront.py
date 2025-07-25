@@ -1555,21 +1555,12 @@ class HpFront(BoxLayout):
             for row in parsed:
                 try:
                     item = InventoryItem(
-                        id=row.get("id") or str(uuid.uuid4()),
+                        id=str(uuid.uuid4()),
                         coin=row["coin"],
                         buy_price=float(row["buy_price"]),
                         quantity=float(row["quantity"]),
-                        available_quantity=float(
-                            row.get("available_quantity", row["quantity"])
-                        ),
-                        locked_quantity=float(row.get("locked_quantity", 0)),
-                        source=row.get("source", "import"),
-                        timestamp=(
-                            datetime.datetime.fromisoformat(row["timestamp"])
-                            if "timestamp" in row and row["timestamp"]
-                            else datetime.datetime.now()
-                        ),
-                        notes=row.get("notes"),
+                        available_quantity=float(row["quantity"]),
+                        locked_quantity=0.0,
                     )
                     inventory_items.append(item)
                 except Exception as e:

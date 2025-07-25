@@ -19,9 +19,6 @@ class InventoryItem:
     quantity: float
     available_quantity: float
     locked_quantity: float
-    source: str
-    timestamp: datetime.datetime
-    notes: Optional[str] = None
 
 
 class State(Enum):

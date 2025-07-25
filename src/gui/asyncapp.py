@@ -133,6 +133,7 @@ class AsyncApp(App):
             balances=self.balances,
             symbols_info=self.symbols_info,
             price_resolver=self.price_resolver,
+            db=self.db,
         )
 
         # Set up frontend UI for PortfolioManager

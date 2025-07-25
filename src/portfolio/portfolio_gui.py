@@ -65,18 +65,14 @@ class PortfolioUI(BoxLayout):
             for pos in positions:
                 logger.info("Restoring position: %s", pos)
                 if pos.status == PositionStatus.REMOTE:
-                    wallet = (
-                        pos.metadata.get("wallet_name", "remote")
-                        if hasattr(pos, "metadata")
-                        else "remote"
-                    )
+
                     self.coin_list_data.append(
                         {
                             "symbol": pos.symbol,
                             "quantity": str(pos.quantity),
                             "price_usd": "0.00",
                             "total_usd": "0.00",
-                            "source": wallet,
+                            "source": "remote",
                         }
                     )
         except Exception as e:

@@ -1,10 +1,13 @@
 import asyncio
+from collections import defaultdict
 import logging
 import queue
 import threading
-from typing import Dict, List, Optional
+from typing import DefaultDict, Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
+from src.database.models import PositionStatus
+from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
     AllTickers,
@@ -36,6 +39,7 @@ class PortfolioManager:
         balances: Dict[str, float],
         symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
+        db: TradingDatabase,
     ):
         self.client: Optional[BinanceClient] = None
         self.broker = broker
@@ -47,6 +51,8 @@ class PortfolioManager:
         self.usd_saldo = 0.0
         self.price_resolver = price_resolver
         self.symbols_info = symbols_info
+        self.db = db
+        self.inventory: List[InventoryItem] = []  # In-memory inventory
 
         # Starting the async loop
         self.loop = asyncio.new_event_loop()
@@ -99,7 +105,7 @@ class PortfolioManager:
                 elif event.name == EventName.ALL_TICKERS:
                     await self.handle_tickers(event.content)
                 elif event.name == EventName.PORTFOLIO_INVENTORY:
-                    self.update_inventory(event.content)
+                    await self.update_inventory(event.content)
             except queue.Empty:
                 await asyncio.sleep(0.1)  # Sleep briefly to prevent busy waiting
                 continue
@@ -176,9 +182,61 @@ class PortfolioManager:
             )
         )
 
-    def update_inventory(self, new_inventory: List[InventoryItem]):
-        """Update the inventory and notify the UI."""
+    async def restore_remote_sums(self) -> DefaultDict[str, float]:
+        logger.info("Restoring remote sums from the database.")
+
+        remote_sums: DefaultDict[str, float] = defaultdict(float)
+
+        try:
+            positions = await self.db.get_active_positions()
+            for pos in positions:
+                if pos.status == PositionStatus.REMOTE:
+                    remote_sums[pos.symbol] += pos.quantity
+
+        except Exception as e:
+            logger.error("Failed to restore remote positions: %s", e)
+
+        return remote_sums
+
+    async def update_inventory(self, new_inventory: List[InventoryItem]):
+        """Update the inventory, validate against balances, and notify the UI."""
         self.inventory = new_inventory
+
+        # Sum inventory per coin
+        inventory_sums: DefaultDict[str, float] = defaultdict(float)
+        for item in self.inventory:
+            inventory_sums[item.coin] += item.quantity
+
+        remote_sums: DefaultDict[str, float] = await self.restore_remote_sums()
+
+        for coin in set(
+            list(inventory_sums.keys())
+            + list(remote_sums.keys())
+            + list(self.balances.keys())
+        ):
+            imported_sum = inventory_sums.get(coin, 0.0)
+            remote_sum = remote_sums.get(coin, 0.0)
+            portfolio_balance = self.balances.get(coin, 0.0)
+            expected_sum = portfolio_balance + remote_sum
+            if abs(imported_sum - expected_sum) > 1e-8:
+                logger.warning(
+                    "Discrepancy for %s: imported sum = %s, portfolio balance = %s, remote sum = %s, expected sum = %s (diff = %s)",
+                    coin,
+                    imported_sum,
+                    portfolio_balance,
+                    remote_sum,
+                    expected_sum,
+                    imported_sum - expected_sum,
+                )
+            else:
+                logger.info(
+                    "Imported inventory matches for %s: %s (portfolio: %s, remote: %s)",
+                    coin,
+                    imported_sum,
+                    portfolio_balance,
+                    remote_sum,
+                )
+
         self.ui_queue.put_nowait(
             Event(name=EventName.PORTFOLIO_INVENTORY, content=self.inventory)
         )
