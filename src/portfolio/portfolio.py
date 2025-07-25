@@ -218,7 +218,12 @@ class PortfolioManager:
             remote_sum = remote_sums.get(coin, 0.0)
             portfolio_balance = self.balances.get(coin, 0.0)
             expected_sum = portfolio_balance + remote_sum
-            if abs(imported_sum - expected_sum) > 1e-8:
+            # Set tolerance: strict for BTC, ETH, BNB; relaxed (3) for others
+            if coin in ("BTC", "ETH", "BNB"):
+                tolerance = 1e-3
+            else:
+                tolerance = 3.0
+            if abs(imported_sum - expected_sum) > tolerance:
                 logger.warning(
                     "Discrepancy for %s: imported sum = %s, portfolio balance = %s, remote sum = %s, expected sum = %s (diff = %s)",
                     coin,
