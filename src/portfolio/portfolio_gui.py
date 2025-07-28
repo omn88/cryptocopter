@@ -32,6 +32,34 @@ logger = logging.getLogger("portfolio_ui")
 
 
 class PortfolioUI(BoxLayout):
+    def set_inventory(self, inventory: List[InventoryItem]):
+        """Update the coin list data from the inventory, with all resources available."""
+        from collections import defaultdict
+
+        # Group inventory items by coin
+        coin_lots = defaultdict(list)
+        for item in inventory:
+            coin_lots[item.coin].append(item)
+
+        coin_list = []
+        for coin, lots in coin_lots.items():
+            total_qty = sum(lot.quantity for lot in lots)
+            # All resources are available, none are locked
+            coin_list.append(
+                {
+                    "symbol": coin,
+                    "quantity": str(total_qty),
+                    "available_qty": str(total_qty),
+                    "locked_qty": "0",
+                    "price_usd": "0.00",
+                    "total_usd": "0.00",
+                    "source": "imported",
+                    "lots": lots,
+                    "expanded": False,
+                }
+            )
+        self.coin_list_data = coin_list
+
     virtual_positions = ListProperty([])
     saldo_usd_label = ObjectProperty(None)  # Label for USD saldo in the GUI
     saldo_btc_label = ObjectProperty(None)  # Label for BTC saldo in the GUI
@@ -193,6 +221,15 @@ class PortfolioUI(BoxLayout):
                     assert isinstance(data.content, PriceUpdates)
                     # Update saldo in USD and BTC
                     await self.update_coin_prices(data.content)
+                if data.name == EventName.PORTFOLIO_INVENTORY:
+                    # Inventory event: update UI with new inventory (all available)
+                    if isinstance(data.content, List):
+                        self.set_inventory(data.content)
+                        self.ids.coin_list.refresh_from_data()
+                    else:
+                        logger.warning(
+                            f"PORTFOLIO_INVENTORY event received with unexpected content type: {type(data.content)}"
+                        )
 
             except queue.Empty:
                 await asyncio.sleep(0.1)

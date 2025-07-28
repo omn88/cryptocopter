@@ -42,26 +42,38 @@
         padding: [20, 10]  # Padding to create space around the list
         spacing: 20  # Adds space between elements inside the box
 
+        Widget:
+            size_hint_x: 0.06  # Spacer for expand/collapse button
         Label:
             text: 'Symbol'
             bold: True
-            size_hint_x: 0.16
+            size_hint_x: 0.14
         Label:
             text: 'Quantity'
             bold: True
-            size_hint_x: 0.20
+            size_hint_x: 0.12
+        Label:
+            text: 'Available'
+            bold: True
+            size_hint_x: 0.12
+        Label:
+            text: 'Locked'
+            bold: True
+            size_hint_x: 0.12
         Label:
             text: 'Price in USD'
             bold: True
-            size_hint_x: 0.18
+            size_hint_x: 0.12
         Label:
             text: 'Total in USD'
             bold: True
-            size_hint_x: 0.26
+            size_hint_x: 0.12
         Label:
             text: 'Source'
             bold: True
-            size_hint_x: 0.20
+            size_hint_x: 0.1
+        Widget:
+            size_hint_x: 0.1  # Spacer for action button (Sell), adjusted so total is exactly 1
 
     # Section for the coin list
     BoxLayout:

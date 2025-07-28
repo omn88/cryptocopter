@@ -327,16 +327,21 @@
         text: root.completeness
         size_hint_x: 0.1
 
+
 <CoinListItem@BoxLayout>:
-    orientation: "horizontal"
+    orientation: "vertical"
     size_hint_y: None
-    height: '30dp'
+    height: self.minimum_height
 
     symbol: ''
     quantity: ''
+    available_qty: ''
+    locked_qty: ''
     price_usd: ''
     total_usd: ''
     source: ''
+    expanded: False
+    lots: []
 
     canvas.before:
         Color:
@@ -344,27 +349,51 @@
         Line:
             points: [self.x, self.y, self.x + self.width, self.y]
 
-    Label:
-        text: root.symbol
-        size_hint_x: 0.16
-    Label:
-        text: root.quantity
-        size_hint_x: 0.20
-    Label:
-        text: root.price_usd
-        size_hint_x: 0.18
-    Label:
-        text: root.total_usd
-        size_hint_x: 0.26
-    Label:
-        text: root.source
-        size_hint_x: 0.14
-    Button:
-        text: "Remove"
-        size_hint_x: 0.06
-        opacity: 1 if root.source and root.source != "binance" else 0
-        disabled: not (root.source and root.source != "binance")
-        on_release: self.parent.parent.parent.parent.parent.remove_virtual_position(root.symbol, root.source)
+    # Parent row (summary for the coin)
+    BoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: '30dp'
+
+        Button:
+            text: '▼' if root.expanded else '▶'
+            size_hint_x: 0.06
+            on_press: root.expanded = not root.expanded
+
+        Label:
+            text: root.symbol if root.symbol else '—'
+            size_hint_x: 0.14
+        Label:
+            text: root.quantity if root.quantity else '0.0'
+            size_hint_x: 0.12
+        Label:
+            text: root.available_qty if root.available_qty else '0.0'
+            size_hint_x: 0.12
+        Label:
+            text: root.locked_qty if root.locked_qty else '0.0'
+            size_hint_x: 0.12
+        Label:
+            text: root.price_usd if root.price_usd else '0.0'
+            size_hint_x: 0.12
+        Label:
+            text: root.total_usd if root.total_usd else '0.0'
+            size_hint_x: 0.12
+        Label:
+            text: root.source if root.source else '—'
+            size_hint_x: 0.1
+        Button:
+            text: 'Sell'
+            size_hint_x: 0.1
+            on_press: root.on_sell() if hasattr(root, 'on_sell') else None
+
+    # Expandable child rows (buy lots)
+    BoxLayout:
+        id: lots_box
+        orientation: 'vertical'
+        size_hint_y: None
+        height: self.minimum_height if root.expanded else 0
+        opacity: 1 if root.expanded else 0
+        # Dynamically add child rows for each lot in root.lots in Python
 
 <HPListItem@BoxLayout>:
     orientation: 'horizontal'
