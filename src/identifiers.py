@@ -12,6 +12,15 @@ from src.common.symbol_info import SymbolInfo
 
 
 @dataclass
+class CoinBalance:
+    coin: str
+    free: float
+    locked: float
+    total: float
+    total_value: float
+
+
+@dataclass
 class InventoryItem:
     id: str
     coin: str
@@ -183,10 +192,6 @@ class AllTickers(NamedTuple):
     msg: List[Dict]
 
 
-class Balances(NamedTuple):
-    msg: Dict[str, float]
-
-
 class PriceUpdates(NamedTuple):
     msg: Dict[str, float]
 
@@ -220,10 +225,10 @@ class Event(NamedTuple):
         ExecutionReport,
         AccountPosition,
         AllTickers,
-        Balances,
         PriceUpdates,
         ErrorMessage,
         List[InventoryItem],
+        Dict[str, CoinBalance],
     ]
 
     def __repr__(self) -> str:

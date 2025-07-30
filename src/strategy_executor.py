@@ -16,6 +16,7 @@ from binance.enums import (
 from src.common.common import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
+    CoinBalance,
     Event,
     EventName,
     ExecutionReport,
@@ -75,7 +76,7 @@ class StrategyExecutor:
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
-        balances: Dict[str, float],
+        balances: Dict[str, CoinBalance],
         price_resolver: UsdPriceResolver,
         test_mode: bool = False,
     ):
@@ -552,7 +553,7 @@ class StrategyExecutor:
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            balance=self.balances["USDC"],
+            balance=self.balances["USDC"].total,
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -882,7 +883,7 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=worker_queue,
             ),
-            balance=self.balances["USDC"],
+            balance=self.balances["USDC"].total,
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,

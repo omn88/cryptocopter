@@ -34,6 +34,7 @@ from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
+    CoinBalance,
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
@@ -103,7 +104,11 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
-    balances = {"USDC": 10000.0}  # Mock balance
+    balances = {
+        "USDC": CoinBalance(
+            coin="USDC", free=10000.0, locked=0.0, total=10000.0, total_value=10000.0
+        )
+    }  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
@@ -293,7 +298,18 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
         price_resolver = UsdPriceResolver(
             client=mock_async_client, symbols_info=symbols_info
         )
-        balances = {"BTC": 1.0, "USDC": 10000.0}
+        balances = {
+            "BTC": CoinBalance(
+                coin="BTC", free=1.0, locked=0.0, total=1.0, total_value=0.0
+            ),
+            "USDC": CoinBalance(
+                coin="USDC",
+                free=10000.0,
+                locked=0.0,
+                total=10000.0,
+                total_value=10000.0,
+            ),
+        }
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 

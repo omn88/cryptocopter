@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import queue
 from typing import Dict, List
@@ -9,10 +10,9 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 
-from src.database.models import Position, PositionStatus, PositionType
 from src.identifiers import (
     AccountPosition,
-    Balances,
+    CoinBalance,
     Event,
     EventName,
     InventoryItem,
@@ -43,6 +43,7 @@ class PortfolioUI(BoxLayout):
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
+        balances: Dict[str, CoinBalance],
         **kwargs,
     ) -> None:
         # Initialize the base class (BoxLayout)
@@ -52,16 +53,17 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
+        self.balances: Dict[str, CoinBalance] = balances
         # On startup, check if DB is empty and choose data source
-        asyncio.create_task(self.init_portfolio_source())
+        asyncio.create_task(self.init_portfolio_source(balances=balances))
 
-    async def init_portfolio_source(self):
+    async def init_portfolio_source(self, balances: Dict[str, CoinBalance]) -> None:
         """Check if portfolio table in DB is empty and choose data source for display."""
         try:
             # Use fetch_all_inventory_items for DB inventory retrieval
             db_items = await self.db.fetch_all_inventory_items()
             if db_items:
-                self.set_inventory(db_items)
+                self.set_inventory(db_items, balances)
                 self.ids.coin_list.refresh_from_data()
                 logger.info("Portfolio loaded from database.")
             else:
@@ -130,9 +132,10 @@ class PortfolioUI(BoxLayout):
             self.coin_list_data.pop(idx_to_remove)
             self.ids.coin_list.refresh_from_data()
 
-    def set_inventory(self, inventory: List[InventoryItem]):
+    def set_inventory(
+        self, inventory: List[InventoryItem], balances: Dict[str, CoinBalance]
+    ):
         """Update the coin list data from the inventory, with all resources available."""
-        from collections import defaultdict
 
         # Group inventory items by coin
         coin_lots = defaultdict(list)
@@ -140,17 +143,22 @@ class PortfolioUI(BoxLayout):
             coin_lots[item.coin].append(item)
 
         coin_list = []
+
         for coin, lots in coin_lots.items():
             total_qty = sum(lot.quantity for lot in lots)
-            # All resources are available, none are locked
+            # Use CoinBalance if available, else fallback to inventory
+            cb = balances.get(coin)
+            available_qty = str(cb.free) if cb else str(total_qty)
+            locked_qty = str(cb.locked) if cb else "0"
+            total_value = str(cb.total_value) if cb else "0.00"
             coin_list.append(
                 {
                     "symbol": coin,
                     "quantity": str(total_qty),
-                    "available_qty": str(total_qty),
-                    "locked_qty": "0",
+                    "available_qty": available_qty,
+                    "locked_qty": locked_qty,
                     "price_usd": "0.00",
-                    "total_usd": "0.00",
+                    "total_usd": total_value,
                     "source": "imported",
                     "lots": lots,
                     "expanded": False,
@@ -168,7 +176,7 @@ class PortfolioUI(BoxLayout):
                 assert isinstance(data, Event)
 
                 if data.name == EventName.BALANCES:
-                    assert isinstance(data.content, Balances)
+                    assert isinstance(data.content, Dict)
                     self.create_coin_list(data.content)
                 if data.name == EventName.ACCOUNT_POSITION:
                     assert isinstance(data.content, AccountPosition)
@@ -180,7 +188,7 @@ class PortfolioUI(BoxLayout):
                 if data.name == EventName.PORTFOLIO_INVENTORY:
                     # Inventory event: update UI with new inventory (all available)
                     if isinstance(data.content, List):
-                        self.set_inventory(data.content)
+                        self.set_inventory(data.content, balances=self.balances)
                         self.ids.coin_list.refresh_from_data()
                     else:
                         logger.warning(
@@ -190,20 +198,22 @@ class PortfolioUI(BoxLayout):
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
-    def create_coin_list(self, balances: Balances):
+    def create_coin_list(self, balances: Dict[str, CoinBalance]) -> None:
         """Create the coin list in the UI based on new ticker data."""
         logger.info("Going to prepare initial coin list.")
 
-        for symbol, quantity in balances.msg.items():
+        for symbol, coin_balance in balances.items():
             try:
                 # Round up to coins precision, to filter out first close to zero quantities
                 rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
-                    quantity=quantity
+                    quantity=coin_balance.total
                 )
                 if rounded:
                     coin_data = {
                         "symbol": symbol,
                         "quantity": str(rounded),
+                        "available_qty": str(coin_balance.free),
+                        "locked_qty": str(coin_balance.locked),
                         "price_usd": "0.00",
                         "total_usd": "0.00",
                         "source": "binance",

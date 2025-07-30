@@ -6,12 +6,10 @@ import threading
 from typing import DefaultDict, Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
-from src.database.models import PositionStatus
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
     AllTickers,
-    Balances,
     Event,
     EventName,
     InventoryItem,
@@ -20,6 +18,7 @@ from src.identifiers import (
     SubscriptionTarget,
     SubscriptionType,
     BinanceClient,
+    CoinBalance,
 )
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -36,7 +35,7 @@ class PortfolioManager:
         self,
         broker: BrokerSpot,
         ui_queue: queue.Queue,
-        balances: Dict[str, float],
+        balances: Dict[str, CoinBalance],
         symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
         db: TradingDatabase,
@@ -45,7 +44,7 @@ class PortfolioManager:
         self.broker = broker
         self.ui_queue = ui_queue
         self.worker_queue: queue.Queue = queue.Queue()
-        self.balances = balances
+        self.balances = balances  # Dict[str, CoinBalance]
         self.price_updates: Dict[str, float] = {}  # Store latest price updates
         self.btc_saldo = 0.0
         self.usd_saldo = 0.0
@@ -73,7 +72,10 @@ class PortfolioManager:
             api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
         )
         self.ui_queue.put_nowait(
-            Event(name=EventName.BALANCES, content=Balances(msg=self.balances))
+            Event(
+                name=EventName.BALANCES,
+                content=self.balances,
+            )
         )
 
         # Subscribe to user and price updates for portfolio management
@@ -134,11 +136,21 @@ class PortfolioManager:
 
         for balance in account_position.balances:
             coin = balance.coin
-            total_balance = balance.free + balance.locked
-
-            # Update the balance only if there's a change
-            if total_balance != self.balances.get(coin, 0.0):
-                self.balances[coin] = total_balance
+            free = balance.free
+            locked = balance.locked
+            total_balance = free + locked
+            total_value = 0.0
+            try:
+                total_value = self.price_resolver.resolve_usd(coin) * total_balance
+            except Exception:
+                pass
+            self.balances[coin] = CoinBalance(
+                coin=coin,
+                free=free,
+                locked=locked,
+                total=total_balance,
+                total_value=total_value,
+            )
 
         self.ui_queue.put_nowait(
             Event(name=EventName.ACCOUNT_POSITION, content=account_position)
@@ -182,22 +194,6 @@ class PortfolioManager:
             )
         )
 
-    async def restore_remote_sums(self) -> DefaultDict[str, float]:
-        logger.info("Restoring remote sums from the database.")
-
-        remote_sums: DefaultDict[str, float] = defaultdict(float)
-
-        try:
-            positions = await self.db.get_active_positions()
-            for pos in positions:
-                if pos.status == PositionStatus.REMOTE:
-                    remote_sums[pos.symbol] += pos.quantity
-
-        except Exception as e:
-            logger.error("Failed to restore remote positions: %s", e)
-
-        return remote_sums
-
     async def update_inventory(self, new_inventory: List[InventoryItem]):
         """Update the inventory, validate against balances, and notify the UI."""
         self.inventory = new_inventory
@@ -207,39 +203,33 @@ class PortfolioManager:
         for item in self.inventory:
             inventory_sums[item.coin] += item.quantity
 
-        remote_sums: DefaultDict[str, float] = await self.restore_remote_sums()
-
-        for coin in set(
-            list(inventory_sums.keys())
-            + list(remote_sums.keys())
-            + list(self.balances.keys())
-        ):
+        for coin in set(list(inventory_sums.keys()) + list(self.balances.keys())):
             imported_sum = inventory_sums.get(coin, 0.0)
-            remote_sum = remote_sums.get(coin, 0.0)
-            portfolio_balance = self.balances.get(coin, 0.0)
-            expected_sum = portfolio_balance + remote_sum
+
+            portfolio_balance = self.balances.get(coin)
+            if portfolio_balance is None:
+                logger.warning("No balance found for coin: %s", coin)
+                continue
+            assert isinstance(portfolio_balance, CoinBalance)
+
             # Set tolerance: strict for BTC, ETH, BNB; relaxed (3) for others
             if coin in ("BTC", "ETH", "BNB"):
                 tolerance = 1e-3
             else:
                 tolerance = 3.0
-            if abs(imported_sum - expected_sum) > tolerance:
+            if abs(imported_sum) > tolerance:
                 logger.warning(
-                    "Discrepancy for %s: imported sum = %s, portfolio balance = %s, remote sum = %s, expected sum = %s (diff = %s)",
+                    "Discrepancy for %s: imported sum = %s, portfolio balance = %s",
                     coin,
                     imported_sum,
-                    portfolio_balance,
-                    remote_sum,
-                    expected_sum,
-                    imported_sum - expected_sum,
+                    portfolio_balance.total,
                 )
             else:
                 logger.info(
-                    "Imported inventory matches for %s: %s (portfolio: %s, remote: %s)",
+                    "Imported inventory matches for %s: %s (portfolio: %s)",
                     coin,
                     imported_sum,
-                    portfolio_balance,
-                    remote_sum,
+                    portfolio_balance.total,
                 )
 
         self.ui_queue.put_nowait(
@@ -309,25 +299,17 @@ async def fetch_initial_balances(
         free = float(balance_info["free"])
         locked = float(balance_info["locked"])
         total_balance = free + locked
-
         if total_balance <= 0:
             continue
-
-        # logger.info("Coin with balance bigger than zero: %s - %s", coin, total_balance)
-
         try:
             price_in_usd = resolver.resolve_usd(coin)
-            # logger.info("Coin: %s price in usd: %s", coin, price_in_usd)
-
             total_value = price_in_usd * total_balance
-
-            if total_value >= 1.0:  # Only include balances >= $1 USD
-                balances[coin] = total_balance
-            else:
-                logger.warning("Skipping coin %s: only worth $%.2f", coin, total_value)
-
         except ValueError:
-            logger.warning("Skipping coin %s: no USD price available", coin)
+            total_value = 0.0
+        if total_value >= 1.0:
+            balances[coin] = total_balance
+        else:
+            logger.warning("Skipping coin %s: only worth $%.2f", coin, total_value)
 
     logger.info("Initial balances fetched: %s", balances)
     return balances
