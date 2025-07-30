@@ -217,7 +217,7 @@ class PortfolioManager:
                 tolerance = 1e-3
             else:
                 tolerance = 3.0
-            if abs(imported_sum) > tolerance:
+            if abs(imported_sum - portfolio_balance.total) > tolerance:
                 logger.warning(
                     "Discrepancy for %s: imported sum = %s, portfolio balance = %s",
                     coin,
@@ -288,10 +288,10 @@ class PortfolioManager:
 
 async def fetch_initial_balances(
     client: BinanceClient, resolver: UsdPriceResolver
-) -> Dict[str, float]:
+) -> Dict[str, CoinBalance]:
     """Fetch the initial balances from the exchange on startup and filter by value in USD."""
     logger.info("Fetching initial balances from the exchange.")
-    balances = {}
+    balances: Dict[str, CoinBalance] = {}
     account_info = await client.get_account()
 
     for balance_info in account_info["balances"]:
@@ -307,7 +307,13 @@ async def fetch_initial_balances(
         except ValueError:
             total_value = 0.0
         if total_value >= 1.0:
-            balances[coin] = total_balance
+            balances[coin] = CoinBalance(
+                coin=coin,
+                free=free,
+                locked=locked,
+                total=total_balance,
+                total_value=total_value,
+            )
         else:
             logger.warning("Skipping coin %s: only worth $%.2f", coin, total_value)
 

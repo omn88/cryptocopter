@@ -1,12 +1,10 @@
 import asyncio
-import datetime
 import logging
 import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
 from typing import Dict, List, Optional
-import uuid
 from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
@@ -24,7 +22,6 @@ from src.identifiers import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
-    InventoryItem,
     Order,
     RemoveRecord,
     SellPosition,
@@ -548,6 +545,8 @@ class StrategyExecutor:
         logger.info("Client check: %s", self.client is not None)
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
+
+        logger.info("Self balances: %s", self.balances)
 
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
