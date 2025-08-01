@@ -55,7 +55,94 @@ class PortfolioUI(BoxLayout):
         self.db = db
         self.balances: Dict[str, CoinBalance] = balances
         # On startup, check if DB is empty and choose data source
-        asyncio.create_task(self.init_portfolio_source(balances=balances))
+        try:
+            asyncio.create_task(self.init_portfolio_source(balances=balances))
+        except RuntimeError:
+            # No event loop running (e.g., in tests), skip async initialization
+            logger.warning("No event loop running, skipping async initialization")
+
+    def toggle_expand_coin_item(self, symbol: str) -> None:
+        """Toggle the expanded state for a coin, following HP list approach."""
+        logger.info(f"Toggling expand for {symbol}")
+
+        # Skip if this is a lot row (shouldn't happen but safety check)
+        if symbol.startswith("  └─"):
+            logger.warning(f"Attempted to toggle lot row: {symbol}")
+            return
+
+        # Find the parent coin and toggle its state
+        for coin_data in self.coin_list_data:
+            if (
+                not coin_data.get("is_lot_row", False)
+                and coin_data.get("symbol") == symbol
+            ):
+                # Toggle this coin
+                coin_data["expanded"] = not coin_data.get("expanded", False)
+                logger.info(f"Toggled {symbol} to expanded={coin_data['expanded']}")
+                break
+        else:
+            logger.warning(f"Could not find parent coin with symbol: {symbol}")
+            return
+
+        # Rebuild the entire list
+        self._rebuild_coin_list_with_lots()
+
+    def _rebuild_coin_list_with_lots(self):
+        """Rebuild coin_list_data with expanded lots as separate items."""
+        logger.debug("=== Rebuilding coin list ===")
+
+        # Step 1: Collect all parent coins (skip any existing lot rows)
+        parent_coins = []
+        for coin_data in self.coin_list_data:
+            if not coin_data.get("is_lot_row", False):
+                parent_coins.append(coin_data)
+
+        # Step 2: Build new list with parent coins and their expanded lots
+        new_data = []
+        for parent_coin in parent_coins:
+            # Ensure parent coin has all required properties
+            parent_coin["portfolio_manager"] = self
+            parent_coin["has_lots"] = len(parent_coin.get("lots", [])) > 0
+            parent_coin["is_lot_row"] = False
+
+            # Add the parent coin
+            new_data.append(parent_coin)
+
+            # If expanded, add lot rows immediately after
+            if parent_coin.get("expanded", False) and parent_coin.get("lots"):
+                for lot in parent_coin["lots"]:
+                    # Create lot row
+                    if hasattr(lot, "quantity"):  # InventoryItem object
+                        quantity = str(lot.quantity)
+                        price_usd = str(getattr(lot, "buy_price", 0))
+                    else:  # Dictionary
+                        quantity = str(lot.get("quantity", 0))
+                        price_usd = str(lot.get("buy_price", 0))
+
+                    lot_item = {
+                        "symbol": f"  └─ Lot",
+                        "quantity": quantity,
+                        "available_qty": quantity,
+                        "locked_qty": "0",
+                        "price_usd": price_usd,
+                        "total_usd": "0.00",
+                        "source": "lot",
+                        "expanded": False,
+                        "lots": [],
+                        "is_lot_row": True,
+                        "has_lots": False,
+                        "portfolio_manager": self,
+                    }
+                    new_data.append(lot_item)
+
+        # Step 3: Update the data
+        self.coin_list_data.clear()
+        self.coin_list_data.extend(new_data)
+
+        logger.debug(f"Rebuild complete: {len(new_data)} items")
+
+        # Force refresh
+        self.ids.coin_list.refresh_from_data()
 
     async def init_portfolio_source(self, balances: Dict[str, CoinBalance]) -> None:
         """Check if portfolio table in DB is empty and choose data source for display."""
@@ -98,6 +185,8 @@ class PortfolioUI(BoxLayout):
                         "source": wallet if wallet else "manual",
                         "lots": [],
                         "expanded": False,
+                        "has_lots": False,
+                        "portfolio_manager": self,  # Add reference to portfolio manager
                     }
                 )
                 self.ids.coin_list.refresh_from_data()
@@ -162,6 +251,8 @@ class PortfolioUI(BoxLayout):
                     "source": "imported",
                     "lots": lots,
                     "expanded": False,
+                    "has_lots": len(lots) > 0,
+                    "portfolio_manager": self,  # Add reference to portfolio manager
                 }
             )
         self.coin_list_data = coin_list
@@ -217,6 +308,10 @@ class PortfolioUI(BoxLayout):
                         "price_usd": "0.00",
                         "total_usd": "0.00",
                         "source": "binance",
+                        "lots": [],
+                        "expanded": False,
+                        "has_lots": False,
+                        "portfolio_manager": self,  # Add reference to portfolio manager
                     }
                     self.coin_list_data.append(coin_data)
             except KeyError as e:
@@ -230,38 +325,71 @@ class PortfolioUI(BoxLayout):
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
 
         last_btc_price = price_updates.msg.get("BTC")
-        # Iterate through the coin_list_data and update only coins that are in price_updates
+
+        # Update prices for all coins (including lot rows which have lot-specific prices)
         for coin in self.coin_list_data:
             symbol = coin["symbol"]
 
-            # If the symbol is in the price updates, update its price
-            if symbol in price_updates.msg:
+            # Only update prices for parent coins (not lot rows)
+            if not coin.get("is_lot_row", False) and symbol in price_updates.msg:
                 price = price_updates.msg[symbol]
-
-                # Update the price and total in USD for this coin
                 coin["price_usd"] = str(
                     self.symbols_info[f"{symbol}USDT"].adjust_price(price)
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)
 
-        # Sort the filtered list by 'total_usd' in descending order (highest to lowest)
-        sorted_coin_list = sorted(
-            [coin for coin in self.coin_list_data],
-            key=lambda x: float(x["total_usd"]),
-            reverse=True,
-        )
+        # Extract parent coins and sort by value
+        parent_coins = [
+            coin for coin in self.coin_list_data if not coin.get("is_lot_row", False)
+        ]
+        parent_coins.sort(key=lambda x: float(x["total_usd"]), reverse=True)
 
-        # Re-assign the ListProperty with the sorted list to trigger the UI update
-        self.coin_list_data = sorted_coin_list
+        # Rebuild list maintaining expansion states
+        new_coin_list = []
+        for parent_coin in parent_coins:
+            # Ensure parent coin properties are correct
+            parent_coin["has_lots"] = len(parent_coin.get("lots", [])) > 0
+            parent_coin["portfolio_manager"] = self
+            new_coin_list.append(parent_coin)
+
+            # Add lot rows if expanded
+            if parent_coin.get("expanded", False) and parent_coin.get("lots"):
+                for lot in parent_coin["lots"]:
+                    if hasattr(lot, "quantity"):  # InventoryItem object
+                        quantity = str(lot.quantity)
+                        price_usd = str(getattr(lot, "buy_price", 0))
+                    else:  # Dictionary
+                        quantity = str(lot.get("quantity", 0))
+                        price_usd = str(lot.get("buy_price", 0))
+
+                    lot_item = {
+                        "symbol": f"  └─ Lot",
+                        "quantity": quantity,
+                        "available_qty": quantity,
+                        "locked_qty": "0",
+                        "price_usd": price_usd,
+                        "total_usd": "0.00",
+                        "source": "lot",
+                        "expanded": False,
+                        "lots": [],
+                        "is_lot_row": True,
+                        "has_lots": False,
+                        "portfolio_manager": self,
+                    }
+                    new_coin_list.append(lot_item)
+
+        # Update the data
+        self.coin_list_data.clear()
+        self.coin_list_data.extend(new_coin_list)
+
+        # Update saldo labels
         self.saldo_usd_label = round(
-            sum([float(coin["total_usd"]) for coin in self.coin_list_data]), 2
+            sum([float(coin["total_usd"]) for coin in parent_coins]), 2
         )
         if last_btc_price:
             self.saldo_btc_label = round(self.saldo_usd_label / last_btc_price, 8)
 
-        # Notify the UI to refresh the view (in case you're using RecycleView)
-        self.ids.coin_list.refresh_from_data()
         self.ids.saldo_usd_label.text = str(self.saldo_usd_label)
         self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
 
@@ -273,11 +401,13 @@ class PortfolioUI(BoxLayout):
             symbol = balance.coin
             total_balance = balance.free + balance.locked
 
-            # Check if the coin exists in the current coin list
+            # Check if the coin exists in the current coin list (only parent coins)
             found = False
             for coin in self.coin_list_data:
-                if coin["symbol"] == symbol:
+                if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
                     coin["quantity"] = str(round(total_balance, 2))
+                    coin["available_qty"] = str(balance.free)
+                    coin["locked_qty"] = str(balance.locked)
                     found = True
                     logger.info(f"Updated {symbol} quantity to {total_balance}")
                     break
@@ -289,21 +419,18 @@ class PortfolioUI(BoxLayout):
                 coin_data = {
                     "symbol": symbol,
                     "quantity": str(total_balance),
+                    "available_qty": str(balance.free),
+                    "locked_qty": str(balance.locked),
                     "price_usd": "0.00",
                     "total_usd": "0.00",
+                    "source": "binance",
+                    "lots": [],
+                    "expanded": False,
+                    "has_lots": False,
+                    "portfolio_manager": self,  # Add reference to portfolio manager
                 }
                 self.coin_list_data.append(coin_data)
 
-        # Sort the updated coin list again by total value
-        self.coin_list_data = sorted(
-            self.coin_list_data,
-            key=lambda x: float(x["total_usd"]),
-            reverse=True,
-        )
-
-        # Notify the UI to refresh the view (in case you're using RecycleView)
+        # Don't sort here - let update_coin_prices handle sorting to maintain structure
+        # Just refresh the UI
         self.ids.coin_list.refresh_from_data()
-
-        # logger.debug(
-        #     "Coin list after updating with account positions: %s", self.coin_list_data
-        # )

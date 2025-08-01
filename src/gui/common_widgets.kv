@@ -342,8 +342,16 @@
     source: ''
     expanded: False
     lots: []
+    is_lot_row: False
+    has_lots: False
+    portfolio_manager: None
 
     canvas.before:
+        Color:
+            rgba: (0.2, 0.2, 0.2, 0.3) if root.is_lot_row else (1, 1, 1, 0.1)  # Darker background for lot rows
+        Rectangle:
+            pos: self.pos
+            size: self.size
         Color:
             rgba: 1, 1, 1, 0.1  # Line under each item
         Line:
@@ -356,9 +364,11 @@
         height: '30dp'
 
         Button:
-            text: '▼' if root.expanded else '▶'
+            text: ('▼' if root.expanded else '▶') if (not root.is_lot_row and root.has_lots) else ''
             size_hint_x: 0.06
-            on_press: root.expanded = not root.expanded
+            on_press: root.portfolio_manager.toggle_expand_coin_item(root.symbol) if not root.is_lot_row and root.portfolio_manager and root.has_lots else None
+            disabled: root.is_lot_row or not root.has_lots
+            background_color: (1, 1, 1, 1) if (not root.is_lot_row and root.has_lots) else (0, 0, 0, 0)
 
         Label:
             text: root.symbol if root.symbol else '—'
