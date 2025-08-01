@@ -334,6 +334,7 @@
     height: self.minimum_height
 
     symbol: ''
+    buy_price: ''
     quantity: ''
     available_qty: ''
     locked_qty: ''
@@ -365,35 +366,38 @@
 
         Button:
             text: ('▼' if root.expanded else '▶') if (not root.is_lot_row and root.has_lots) else ''
-            size_hint_x: 0.06
+            size_hint_x: 0.05
             on_press: root.portfolio_manager.toggle_expand_coin_item(root.symbol) if not root.is_lot_row and root.portfolio_manager and root.has_lots else None
             disabled: root.is_lot_row or not root.has_lots
             background_color: (1, 1, 1, 1) if (not root.is_lot_row and root.has_lots) else (0, 0, 0, 0)
 
         Label:
             text: root.symbol if root.symbol else '—'
-            size_hint_x: 0.14
+            size_hint_x: 0.12
+        Label:
+            text: root.buy_price if root.buy_price else '—'
+            size_hint_x: 0.11
         Label:
             text: root.quantity if root.quantity else '0.0'
-            size_hint_x: 0.12
+            size_hint_x: 0.11
         Label:
             text: root.available_qty if root.available_qty else '0.0'
-            size_hint_x: 0.12
+            size_hint_x: 0.11
         Label:
             text: root.locked_qty if root.locked_qty else '0.0'
-            size_hint_x: 0.12
+            size_hint_x: 0.11
         Label:
             text: root.price_usd if root.price_usd else '0.0'
-            size_hint_x: 0.12
+            size_hint_x: 0.11
         Label:
             text: root.total_usd if root.total_usd else '0.0'
-            size_hint_x: 0.12
+            size_hint_x: 0.11
         Label:
             text: root.source if root.source else '—'
-            size_hint_x: 0.1
+            size_hint_x: 0.08
         Button:
             text: 'Sell'
-            size_hint_x: 0.1
+            size_hint_x: 0.09
             on_press: root.on_sell() if hasattr(root, 'on_sell') else None
 
     # Expandable child rows (buy lots)

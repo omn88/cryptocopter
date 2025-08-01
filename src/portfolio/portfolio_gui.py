@@ -1,9 +1,10 @@
+import asyncio
 from collections import defaultdict
 import logging
 import queue
-from typing import Dict, List
-import uuid
-from kivy.properties import ObjectProperty, ListProperty
+import time
+from typing import Dict, List, Union
+from kivy.properties import ListProperty, ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
@@ -23,10 +24,6 @@ from src.database import TradingDatabase
 
 logger = logging.getLogger("portfolio_gui_handler")
 
-
-from kivy.uix.boxlayout import BoxLayout
-import asyncio
-import logging
 
 logger = logging.getLogger("portfolio_ui")
 
@@ -54,6 +51,7 @@ class PortfolioUI(BoxLayout):
         self.inventory: List[InventoryItem] = []
         self.db = db
         self.balances: Dict[str, CoinBalance] = balances
+        self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
         # On startup, check if DB is empty and choose data source
         try:
             asyncio.create_task(self.init_portfolio_source(balances=balances))
@@ -121,10 +119,11 @@ class PortfolioUI(BoxLayout):
 
                     lot_item = {
                         "symbol": f"  └─ Lot",
+                        "buy_price": f"${price_usd}",  # Show buy price in new column
                         "quantity": quantity,
                         "available_qty": quantity,
                         "locked_qty": "0",
-                        "price_usd": price_usd,
+                        "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
                         "source": "lot",
                         "expanded": False,
@@ -177,6 +176,7 @@ class PortfolioUI(BoxLayout):
                 self.coin_list_data.append(
                     {
                         "symbol": symbol,
+                        "buy_price": "—",  # Manual positions don't have individual buy prices
                         "quantity": quantity,
                         "available_qty": "0",  # Manual positions do not affect available
                         "locked_qty": "0",
@@ -243,6 +243,7 @@ class PortfolioUI(BoxLayout):
             coin_list.append(
                 {
                     "symbol": coin,
+                    "buy_price": "—",  # Parent coins don't have individual buy prices
                     "quantity": str(total_qty),
                     "available_qty": available_qty,
                     "locked_qty": locked_qty,
@@ -302,6 +303,7 @@ class PortfolioUI(BoxLayout):
                 if rounded:
                     coin_data = {
                         "symbol": symbol,
+                        "buy_price": "—",  # Parent coins don't have individual buy prices
                         "quantity": str(rounded),
                         "available_qty": str(coin_balance.free),
                         "locked_qty": str(coin_balance.locked),
@@ -358,17 +360,18 @@ class PortfolioUI(BoxLayout):
                 for lot in parent_coin["lots"]:
                     if hasattr(lot, "quantity"):  # InventoryItem object
                         quantity = str(lot.quantity)
-                        price_usd = str(getattr(lot, "buy_price", 0))
+                        buy_price = str(getattr(lot, "buy_price", 0))
                     else:  # Dictionary
                         quantity = str(lot.get("quantity", 0))
-                        price_usd = str(lot.get("buy_price", 0))
+                        buy_price = str(lot.get("buy_price", 0))
 
                     lot_item = {
                         "symbol": f"  └─ Lot",
+                        "buy_price": f"${buy_price}",  # Show buy price in new column
                         "quantity": quantity,
                         "available_qty": quantity,
                         "locked_qty": "0",
-                        "price_usd": price_usd,
+                        "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
                         "source": "lot",
                         "expanded": False,
@@ -392,6 +395,12 @@ class PortfolioUI(BoxLayout):
 
         self.ids.saldo_usd_label.text = str(self.saldo_usd_label)
         self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
+
+        # Throttled refresh to avoid excessive UI updates that break button bindings
+        current_time = time.time()
+        if current_time - self._last_refresh_time > 1.0:  # Max 1 refresh per second
+            self.ids.coin_list.refresh_from_data()
+            self._last_refresh_time = current_time
 
     def update_coin_list(self, account_position: AccountPosition) -> None:
         """Update the coin list based on AccountPosition updates."""
@@ -418,6 +427,7 @@ class PortfolioUI(BoxLayout):
 
                 coin_data = {
                     "symbol": symbol,
+                    "buy_price": "—",  # Parent coins don't have individual buy prices
                     "quantity": str(total_balance),
                     "available_qty": str(balance.free),
                     "locked_qty": str(balance.locked),
