@@ -401,7 +401,7 @@
         Button:
             text: 'Sell'
             size_hint_x: 0.09
-            on_press: root.on_sell() if hasattr(root, 'on_sell') else None
+            on_press: root.portfolio_manager.sell_lot_button(root.symbol, root.quantity, root.buy_price.replace('$', '')) if root.is_lot_row and root.portfolio_manager else (root.portfolio_manager.sell_parent_button(root.symbol) if root.portfolio_manager and not root.is_lot_row else None)
 
     # Expandable child rows (buy lots)
     BoxLayout:

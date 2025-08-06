@@ -83,6 +83,7 @@ class AsyncApp(App):
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
+        self.portfolio_ui = None  # Reference to portfolio UI for HP manager integration
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
 
@@ -133,7 +134,7 @@ class AsyncApp(App):
         )
 
         # Set up frontend UI for PortfolioManager
-        frontend = PortfolioUI(
+        self.portfolio_ui = PortfolioUI(
             ui_queue=ui_queue,
             symbols_info=self.symbols_info,
             db=self.db,
@@ -143,7 +144,7 @@ class AsyncApp(App):
         # Add the PortfolioManager tab to the tabbed panel
         tab = TabbedPanelItem(
             text="Portfolio",
-            content=frontend,
+            content=self.portfolio_ui,
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
@@ -204,6 +205,10 @@ class AsyncApp(App):
         )
 
         front_end.initialize()
+
+        # Set HP manager reference in portfolio for sell functionality
+        if self.portfolio_ui:
+            self.portfolio_ui.set_hp_manager_reference(front_end, self)
 
         tab = TabbedPanelItem(
             text="HPManager",

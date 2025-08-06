@@ -55,12 +55,241 @@ class PortfolioUI(BoxLayout):
         self.db = db
         self.balances: Dict[str, CoinBalance] = balances
         self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
+        self.hp_manager = None  # Reference to HP manager for sell functionality
+        self.app = None  # Reference to the main app for tab switching
         # On startup, check if DB is empty and choose data source
         try:
             asyncio.create_task(self.init_portfolio_source(balances=balances))
         except RuntimeError:
             # No event loop running (e.g., in tests), skip async initialization
             logger.warning("No event loop running, skipping async initialization")
+
+    def set_hp_manager_reference(self, hp_manager, app):
+        """Set reference to HP manager and main app for sell functionality."""
+        self.hp_manager = hp_manager
+        self.app = app
+
+    def sell_lot_button(self, lot_symbol, quantity, buy_price):
+        """Handle sell button for individual lot (child row)."""
+        if not self.hp_manager or not self.app:
+            logger.error(
+                "HP Manager or App reference not set. Cannot navigate to sell tab."
+            )
+            return
+
+        # Extract the parent symbol from the lot display
+        # Find the parent coin this lot belongs to
+        parent_symbol = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin.get("lots"):
+                for lot in coin["lots"]:
+                    if hasattr(lot, "quantity") and hasattr(lot, "buy_price"):
+                        if str(lot.quantity) == str(quantity) and str(
+                            lot.buy_price
+                        ) == str(buy_price):
+                            parent_symbol = coin["symbol"]
+                            break
+                if parent_symbol:
+                    break
+
+        if not parent_symbol:
+            logger.error("Could not find parent symbol for lot")
+            return
+
+        # Switch to HP Manager tab
+        hp_tab = self.app.strategies.get("HPManager")
+        if hp_tab:
+            self.app.root.switch_to(hp_tab)
+
+            # Generate a lot ID (could be based on symbol + buy_price + quantity)
+            lot_id = f"{parent_symbol}_{buy_price}_{quantity}"
+
+            # Call HP manager's sell function with lot data
+            self.hp_manager.sell_hp_button(lot_id, parent_symbol, quantity, buy_price)
+            logger.info(f"Navigated to HP Manager sell tab for lot: {lot_id}")
+        else:
+            logger.error("HP Manager tab not found")
+
+    def sell_parent_button(self, symbol):
+        """Handle sell button for parent coin (allows partial or full sell)."""
+        if not self.hp_manager or not self.app:
+            logger.error(
+                "HP Manager or App reference not set. Cannot navigate to sell tab."
+            )
+            return
+
+        # Find the parent coin data
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
+                parent_coin = coin
+                break
+
+        if not parent_coin:
+            logger.error(f"Could not find parent coin data for {symbol}")
+            return
+
+        # Switch to HP Manager tab
+        hp_tab = self.app.strategies.get("HPManager")
+        if hp_tab:
+            self.app.root.switch_to(hp_tab)
+
+            # For parent sells, use the weighted average buy price and available quantity
+            available_qty = parent_coin.get("available_qty", "0")
+            avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
+
+            # Generate a parent sell ID
+            parent_id = f"{symbol}_parent"
+
+            # Call HP manager's sell function with parent data
+            self.hp_manager.sell_hp_button(
+                parent_id, symbol, available_qty, avg_buy_price
+            )
+            logger.info(f"Navigated to HP Manager sell tab for parent: {symbol}")
+        else:
+            logger.error("HP Manager tab not found")
+
+    async def update_inventory_after_sell(
+        self, symbol: str, quantity_sold: float, sell_from_lots: bool = True
+    ):
+        """Update inventory after a sell operation.
+
+        Args:
+            symbol: The coin symbol that was sold
+            quantity_sold: The amount that was sold
+            sell_from_lots: If True, sell from lowest buy price lots first (FIFO)
+        """
+        if sell_from_lots:
+            # Update lots by selling from lowest buy price first (FIFO)
+            await self._update_lots_after_sell(symbol, quantity_sold)
+        else:
+            # Update parent quantities directly (for exchange-based positions)
+            await self._update_parent_after_sell(symbol, quantity_sold)
+
+        # Refresh the UI to show updated quantities
+        self._rebuild_coin_list_with_lots()
+
+    async def _update_lots_after_sell(self, symbol: str, quantity_sold: float):
+        """Update lots by selling from lowest buy price first (FIFO)."""
+        # Find the parent coin
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
+                parent_coin = coin
+                break
+
+        if not parent_coin or not parent_coin.get("lots"):
+            logger.warning(f"No lots found for {symbol}")
+            return
+
+        # Sort lots by buy price (lowest first) for FIFO selling
+        lots = parent_coin["lots"]
+        lots.sort(
+            key=lambda lot: (
+                getattr(lot, "buy_price", 0)
+                if hasattr(lot, "buy_price")
+                else lot.get("buy_price", 0)
+            )
+        )
+
+        remaining_to_sell = quantity_sold
+        lots_to_remove = []
+
+        for i, lot in enumerate(lots):
+            if remaining_to_sell <= 0:
+                break
+
+            if hasattr(lot, "quantity"):  # InventoryItem object
+                lot_quantity = lot.quantity
+            else:  # Dictionary
+                lot_quantity = lot.get("quantity", 0)
+
+            if lot_quantity <= remaining_to_sell:
+                # Sell entire lot
+                remaining_to_sell -= lot_quantity
+                lots_to_remove.append(i)
+
+                # Remove from database if it's an InventoryItem
+                if hasattr(lot, "id"):
+                    try:
+                        await self.db.delete_inventory_item(lot.id)
+                        logger.info(f"Deleted lot {lot.id} from database")
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to delete lot {lot.id} from database: {e}"
+                        )
+            else:
+                # Partial sell of this lot
+                new_quantity = lot_quantity - remaining_to_sell
+                if hasattr(lot, "quantity"):  # InventoryItem object
+                    lot.quantity = new_quantity
+                    lot.available_quantity = new_quantity
+
+                    # Update in database
+                    try:
+                        await self.db.update_inventory_item(lot)
+                        logger.info(f"Updated lot {lot.id} quantity to {new_quantity}")
+                    except Exception as e:
+                        logger.error(f"Failed to update lot {lot.id} in database: {e}")
+                else:  # Dictionary
+                    lot["quantity"] = new_quantity
+
+                remaining_to_sell = 0
+
+        # Remove sold lots (in reverse order to maintain indices)
+        for i in reversed(lots_to_remove):
+            lots.pop(i)
+
+        # Update parent coin quantities
+        total_remaining = sum(
+            (
+                getattr(lot, "quantity", 0)
+                if hasattr(lot, "quantity")
+                else lot.get("quantity", 0)
+            )
+            for lot in lots
+        )
+        parent_coin["quantity"] = str(total_remaining)
+
+        # Recalculate weighted average buy price
+        if lots:
+            new_avg_price = self._calculate_weighted_average_buy_price(lots, symbol)
+            parent_coin["buy_price"] = f"${new_avg_price}" if new_avg_price > 0 else "—"
+            parent_coin["weighted_avg_buy_price"] = new_avg_price
+        else:
+            parent_coin["buy_price"] = "—"
+            parent_coin["weighted_avg_buy_price"] = 0.0
+
+        logger.info(
+            f"Updated {symbol} after selling {quantity_sold}. Remaining quantity: {total_remaining}"
+        )
+
+    async def _update_parent_after_sell(self, symbol: str, quantity_sold: float):
+        """Update parent coin quantities for exchange-based positions."""
+        # Find the parent coin
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
+                parent_coin = coin
+                break
+
+        if not parent_coin:
+            logger.warning(f"Parent coin {symbol} not found")
+            return
+
+        # Update quantities
+        current_quantity = float(parent_coin.get("quantity", 0))
+        current_available = float(parent_coin.get("available_qty", 0))
+
+        new_quantity = max(0, current_quantity - quantity_sold)
+        new_available = max(0, current_available - quantity_sold)
+
+        parent_coin["quantity"] = str(new_quantity)
+        parent_coin["available_qty"] = str(new_available)
+
+        logger.info(
+            f"Updated {symbol} parent quantities. New quantity: {new_quantity}, Available: {new_available}"
+        )
 
     def toggle_expand_coin_item(self, symbol: str) -> None:
         """Toggle the expanded state for a coin, following HP list approach."""
@@ -120,26 +349,51 @@ class PortfolioUI(BoxLayout):
 
             # If expanded, add lot rows immediately after
             if parent_coin.get("expanded", False) and parent_coin.get("lots"):
+                # Calculate how much of the parent's available quantity to distribute among lots
+                parent_available = float(parent_coin.get("available_qty", "0"))
+                total_lot_quantity = sum(
+                    (
+                        getattr(lot, "quantity", 0)
+                        if hasattr(lot, "quantity")
+                        else lot.get("quantity", 0)
+                    )
+                    for lot in parent_coin["lots"]
+                )
+
                 for lot in parent_coin["lots"]:
                     # Create lot row
                     if hasattr(lot, "quantity"):  # InventoryItem object
-                        quantity = str(lot.quantity)
+                        lot_quantity = lot.quantity
                         price_usd = str(getattr(lot, "buy_price", 0))
                     else:  # Dictionary
-                        quantity = str(lot.get("quantity", 0))
+                        lot_quantity = lot.get("quantity", 0)
                         price_usd = str(lot.get("buy_price", 0))
+
+                    # Calculate proportional available quantity for this lot
+                    # If the parent has less available than total lots, distribute proportionally
+                    if total_lot_quantity > 0:
+                        lot_proportion = lot_quantity / total_lot_quantity
+                        lot_available = min(
+                            lot_quantity, parent_available * lot_proportion
+                        )
+                    else:
+                        lot_available = 0
 
                     lot_item = {
                         "symbol": f"  └─ Lot",
                         "buy_price": f"${price_usd}",  # Show buy price in new column
-                        "quantity": quantity,
-                        "available_qty": quantity,
+                        "quantity": str(lot_quantity),
+                        "available_qty": f"{lot_available:.8f}".rstrip("0").rstrip(
+                            "."
+                        ),  # Proportional available
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
                         "pnl": "—",  # No PnL for individual lots
                         "pnl_color": [1, 1, 1, 1],  # White color
-                        "weighted_avg_buy_price": float(price_usd) if price_usd != "0" else 0.0,
+                        "weighted_avg_buy_price": (
+                            float(price_usd) if price_usd != "0" else 0.0
+                        ),
                         "expanded": False,
                         "lots": [],
                         "is_lot_row": True,
@@ -329,7 +583,12 @@ class PortfolioUI(BoxLayout):
                     "price_usd": "0.00",
                     "total_usd": total_value,
                     "pnl": "—",  # Will be calculated when current prices are available
-                    "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA), will be updated based on PnL
+                    "pnl_color": [
+                        1,
+                        1,
+                        1,
+                        1,
+                    ],  # Default white color (RGBA), will be updated based on PnL
                     "weighted_avg_buy_price": weighted_avg_buy_price,  # Store for PnL calculation
                     "lots": lots,
                     "expanded": False,
@@ -372,7 +631,7 @@ class PortfolioUI(BoxLayout):
         """Calculate PnL percentage between buy price and current price."""
         if buy_price <= 0 or current_price <= 0:
             return "—"
-        
+
         pnl_percentage = ((current_price - buy_price) / buy_price) * 100
         return f"{pnl_percentage:+.2f}%"
 
@@ -478,7 +737,7 @@ class PortfolioUI(BoxLayout):
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)
-                
+
                 # Calculate PnL if we have a buy price
                 buy_price = coin.get("weighted_avg_buy_price", 0.0)
                 if buy_price > 0:
@@ -522,25 +781,49 @@ class PortfolioUI(BoxLayout):
 
             # Add lot rows if expanded
             if parent_coin.get("expanded", False) and parent_coin.get("lots"):
+                # Calculate how much of the parent's available quantity to distribute among lots
+                parent_available = float(parent_coin.get("available_qty", "0"))
+                total_lot_quantity = sum(
+                    (
+                        getattr(lot, "quantity", 0)
+                        if hasattr(lot, "quantity")
+                        else lot.get("quantity", 0)
+                    )
+                    for lot in parent_coin["lots"]
+                )
+
                 for lot in parent_coin["lots"]:
                     if hasattr(lot, "quantity"):  # InventoryItem object
-                        quantity = str(lot.quantity)
+                        lot_quantity = lot.quantity
                         buy_price = str(getattr(lot, "buy_price", 0))
                     else:  # Dictionary
-                        quantity = str(lot.get("quantity", 0))
+                        lot_quantity = lot.get("quantity", 0)
                         buy_price = str(lot.get("buy_price", 0))
+
+                    # Calculate proportional available quantity for this lot
+                    if total_lot_quantity > 0:
+                        lot_proportion = lot_quantity / total_lot_quantity
+                        lot_available = min(
+                            lot_quantity, parent_available * lot_proportion
+                        )
+                    else:
+                        lot_available = 0
 
                     lot_item = {
                         "symbol": f"  └─ Lot",
                         "buy_price": f"${buy_price}",  # Show buy price in new column
-                        "quantity": quantity,
-                        "available_qty": quantity,
+                        "quantity": str(lot_quantity),
+                        "available_qty": f"{lot_available:.8f}".rstrip("0").rstrip(
+                            "."
+                        ),  # Proportional available
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
                         "pnl": "—",  # No PnL for individual lots
                         "pnl_color": [1, 1, 1, 1],  # White color
-                        "weighted_avg_buy_price": float(buy_price) if buy_price != "0" else 0.0,
+                        "weighted_avg_buy_price": (
+                            float(buy_price) if buy_price != "0" else 0.0
+                        ),
                         "expanded": False,
                         "lots": [],
                         "is_lot_row": True,
