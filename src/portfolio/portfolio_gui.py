@@ -103,6 +103,17 @@ class PortfolioUI(BoxLayout):
             parent_coin["has_lots"] = len(parent_coin.get("lots", [])) > 0
             parent_coin["is_lot_row"] = False
 
+            # Calculate and update weighted average buy price for parent coin
+            if parent_coin.get("lots"):
+                weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
+                    parent_coin["lots"]
+                )
+                parent_coin["buy_price"] = (
+                    f"${weighted_avg_buy_price:.4f}"
+                    if weighted_avg_buy_price > 0
+                    else "—"
+                )
+
             # Add the parent coin
             new_data.append(parent_coin)
 
@@ -235,6 +246,9 @@ class PortfolioUI(BoxLayout):
 
         for coin, lots in coin_lots.items():
             total_qty = sum(lot.quantity for lot in lots)
+            # Calculate weighted average buy price
+            weighted_avg_buy_price = self._calculate_weighted_average_buy_price(lots)
+
             # Use CoinBalance if available, else fallback to inventory
             cb = balances.get(coin)
             available_qty = str(cb.free) if cb else str(total_qty)
@@ -243,7 +257,11 @@ class PortfolioUI(BoxLayout):
             coin_list.append(
                 {
                     "symbol": coin,
-                    "buy_price": "—",  # Parent coins don't have individual buy prices
+                    "buy_price": (
+                        f"${weighted_avg_buy_price:.4f}"
+                        if weighted_avg_buy_price > 0
+                        else "—"
+                    ),
                     "quantity": str(total_qty),
                     "available_qty": available_qty,
                     "locked_qty": locked_qty,
@@ -257,6 +275,20 @@ class PortfolioUI(BoxLayout):
                 }
             )
         self.coin_list_data = coin_list
+
+    def _calculate_weighted_average_buy_price(self, lots: List[InventoryItem]) -> float:
+        """Calculate weighted average buy price from a list of lots."""
+        if not lots:
+            return 0.0
+
+        total_value = 0.0
+        total_quantity = 0.0
+
+        for lot in lots:
+            total_value += lot.buy_price * lot.quantity
+            total_quantity += lot.quantity
+
+        return total_value / total_quantity if total_quantity > 0 else 0.0
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
@@ -303,7 +335,7 @@ class PortfolioUI(BoxLayout):
                 if rounded:
                     coin_data = {
                         "symbol": symbol,
-                        "buy_price": "—",  # Parent coins don't have individual buy prices
+                        "buy_price": "—",  # Exchange balances don't have buy price history
                         "quantity": str(rounded),
                         "available_qty": str(coin_balance.free),
                         "locked_qty": str(coin_balance.locked),
@@ -353,6 +385,18 @@ class PortfolioUI(BoxLayout):
             # Ensure parent coin properties are correct
             parent_coin["has_lots"] = len(parent_coin.get("lots", [])) > 0
             parent_coin["portfolio_manager"] = self
+
+            # Calculate and update weighted average buy price for parent coin
+            if parent_coin.get("lots"):
+                weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
+                    parent_coin["lots"]
+                )
+                parent_coin["buy_price"] = (
+                    f"${weighted_avg_buy_price:.4f}"
+                    if weighted_avg_buy_price > 0
+                    else "—"
+                )
+
             new_coin_list.append(parent_coin)
 
             # Add lot rows if expanded
@@ -427,7 +471,7 @@ class PortfolioUI(BoxLayout):
 
                 coin_data = {
                     "symbol": symbol,
-                    "buy_price": "—",  # Parent coins don't have individual buy prices
+                    "buy_price": "—",  # Exchange balances don't have buy price history
                     "quantity": str(total_balance),
                     "available_qty": str(balance.free),
                     "locked_qty": str(balance.locked),
