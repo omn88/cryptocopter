@@ -150,6 +150,8 @@ class HpFront(BoxLayout):
             self.refresh_task = asyncio.create_task(self._refresh_ui())
         self.queue_task = asyncio.create_task(self.process_ui_queue())
 
+        # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
+
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
             return
@@ -1539,15 +1541,19 @@ class HpFront(BoxLayout):
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
 
-    def load_positions_from_csv(self):
-        filename = self.ids.filenameinput.text.strip()
-        if not filename:
-            logger.warning("No filename provided. Load aborted.")
+    def auto_load_inventory_csv(self):
+        """Automatically load inventory from 'inventory.csv' if it exists in current directory."""
+        import os
+
+        filename = "inventory.csv"
+        if not os.path.exists(filename):
+            logger.info(
+                "No inventory.csv file found in current directory. Skipping auto-load."
+            )
             return
 
-        path = f"{filename}.csv"
         try:
-            with open(path, "r") as f:
+            with open(filename, "r") as f:
                 reader = csv.DictReader(f)
                 parsed = [row for row in reader]
 
@@ -1569,9 +1575,9 @@ class HpFront(BoxLayout):
             self.portfolio_queue.put_nowait(
                 Event(name=EventName.PORTFOLIO_INVENTORY, content=inventory_items)
             )
-            logger.info("Queued LoadConfig from %s", path)
+            logger.info("Auto-loaded inventory from %s", filename)
         except Exception as e:
-            logger.error("Failed to load CSV: %s", e)
+            logger.error("Failed to auto-load inventory CSV: %s", e)
 
     def update_hp_state_filter(self, selected_states):
         """Update the HP state filter and refresh the list"""

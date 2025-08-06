@@ -1,4 +1,7 @@
 import asyncio
+import os
+import csv
+import uuid
 from collections import defaultdict
 import logging
 import queue
@@ -153,19 +156,72 @@ class PortfolioUI(BoxLayout):
         self.ids.coin_list.refresh_from_data()
 
     async def init_portfolio_source(self, balances: Dict[str, CoinBalance]) -> None:
-        """Check if portfolio table in DB is empty and choose data source for display."""
+        """Check portfolio data sources in priority order: 1) Database, 2) CSV file, 3) Exchange."""
         try:
-            # Use fetch_all_inventory_items for DB inventory retrieval
+            # Priority 1: Use fetch_all_inventory_items for DB inventory retrieval
             db_items = await self.db.fetch_all_inventory_items()
             if db_items:
                 self.set_inventory(db_items, balances)
                 self.ids.coin_list.refresh_from_data()
                 logger.info("Portfolio loaded from database.")
             else:
-                logger.info("Database empty, portfolio will be loaded from exchange.")
-                asyncio.create_task(self.update_ui())
+                # Priority 2: Try to load from inventory.csv if database is empty
+                logger.info("Database empty, checking for inventory.csv file.")
+                if await self._try_load_inventory_csv():
+                    logger.info("Portfolio loaded from inventory.csv file.")
+                else:
+                    # Priority 3: Fallback to exchange data
+                    logger.info(
+                        "No inventory.csv found, portfolio will be loaded from exchange."
+                    )
+
+            # Always start update_ui() to handle price updates and other events
+            asyncio.create_task(self.update_ui())
+
         except Exception as e:
             logger.error(f"Failed to initialize portfolio source: {e}")
+
+    async def _try_load_inventory_csv(self) -> bool:
+        """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
+        filename = "inventory.csv"
+        if not os.path.exists(filename):
+            logger.info("No inventory.csv file found in current directory.")
+            return False
+
+        try:
+            with open(filename, "r") as f:
+                reader = csv.DictReader(f)
+                parsed = [row for row in reader]
+
+            inventory_items = []
+            for row in parsed:
+                try:
+                    item = InventoryItem(
+                        id=str(uuid.uuid4()),
+                        coin=row["coin"],
+                        buy_price=float(row["buy_price"]),
+                        quantity=float(row["quantity"]),
+                        available_quantity=float(row["quantity"]),
+                        locked_quantity=0.0,
+                    )
+                    inventory_items.append(item)
+                except Exception as e:
+                    logger.error("Failed to parse inventory row: %s error: %s", row, e)
+
+            if inventory_items:
+                self.set_inventory(inventory_items, self.balances)
+                self.ids.coin_list.refresh_from_data()
+                logger.info(
+                    f"Successfully loaded {len(inventory_items)} items from {filename}"
+                )
+                return True
+            else:
+                logger.warning("No valid inventory items found in CSV file.")
+                return False
+
+        except Exception as e:
+            logger.error("Failed to load inventory CSV: %s", e)
+            return False
 
     def open_virtual_position_popup(self):
         layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
@@ -277,7 +333,7 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data = coin_list
 
     def _calculate_weighted_average_buy_price(
-        self, lots: List[InventoryItem], coin_symbol: str = None
+        self, lots: List[InventoryItem], coin_symbol: str
     ) -> float:
         """Calculate weighted average buy price from a list of lots."""
         if not lots:
@@ -341,7 +397,25 @@ class PortfolioUI(BoxLayout):
         """Create the coin list in the UI based on new ticker data."""
         logger.info("Going to prepare initial coin list.")
 
+        # Get existing coin symbols to avoid duplicates (from CSV or DB)
+        existing_coins = {
+            coin["symbol"]: coin
+            for coin in self.coin_list_data
+            if not coin.get("is_lot_row", False)
+        }
+
         for symbol, coin_balance in balances.items():
+            # If coin already exists from CSV/DB import, update its balance info
+            if symbol in existing_coins:
+                logger.debug(f"Updating balance info for existing {symbol}")
+                existing_coin = existing_coins[symbol]
+                existing_coin["available_qty"] = str(coin_balance.free)
+                existing_coin["locked_qty"] = str(coin_balance.locked)
+                # Keep the imported total_value if it exists, otherwise use exchange value
+                if existing_coin.get("total_usd") == "0.00":
+                    existing_coin["total_usd"] = str(coin_balance.total_value)
+                continue
+
             try:
                 # Round up to coins precision, to filter out first close to zero quantities
                 rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
