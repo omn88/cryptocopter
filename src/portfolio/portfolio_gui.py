@@ -137,7 +137,9 @@ class PortfolioUI(BoxLayout):
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
-                        "source": "lot",
+                        "pnl": "—",  # No PnL for individual lots
+                        "pnl_color": [1, 1, 1, 1],  # White color
+                        "weighted_avg_buy_price": float(price_usd) if price_usd != "0" else 0.0,
                         "expanded": False,
                         "lots": [],
                         "is_lot_row": True,
@@ -247,7 +249,9 @@ class PortfolioUI(BoxLayout):
                         "locked_qty": "0",
                         "price_usd": "0.00",
                         "total_usd": "0.00",
-                        "source": wallet if wallet else "manual",
+                        "pnl": "—",  # No buy price for manual positions
+                        "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
+                        "weighted_avg_buy_price": 0.0,  # No buy price for manual positions
                         "lots": [],
                         "expanded": False,
                         "has_lots": False,
@@ -275,11 +279,12 @@ class PortfolioUI(BoxLayout):
         )
         popup.open()
 
-    def remove_manual_position(self, symbol, source):
+    def remove_manual_position(self, symbol, is_manual=True):
         """Remove a manually added position from the UI."""
         idx_to_remove = None
         for idx, coin in enumerate(self.coin_list_data):
-            if coin["symbol"] == symbol and coin["source"] == source:
+            # Identify manual positions by checking if they don't have lots (indicating they weren't loaded from inventory)
+            if coin["symbol"] == symbol and not coin.get("lots", []):
                 idx_to_remove = idx
                 break
         if idx_to_remove is not None:
@@ -323,7 +328,9 @@ class PortfolioUI(BoxLayout):
                     "locked_qty": locked_qty,
                     "price_usd": "0.00",
                     "total_usd": total_value,
-                    "source": "imported",
+                    "pnl": "—",  # Will be calculated when current prices are available
+                    "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA), will be updated based on PnL
+                    "weighted_avg_buy_price": weighted_avg_buy_price,  # Store for PnL calculation
                     "lots": lots,
                     "expanded": False,
                     "has_lots": len(lots) > 0,
@@ -360,6 +367,14 @@ class PortfolioUI(BoxLayout):
 
         # Default fallback: round to 4 decimal places for reasonable display
         return round(avg_price, 4) if avg_price > 0 else 0.0
+
+    def _calculate_pnl_percentage(self, buy_price: float, current_price: float) -> str:
+        """Calculate PnL percentage between buy price and current price."""
+        if buy_price <= 0 or current_price <= 0:
+            return "—"
+        
+        pnl_percentage = ((current_price - buy_price) / buy_price) * 100
+        return f"{pnl_percentage:+.2f}%"
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
@@ -430,7 +445,9 @@ class PortfolioUI(BoxLayout):
                         "locked_qty": str(coin_balance.locked),
                         "price_usd": "0.00",
                         "total_usd": "0.00",
-                        "source": "binance",
+                        "pnl": "—",  # No buy price available for exchange balances
+                        "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
+                        "weighted_avg_buy_price": 0.0,  # No buy price for exchange balances
                         "lots": [],
                         "expanded": False,
                         "has_lots": False,
@@ -461,6 +478,23 @@ class PortfolioUI(BoxLayout):
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)
+                
+                # Calculate PnL if we have a buy price
+                buy_price = coin.get("weighted_avg_buy_price", 0.0)
+                if buy_price > 0:
+                    pnl_percentage = self._calculate_pnl_percentage(buy_price, price)
+                    coin["pnl"] = pnl_percentage
+                    # Set color based on PnL
+                    if pnl_percentage != "—":
+                        if pnl_percentage.startswith("+"):
+                            coin["pnl_color"] = [0, 1, 0, 1]  # Green (RGBA)
+                        elif pnl_percentage.startswith("-"):
+                            coin["pnl_color"] = [1, 0, 0, 1]  # Red (RGBA)
+                        else:
+                            coin["pnl_color"] = [1, 1, 1, 1]  # White (RGBA)
+                else:
+                    coin["pnl"] = "—"
+                    coin["pnl_color"] = [1, 1, 1, 1]  # White (RGBA)
 
         # Extract parent coins and sort by value
         parent_coins = [
@@ -504,7 +538,9 @@ class PortfolioUI(BoxLayout):
                         "locked_qty": "0",
                         "price_usd": "—",  # Don't show current price for lots
                         "total_usd": "0.00",
-                        "source": "lot",
+                        "pnl": "—",  # No PnL for individual lots
+                        "pnl_color": [1, 1, 1, 1],  # White color
+                        "weighted_avg_buy_price": float(buy_price) if buy_price != "0" else 0.0,
                         "expanded": False,
                         "lots": [],
                         "is_lot_row": True,
@@ -564,7 +600,9 @@ class PortfolioUI(BoxLayout):
                     "locked_qty": str(balance.locked),
                     "price_usd": "0.00",
                     "total_usd": "0.00",
-                    "source": "binance",
+                    "pnl": "—",  # No buy price available for exchange balances
+                    "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
+                    "weighted_avg_buy_price": 0.0,  # No buy price for exchange balances
                     "lots": [],
                     "expanded": False,
                     "has_lots": False,

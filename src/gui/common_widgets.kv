@@ -340,7 +340,9 @@
     locked_qty: ''
     price_usd: ''
     total_usd: ''
-    source: ''
+    pnl: ''
+    pnl_color: [1, 1, 1, 1]
+    weighted_avg_buy_price: 0.0
     expanded: False
     lots: []
     is_lot_row: False
@@ -393,7 +395,8 @@
             text: root.total_usd if root.total_usd else '0.0'
             size_hint_x: 0.11
         Label:
-            text: root.source if root.source else '—'
+            text: root.pnl if root.pnl else '—'
+            color: root.pnl_color
             size_hint_x: 0.08
         Button:
             text: 'Sell'
