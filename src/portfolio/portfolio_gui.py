@@ -106,12 +106,10 @@ class PortfolioUI(BoxLayout):
             # Calculate and update weighted average buy price for parent coin
             if parent_coin.get("lots"):
                 weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
-                    parent_coin["lots"]
+                    parent_coin["lots"], parent_coin.get("symbol")
                 )
                 parent_coin["buy_price"] = (
-                    f"${weighted_avg_buy_price:.4f}"
-                    if weighted_avg_buy_price > 0
-                    else "—"
+                    f"${weighted_avg_buy_price}" if weighted_avg_buy_price > 0 else "—"
                 )
 
             # Add the parent coin
@@ -247,7 +245,9 @@ class PortfolioUI(BoxLayout):
         for coin, lots in coin_lots.items():
             total_qty = sum(lot.quantity for lot in lots)
             # Calculate weighted average buy price
-            weighted_avg_buy_price = self._calculate_weighted_average_buy_price(lots)
+            weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
+                lots, coin
+            )
 
             # Use CoinBalance if available, else fallback to inventory
             cb = balances.get(coin)
@@ -258,7 +258,7 @@ class PortfolioUI(BoxLayout):
                 {
                     "symbol": coin,
                     "buy_price": (
-                        f"${weighted_avg_buy_price:.4f}"
+                        f"${weighted_avg_buy_price}"
                         if weighted_avg_buy_price > 0
                         else "—"
                     ),
@@ -276,7 +276,9 @@ class PortfolioUI(BoxLayout):
             )
         self.coin_list_data = coin_list
 
-    def _calculate_weighted_average_buy_price(self, lots: List[InventoryItem]) -> float:
+    def _calculate_weighted_average_buy_price(
+        self, lots: List[InventoryItem], coin_symbol: str = None
+    ) -> float:
         """Calculate weighted average buy price from a list of lots."""
         if not lots:
             return 0.0
@@ -288,7 +290,20 @@ class PortfolioUI(BoxLayout):
             total_value += lot.buy_price * lot.quantity
             total_quantity += lot.quantity
 
-        return total_value / total_quantity if total_quantity > 0 else 0.0
+        avg_price = total_value / total_quantity if total_quantity > 0 else 0.0
+
+        # Apply symbol-specific price precision if available
+        if avg_price > 0 and coin_symbol:
+            try:
+                symbol_key = f"{coin_symbol}USDT"
+                if symbol_key in self.symbols_info:
+                    return self.symbols_info[symbol_key].adjust_price(avg_price)
+            except (KeyError, AttributeError):
+                # Fallback to original precision if symbol info not available
+                pass
+
+        # Default fallback: round to 4 decimal places for reasonable display
+        return round(avg_price, 4) if avg_price > 0 else 0.0
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
@@ -389,12 +404,10 @@ class PortfolioUI(BoxLayout):
             # Calculate and update weighted average buy price for parent coin
             if parent_coin.get("lots"):
                 weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
-                    parent_coin["lots"]
+                    parent_coin["lots"], parent_coin.get("symbol")
                 )
                 parent_coin["buy_price"] = (
-                    f"${weighted_avg_buy_price:.4f}"
-                    if weighted_avg_buy_price > 0
-                    else "—"
+                    f"${weighted_avg_buy_price}" if weighted_avg_buy_price > 0 else "—"
                 )
 
             new_coin_list.append(parent_coin)
