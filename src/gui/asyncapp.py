@@ -83,7 +83,7 @@ class AsyncApp(App):
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
-        self.portfolio_ui = None  # Reference to portfolio UI for HP manager integration
+        self.portfolio_ui: Optional[PortfolioUI] = None  # Reference to portfolio UI for HP manager integration
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
 

@@ -69,7 +69,7 @@ class PortfolioUI(BoxLayout):
         self.hp_manager = hp_manager
         self.app = app
 
-    def sell_lot_button(self, lot_symbol, quantity, buy_price):
+    def sell_lot_button(self, lot_symbol, available_quantity, buy_price):
         """Handle sell button for individual lot (child row)."""
         if not self.hp_manager or not self.app:
             logger.error(
@@ -78,15 +78,14 @@ class PortfolioUI(BoxLayout):
             return
 
         # Extract the parent symbol from the lot display
-        # Find the parent coin this lot belongs to
+        # Find the parent coin this lot belongs to by matching buy price and available quantity
         parent_symbol = None
         for coin in self.coin_list_data:
             if not coin.get("is_lot_row", False) and coin.get("lots"):
+                # Check if this coin has a lot with matching buy price
                 for lot in coin["lots"]:
-                    if hasattr(lot, "quantity") and hasattr(lot, "buy_price"):
-                        if str(lot.quantity) == str(quantity) and str(
-                            lot.buy_price
-                        ) == str(buy_price):
+                    if hasattr(lot, "buy_price"):
+                        if str(lot.buy_price) == str(buy_price):
                             parent_symbol = coin["symbol"]
                             break
                 if parent_symbol:
@@ -101,12 +100,14 @@ class PortfolioUI(BoxLayout):
         if hp_tab:
             self.app.root.switch_to(hp_tab)
 
-            # Generate a lot ID (could be based on symbol + buy_price + quantity)
-            lot_id = f"{parent_symbol}_{buy_price}_{quantity}"
-
-            # Call HP manager's sell function with lot data
-            self.hp_manager.sell_hp_button(lot_id, parent_symbol, quantity, buy_price)
-            logger.info(f"Navigated to HP Manager sell tab for lot: {lot_id}")
+            # Use empty HP ID - the HP Manager will generate a new one automatically
+            # Call HP manager's sell function with lot data (available quantity, not total)
+            self.hp_manager.sell_hp_button(
+                "", parent_symbol, available_quantity, buy_price
+            )
+            logger.info(
+                f"Navigated to HP Manager sell tab for lot: {parent_symbol} available_qty:{available_quantity} price:{buy_price}"
+            )
         else:
             logger.error("HP Manager tab not found")
 
@@ -138,14 +139,12 @@ class PortfolioUI(BoxLayout):
             available_qty = parent_coin.get("available_qty", "0")
             avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
 
-            # Generate a parent sell ID
-            parent_id = f"{symbol}_parent"
-
+            # Use empty HP ID - the HP Manager will generate a new one automatically
             # Call HP manager's sell function with parent data
-            self.hp_manager.sell_hp_button(
-                parent_id, symbol, available_qty, avg_buy_price
+            self.hp_manager.sell_hp_button("", symbol, available_qty, avg_buy_price)
+            logger.info(
+                f"Navigated to HP Manager sell tab for parent: {symbol} qty:{available_qty} avg_price:{avg_buy_price}"
             )
-            logger.info(f"Navigated to HP Manager sell tab for parent: {symbol}")
         else:
             logger.error("HP Manager tab not found")
 
