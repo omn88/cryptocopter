@@ -1253,9 +1253,10 @@ class StrategyExecutor:
 
             # Recover all positions and convert them to trading objects
             logger.info("Calling recovery_service.recover_all_positions()")
-            buy_positions, sell_positions = (
-                await self.recovery_service.recover_all_positions()
-            )
+            (
+                buy_positions,
+                sell_positions,
+            ) = await self.recovery_service.recover_all_positions()
 
             logger.info(
                 "Crash recovery found %d buy positions and %d sell positions",

@@ -412,18 +412,3 @@ async def test_hp_strategy_sends_portfolio_events_via_callback(
     assert event_data.hp_id == "test_hp_001"
     assert event_data.coin == "BTC"
     assert event_data.quantity_sold == 0.5
-
-
-def test_fifo_quantity_locking_logic():
-    """Test that quantity locking follows FIFO (lowest buy price first)."""
-    # This is a design test to document the expected FIFO behavior
-    # The actual implementation is tested in the integration tests above
-
-    # Expected behavior:
-    # Given lots with buy prices: [45000, 48000, 52000] and quantities: [0.5, 0.3, 0.2]
-    # When locking 0.6 BTC:
-    # 1. Lock all of lot1 (0.5 BTC at 45000)
-    # 2. Lock 0.1 from lot2 (0.1 BTC at 48000)
-    # 3. Leave lot3 untouched (0.2 BTC at 52000)
-
-    assert True  # This test documents expected behavior, actual logic tested above

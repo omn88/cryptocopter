@@ -520,6 +520,8 @@ def recovery_service(test_db, mock_async_client):
 def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture):
     """Factory fixture to create HpStrategy instances for testing."""
 
+    created_strategies = []  # Track created strategies for cleanup
+
     def _create_strategy(hp_config: HPBuyConfig) -> HpStrategy:
         """Create an HpStrategy with the given config."""
         from src.strategies.hp_manager import HpStrategy
@@ -588,9 +590,23 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
         # Send initial UI message using the strategy's method
         strategy.send_buy_position_to_ui()
 
+        # Track created strategy for cleanup
+        created_strategies.append(strategy)
+
         return strategy
 
-    return _create_strategy
+    yield _create_strategy
+
+    # Cleanup: Stop all created strategies
+    for strategy in created_strategies:
+        if hasattr(strategy, "stop_event"):
+            strategy.stop_event.set()
+        if (
+            hasattr(strategy, "worker_task")
+            and strategy.worker_task
+            and not strategy.worker_task.done()
+        ):
+            strategy.worker_task.cancel()
 
 
 @pytest.fixture
@@ -666,7 +682,15 @@ def portfolio_ui(test_db, mock_balances):
         balances=mock_balances,
         test_mode=True,  # Enable test mode to suppress UI refresh calls
     )
-    return portfolio
+
+    yield portfolio
+
+    # Cleanup: Clear the queue and reset state
+    while not ui_queue.empty():
+        try:
+            ui_queue.get_nowait()
+        except queue.Empty:
+            break
 
 
 @pytest.fixture
@@ -714,4 +738,20 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_balances):
     )
     executor.client = mock_async_client
 
-    return executor, portfolio
+    yield executor, portfolio
+
+    # Cleanup: Stop the executor properly
+    executor.stop()
+
+    # Clear any remaining items in queues
+    while not ui_queue.empty():
+        try:
+            ui_queue.get_nowait()
+        except queue.Empty:
+            break
+
+    while not portfolio_ui_queue.empty():
+        try:
+            portfolio_ui_queue.get_nowait()
+        except queue.Empty:
+            break

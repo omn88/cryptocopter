@@ -467,7 +467,6 @@ class TradingDatabase:
         Child hops are not returned here.
         """
         try:
-
             async with self.get_connection() as conn:
                 cursor = await conn.execute(
                     """
@@ -808,7 +807,6 @@ class TradingDatabase:
             strategy_state: Optional strategy state
         """
         try:
-
             config: HPSellConfig = data.config
             state_info: StateInfo = data.state_info
 
@@ -976,7 +974,6 @@ class TradingDatabase:
     def _convert_state_to_position_status(self, state: Any) -> PositionStatus:
         """Convert trading system State to PositionStatus."""
         try:
-
             mapping = {
                 State.NEW: PositionStatus.NEW,
                 State.BUYING: PositionStatus.OPEN,
