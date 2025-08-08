@@ -21,6 +21,10 @@ from src.identifiers import (
     EventName,
     InventoryItem,
     PriceUpdates,
+    HPSellPositionCreated,
+    HPSellPositionCompleted,
+    HPBuyPositionFilled,
+    HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
 from src.database import TradingDatabase
@@ -44,25 +48,35 @@ class PortfolioUI(BoxLayout):
         symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
         balances: Dict[str, CoinBalance],
+        test_mode: bool = False,
         **kwargs,
     ) -> None:
-        # Initialize the base class (BoxLayout)
-        super().__init__(**kwargs)  # This ensures proper widget initialization
+        # Initialize the base class (BoxLayout) only if not in test mode
+        if not test_mode:
+            super().__init__(**kwargs)  # This ensures proper widget initialization
+        else:
+            # In test mode, skip Kivy widget initialization
+            object.__init__(self)
+
         self.ui_queue = ui_queue
         self.symbols_info = symbols_info
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
         self.balances: Dict[str, CoinBalance] = balances
+        self.test_mode = test_mode  # Add test_mode parameter
         self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
         self.hp_manager = None  # Reference to HP manager for sell functionality
         self.app = None  # Reference to the main app for tab switching
-        # On startup, check if DB is empty and choose data source
-        try:
-            asyncio.create_task(self.init_portfolio_source(balances=balances))
-        except RuntimeError:
-            # No event loop running (e.g., in tests), skip async initialization
-            logger.warning("No event loop running, skipping async initialization")
+        # On startup, check if DB is empty and choose data source (skip in test mode)
+        if not self.test_mode:
+            try:
+                # Check if there's an active event loop
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self.init_portfolio_source(balances=balances))
+            except RuntimeError:
+                # No event loop running (e.g., in tests), skip async initialization
+                logger.debug("No event loop running, skipping async initialization")
 
     def set_hp_manager_reference(self, hp_manager, app):
         """Set reference to HP manager and main app for sell functionality."""
@@ -407,8 +421,9 @@ class PortfolioUI(BoxLayout):
 
         logger.debug(f"Rebuild complete: {len(new_data)} items")
 
-        # Force refresh
-        self.ids.coin_list.refresh_from_data()
+        # Force refresh (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self.ids.coin_list.refresh_from_data()
 
     async def init_portfolio_source(self, balances: Dict[str, CoinBalance]) -> None:
         """Check portfolio data sources in priority order: 1) Database, 2) CSV file, 3) Exchange."""
@@ -417,7 +432,9 @@ class PortfolioUI(BoxLayout):
             db_items = await self.db.fetch_all_inventory_items()
             if db_items:
                 self.set_inventory(db_items, balances)
-                self.ids.coin_list.refresh_from_data()
+                # Only refresh if not in test mode to avoid Kivy widget access
+                if not self.test_mode:
+                    self.ids.coin_list.refresh_from_data()
                 logger.info("Portfolio loaded from database.")
             else:
                 # Priority 2: Try to load from inventory.csv if database is empty
@@ -430,8 +447,9 @@ class PortfolioUI(BoxLayout):
                         "No inventory.csv found, portfolio will be loaded from exchange."
                     )
 
-            # Always start update_ui() to handle price updates and other events
-            asyncio.create_task(self.update_ui())
+            # Always start update_ui() to handle price updates and other events (skip in test mode)
+            if not self.test_mode:
+                asyncio.create_task(self.update_ui())
 
         except Exception as e:
             logger.error(f"Failed to initialize portfolio source: {e}")
@@ -465,7 +483,9 @@ class PortfolioUI(BoxLayout):
 
             if inventory_items:
                 self.set_inventory(inventory_items, self.balances)
-                self.ids.coin_list.refresh_from_data()
+                # Only refresh if not in test mode to avoid Kivy widget access
+                if not self.test_mode:
+                    self.ids.coin_list.refresh_from_data()
                 logger.info(
                     f"Successfully loaded {len(inventory_items)} items from {filename}"
                 )
@@ -511,7 +531,8 @@ class PortfolioUI(BoxLayout):
                         "portfolio_manager": self,  # Add reference to portfolio manager
                     }
                 )
-                self.ids.coin_list.refresh_from_data()
+                if not self.test_mode:
+                    self.ids.coin_list.refresh_from_data()
                 popup.dismiss()
 
         add_btn.bind(on_release=add_manual_position_callback)
@@ -542,7 +563,8 @@ class PortfolioUI(BoxLayout):
                 break
         if idx_to_remove is not None:
             self.coin_list_data.pop(idx_to_remove)
-            self.ids.coin_list.refresh_from_data()
+            if not self.test_mode:
+                self.ids.coin_list.refresh_from_data()
 
     def set_inventory(
         self, inventory: List[InventoryItem], balances: Dict[str, CoinBalance]
@@ -636,35 +658,64 @@ class PortfolioUI(BoxLayout):
 
     async def update_ui(self) -> None:
         logger.info("Ready to receive portfolio UI updates.")
-        while True:
+        while not self.test_mode:  # Exit loop immediately in test mode
             try:
                 data = self.ui_queue.get_nowait()
                 # logger.info("Received data: %s", data)
                 # Process the data and update the UI
-                assert isinstance(data, Event)
-
-                if data.name == EventName.BALANCES:
-                    assert isinstance(data.content, Dict)
-                    self.create_coin_list(data.content)
-                if data.name == EventName.ACCOUNT_POSITION:
-                    assert isinstance(data.content, AccountPosition)
-                    self.update_coin_list(data.content)
-                if data.name == EventName.PRICE_UPDATES:
-                    assert isinstance(data.content, PriceUpdates)
-                    # Update saldo in USD and BTC
-                    await self.update_coin_prices(data.content)
-                if data.name == EventName.PORTFOLIO_INVENTORY:
-                    # Inventory event: update UI with new inventory (all available)
-                    if isinstance(data.content, List):
-                        self.set_inventory(data.content, balances=self.balances)
-                        self.ids.coin_list.refresh_from_data()
-                    else:
-                        logger.warning(
-                            f"PORTFOLIO_INVENTORY event received with unexpected content type: {type(data.content)}"
-                        )
-
+                await self._process_ui_event(data)
             except queue.Empty:
                 await asyncio.sleep(0.1)
+
+    async def process_test_events(self) -> None:
+        """Process all pending events in test mode (non-blocking)."""
+        processed_count = 0
+        try:
+            while True:
+                data = self.ui_queue.get_nowait()
+                await self._process_ui_event(data)
+                processed_count += 1
+        except queue.Empty:
+            logger.debug(f"Processed {processed_count} events in test mode")
+
+    async def _process_ui_event(self, data: Event) -> None:
+        """Process a single UI event."""
+        assert isinstance(data, Event)
+
+        if data.name == EventName.BALANCES:
+            assert isinstance(data.content, Dict)
+            self.create_coin_list(data.content)
+        if data.name == EventName.ACCOUNT_POSITION:
+            assert isinstance(data.content, AccountPosition)
+            self.update_coin_list(data.content)
+        if data.name == EventName.PRICE_UPDATES:
+            assert isinstance(data.content, PriceUpdates)
+            # Update saldo in USD and BTC
+            await self.update_coin_prices(data.content)
+        if data.name == EventName.PORTFOLIO_INVENTORY:
+            # Inventory event: update UI with new inventory (all available)
+            if isinstance(data.content, List):
+                self.set_inventory(data.content, balances=self.balances)
+                if not self.test_mode:
+                    self.ids.coin_list.refresh_from_data()
+            else:
+                logger.warning(
+                    f"PORTFOLIO_INVENTORY event received with unexpected content type: {type(data.content)}"
+                )
+
+        # Handle HP Manager events for quantity management
+        if data.name == EventName.HP_SELL_POSITION_CREATED:
+            assert isinstance(data.content, HPSellPositionCreated)
+            await self.handle_hp_sell_created(data.content)
+        if data.name == EventName.HP_SELL_POSITION_COMPLETED:
+            assert isinstance(data.content, HPSellPositionCompleted)
+            await self.handle_hp_sell_completed(data.content)
+        if data.name == EventName.HP_BUY_POSITION_FILLED:
+            assert isinstance(data.content, HPBuyPositionFilled)
+            await self.handle_hp_buy_filled(data.content)
+        if data.name == EventName.HP_POSITION_CANCELLED:
+            assert isinstance(data.content, HPPositionCancelled)
+            await self.handle_hp_position_cancelled(data.content)
 
     def create_coin_list(self, balances: Dict[str, CoinBalance]) -> None:
         """Create the coin list in the UI based on new ticker data."""
@@ -842,14 +893,17 @@ class PortfolioUI(BoxLayout):
         if last_btc_price:
             self.saldo_btc_label = round(self.saldo_usd_label / last_btc_price, 8)
 
-        self.ids.saldo_usd_label.text = str(self.saldo_usd_label)
-        self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
+        # Update saldo labels (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self.ids.saldo_usd_label.text = str(self.saldo_usd_label)
+            self.ids.saldo_btc_label.text = str(self.saldo_btc_label)
 
-        # Throttled refresh to avoid excessive UI updates that break button bindings
-        current_time = time.time()
-        if current_time - self._last_refresh_time > 1.0:  # Max 1 refresh per second
-            self.ids.coin_list.refresh_from_data()
-            self._last_refresh_time = current_time
+        # Throttled refresh to avoid excessive UI updates that break button bindings (skip in test mode)
+        if not self.test_mode:
+            current_time = time.time()
+            if current_time - self._last_refresh_time > 1.0:  # Max 1 refresh per second
+                self.ids.coin_list.refresh_from_data()
+                self._last_refresh_time = current_time
 
     def update_coin_list(self, account_position: AccountPosition) -> None:
         """Update the coin list based on AccountPosition updates."""
@@ -893,5 +947,322 @@ class PortfolioUI(BoxLayout):
                 self.coin_list_data.append(coin_data)
 
         # Don't sort here - let update_coin_prices handle sorting to maintain structure
-        # Just refresh the UI
-        self.ids.coin_list.refresh_from_data()
+        # Just refresh the UI (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self.ids.coin_list.refresh_from_data()
+
+    async def handle_hp_sell_created(self, event: HPSellPositionCreated):
+        """Handle HP sell position creation - lock quantities using FIFO from lowest buy price."""
+        logger.info(
+            f"HP Sell Created: {event.hp_id} - {event.coin} qty:{event.quantity}"
+        )
+
+        # Find the parent coin
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == event.coin:
+                parent_coin = coin
+                break
+
+        if not parent_coin:
+            logger.warning(f"Parent coin {event.coin} not found for HP sell")
+            return
+
+        # Lock quantities using FIFO (lowest buy price first)
+        await self._lock_quantities_fifo(event.coin, event.quantity)
+
+        # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def handle_hp_sell_completed(self, event: HPSellPositionCompleted):
+        """Handle HP sell completion - remove inventory and add received currency."""
+        logger.info(
+            f"HP Sell Completed: {event.hp_id} - Sold {event.quantity_sold} {event.coin}, Received {event.end_currency_received} {event.end_currency}"
+        )
+
+        # Remove sold inventory using FIFO
+        await self._update_lots_after_sell(event.coin, event.quantity_sold)
+
+        # Add received end currency (USDC) to portfolio
+        await self._add_received_currency(
+            event.end_currency, event.end_currency_received
+        )
+
+        # Refresh UI (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def _lock_quantities_fifo(self, coin: str, quantity_to_lock: float):
+        """Lock quantities using FIFO (lowest buy price first)."""
+        # Find the parent coin
+        parent_coin = None
+        for coin_data in self.coin_list_data:
+            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
+                parent_coin = coin_data
+                break
+
+        if not parent_coin or not parent_coin.get("lots"):
+            logger.warning(f"No lots found for {coin} to lock quantities")
+            return
+
+        # Sort lots by buy price (lowest first) for FIFO locking
+        lots = parent_coin["lots"]
+        lots.sort(
+            key=lambda lot: (
+                getattr(lot, "buy_price", 0)
+                if hasattr(lot, "buy_price")
+                else lot.get("buy_price", 0)
+            )
+        )
+
+        remaining_to_lock = quantity_to_lock
+
+        for lot in lots:
+            if remaining_to_lock <= 0:
+                break
+
+            if hasattr(lot, "available_quantity"):  # InventoryItem object
+                available = lot.available_quantity
+            else:  # Dictionary (shouldn't happen with real inventory but safety check)
+                available = float(lot.get("available_quantity", 0))
+
+            # Calculate how much we can lock from this lot
+            can_lock = min(available, remaining_to_lock)
+
+            if can_lock > 0:
+                # Update lot quantities
+                if hasattr(lot, "available_quantity"):  # InventoryItem object
+                    lot.available_quantity -= can_lock
+                    lot.locked_quantity += can_lock
+
+                remaining_to_lock -= can_lock
+                logger.debug(
+                    f"Locked {can_lock} from lot at price {getattr(lot, 'buy_price', 'unknown')}"
+                )
+
+        # Update parent available quantity
+        total_available = sum(
+            (
+                getattr(lot, "available_quantity", 0)
+                if hasattr(lot, "available_quantity")
+                else lot.get("available_quantity", 0)
+            )
+            for lot in lots
+        )
+        total_locked = sum(
+            (
+                getattr(lot, "locked_quantity", 0)
+                if hasattr(lot, "locked_quantity")
+                else lot.get("locked_quantity", 0)
+            )
+            for lot in lots
+        )
+
+        parent_coin["available_qty"] = str(total_available)
+        parent_coin["locked_qty"] = str(total_locked)
+
+        logger.info(
+            f"Locked {quantity_to_lock - remaining_to_lock} {coin}. Remaining available: {total_available}, Locked: {total_locked}"
+        )
+
+    async def handle_hp_buy_filled(self, event: HPBuyPositionFilled):
+        """Handle HP buy position filled - add new inventory to portfolio."""
+        logger.info(
+            f"HP Buy Filled: {event.hp_id} - Bought {event.quantity_bought} {event.coin} at ${event.buy_price}"
+        )
+
+        # Create new inventory item
+        new_lot = InventoryItem(
+            id=f"hp_{event.hp_id}",
+            coin=event.coin,
+            buy_price=event.buy_price,
+            quantity=event.quantity_bought,
+            available_quantity=event.quantity_bought,
+            locked_quantity=0.0,
+        )
+
+        # Find existing parent coin or create new one
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == event.coin:
+                parent_coin = coin
+                break
+
+        if parent_coin:
+            # Add to existing coin
+            parent_coin["lots"].append(new_lot)
+            current_qty = float(parent_coin.get("quantity", 0))
+            current_available = float(parent_coin.get("available_qty", 0))
+
+            parent_coin["quantity"] = str(current_qty + event.quantity_bought)
+            parent_coin["available_qty"] = str(
+                current_available + event.quantity_bought
+            )
+        else:
+            # Create new coin entry
+            new_coin = {
+                "symbol": event.coin,
+                "buy_price": f"${event.buy_price}",
+                "quantity": str(event.quantity_bought),
+                "available_qty": str(event.quantity_bought),
+                "locked_qty": "0",
+                "price_usd": "0.00",
+                "total_usd": "0.00",
+                "pnl": "—",
+                "pnl_color": [1, 1, 1, 1],
+                "weighted_avg_buy_price": event.buy_price,
+                "lots": [new_lot],
+                "expanded": False,
+                "has_lots": True,
+                "portfolio_manager": self,
+            }
+            self.coin_list_data.append(new_coin)
+
+        # Refresh UI (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+        logger.info(
+            f"Added {event.quantity_bought} {event.coin} to portfolio from HP buy"
+        )
+
+    async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
+        """Handle HP position cancellation - unlock quantities that were locked."""
+        logger.info(
+            f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+        )
+
+        if event.position_type == "SELL":
+            # Unlock quantities that were locked for this sell position
+            await self._unlock_quantities_fifo(event.coin, event.quantity)
+        elif event.position_type == "BUY":
+            # For buy positions, we might need to remove pending inventory or adjust balances
+            # This depends on the specific implementation needs
+            logger.info(
+                f"Buy position cancellation handling not yet implemented for {event.hp_id}"
+            )
+
+        # Refresh UI (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def _unlock_quantities_fifo(self, coin: str, quantity_to_unlock: float):
+        """Unlock quantities using FIFO (same order as locking)."""
+        # Find the parent coin
+        parent_coin = None
+        for coin_data in self.coin_list_data:
+            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
+                parent_coin = coin_data
+                break
+
+        if not parent_coin or not parent_coin.get("lots"):
+            logger.warning(f"No lots found for {coin} to unlock quantities")
+            return
+
+        # Sort lots by buy price (lowest first) for FIFO unlocking
+        lots = parent_coin["lots"]
+        lots.sort(
+            key=lambda lot: (
+                getattr(lot, "buy_price", 0)
+                if hasattr(lot, "buy_price")
+                else lot.get("buy_price", 0)
+            )
+        )
+
+        remaining_to_unlock = quantity_to_unlock
+
+        for lot in lots:
+            if remaining_to_unlock <= 0:
+                break
+
+            if hasattr(lot, "locked_quantity"):  # InventoryItem object
+                locked = lot.locked_quantity
+            else:  # Dictionary (shouldn't happen with real inventory but safety check)
+                locked = float(lot.get("locked_quantity", 0))
+
+            # Calculate how much we can unlock from this lot
+            can_unlock = min(locked, remaining_to_unlock)
+
+            if can_unlock > 0:
+                # Update lot quantities
+                if hasattr(lot, "locked_quantity"):  # InventoryItem object
+                    lot.locked_quantity -= can_unlock
+                    lot.available_quantity += can_unlock
+
+                remaining_to_unlock -= can_unlock
+                logger.debug(
+                    f"Unlocked {can_unlock} from lot at price {getattr(lot, 'buy_price', 'unknown')}"
+                )
+
+        # Update parent available/locked quantities
+        total_available = sum(
+            (
+                getattr(lot, "available_quantity", 0)
+                if hasattr(lot, "available_quantity")
+                else lot.get("available_quantity", 0)
+            )
+            for lot in lots
+        )
+        total_locked = sum(
+            (
+                getattr(lot, "locked_quantity", 0)
+                if hasattr(lot, "locked_quantity")
+                else lot.get("locked_quantity", 0)
+            )
+            for lot in lots
+        )
+
+        parent_coin["available_qty"] = str(total_available)
+        parent_coin["locked_qty"] = str(total_locked)
+
+        logger.info(
+            f"Unlocked {quantity_to_unlock - remaining_to_unlock} {coin}. Available: {total_available}, Locked: {total_locked}"
+        )
+
+    async def _add_received_currency(self, currency: str, amount: float):
+        """Add received currency (like USDC) to portfolio."""
+        # Find existing currency or create new entry
+        existing_currency = None
+        for coin_data in self.coin_list_data:
+            if (
+                not coin_data.get("is_lot_row", False)
+                and coin_data["symbol"] == currency
+            ):
+                existing_currency = coin_data
+                break
+
+        if existing_currency:
+            # Add to existing currency
+            current_qty = float(existing_currency.get("quantity", 0))
+            current_available = float(existing_currency.get("available_qty", 0))
+
+            existing_currency["quantity"] = str(current_qty + amount)
+            existing_currency["available_qty"] = str(current_available + amount)
+            logger.info(
+                f"Added {amount} {currency} to existing balance. New total: {current_qty + amount}"
+            )
+        else:
+            # Create new currency entry
+            new_currency = {
+                "symbol": currency,
+                "buy_price": "—",  # Received currency doesn't have buy price
+                "quantity": str(amount),
+                "available_qty": str(amount),
+                "locked_qty": "0",
+                "price_usd": "1.00" if currency == "USDC" else "0.00",
+                "total_usd": str(amount) if currency == "USDC" else "0.00",
+                "pnl": "—",
+                "pnl_color": [1, 1, 1, 1],
+                "weighted_avg_buy_price": 0.0,
+                "lots": [],
+                "expanded": False,
+                "has_lots": False,
+                "portfolio_manager": self,
+            }
+            self.coin_list_data.append(new_currency)
+            logger.info(f"Created new {currency} entry with {amount}")

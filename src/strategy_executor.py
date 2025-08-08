@@ -34,6 +34,10 @@ from src.identifiers import (
     UiState,
     BinanceClient,
     PositionSide,
+    HPSellPositionCreated,
+    HPSellPositionCompleted,
+    HPBuyPositionFilled,
+    HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
@@ -75,6 +79,7 @@ class StrategyExecutor:
         ui_queue: queue.Queue,
         balances: Dict[str, CoinBalance],
         price_resolver: UsdPriceResolver,
+        portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
         logger.info("StrategyExecutor.__init__ called with test_mode=%s", test_mode)
@@ -82,6 +87,9 @@ class StrategyExecutor:
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
+        self.portfolio_ui_queue = (
+            portfolio_ui_queue  # Queue for sending HP events to portfolio
+        )
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
@@ -265,6 +273,19 @@ class StrategyExecutor:
                         pos.config.hp_id,
                     )
                     break
+
+    def _send_hp_event_to_portfolio(self, event_name: EventName, event_data):
+        """Send HP events to portfolio for quantity management."""
+        if self.portfolio_ui_queue is None:
+            logger.debug("No portfolio UI queue available, skipping HP event")
+            return
+
+        try:
+            event = Event(name=event_name, content=event_data)
+            self.portfolio_ui_queue.put_nowait(event)
+            logger.info(f"Sent HP event to portfolio: {event_name.value}")
+        except Exception as e:
+            logger.error(f"Failed to send HP event to portfolio: {e}")
 
     async def _handle_websocket_error(self, error_msg):
         """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
@@ -578,6 +599,7 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=worker_queue,
             ),
+            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
         )
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
@@ -887,6 +909,7 @@ class StrategyExecutor:
             worker_queue=worker_queue,
             config_queue=self.config_queue,
             initial_state=State.BOUGHT,
+            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
         )
 
         config = strategy.sell.current_position.config
@@ -1012,6 +1035,20 @@ class StrategyExecutor:
             data=strategy.sell.current_position, strategy_state=strategy.state
         )
 
+        # Send HP sell position created event to portfolio for quantity locking
+        if not is_restoration:  # Only send for new positions, not restored ones
+            hp_sell_created = HPSellPositionCreated(
+                hp_id=parent_hp_id,
+                coin=config.coin,
+                quantity=config.quantity,
+                buy_price=config.buy_price,  # Use buy price from config
+                sell_price=config.sell_price,  # Use sell price from config
+                end_currency=config.end_currency,  # Use end currency from config
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+            )
+
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
 
@@ -1130,6 +1167,27 @@ class StrategyExecutor:
                         )
                     )
                 )
+
+                # Send HP sell position completed event to portfolio when fully sold
+                if strategy.state == State.SOLD:
+                    # Calculate the end currency received (typically USDC for the amount received)
+                    end_currency_received = (
+                        sell.current_position.sell_order.realized_quantity
+                        * sell.current_position.config.sell_price
+                    )
+
+                    hp_sell_completed = HPSellPositionCompleted(
+                        hp_id=hp_id,
+                        coin=sell.current_position.config.coin,
+                        quantity_sold=sell.current_position.sell_order.realized_quantity,
+                        buy_price=sell.current_position.config.buy_price,  # Add missing buy price
+                        sell_price=sell.current_position.config.sell_price,  # Add missing sell price
+                        end_currency="USDC",  # Usually selling to USDC
+                        end_currency_received=end_currency_received,
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                    )
 
                 # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
                 #     self.db.upsert_order(

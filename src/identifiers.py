@@ -30,6 +30,52 @@ class InventoryItem:
     locked_quantity: float
 
 
+@dataclass
+class HPSellPositionCreated:
+    """Event data for when an HP sell position is created (locks quantities)."""
+
+    hp_id: str
+    coin: str
+    quantity: float
+    buy_price: float
+    sell_price: float
+    end_currency: str  # Usually USDC
+
+
+@dataclass
+class HPSellPositionCompleted:
+    """Event data for when an HP sell position is completed (removes inventory, adds end currency)."""
+
+    hp_id: str
+    coin: str
+    quantity_sold: float
+    buy_price: float
+    sell_price: float
+    end_currency: str
+    end_currency_received: float  # Amount of USDC/end currency received
+
+
+@dataclass
+class HPBuyPositionFilled:
+    """Event data for when an HP buy position is filled (adds inventory)."""
+
+    hp_id: str
+    coin: str
+    quantity_bought: float
+    buy_price: float
+    total_cost: float
+
+
+@dataclass
+class HPPositionCancelled:
+    """Event data for when an HP position is cancelled (unlocks quantities)."""
+
+    hp_id: str
+    coin: str
+    quantity: float
+    position_type: str  # "BUY" or "SELL"
+
+
 class State(Enum):
     NEW = "NEW"
     BUYING = "BUYING"
@@ -69,6 +115,11 @@ class EventName(Enum):
     BALANCES = "Balances"
     PRICE_UPDATES = "PriceUpdates"
     PORTFOLIO_INVENTORY = "PortfolioInventory"
+    # HP Manager → Portfolio Events
+    HP_SELL_POSITION_CREATED = "HP_SELL_POSITION_CREATED"
+    HP_SELL_POSITION_COMPLETED = "HP_SELL_POSITION_COMPLETED"
+    HP_BUY_POSITION_FILLED = "HP_BUY_POSITION_FILLED"
+    HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
 
 
 class CsvConfig(NamedTuple):

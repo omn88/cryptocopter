@@ -83,7 +83,9 @@ class AsyncApp(App):
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
-        self.portfolio_ui: Optional[PortfolioUI] = None  # Reference to portfolio UI for HP manager integration
+        self.portfolio_ui: Optional[PortfolioUI] = (
+            None  # Reference to portfolio UI for HP manager integration
+        )
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
 
@@ -188,6 +190,9 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             balances=self.portfolio.balances,
             price_resolver=self.price_resolver,
+            portfolio_ui_queue=(
+                self.portfolio_ui.ui_queue if self.portfolio_ui else None
+            ),  # Pass portfolio UI queue for HP events
         )
 
         self.trading_systems.append(back_end)

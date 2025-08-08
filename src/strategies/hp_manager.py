@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import logging
-from typing import Optional
+from typing import Optional, Callable
 from transitions.extensions.asyncio import AsyncMachine
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -33,6 +33,7 @@ from src.identifiers import (
     UiState,
     BinanceClient,
     PositionSide,
+    HPSellPositionCompleted,
 )
 from src.gui.identifiers.spot import HPClose, HPGuiDataBuy, HPGuiDataSell, HPUpdate
 from src.position_buy import HPPositionBuy
@@ -55,6 +56,7 @@ class HpStrategy:
         buy_position: HPPositionBuy,
         sell_position: HPPositionSell,
         initial_state: State = State.NEW,
+        portfolio_event_callback: Optional[Callable] = None,
     ):
         self.client = client
         self.balance = balance
@@ -65,6 +67,9 @@ class HpStrategy:
         self.ui_queue = ui_queue
         self.buy = buy_position
         self.sell = sell_position
+        self.portfolio_event_callback = (
+            portfolio_event_callback  # Callback to send HP events to portfolio
+        )
 
         # Initialize any other common attributes
         self.signal_update: SignalUpdate = SignalUpdate()
@@ -99,6 +104,15 @@ class HpStrategy:
         self.worker_task: Optional[asyncio.Task] = (
             None  # Track the worker task for cleanup
         )
+
+    def _send_portfolio_event(self, event_name, event_data):
+        """Send HP events to portfolio via callback."""
+        if self.portfolio_event_callback:
+            try:
+                self.portfolio_event_callback(event_name, event_data)
+                logger.debug(f"Sent portfolio event: {event_name.value}")
+            except Exception as e:
+                logger.error(f"Failed to send portfolio event: {e}")
 
     def _get_transitions(self):
         return [
@@ -807,6 +821,21 @@ class HpStrategy:
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
 
+            # Send HP sell position completed event to portfolio
+            end_currency_received = quoted_amount  # Already calculated from convert API
+            hp_sell_completed = HPSellPositionCompleted(
+                hp_id=self.sell.current_position.config.hp_id,
+                coin=self.sell.current_position.config.coin,
+                quantity_sold=float(quantity),
+                buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
+                sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+                end_currency=to_asset,  # Use the actual to_asset from convert
+                end_currency_received=end_currency_received,
+            )
+            self._send_portfolio_event(
+                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+            )
+
             signal = Signal.HP_ALL_ORDERS_FILLED
             logger.info("All SELL orders filled, sending: %s", signal)
             self.worker_queue.put(
@@ -1051,6 +1080,24 @@ class HpStrategy:
             self.sell.current_position.sell_order
         )
 
+        # Send HP sell position completed event to portfolio
+        end_currency_received = (
+            self.sell.current_position.sell_order.realized_quantity
+            * self.sell.current_position.config.sell_price
+        )
+        hp_sell_completed = HPSellPositionCompleted(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            quantity_sold=self.sell.current_position.sell_order.realized_quantity,
+            buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
+            sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+            end_currency="USDC",  # Usually selling to USDC
+            end_currency_received=end_currency_received,
+        )
+        self._send_portfolio_event(
+            EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+        )
+
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
@@ -1248,6 +1295,24 @@ class HpStrategy:
 
         self.sell.current_position.state_info.state = State.SOLD
 
+        # Send HP sell position completed event to portfolio
+        end_currency_received = (
+            self.sell.current_position.sell_order.realized_quantity
+            * self.sell.current_position.config.sell_price
+        )
+        hp_sell_completed = HPSellPositionCompleted(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            quantity_sold=self.sell.current_position.sell_order.realized_quantity,
+            buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
+            sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+            end_currency="USDC",  # Usually selling to USDC
+            end_currency_received=end_currency_received,
+        )
+        self._send_portfolio_event(
+            EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+        )
+
         self.sell.current_position.state_info.get_completeness(
             self.sell.current_position.sell_order
         )
@@ -1395,6 +1460,24 @@ class HpStrategy:
             self.sell.current_position.state_info.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
+
+            # Send HP sell position completed event to portfolio
+            end_currency_received = (
+                self.sell.current_position.sell_order.realized_quantity
+                * self.sell.current_position.config.sell_price
+            )
+            hp_sell_completed = HPSellPositionCompleted(
+                hp_id=self.sell.current_position.config.hp_id,
+                coin=self.sell.current_position.config.coin,
+                quantity_sold=self.sell.current_position.sell_order.realized_quantity,
+                buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
+                sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
+                end_currency="USDC",  # Usually selling to USDC
+                end_currency_received=end_currency_received,
+            )
+            self._send_portfolio_event(
+                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+            )
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             logger.info("All SELL orders filled, sending: %s", signal)
