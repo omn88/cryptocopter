@@ -21,8 +21,11 @@ from src.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPBuyData,
+    HPBuyPositionFilled,
+    HPPositionCancelled,
     HPSellConfig,
     HPSellData,
+    HPSellPositionCreated,
     SellPosition,
     SellType,
     Signal,
@@ -597,6 +600,17 @@ class HpStrategy:
         logger.info("Orders: %s", self.buy.orders)
         self.balance += self.get_remaining_quantity_buy()
         await self.buy.cancel_position()
+
+        # Send HP position cancelled event to portfolio (for buy cancellations)
+        total_quantity = sum(order.quantity for order in self.buy.orders)
+        hp_cancelled = HPPositionCancelled(
+            hp_id=self.buy.data.config.hp_id,
+            coin=self.buy.data.config.coin,
+            quantity=total_quantity,
+            position_type="BUY",
+        )
+        self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
+
         self.buy.data.state_info.state = State.NEW
 
         self.send_buy_position_to_ui()
@@ -725,6 +739,17 @@ class HpStrategy:
         )
 
         await self.sell.open_position()
+
+        # Send HP sell position created event to portfolio for quantity locking
+        hp_sell_created = HPSellPositionCreated(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            quantity=self.sell.current_position.sell_order.quantity,
+            buy_price=self.sell.current_position.config.buy_price,
+            sell_price=self.sell.current_position.config.sell_price,
+            end_currency=self.sell.current_position.config.end_currency,
+        )
+        self._send_portfolio_event(EventName.HP_SELL_POSITION_CREATED, hp_sell_created)
 
         self.state = State.SELLING
         self.sell.current_position.state_info.get_completeness(
@@ -870,6 +895,26 @@ class HpStrategy:
         logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
         self.send_buy_position_to_ui()
 
+        # Send HP buy position filled event to portfolio for inventory addition
+        total_quantity_bought = sum(
+            order.realized_quantity for order in self.buy.orders
+        )
+        total_cost = sum(
+            order.realized_quantity * order.price for order in self.buy.orders
+        )
+        average_buy_price = (
+            total_cost / total_quantity_bought if total_quantity_bought > 0 else 0
+        )
+
+        hp_buy_filled = HPBuyPositionFilled(
+            hp_id=self.buy.data.config.hp_id,
+            coin=self.buy.data.config.coin,
+            quantity_bought=total_quantity_bought,
+            buy_price=average_buy_price,
+            total_cost=total_cost,
+        )
+        self._send_portfolio_event(EventName.HP_BUY_POSITION_FILLED, hp_buy_filled)
+
         await self.db.upsert_buy_price_level(data=self.buy.data)
 
         if self.sell.current_position.state_info.state == State.PARTIALLY_SOLD:
@@ -902,6 +947,16 @@ class HpStrategy:
     async def cancel_unfilled_sell_orders(self, *args, **kwargs) -> None:
         logger.info("Cancelling %s", self.sell.current_position.state_info.side.value)
         await self.sell.cancel_position()
+
+        # Send HP position cancelled event to portfolio for quantity unlocking
+        hp_cancelled = HPPositionCancelled(
+            hp_id=self.sell.current_position.config.hp_id,
+            coin=self.sell.current_position.config.coin,
+            quantity=self.sell.current_position.sell_order.quantity,
+            position_type="SELL",
+        )
+        self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
+
         self.state = (
             State.BOUGHT
             if all(order.status == ORDER_STATUS_FILLED for order in self.buy.orders)

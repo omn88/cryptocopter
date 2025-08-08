@@ -1140,10 +1140,13 @@ class PortfolioUI(BoxLayout):
             # Unlock quantities that were locked for this sell position
             await self._unlock_quantities_fifo(event.coin, event.quantity)
         elif event.position_type == "BUY":
-            # For buy positions, we might need to remove pending inventory or adjust balances
-            # This depends on the specific implementation needs
+            # For buy positions, we typically don't lock quantities in inventory,
+            # but we may need to adjust cash balances if buy orders were placed
+            # In most cases, buy cancellations don't affect portfolio inventory directly
+            # but this logs the cancellation for tracking
             logger.info(
-                f"Buy position cancellation handling not yet implemented for {event.hp_id}"
+                f"Buy position cancelled: {event.hp_id} - {event.quantity} {event.coin}. "
+                f"No inventory unlock needed as buy positions don't lock coin quantities."
             )
 
         # Refresh UI (skip in test mode to avoid Kivy widget access)

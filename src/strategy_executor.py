@@ -539,9 +539,54 @@ class StrategyExecutor:
 
     async def close_position(self, close_data: HPClose):
         self.broker.unsubscribe(system_id=close_data.config.hp_id)
-        strategy = self.strategies[close_data.config.hp_id]
+        strategy = self.strategies.get(close_data.config.hp_id)
 
-        strategy.stop_event.set()
+        if strategy:
+            # Send HP position cancelled event to portfolio before closing
+            # to unlock any locked quantities
+            try:
+                if (
+                    hasattr(strategy, "sell")
+                    and strategy.sell.current_position.sell_order.quantity > 0
+                ):
+                    # This is a sell position cancellation - unlock the locked quantities
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=close_data.config.hp_id,
+                        coin=close_data.config.coin,
+                        quantity=strategy.sell.current_position.sell_order.quantity,
+                        position_type="SELL",
+                    )
+                    strategy._send_portfolio_event(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP cancellation event for sell position: {close_data.config.hp_id}"
+                    )
+                elif hasattr(strategy, "buy") and strategy.buy.orders:
+                    # This is a buy position cancellation
+                    total_quantity = sum(
+                        order.quantity for order in strategy.buy.orders
+                    )
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=close_data.config.hp_id,
+                        coin=close_data.config.coin,
+                        quantity=total_quantity,
+                        position_type="BUY",
+                    )
+                    strategy._send_portfolio_event(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP cancellation event for buy position: {close_data.config.hp_id}"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Failed to send HP cancellation event for {close_data.config.hp_id}: {e}"
+                )
+
+            strategy.stop_event.set()
+        else:
+            logger.warning(f"Strategy not found for HP ID: {close_data.config.hp_id}")
 
     async def setup_buy_position(
         self,
@@ -1072,6 +1117,23 @@ class StrategyExecutor:
             and buy.data.state_info.state == State.NEW
         ):
             logger.info("Entered trading system removal!")
+
+            # Send HP buy position cancelled event to portfolio before closing
+            if buy.orders:
+                total_quantity = sum(order.quantity for order in buy.orders)
+                hp_cancelled = HPPositionCancelled(
+                    hp_id=hp_id,
+                    coin=buy.data.config.coin,
+                    quantity=total_quantity,
+                    position_type="BUY",
+                )
+                self._send_hp_event_to_portfolio(
+                    EventName.HP_POSITION_CANCELLED, hp_cancelled
+                )
+                logger.info(
+                    f"Sent manual HP buy cancellation event for position: {hp_id}"
+                )
+
             self.broker.unsubscribe(system_id=hp_id)
             strategy.state = State.CLOSED
             buy.data.state_info.state = State.CLOSED
@@ -1108,6 +1170,26 @@ class StrategyExecutor:
             and buy.data.state_info.state == State.PARTIALLY_BOUGHT
         ):
             if strategy.state == State.BUYING:
+                # Send HP buy position cancelled event to portfolio for unfilled orders
+                unfilled_quantity = sum(
+                    order.quantity - order.realized_quantity
+                    for order in buy.orders
+                    if order.status != ORDER_STATUS_FILLED
+                )
+                if unfilled_quantity > 0:
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=hp_id,
+                        coin=buy.data.config.coin,
+                        quantity=unfilled_quantity,
+                        position_type="BUY",
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP partial buy cancellation event for position: {hp_id}"
+                    )
+
                 buy.orders = await buy.cancel_remaining_limit_orders(
                     symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
@@ -1138,6 +1220,22 @@ class StrategyExecutor:
                     strategy.sell.current_position.sell_order.realized_quantity
                 )
                 sell_order_qty = strategy.sell.current_position.sell_order.quantity
+
+                # Send HP sell position cancelled event to portfolio before cancelling
+                if sell_order_qty > 0:
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=hp_id,
+                        coin=sell.current_position.config.coin,
+                        quantity=sell_order_qty,
+                        position_type="SELL",
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP sell cancellation event for position: {hp_id}"
+                    )
+
                 fully_bought = all(
                     order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
                 )
