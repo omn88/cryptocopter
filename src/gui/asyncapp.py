@@ -18,15 +18,12 @@ from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
-from kivy.uix.spinner import Spinner
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from src.gui.identifiers.spot import PriceData
 from src.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
     SubscriptionType,
     BinanceClient,
+    CoinBalance,
 )
 from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
@@ -37,7 +34,6 @@ from src.database import TradingDatabase
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.strategy_executor import StrategyExecutor
-from src.gui.widgets import ColorChangingQuantity, SymbolMarkPrice
 
 logger = logging.getLogger("async_app")
 
@@ -68,7 +64,7 @@ class AsyncApp(App):
         db: TradingDatabase,
         symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
-        balances: Dict[str, float],
+        balances: Dict[str, CoinBalance],
         **kwargs,
     ):
         """Initializes the `AsyncApp` instance.
@@ -83,10 +79,13 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.price_resolver = price_resolver
-        self.balances = balances
+        self.balances = balances  # Dict[str, CoinBalance]
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
+        self.portfolio_ui: Optional[PortfolioUI] = (
+            None  # Reference to portfolio UI for HP manager integration
+        )
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
 
@@ -133,17 +132,21 @@ class AsyncApp(App):
             balances=self.balances,
             symbols_info=self.symbols_info,
             price_resolver=self.price_resolver,
+            db=self.db,
         )
 
         # Set up frontend UI for PortfolioManager
-        frontend = PortfolioUI(
-            ui_queue=ui_queue, symbols_info=self.symbols_info, db=self.db
+        self.portfolio_ui = PortfolioUI(
+            ui_queue=ui_queue,
+            symbols_info=self.symbols_info,
+            db=self.db,
+            balances=self.balances,
         )
 
         # Add the PortfolioManager tab to the tabbed panel
         tab = TabbedPanelItem(
             text="Portfolio",
-            content=frontend,
+            content=self.portfolio_ui,
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
@@ -187,6 +190,9 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             balances=self.portfolio.balances,
             price_resolver=self.price_resolver,
+            portfolio_ui_queue=(
+                self.portfolio_ui.ui_queue if self.portfolio_ui else None
+            ),  # Pass portfolio UI queue for HP events
         )
 
         self.trading_systems.append(back_end)
@@ -200,9 +206,14 @@ class AsyncApp(App):
             db=self.db,
             ui_queue=ui_queue,
             price_resolver=self.price_resolver,
+            portfolio_queue=self.portfolio.worker_queue,
         )
 
         front_end.initialize()
+
+        # Set HP manager reference in portfolio for sell functionality
+        if self.portfolio_ui:
+            self.portfolio_ui.set_hp_manager_reference(front_end, self)
 
         tab = TabbedPanelItem(
             text="HPManager",

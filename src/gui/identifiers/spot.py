@@ -163,13 +163,3 @@ class ArchivedPositionSell:
 class PriceData(NamedTuple):
     price: float
     symbol: str
-
-
-@dataclass
-class SaveConfig:
-    filename: str  # e.g. "backup1"
-
-
-@dataclass
-class LoadConfig:
-    parsed_rows: List[Dict[str, str]]  # each row from CSV, parsed as a dict

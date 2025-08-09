@@ -11,6 +11,71 @@ from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
 
 
+@dataclass
+class CoinBalance:
+    coin: str
+    free: float
+    locked: float
+    total: float
+    total_value: float
+
+
+@dataclass
+class InventoryItem:
+    id: str
+    coin: str
+    buy_price: float
+    quantity: float
+    available_quantity: float
+    locked_quantity: float
+
+
+@dataclass
+class HPSellPositionCreated:
+    """Event data for when an HP sell position is created (locks quantities)."""
+
+    hp_id: str
+    coin: str
+    quantity: float
+    buy_price: float
+    sell_price: float
+    end_currency: str  # Usually USDC
+
+
+@dataclass
+class HPSellPositionCompleted:
+    """Event data for when an HP sell position is completed (removes inventory, adds end currency)."""
+
+    hp_id: str
+    coin: str
+    quantity_sold: float
+    buy_price: float
+    sell_price: float
+    end_currency: str
+    end_currency_received: float  # Amount of USDC/end currency received
+
+
+@dataclass
+class HPBuyPositionFilled:
+    """Event data for when an HP buy position is filled (adds inventory)."""
+
+    hp_id: str
+    coin: str
+    quantity_bought: float
+    buy_price: float
+    total_cost: float
+
+
+@dataclass
+class HPPositionCancelled:
+    """Event data for when an HP position is cancelled (unlocks quantities)."""
+
+    hp_id: str
+    coin: str
+    quantity: float
+    position_type: str  # "BUY" or "SELL"
+
+
 class State(Enum):
     NEW = "NEW"
     BUYING = "BUYING"
@@ -49,6 +114,12 @@ class EventName(Enum):
     ALL_TICKERS = "All"
     BALANCES = "Balances"
     PRICE_UPDATES = "PriceUpdates"
+    PORTFOLIO_INVENTORY = "PortfolioInventory"
+    # HP Manager → Portfolio Events
+    HP_SELL_POSITION_CREATED = "HP_SELL_POSITION_CREATED"
+    HP_SELL_POSITION_COMPLETED = "HP_SELL_POSITION_COMPLETED"
+    HP_BUY_POSITION_FILLED = "HP_BUY_POSITION_FILLED"
+    HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
 
 
 class CsvConfig(NamedTuple):
@@ -172,10 +243,6 @@ class AllTickers(NamedTuple):
     msg: List[Dict]
 
 
-class Balances(NamedTuple):
-    msg: Dict[str, float]
-
-
 class PriceUpdates(NamedTuple):
     msg: Dict[str, float]
 
@@ -209,9 +276,10 @@ class Event(NamedTuple):
         ExecutionReport,
         AccountPosition,
         AllTickers,
-        Balances,
         PriceUpdates,
         ErrorMessage,
+        List[InventoryItem],
+        Dict[str, CoinBalance],
     ]
 
     def __repr__(self) -> str:

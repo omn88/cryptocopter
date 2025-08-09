@@ -5,6 +5,7 @@ import os
 import queue
 import logging
 from typing import Dict, List, Set, Optional
+import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -25,6 +26,7 @@ from src.identifiers import (
     Event,
     EventName,
     HPSellData,
+    InventoryItem,
     RemoveRecord,
     State,
     StateInfo,
@@ -44,8 +46,6 @@ from src.gui.identifiers.spot import (
     HPUpdate,
     IdlePositionBuy,
     IdlePositionSell,
-    LoadConfig,
-    SaveConfig,
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
@@ -108,6 +108,7 @@ class HpFront(BoxLayout):
         symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
         price_resolver: UsdPriceResolver,
+        portfolio_queue: queue.Queue,
         test_mode=False,
         **kwargs,
     ):
@@ -130,6 +131,7 @@ class HpFront(BoxLayout):
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
         self.price_resolver = price_resolver
+        self.portfolio_queue = portfolio_queue
 
         # Initialize task references for proper cleanup
         self.refresh_task: Optional[asyncio.Task] = None
@@ -147,6 +149,8 @@ class HpFront(BoxLayout):
         if not self.test_mode:
             self.refresh_task = asyncio.create_task(self._refresh_ui())
         self.queue_task = asyncio.create_task(self.process_ui_queue())
+
+        # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
 
     def trigger_add_record(self, *args) -> None:
         if not self._validate_buy_inputs():
@@ -1537,29 +1541,43 @@ class HpFront(BoxLayout):
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
 
-    def save_positions_to_csv(self):
-        filename = self.ids.filenameinput.text.strip()
-        if not filename:
-            logger.warning("No filename provided. Save aborted.")
-            return
-        self.config_queue.put_nowait(SaveConfig(filename=filename))
+    def auto_load_inventory_csv(self):
+        """Automatically load inventory from 'inventory.csv' if it exists in current directory."""
+        import os
 
-    def load_positions_from_csv(self):
-        filename = self.ids.filenameinput.text.strip()
-        if not filename:
-            logger.warning("No filename provided. Load aborted.")
+        filename = "inventory.csv"
+        if not os.path.exists(filename):
+            logger.info(
+                "No inventory.csv file found in current directory. Skipping auto-load."
+            )
             return
 
-        path = f"{filename}.csv"
         try:
-            with open(path, "r") as f:
+            with open(filename, "r") as f:
                 reader = csv.DictReader(f)
                 parsed = [row for row in reader]
 
-            self.config_queue.put_nowait(LoadConfig(parsed_rows=parsed))
-            logger.info("Queued LoadConfig from %s", path)
+            inventory_items = []
+            for row in parsed:
+                try:
+                    item = InventoryItem(
+                        id=str(uuid.uuid4()),
+                        coin=row["coin"],
+                        buy_price=float(row["buy_price"]),
+                        quantity=float(row["quantity"]),
+                        available_quantity=float(row["quantity"]),
+                        locked_quantity=0.0,
+                    )
+                    inventory_items.append(item)
+                except Exception as e:
+                    logger.error("Failed to parse inventory row: %s error: %s", row, e)
+
+            self.portfolio_queue.put_nowait(
+                Event(name=EventName.PORTFOLIO_INVENTORY, content=inventory_items)
+            )
+            logger.info("Auto-loaded inventory from %s", filename)
         except Exception as e:
-            logger.error("Failed to load CSV: %s", e)
+            logger.error("Failed to auto-load inventory CSV: %s", e)
 
     def update_hp_state_filter(self, selected_states):
         """Update the HP state filter and refresh the list"""

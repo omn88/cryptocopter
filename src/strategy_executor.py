@@ -1,5 +1,4 @@
 import asyncio
-import csv
 import logging
 import os
 import queue
@@ -15,6 +14,7 @@ from binance.enums import (
 from src.common.common import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
+    CoinBalance,
     Event,
     EventName,
     ExecutionReport,
@@ -33,8 +33,11 @@ from src.identifiers import (
     SubscriptionType,
     UiState,
     BinanceClient,
-    Mode,
     PositionSide,
+    HPSellPositionCreated,
+    HPSellPositionCompleted,
+    HPBuyPositionFilled,
+    HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
@@ -42,8 +45,6 @@ from src.gui.identifiers.spot import (
     HPGuiDataBuy,
     HPGuiDataSell,
     HPUpdate,
-    LoadConfig,
-    SaveConfig,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
@@ -76,8 +77,9 @@ class StrategyExecutor:
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
-        balances: Dict[str, float],
+        balances: Dict[str, CoinBalance],
         price_resolver: UsdPriceResolver,
+        portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
         logger.info("StrategyExecutor.__init__ called with test_mode=%s", test_mode)
@@ -85,6 +87,9 @@ class StrategyExecutor:
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
+        self.portfolio_ui_queue = (
+            portfolio_ui_queue  # Queue for sending HP events to portfolio
+        )
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
@@ -178,12 +183,6 @@ class StrategyExecutor:
                 if isinstance(strategy_data, HPClose):
                     await self.close_position(close_data=strategy_data)
 
-                if isinstance(strategy_data, SaveConfig):
-                    await self.save_all_configs_to_csv(filename=strategy_data.filename)
-
-                if isinstance(strategy_data, LoadConfig):
-                    await self.load_configs_from_parsed_rows(strategy_data.parsed_rows)
-
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
@@ -274,6 +273,19 @@ class StrategyExecutor:
                         pos.config.hp_id,
                     )
                     break
+
+    def _send_hp_event_to_portfolio(self, event_name: EventName, event_data):
+        """Send HP events to portfolio for quantity management."""
+        if self.portfolio_ui_queue is None:
+            logger.debug("No portfolio UI queue available, skipping HP event")
+            return
+
+        try:
+            event = Event(name=event_name, content=event_data)
+            self.portfolio_ui_queue.put_nowait(event)
+            logger.info(f"Sent HP event to portfolio: {event_name.value}")
+        except Exception as e:
+            logger.error(f"Failed to send HP event to portfolio: {e}")
 
     async def _handle_websocket_error(self, error_msg):
         """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
@@ -421,115 +433,6 @@ class StrategyExecutor:
 
         logger.info("Finished resubscribing all strategies")
 
-    async def save_all_configs_to_csv(self, filename: str):
-        path = f"{filename}.csv"
-        try:
-            with open(path, "w", newline="", encoding="utf-8") as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(
-                    [
-                        "side",
-                        "symbol",
-                        "price_low",
-                        "price_high",
-                        "budget",
-                        "order_trigger",
-                        "mode",
-                        "hp_id",
-                        "coin",
-                        "buy_price",
-                        "sell_price",
-                        "quantity",
-                        "end_currency",
-                    ]
-                )
-
-                for strategy in self.strategies.values():
-                    if strategy.state in [State.NEW, State.BUYING]:
-                        buy_cfg = strategy.buy.data.config
-                        writer.writerow(
-                            [
-                                "BUY",
-                                buy_cfg.symbol_info.symbol,
-                                buy_cfg.price_low,
-                                buy_cfg.price_high,
-                                buy_cfg.budget,
-                                buy_cfg.order_trigger,
-                                buy_cfg.mode.name,
-                                "",
-                                buy_cfg.coin,
-                                "",
-                                "",
-                                "",
-                                "",
-                            ]
-                        )
-                    if strategy.state in [
-                        State.BOUGHT,
-                        State.SELLING,
-                        State.PARTIALLY_SOLD,
-                    ]:
-                        assert isinstance(
-                            strategy.sell.original_position.config, HPSellConfig
-                        )
-                        cfg = strategy.sell.original_position.config
-                        writer.writerow(
-                            [
-                                "SELL",
-                                cfg.symbol_info.symbol,
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                "",
-                                cfg.coin,
-                                cfg.buy_price,
-                                cfg.sell_price,
-                                cfg.quantity,
-                                cfg.end_currency or "USDC",
-                            ]
-                        )
-            logger.info("All strategies saved to %s", path)
-        except Exception as e:
-            logger.error("Failed to save config: %s", e)
-
-    async def load_configs_from_parsed_rows(self, parsed_rows):
-        for row in parsed_rows:
-            try:
-                if row["side"] == "BUY":
-                    config = HPBuyConfig(
-                        hp_id=row["hp_id"],
-                        symbol_info=self.symbols_info[row["symbol"]],
-                        coin=row["coin"],
-                        price_low=float(row["price_low"]),
-                        price_high=float(row["price_high"]),
-                        budget=float(row["budget"]),
-                        order_trigger=float(row["order_trigger"]),
-                        mode=Mode[row["mode"]],
-                    )
-                    state_info = StateInfo(side=PositionSide.LONG)
-                    self.config_queue.put_nowait(
-                        HPBuyData(config=config, state_info=state_info)
-                    )
-
-                elif row["side"] == "SELL":
-                    config = HPSellConfig(
-                        hp_id=row["hp_id"] or None,
-                        symbol_info=self.symbols_info[row["symbol"]],
-                        coin=row["coin"],
-                        buy_price=float(row["buy_price"]),
-                        sell_price=float(row["sell_price"]),
-                        quantity=float(row["quantity"]),
-                        end_currency=row.get("end_currency", "USDC"),
-                    )
-                    state_info = StateInfo(side=PositionSide.SHORT)
-                    self.config_queue.put_nowait(
-                        HPSellData(config=config, state_info=state_info)
-                    )
-            except Exception as e:
-                logger.error("Failed to parse config row: %s", e)
-
     def determine_sell_strategy(self, config: HPSellConfig) -> List[SymbolInfo]:
         delisted_coins = {
             "USDT",
@@ -636,9 +539,54 @@ class StrategyExecutor:
 
     async def close_position(self, close_data: HPClose):
         self.broker.unsubscribe(system_id=close_data.config.hp_id)
-        strategy = self.strategies[close_data.config.hp_id]
+        strategy = self.strategies.get(close_data.config.hp_id)
 
-        strategy.stop_event.set()
+        if strategy:
+            # Send HP position cancelled event to portfolio before closing
+            # to unlock any locked quantities
+            try:
+                if (
+                    hasattr(strategy, "sell")
+                    and strategy.sell.current_position.sell_order.quantity > 0
+                ):
+                    # This is a sell position cancellation - unlock the locked quantities
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=close_data.config.hp_id,
+                        coin=close_data.config.coin,
+                        quantity=strategy.sell.current_position.sell_order.quantity,
+                        position_type="SELL",
+                    )
+                    strategy._send_portfolio_event(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP cancellation event for sell position: {close_data.config.hp_id}"
+                    )
+                elif hasattr(strategy, "buy") and strategy.buy.orders:
+                    # This is a buy position cancellation
+                    total_quantity = sum(
+                        order.quantity for order in strategy.buy.orders
+                    )
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=close_data.config.hp_id,
+                        coin=close_data.config.coin,
+                        quantity=total_quantity,
+                        position_type="BUY",
+                    )
+                    strategy._send_portfolio_event(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP cancellation event for buy position: {close_data.config.hp_id}"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Failed to send HP cancellation event for {close_data.config.hp_id}: {e}"
+                )
+
+            strategy.stop_event.set()
+        else:
+            logger.warning(f"Strategy not found for HP ID: {close_data.config.hp_id}")
 
     async def setup_buy_position(
         self,
@@ -664,11 +612,13 @@ class StrategyExecutor:
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
 
+        logger.info("Self balances: %s", self.balances)
+
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            balance=self.balances["USDC"],
+            balance=self.balances["USDC"].total,
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -694,6 +644,7 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=worker_queue,
             ),
+            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
         )
 
         assert isinstance(strategy.buy.data.config, HPBuyConfig)
@@ -998,11 +949,12 @@ class StrategyExecutor:
                 broker=self.broker,
                 worker_queue=worker_queue,
             ),
-            balance=self.balances["USDC"],
+            balance=self.balances["USDC"].total,
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
             initial_state=State.BOUGHT,
+            portfolio_event_callback=self._send_hp_event_to_portfolio,  # Pass callback for portfolio events
         )
 
         config = strategy.sell.current_position.config
@@ -1128,6 +1080,20 @@ class StrategyExecutor:
             data=strategy.sell.current_position, strategy_state=strategy.state
         )
 
+        # Send HP sell position created event to portfolio for quantity locking
+        if not is_restoration:  # Only send for new positions, not restored ones
+            hp_sell_created = HPSellPositionCreated(
+                hp_id=parent_hp_id,
+                coin=config.coin,
+                quantity=config.quantity,
+                buy_price=config.buy_price,  # Use buy price from config
+                sell_price=config.sell_price,  # Use sell price from config
+                end_currency=config.end_currency,  # Use end currency from config
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+            )
+
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", parent_hp_id)
 
@@ -1151,6 +1117,23 @@ class StrategyExecutor:
             and buy.data.state_info.state == State.NEW
         ):
             logger.info("Entered trading system removal!")
+
+            # Send HP buy position cancelled event to portfolio before closing
+            if buy.orders:
+                total_quantity = sum(order.quantity for order in buy.orders)
+                hp_cancelled = HPPositionCancelled(
+                    hp_id=hp_id,
+                    coin=buy.data.config.coin,
+                    quantity=total_quantity,
+                    position_type="BUY",
+                )
+                self._send_hp_event_to_portfolio(
+                    EventName.HP_POSITION_CANCELLED, hp_cancelled
+                )
+                logger.info(
+                    f"Sent manual HP buy cancellation event for position: {hp_id}"
+                )
+
             self.broker.unsubscribe(system_id=hp_id)
             strategy.state = State.CLOSED
             buy.data.state_info.state = State.CLOSED
@@ -1187,6 +1170,26 @@ class StrategyExecutor:
             and buy.data.state_info.state == State.PARTIALLY_BOUGHT
         ):
             if strategy.state == State.BUYING:
+                # Send HP buy position cancelled event to portfolio for unfilled orders
+                unfilled_quantity = sum(
+                    order.quantity - order.realized_quantity
+                    for order in buy.orders
+                    if order.status != ORDER_STATUS_FILLED
+                )
+                if unfilled_quantity > 0:
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=hp_id,
+                        coin=buy.data.config.coin,
+                        quantity=unfilled_quantity,
+                        position_type="BUY",
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP partial buy cancellation event for position: {hp_id}"
+                    )
+
                 buy.orders = await buy.cancel_remaining_limit_orders(
                     symbol=buy.data.config.symbol_info.symbol,
                     orders=buy.orders,
@@ -1217,6 +1220,22 @@ class StrategyExecutor:
                     strategy.sell.current_position.sell_order.realized_quantity
                 )
                 sell_order_qty = strategy.sell.current_position.sell_order.quantity
+
+                # Send HP sell position cancelled event to portfolio before cancelling
+                if sell_order_qty > 0:
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=hp_id,
+                        coin=sell.current_position.config.coin,
+                        quantity=sell_order_qty,
+                        position_type="SELL",
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP sell cancellation event for position: {hp_id}"
+                    )
+
                 fully_bought = all(
                     order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
                 )
@@ -1246,6 +1265,27 @@ class StrategyExecutor:
                         )
                     )
                 )
+
+                # Send HP sell position completed event to portfolio when fully sold
+                if strategy.state == State.SOLD:
+                    # Calculate the end currency received (typically USDC for the amount received)
+                    end_currency_received = (
+                        sell.current_position.sell_order.realized_quantity
+                        * sell.current_position.config.sell_price
+                    )
+
+                    hp_sell_completed = HPSellPositionCompleted(
+                        hp_id=hp_id,
+                        coin=sell.current_position.config.coin,
+                        quantity_sold=sell.current_position.sell_order.realized_quantity,
+                        buy_price=sell.current_position.config.buy_price,  # Add missing buy price
+                        sell_price=sell.current_position.config.sell_price,  # Add missing sell price
+                        end_currency="USDC",  # Usually selling to USDC
+                        end_currency_received=end_currency_received,
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                    )
 
                 # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
                 #     self.db.upsert_order(
@@ -1311,9 +1351,10 @@ class StrategyExecutor:
 
             # Recover all positions and convert them to trading objects
             logger.info("Calling recovery_service.recover_all_positions()")
-            buy_positions, sell_positions = (
-                await self.recovery_service.recover_all_positions()
-            )
+            (
+                buy_positions,
+                sell_positions,
+            ) = await self.recovery_service.recover_all_positions()
 
             logger.info(
                 "Crash recovery found %d buy positions and %d sell positions",

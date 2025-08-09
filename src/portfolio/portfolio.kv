@@ -26,14 +26,7 @@
             font_size: '18sp'
             size_hint_x: 0.2
         Widget:
-            size_hint_x: 0.05
-        Button:
-            text: "Add from remote"
-            size_hint_x: 0.15
-            halign: 'center'
-            valign: 'middle'
-            text_size: self.size
-            on_press: root.open_virtual_position_popup()
+            size_hint_x: 0.2
 
     # Section for column headers
     BoxLayout:
@@ -42,26 +35,42 @@
         padding: [20, 10]  # Padding to create space around the list
         spacing: 20  # Adds space between elements inside the box
 
+        Widget:
+            size_hint_x: 0.05  # Spacer for expand/collapse button
         Label:
             text: 'Symbol'
             bold: True
-            size_hint_x: 0.16
+            size_hint_x: 0.12
+        Label:
+            text: 'Buy Price'
+            bold: True
+            size_hint_x: 0.11
         Label:
             text: 'Quantity'
             bold: True
-            size_hint_x: 0.20
+            size_hint_x: 0.11
+        Label:
+            text: 'Available'
+            bold: True
+            size_hint_x: 0.11
+        Label:
+            text: 'Locked'
+            bold: True
+            size_hint_x: 0.11
         Label:
             text: 'Price in USD'
             bold: True
-            size_hint_x: 0.18
+            size_hint_x: 0.11
         Label:
             text: 'Total in USD'
             bold: True
-            size_hint_x: 0.26
+            size_hint_x: 0.11
         Label:
-            text: 'Source'
+            text: 'PnL'
             bold: True
-            size_hint_x: 0.20
+            size_hint_x: 0.08
+        Widget:
+            size_hint_x: 0.09  # Spacer for action button (Sell), adjusted so total is exactly 1
 
     # Section for the coin list
     BoxLayout:

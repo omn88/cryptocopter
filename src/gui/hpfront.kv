@@ -1,5 +1,4 @@
 <HpFront>:
-    filenameinput: filenameinput
     orientation: 'vertical'
 
     TabbedPanel:
@@ -101,17 +100,15 @@
                             size_hint_y: None
                             height: '30dp'
 
-                        TextInput:
-                            id: filenameinput
-                            hint_text: "Enter config filename (no extension)"
+                        Widget:
+                            # Spacer to replace filename input
+                            size_hint_y: None
+                            height: '32dp'
 
-                        Button:
-                            text: "Save CSV"
-                            on_press: root.save_positions_to_csv()
-
-                        Button:
-                            text: "Load CSV"
-                            on_press: root.load_positions_from_csv()
+                        Widget:
+                            # Spacer to replace Load CSV button
+                            size_hint_y: None
+                            height: '48dp'
 
 
                 # Bottom section with tabbed panels for records
