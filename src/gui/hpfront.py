@@ -143,8 +143,8 @@ class HpFront(BoxLayout):
             self.symbol_input = SearchableDropDown(
                 client=self.client, options=self.symbols, symbols_info=self.symbols_info
             )
-            # Add it to the layout where needed
-            self.ids.symbol_container.add_widget(self.symbol_input)
+            # Note: symbol_input will be used by unified HP manager modals
+            # No need to add to layout here as unified manager handles this
 
             # Initialize Unified HP Manager (will be set by KV file)
             self.unified_hp_manager = None
@@ -156,34 +156,16 @@ class HpFront(BoxLayout):
 
         # Setup unified HP manager if available
         if hasattr(self, "ids") and hasattr(self.ids, "unified_hp_manager"):
-            self.unified_hp_manager = self.ids.unified_hp_manager
             self.setup_unified_hp_manager()
 
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
 
     def trigger_add_record(self, *args) -> None:
-        if not self._validate_buy_inputs():
-            return
-
-        symbol = self.symbol_input.selected_value
-        new_hp = HPBuyData(
-            config=HPBuyConfig(
-                coin=self.symbols_info[symbol].extract_coin_from_symbol(symbol=symbol),
-                symbol_info=self.symbols_info[symbol],
-                price_low=float(self.symbol_input.price_low_input.text),
-                price_high=float(self.symbol_input.price_high_input.text),
-                budget=float(self.ids.budget_input.text),
-                order_trigger=float(self.ids.order_trigger_input.text),
-                mode=(
-                    Mode.DCA
-                    if self.ids.mode_input.text == Mode.DCA.value
-                    else Mode.SINGLE
-                ),
-            ),
-            state_info=StateInfo(),
+        # This method is deprecated - HP creation now handled by unified HP manager
+        logger.warning(
+            "trigger_add_record called but deprecated - use unified HP manager"
         )
-        self.config_queue.put_nowait(new_hp)
-        logger.info("New HP added to the queue: %s", new_hp)
+        return
 
     def trigger_remove_record(
         self,
@@ -199,7 +181,11 @@ class HpFront(BoxLayout):
     # Unified HP Manager callback methods
     def setup_unified_hp_manager(self):
         """Setup the unified HP manager with callbacks."""
-        if self.unified_hp_manager:
+        # Get the unified HP manager from the KV file
+        if hasattr(self, "ids") and hasattr(self.ids, "unified_hp_manager"):
+            self.unified_hp_manager = self.ids.unified_hp_manager
+
+            # Set up callbacks
             self.unified_hp_manager.create_hp_callback = self.on_unified_create_hp
             self.unified_hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
             self.unified_hp_manager.remove_hp_callback = self.on_unified_remove_hp
@@ -207,6 +193,8 @@ class HpFront(BoxLayout):
             # Update with current data
             self.unified_hp_manager.update_symbols(self.symbols)
             self._sync_unified_hp_data()
+        else:
+            logger.warning("Unified HP manager not found in KV file")
 
     def on_unified_create_hp(self, hp_type: str, config: HPConfiguration):
         """Handle HP creation from unified manager."""
@@ -893,28 +881,11 @@ class HpFront(BoxLayout):
         self._update_hp_list_view()
 
     def trigger_sell_position(self, *args) -> None:
-        if not self._validate_sell_inputs():
-            return
-
-        coin = str(self.ids.coin_input.text).strip().upper()
-        coin = coin[:-3] if coin.endswith("USD") else coin
-
-        sell_config = HPSellData(
-            config=HPSellConfig(
-                hp_id=str(self.ids.hp_id_input.text).strip(),
-                coin=coin,
-                buy_price=float(str(self.ids.buy_price_input.text).strip()),
-                sell_price=float(str(self.ids.sell_price_input.text).strip()),
-                quantity=float(str(self.ids.quantity_input.text).strip()),
-                end_currency=self.ids.end_currency_spinner.text,
-                symbol_info=self.symbols_info[f"{coin}USDT"],
-            ),
-            state_info=StateInfo(side=PositionSide.SHORT),
+        # This method is deprecated - HP creation now handled by unified HP manager
+        logger.warning(
+            "trigger_sell_position called but deprecated - use unified HP manager"
         )
-        self.config_queue.put_nowait(sell_config)
-        logger.info("Sell config added to the queue: %s", sell_config.config)
-
-        self.filter_records("idle", "All", side="SELL")
+        return
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """
