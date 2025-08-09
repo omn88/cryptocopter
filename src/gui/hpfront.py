@@ -49,6 +49,7 @@ from src.gui.identifiers.spot import (
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.gui.unified import UnifiedHPManager, HPConfiguration
 
 
 logger = logging.getLogger("HPFront")
@@ -145,10 +146,18 @@ class HpFront(BoxLayout):
             # Add it to the layout where needed
             self.ids.symbol_container.add_widget(self.symbol_input)
 
+            # Initialize Unified HP Manager (will be set by KV file)
+            self.unified_hp_manager = None
+
     def initialize(self):
         if not self.test_mode:
             self.refresh_task = asyncio.create_task(self._refresh_ui())
         self.queue_task = asyncio.create_task(self.process_ui_queue())
+
+        # Setup unified HP manager if available
+        if hasattr(self, "ids") and hasattr(self.ids, "unified_hp_manager"):
+            self.unified_hp_manager = self.ids.unified_hp_manager
+            self.setup_unified_hp_manager()
 
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
 
@@ -186,6 +195,136 @@ class HpFront(BoxLayout):
         record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=PositionSide(side))
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
+
+    # Unified HP Manager callback methods
+    def setup_unified_hp_manager(self):
+        """Setup the unified HP manager with callbacks."""
+        if self.unified_hp_manager:
+            self.unified_hp_manager.create_hp_callback = self.on_unified_create_hp
+            self.unified_hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
+            self.unified_hp_manager.remove_hp_callback = self.on_unified_remove_hp
+
+            # Update with current data
+            self.unified_hp_manager.update_symbols(self.symbols)
+            self._sync_unified_hp_data()
+
+    def on_unified_create_hp(self, hp_type: str, config: HPConfiguration):
+        """Handle HP creation from unified manager."""
+        try:
+            if hp_type == "BUY":
+                self._create_buy_hp_from_config(config)
+            elif hp_type == "SELL":
+                self._create_sell_hp_from_config(config)
+            else:
+                logger.error(f"Unknown HP type: {hp_type}")
+        except Exception as e:
+            logger.error(f"Error creating {hp_type} HP: {e}")
+
+    def _create_buy_hp_from_config(self, config: HPConfiguration):
+        """Create Buy HP from unified configuration."""
+        if not self.symbols_info.get(config.symbol):
+            logger.error(f"Symbol info not found for {config.symbol}")
+            return
+
+        new_hp = HPBuyData(
+            config=HPBuyConfig(
+                coin=config.coin,
+                symbol_info=self.symbols_info[config.symbol],
+                price_low=config.price_low or 0.0,
+                price_high=config.price_high or 0.0,
+                budget=config.budget or 1000.0,
+                order_trigger=(
+                    config.order_trigger / 100.0 if config.order_trigger else 0.01
+                ),
+                mode=Mode.DCA if config.mode == "DCA" else Mode.SINGLE,
+            ),
+            state_info=StateInfo(),
+        )
+        self.config_queue.put_nowait(new_hp)
+        logger.info("Buy HP created from unified manager: %s", new_hp)
+
+    def _create_sell_hp_from_config(self, config: HPConfiguration):
+        """Create Sell HP from unified configuration."""
+        if not self.symbols_info.get(config.symbol):
+            logger.error(f"Symbol info not found for {config.symbol}")
+            return
+
+        sell_config = HPSellData(
+            config=HPSellConfig(
+                hp_id=config.hp_id if config.hp_id else str(uuid.uuid4())[:8],
+                coin=config.coin,
+                buy_price=0.0,  # Will be updated from actual data
+                sell_price=config.sell_price or 0.0,
+                quantity=config.quantity or 0.0,
+                end_currency=config.end_currency or "USDC",
+                symbol_info=self.symbols_info[config.symbol],
+            ),
+            state_info=StateInfo(side=PositionSide.SHORT),
+        )
+        self.config_queue.put_nowait(sell_config)
+        logger.info("Sell HP created from unified manager: %s", sell_config.config)
+
+    def on_unified_cancel_hp(self, hp_id: str, hp_type: str):
+        """Handle HP cancellation from unified manager."""
+        try:
+            if hp_type.upper() == "BUY":
+                side = PositionSide.LONG
+                symbol = self._get_symbol_from_hp_id(hp_id)
+            else:  # SELL
+                side = PositionSide.SHORT
+                symbol = self._get_symbol_from_hp_id(hp_id)
+
+            if symbol:
+                self.trigger_remove_record(hp_id, symbol, side.value)
+            else:
+                logger.error(f"Could not find symbol for HP ID: {hp_id}")
+        except Exception as e:
+            logger.error(f"Error cancelling HP {hp_id}: {e}")
+
+    def on_unified_remove_hp(self, hp_id: str, hp_type: str):
+        """Handle HP removal from unified manager."""
+        # For now, use same logic as cancel
+        self.on_unified_cancel_hp(hp_id, hp_type)
+
+    def _get_symbol_from_hp_id(self, hp_id: str) -> Optional[str]:
+        """Get symbol from HP ID by searching HP list data."""
+        for hp_data in self.hp_list_data:
+            if hp_data.get("id") == hp_id:
+                return hp_data.get("symbol", hp_data.get("pair"))
+        return None
+
+    def _sync_unified_hp_data(self):
+        """Sync current HP data with unified manager."""
+        if not self.unified_hp_manager:
+            return
+
+        # Clear existing data
+        self.unified_hp_manager.clear_all_positions()
+
+        # Add all HP positions
+        for hp_data in self.hp_list_data:
+            try:
+                hp_type = self._determine_hp_type_from_data(hp_data)
+                hp_id = hp_data.get("id", "")
+
+                if hp_type and hp_id:
+                    self.unified_hp_manager.add_hp_position(hp_type, hp_id, hp_data)
+            except Exception as e:
+                logger.error(f"Error syncing HP data for {hp_data}: {e}")
+
+    def _determine_hp_type_from_data(self, hp_data: Dict) -> Optional[str]:
+        """Determine HP type from existing HP data."""
+        state = hp_data.get("state", "").upper()
+
+        # Look for buy indicators
+        if any(x in state for x in ["BUY", "BOUGHT"]):
+            return "BUY"
+        # Look for sell indicators
+        elif any(x in state for x in ["SELL", "SOLD"]):
+            return "SELL"
+
+        # Default to BUY if unclear
+        return "BUY"
 
     async def process_ui_queue(self) -> None:
         logger.info("Ready to process UI queue")
@@ -1540,6 +1679,9 @@ class HpFront(BoxLayout):
 
         self.ids.hp_list_view.data = cleaned_data
         self.ids.hp_list_view.refresh_from_data()
+
+        # Sync with unified HP manager
+        self._sync_unified_hp_data()
 
     def auto_load_inventory_csv(self):
         """Automatically load inventory from 'inventory.csv' if it exists in current directory."""
