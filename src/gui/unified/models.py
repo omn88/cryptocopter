@@ -70,6 +70,10 @@ class UnifiedPosition:
     can_sell: bool = False
     can_edit: bool = False
 
+    # Additional UI fields for action buttons and side tracking
+    action_buttons: List[str] = field(default_factory=list)
+    side: str = "UNKNOWN"
+
     def get_type_display(self) -> str:
         """Get display string for position type."""
         if self.position_type == PositionType.HP:

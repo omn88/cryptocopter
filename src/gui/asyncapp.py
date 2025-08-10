@@ -192,7 +192,7 @@ class AsyncApp(App):
             price_resolver=self.price_resolver,
             portfolio_ui_queue=(
                 self.portfolio_ui.ui_queue if self.portfolio_ui else None
-            ),  # Pass portfolio UI queue for HP events
+            ),
         )
 
         self.trading_systems.append(back_end)

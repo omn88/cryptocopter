@@ -35,6 +35,7 @@ from src.identifiers import (
     BinanceClient,
     PositionSide,
     HPSellPositionCreated,
+    HPBuyPositionCreated,
     HPSellPositionCompleted,
     HPBuyPositionFilled,
     HPPositionCancelled,
@@ -87,9 +88,7 @@ class StrategyExecutor:
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
-        self.portfolio_ui_queue = (
-            portfolio_ui_queue  # Queue for sending HP events to portfolio
-        )
+        self.portfolio_ui_queue = portfolio_ui_queue
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
@@ -612,8 +611,6 @@ class StrategyExecutor:
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
 
-        logger.info("Self balances: %s", self.balances)
-
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
             client=self.client,
@@ -793,6 +790,22 @@ class StrategyExecutor:
         await self.db.upsert_buy_price_level(
             data=strategy.buy.data, strategy_state=strategy.state
         )
+
+        # Send HP buy position created event to portfolio for budget locking
+        if not is_restoration:  # Only send for new positions, not restored ones
+            hp_buy_created = HPBuyPositionCreated(
+                hp_id=str(new_hp.config.hp_id),
+                coin=new_hp.config.coin,
+                budget=new_hp.config.budget,
+                price_low=new_hp.config.price_low,
+                price_high=new_hp.config.price_high,
+                end_currency="USDC",  # Default to USDC for budget locking
+            )
+            if self.portfolio_ui_queue is not None:
+                event = Event(
+                    name=EventName.HP_BUY_POSITION_CREATED, content=hp_buy_created
+                )
+                self.portfolio_ui_queue.put_nowait(event)
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)

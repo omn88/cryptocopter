@@ -141,6 +141,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
         balances=balances,
         test_mode=True,
         price_resolver=price_resolver,
+        portfolio_ui_queue=queue.Queue(),
     )
     executor.client = mock_async_client
 

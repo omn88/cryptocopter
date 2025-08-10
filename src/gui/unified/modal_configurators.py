@@ -15,8 +15,9 @@ from typing import Dict, List, Callable, Optional, Any, Tuple
 import logging
 import uuid
 
-from src.identifiers import HPBuyConfig, HPSellConfig
+from src.identifiers import HPBuyConfig, HPSellConfig, Mode
 from src.common.symbol_info import SymbolInfo
+from src.gui.searchable_drop_down import SearchableDropDown
 from .models import HPConfiguration
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class BaseHPModal(Popup):  # type: ignore[misc]
     ) -> None:
         super().__init__(**kwargs)
         self.callback = callback
-        self.size_hint = (0.8, 0.7)
+        self.size_hint = (0.9, 0.85)  # Increased from 0.8, 0.7 to 0.9, 0.85
         self.title_size = "18sp"
         self.auto_dismiss = False
 
@@ -113,19 +114,26 @@ class BaseHPModal(Popup):  # type: ignore[misc]
 class BuyHPModal(BaseHPModal):
     """Modal for creating Buy HP positions."""
 
-    def __init__(self, symbols: List[str], **kwargs: Any) -> None:
+    def __init__(
+        self,
+        symbols: List[str],
+        symbols_info: Dict[str, SymbolInfo],
+        client: Any = None,
+        **kwargs: Any,
+    ) -> None:
         self.symbols = symbols
+        self.symbols_info = symbols_info
+        self.client = client
+        self.selected_symbol = ""  # Initialize selected symbol
         super().__init__(title="Create Buy HP Position", **kwargs)
 
     def setup_form(self) -> None:
         """Setup Buy HP form fields."""
-        # Symbol selection
-        self.symbol_spinner = Spinner(
-            text="Select Symbol", values=self.symbols, size_hint_x=0.7
+        # Symbol selection using SearchableDropDown
+        self.symbol_input = SearchableDropDown(
+            client=self.client, options=self.symbols, symbols_info=self.symbols_info
         )
-        self.form_layout.add_widget(
-            self.create_form_row("Symbol:", self.symbol_spinner)
-        )
+        self.form_layout.add_widget(self.create_form_row("Symbol:", self.symbol_input))
 
         # Budget
         self.budget_input = TextInput(
@@ -134,23 +142,6 @@ class BuyHPModal(BaseHPModal):
         self.form_layout.add_widget(
             self.create_form_row("Budget (USD):", self.budget_input)
         )
-
-        # Price range
-        price_layout = BoxLayout(spacing=5, size_hint_x=0.7)
-
-        self.price_low_input = TextInput(
-            text="", input_filter="float", multiline=False, hint_text="Low price"
-        )
-        price_layout.add_widget(self.price_low_input)
-
-        price_layout.add_widget(Label(text=" - ", size_hint_x=None, width=30))
-
-        self.price_high_input = TextInput(
-            text="", input_filter="float", multiline=False, hint_text="High price"
-        )
-        price_layout.add_widget(self.price_high_input)
-
-        self.form_layout.add_widget(self.create_form_row("Price Range:", price_layout))
 
         # Order trigger
         self.order_trigger_spinner = Spinner(
@@ -170,7 +161,10 @@ class BuyHPModal(BaseHPModal):
 
     def validate_form(self) -> Tuple[bool, str]:
         """Validate Buy HP form."""
-        if self.symbol_spinner.text == "Select Symbol":
+        if (
+            not hasattr(self.symbol_input, "selected_value")
+            or not self.symbol_input.selected_value
+        ):
             return False, "Please select a symbol"
 
         try:
@@ -180,49 +174,51 @@ class BuyHPModal(BaseHPModal):
         except ValueError:
             return False, "Invalid budget value"
 
-        try:
-            if self.price_low_input.text:
-                price_low = float(self.price_low_input.text)
-                if price_low <= 0:
-                    return False, "Low price must be greater than 0"
-        except ValueError:
-            return False, "Invalid low price value"
-
-        try:
-            if self.price_high_input.text:
-                price_high = float(self.price_high_input.text)
-                if price_high <= 0:
-                    return False, "High price must be greater than 0"
-
-                # Check price range
-                if (
-                    self.price_low_input.text
-                    and float(self.price_low_input.text) >= price_high
-                ):
-                    return False, "High price must be greater than low price"
-        except ValueError:
-            return False, "Invalid high price value"
-
         return True, ""
 
     def get_configuration(self) -> HPConfiguration:
         """Get Buy HP configuration."""
-        coin = self.symbol_spinner.text.replace("USDT", "").replace("USDC", "")
+        symbol = (
+            self.symbol_input.selected_value
+            if hasattr(self.symbol_input, "selected_value")
+            else ""
+        )
+        coin = symbol.replace("USDT", "").replace("USDC", "") if symbol else ""
+
+        # Get price values from SearchableDropDown, ensure they're not zero
+        price_low = None
+        price_high = None
+
+        if (
+            hasattr(self.symbol_input, "price_low_input")
+            and self.symbol_input.price_low_input.text
+        ):
+            try:
+                price_low = float(self.symbol_input.price_low_input.text)
+                if price_low <= 0:
+                    price_low = None
+            except ValueError:
+                price_low = None
+
+        if (
+            hasattr(self.symbol_input, "price_high_input")
+            and self.symbol_input.price_high_input.text
+        ):
+            try:
+                price_high = float(self.symbol_input.price_high_input.text)
+                if price_high <= 0:
+                    price_high = None
+            except ValueError:
+                price_high = None
 
         return HPConfiguration(
             hp_type="BUY",
             coin=coin,
-            symbol=self.symbol_spinner.text,
+            symbol=symbol,
             hp_id=str(uuid.uuid4())[:8],  # Generate unique ID
             budget=float(self.budget_input.text),
-            price_low=(
-                float(self.price_low_input.text) if self.price_low_input.text else None
-            ),
-            price_high=(
-                float(self.price_high_input.text)
-                if self.price_high_input.text
-                else None
-            ),
+            price_low=price_low,
+            price_high=price_high,
             order_trigger=float(self.order_trigger_spinner.text),
             mode=self.mode_spinner.text,
         )

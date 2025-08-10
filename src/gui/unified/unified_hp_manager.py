@@ -66,7 +66,10 @@ class HPRowWidget(BoxLayout):  # type: ignore[misc]
             self.add_widget(Label(text="", size_hint_x=None, width=20))
 
         # Expand/Collapse button (only for parent positions with children)
-        if self.position.position_type == PositionType.HP and self.position.children:
+        if (
+            self.position.position_type == PositionType.HP
+            and self.position.has_children
+        ):
             expand_btn = Button(
                 text="▼" if self.position.is_expanded else "▶",
                 size_hint_x=None,
@@ -103,39 +106,81 @@ class HPRowWidget(BoxLayout):  # type: ignore[misc]
         """Add action buttons based on position type and state."""
         action_layout = BoxLayout(orientation="horizontal", size_hint_x=0.18, spacing=2)
 
-        if self.position.position_type == PositionType.HP:
-            # Parent position: Buy and Sell buttons
-            buy_btn = Button(text="Buy", size_hint_x=0.5)
-            buy_btn.bind(on_release=lambda x: self.on_action("create_buy"))
+        # Get action buttons from position data (if available)
+        available_actions = getattr(self.position, "action_buttons", None)
+        if available_actions is None:
+            # Fallback to determine actions based on position properties
+            available_actions = self._determine_available_actions()
 
+        # Add buttons based on available actions
+        if "SELL" in available_actions:
             sell_btn = Button(text="Sell", size_hint_x=0.5)
-            sell_btn.bind(on_release=lambda x: self.on_action("create_sell"))
-
-            action_layout.add_widget(buy_btn)
+            sell_btn.bind(on_release=lambda x: self.on_action("sell"))
             action_layout.add_widget(sell_btn)
 
-        elif self.position.state in ["ACTIVE", "BUYING", "SELLING", "NEW"]:
-            # Active position: Cancel button
-            cancel_btn = Button(text="Cancel", size_hint_x=1.0)
+        if "CANCEL" in available_actions:
+            cancel_btn = Button(text="Cancel", size_hint_x=0.5)
             cancel_btn.bind(on_release=lambda x: self.on_action("cancel"))
             action_layout.add_widget(cancel_btn)
 
-        elif self.position.state in ["COMPLETED", "SOLD", "CLOSED"]:
-            # Completed position: Remove button
-            remove_btn = Button(text="Remove", size_hint_x=1.0)
+        if "REMOVE" in available_actions:
+            remove_btn = Button(text="Remove", size_hint_x=0.5)
             remove_btn.bind(on_release=lambda x: self.on_action("remove"))
             action_layout.add_widget(remove_btn)
 
-        else:
-            # No actions available
+        # If no actions available, add empty space
+        if not available_actions:
             action_layout.add_widget(Label(text=""))
 
         self.add_widget(action_layout)
 
+    def _determine_available_actions(self) -> List[str]:
+        """Determine available actions based on position properties."""
+        actions = []
+
+        if self.position.position_type == PositionType.HP:
+            # Parent position: Sell action if it has children
+            if self.position.has_children:
+                actions.append("SELL")
+                actions.append("CANCEL")
+        elif self.position.is_child:
+            # Child position actions based on side
+            side = getattr(self.position, "side", "")
+            if side == "BUY":
+                # Buy child can sell
+                actions.append("SELL")
+                actions.append("CANCEL")
+            elif side == "SELL":
+                # Sell child can typically only cancel
+                if self.position.state in ["ACTIVE", "SELLING", "NEW"]:
+                    actions.append("CANCEL")
+            elif side == "DUMMY_BUY":
+                # Dummy buy has no actions
+                pass
+            else:
+                # Generic child actions
+                if self.position.state in ["ACTIVE", "BUYING", "SELLING", "NEW"]:
+                    actions.append("CANCEL")
+                elif self.position.state in ["COMPLETED", "SOLD", "CLOSED"]:
+                    actions.append("REMOVE")
+        else:
+            # Fallback for other position types
+            if self.position.state in ["ACTIVE", "BUYING", "SELLING", "NEW"]:
+                actions.append("CANCEL")
+            elif self.position.state in ["COMPLETED", "SOLD", "CLOSED"]:
+                actions.append("REMOVE")
+
+        return actions
+
     def on_expand_clicked(self, instance: Any) -> None:
         """Handle expand/collapse button click."""
+        logger.info(f"Expand button clicked for position: {self.position.hp_id}")
         if self.on_expand_callback:
             self.on_expand_callback(self.position.hp_id)
+        else:
+            logger.warning(
+                f"No expand callback set for position: {self.position.hp_id}"
+            )
 
     def on_action(self, action: str) -> None:
         """Handle action button click."""
@@ -206,6 +251,8 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
         # Available data for modals
         self.available_symbols: List[str] = []
         self.inventory_coins: Dict[str, List[Any]] = {}
+        self.symbols_info: Dict[str, Any] = {}
+        self.client: Optional[Any] = None
 
         self.build_ui()
 
@@ -292,15 +339,23 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
 
     def on_position_expand(self, hp_id: str) -> None:
         """Handle position expand/collapse."""
+        logger.info(f"Position expand requested for HP ID: {hp_id}")
         self.hp_data.toggle_expansion(hp_id)
+        logger.info(f"Position {hp_id} expansion state toggled")
         self.refresh_hp_list()
 
     def on_position_action(self, position: UnifiedPosition, action: str) -> None:
         """Handle position action."""
-        if action == "create_buy":
-            self.show_buy_modal(default_coin=position.coin)
-        elif action == "create_sell":
-            self.show_sell_modal(default_coin=position.coin)
+        if action == "sell":
+            # Show sell modal for this position
+            # Extract coin from position symbol data
+            coin = position.coin
+            if hasattr(self, "show_sell_modal"):
+                self.show_sell_modal(default_coin=coin)
+            else:
+                logger.warning(
+                    f"Sell action requested for {position.hp_id} but no sell modal available"
+                )
         elif action == "cancel":
             if self.cancel_hp_callback:
                 self.cancel_hp_callback(position.hp_id, position.position_type.value)
@@ -317,7 +372,10 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
             return
 
         modal = BuyHPModal(
-            symbols=self.available_symbols, callback=self.on_buy_hp_configured
+            symbols=self.available_symbols,
+            symbols_info=self.symbols_info,
+            client=self.client,
+            callback=self.on_buy_hp_configured,
         )
 
         # Set default coin if provided
@@ -398,31 +456,46 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
         try:
             from .models import format_currency, format_percentage, format_quantity
 
+            # Add debugging for parent positions
+            children_data = data.get("children", [])
+            action_buttons = data.get("action_buttons", [])
+            side = data.get("side", "UNKNOWN")
+            logger.debug(
+                f"Converting position {hp_id} type={hp_type}, side={side}, children={children_data}, actions={action_buttons}"
+            )
+
             # Extract common fields
             coin = (
                 data.get("coin", data.get("pair", "Unknown"))
                 .replace("USDT", "")
                 .replace("USDC", "")
+                .replace("USD", "")
             )
             state = data.get("state", "UNKNOWN")
+            is_child = data.get("is_child", False)
+            parent_hp_id = data.get("parent_hp_id")
 
-            # Determine position type
-            if hp_type.upper() == "BUY":
+            # Determine position type based on hp_type and hierarchy
+            if hp_type.upper() == "HP":
+                # This is a parent HP position
+                position_type = PositionType.HP
+            elif hp_type.upper() == "BUY":
                 position_type = PositionType.BUY
             elif hp_type.upper() == "SELL":
                 position_type = PositionType.SELL
             else:
+                # Default fallback
                 position_type = PositionType.HP
 
-            # Format display fields
+            # Format display fields - always show exact quantities
             quantity = format_quantity(float(data.get("quantity", 0)))
             price = format_currency(
                 float(data.get("buy_price", data.get("sell_price", 0)))
             )
             net = format_currency(float(data.get("net", 0)))
-            progress = format_percentage(float(data.get("progress", 0)))
+            progress = format_percentage(float(data.get("net_percent", 0)))
 
-            return UnifiedPosition(
+            position = UnifiedPosition(
                 position_type=position_type,
                 hp_id=hp_id,
                 coin=coin,
@@ -431,15 +504,26 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
                 progress=progress,
                 net=net,
                 state=state,
-                is_child=data.get("is_child", False),
-                parent_hp_id=data.get("parent_hp_id"),
+                is_child=is_child,
+                parent_hp_id=parent_hp_id,
                 is_expanded=data.get("is_expanded", False),
                 raw_quantity=float(data.get("quantity", 0)),
                 raw_price=float(data.get("buy_price", data.get("sell_price", 0))),
                 raw_net=float(data.get("net", 0)),
-                progress_percent=float(data.get("progress", 0)),
+                progress_percent=float(data.get("net_percent", 0)),
                 can_cancel=state not in ["COMPLETED", "SOLD", "CLOSED"],
+                children=children_data.copy() if children_data else [],
+                has_children=len(children_data) > 0 if children_data else False,
             )
+
+            # Add action buttons and side information to position for use in UI
+            position.action_buttons = action_buttons
+            position.side = side
+
+            logger.debug(
+                f"Created position {hp_id}: has_children={position.has_children}, children={position.children}, side={side}"
+            )
+            return position
         except Exception as e:
             logger.error(f"Error converting data to position: {e}")
             return None

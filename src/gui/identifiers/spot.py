@@ -19,6 +19,7 @@ class HPUpdate:
     net_percent: Optional[float] = None
     state: State = State.NONE
     is_child: bool = False
+    side: str = "UNKNOWN"  # Added to track BUY/SELL side
 
 
 @dataclass

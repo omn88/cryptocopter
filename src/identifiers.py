@@ -43,6 +43,18 @@ class HPSellPositionCreated:
 
 
 @dataclass
+class HPBuyPositionCreated:
+    """Event data for when an HP buy position is created (locks budget)."""
+
+    hp_id: str
+    coin: str
+    budget: float
+    price_low: float
+    price_high: float
+    end_currency: str  # Usually USDC
+
+
+@dataclass
 class HPSellPositionCompleted:
     """Event data for when an HP sell position is completed (removes inventory, adds end currency)."""
 
@@ -118,6 +130,7 @@ class EventName(Enum):
     # HP Manager → Portfolio Events
     HP_SELL_POSITION_CREATED = "HP_SELL_POSITION_CREATED"
     HP_SELL_POSITION_COMPLETED = "HP_SELL_POSITION_COMPLETED"
+    HP_BUY_POSITION_CREATED = "HP_BUY_POSITION_CREATED"
     HP_BUY_POSITION_FILLED = "HP_BUY_POSITION_FILLED"
     HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
 
@@ -280,6 +293,7 @@ class Event(NamedTuple):
         ErrorMessage,
         List[InventoryItem],
         Dict[str, CoinBalance],
+        HPBuyPositionCreated,
     ]
 
     def __repr__(self) -> str:
