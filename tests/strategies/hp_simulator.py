@@ -26,7 +26,19 @@ from src.identifiers import (
 from src.strategies.hp_manager import HpStrategy
 from src.strategy_executor import StrategyExecutor
 from tests.helpers import get_new_orders
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_manager_helpers import (
+    wait_for_condition,
+    get_buy_positions,
+    get_sell_positions,
+    wait_for_active_buy_positions,
+    wait_for_no_idle_buy_positions,
+    wait_for_idle_buy_positions,
+    wait_for_no_active_buy_positions,
+    wait_for_active_sell_positions,
+    wait_for_no_idle_sell_positions,
+    wait_for_idle_sell_positions,
+    wait_for_no_active_sell_positions,
+)
 
 logger = logging.getLogger("hp_simulator")
 
@@ -123,10 +135,8 @@ class HPSimulator:
         assert strategy.state == State.NEW, strategy.state
         assert len(strategy.buy.orders) == 3
 
-        await wait_for_condition(
-            condition_func=lambda: not self.front.active_records_buy
-        )
-        await wait_for_condition(condition_func=lambda: self.front.idle_records_buy)
+        await wait_for_no_active_buy_positions(self.front)
+        await wait_for_idle_buy_positions(self.front)
 
     async def move_to_position_active_buy(self):
         # Open position and send orders
@@ -138,14 +148,18 @@ class HPSimulator:
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
-        await wait_for_condition(condition_func=lambda: self.front.active_records_buy)
-        await wait_for_condition(condition_func=lambda: not self.front.idle_records_buy)
+        await wait_for_active_buy_positions(self.front)
+        await wait_for_no_idle_buy_positions(self.front)
         assert strategy.buy.data.state_info.state == State.NEW
         assert all(order.order_id for order in strategy.buy.orders)
         assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
 
-        logger.info("Active records: %s", self.front.active_records_buy)
-        logger.info("Idle records: %s", self.front.idle_records_buy)
+        logger.info(
+            "Active buy positions: %s", get_buy_positions(self.front, state="ACTIVE")
+        )
+        logger.info(
+            "Idle buy positions: %s", get_buy_positions(self.front, state="NEW")
+        )
 
     async def cancel_buy_position_untouched(self):
         strategy = self.back.strategies["1000"]
@@ -735,7 +749,8 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.85
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-        active_sell_item = self.front.active_records_sell[0]
+        active_sell_positions = get_active_sell_positions(self.front)
+        active_sell_item = active_sell_positions[0]
 
         assert active_sell_item["hp_id"] == "1000"
         assert active_sell_item["symbol"] == "BTCUSDC"
@@ -942,7 +957,8 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.85
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.42
 
-        active_sell_item = self.front.active_records_sell[0]
+        active_sell_positions = get_sell_positions(self.front, state="active")
+        active_sell_item = active_sell_positions[0]
 
         assert active_sell_item["hp_id"] == "1000"
         assert active_sell_item["symbol"] == "BTCUSDC"
@@ -990,7 +1006,8 @@ class HPSimulator:
         assert strategy.sell.current_position.sell_order.quantity == 0.24
         assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-        active_sell_item = self.front.active_records_sell[0]
+        active_sell_positions = get_sell_positions(self.front, state="active")
+        active_sell_item = active_sell_positions[0]
 
         logger.info("Sell order: %s", strategy.sell.current_position.sell_order)
 
@@ -1635,10 +1652,8 @@ class HPSimulator:
 
         assert strategy.state == State.BOUGHT
 
-        await wait_for_condition(
-            condition_func=lambda: not self.front.active_records_sell
-        )
-        await wait_for_condition(condition_func=lambda: self.front.idle_records_sell)
+        await wait_for_no_active_sell_positions(self.front)
+        await wait_for_idle_sell_positions(self.front)
 
     async def send_orders_for_first_position_from_two_hop_trade(self):
         # Open position and send orders
@@ -1652,11 +1667,10 @@ class HPSimulator:
 
         # Assert new opened position data
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
-        await wait_for_condition(condition_func=lambda: self.front.active_records_sell)
-        logger.info("idle records sell: %s", self.front.idle_records_sell)
-        await wait_for_condition(
-            condition_func=lambda: not self.front.idle_records_sell
-        )
+        await wait_for_active_sell_positions(self.front)
+        idle_sell_positions = get_sell_positions(self.front, state="idle")
+        logger.info("idle records sell: %s", idle_sell_positions)
+        await wait_for_no_idle_sell_positions(self.front)
 
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
@@ -1664,8 +1678,10 @@ class HPSimulator:
         assert sell_order.quantity == 1000
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
-        logger.info("Active records: %s", self.front.active_records_sell)
-        logger.info("Idle records: %s", self.front.idle_records_sell)
+        active_sell_positions = get_sell_positions(self.front, state="active")
+        idle_sell_positions = get_sell_positions(self.front, state="idle")
+        logger.info("Active records: %s", active_sell_positions)
+        logger.info("Idle records: %s", idle_sell_positions)
 
     async def simulate_sell_order_partial_fill_in_first_hop(self):
         strategy = self.back.strategies["1000"]
@@ -1779,10 +1795,8 @@ class HPSimulator:
         await wait_for_condition(condition_func=lambda: strategy.state == State.SELLING)
         assert strategy.state == State.SELLING, f"State to: {strategy.state}"
 
-        await wait_for_condition(
-            condition_func=lambda: not self.front.idle_records_sell
-        )
-        await wait_for_condition(condition_func=lambda: self.front.active_records_sell)
+        await wait_for_no_idle_sell_positions(self.front)
+        await wait_for_active_sell_positions(self.front)
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[2]["state"]
             == State.SELLING.value

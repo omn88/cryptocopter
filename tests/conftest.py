@@ -18,7 +18,26 @@ from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.database.recovery_service import RecoveryService
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_manager_helpers import (
+    wait_for_condition,
+    get_hp_positions_by_type,
+    get_parent_hp_positions,
+    get_child_hp_positions,
+    get_buy_positions,
+    get_sell_positions,
+    has_active_buy_positions,
+    has_idle_buy_positions,
+    has_active_sell_positions,
+    has_idle_sell_positions,
+    wait_for_active_buy_positions,
+    wait_for_no_idle_buy_positions,
+    wait_for_idle_buy_positions,
+    wait_for_no_active_buy_positions,
+    wait_for_active_sell_positions,
+    wait_for_no_idle_sell_positions,
+    wait_for_idle_sell_positions,
+    wait_for_no_active_sell_positions,
+)
 
 import asyncio
 import logging

@@ -270,8 +270,14 @@ class HpFront(BoxLayout):
                 f"Syncing {len(self.hp_list_data)} HP positions to unified manager"
             )
 
+            # Preserve expansion state before clearing
+            expanded_hp_ids = self.unified_hp_manager.hp_data.expanded_hp_ids.copy()
+
             # Clear existing data
             self.unified_hp_manager.clear_all_positions()
+
+            # Restore expansion state
+            self.unified_hp_manager.hp_data.expanded_hp_ids = expanded_hp_ids
 
             # Directly add positions without complex categorization - this is dev data
             for hp_data in self.hp_list_data:
@@ -319,12 +325,123 @@ class HpFront(BoxLayout):
         # Default to BUY if unclear
         return "BUY"
 
+    def _get_buy_child_state(self, update: HPUpdate) -> str:
+        """Get appropriate state for buy child based on parent state and buy completion status."""
+        parent_state = update.state.value
+
+        # Map parent states to appropriate buy child states
+        if parent_state in ["NEW", "BUYING"]:
+            return parent_state
+        elif parent_state in ["PARTIALLY_BOUGHT"]:
+            return "PARTIALLY_BOUGHT"
+        elif parent_state in ["BOUGHT"]:
+            return "BOUGHT"
+        elif parent_state in ["SELLING", "PARTIALLY_SOLD", "SOLD"]:
+            # When selling, buy child should maintain its buy completion state
+            # If we have quantity, we were partially bought; if no quantity, we were never bought
+            if update.quantity and update.quantity > 0:
+                return "PARTIALLY_BOUGHT"
+            else:
+                return "NEW"  # Edge case: no quantity means nothing was bought
+        elif parent_state in ["PART_SOLD_PART_BOUGHT"]:
+            # Complex parent state: buy child should show its buy operation status
+            if update.quantity and update.quantity > 0:
+                return "PARTIALLY_BOUGHT"
+            else:
+                return "NEW"
+        else:
+            # For any other complex states, determine appropriate buy state
+            # based on quantity (if we have quantity, we completed some buy orders)
+            if update.quantity and update.quantity > 0:
+                return "PARTIALLY_BOUGHT"
+            else:
+                return "NEW"
+
+    def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
+        """Helper method to log and return buy child state."""
+        state = self._get_buy_child_state(update)
+        logger.info(
+            f"[BUY CHILD] Setting state to: {state} for quantity: {update.quantity}"
+        )
+        return state
+
+    def _get_sell_child_state_from_update(self, update: HPUpdate) -> str:
+        """Get sell child state, prioritizing sell operation state from update."""
+        # Check if we have specific sell state information in the update
+        logger.info(
+            f"_get_sell_child_state_from_update: hasattr(update, 'sell_state')={hasattr(update, 'sell_state')}"
+        )
+        if hasattr(update, "sell_state"):
+            logger.info(
+                f"_get_sell_child_state_from_update: sell_state={getattr(update, 'sell_state', None)}"
+            )
+
+        if hasattr(update, "sell_state") and update.sell_state:
+            sell_state = update.sell_state
+            logger.info(
+                f"_get_sell_child_state_from_update: Using sell_state={sell_state}"
+            )
+            if sell_state in ["NEW"]:
+                return "SELLING"  # Active sell order
+            elif sell_state in ["PARTIALLY_SOLD"]:
+                return "PARTIALLY_SOLD"
+            elif sell_state in ["SOLD", "FILLED"]:
+                return "SOLD"
+
+        # Fall back to parent state logic
+        logger.info(
+            f"_get_sell_child_state_from_update: Falling back to parent state logic"
+        )
+        return self._get_sell_child_state(update)
+
+    def _get_sell_child_state(self, update: HPUpdate, sell_data=None) -> str:
+        """Get appropriate state for sell child based on parent state and sell operation status."""
+        parent_state = update.state.value
+
+        # If we have sell data with state info, prioritize that for sell child state
+        if (
+            sell_data
+            and hasattr(sell_data, "data")
+            and hasattr(sell_data.data, "state_info")
+        ):
+            sell_state = sell_data.data.state_info.state.value
+            if sell_state in ["NEW"]:
+                return "SELLING"  # Active sell order
+            elif sell_state in ["PARTIALLY_SOLD"]:
+                return "PARTIALLY_SOLD"
+            elif sell_state in ["SOLD", "FILLED"]:
+                return "SOLD"
+            # If no specific sell state, fall back to parent state logic
+
+        # Map parent states to appropriate sell child states
+        if parent_state in ["SELLING"]:
+            return "SELLING"
+        elif parent_state in ["PARTIALLY_SOLD"]:
+            return "PARTIALLY_SOLD"
+        elif parent_state in ["SOLD"]:
+            return "SOLD"
+        elif parent_state in ["PART_SOLD_PART_BOUGHT"]:
+            # Complex parent state: sell child should show its sell operation status
+            # Since we're in this state, some selling happened, so likely PARTIALLY_SOLD
+            return "PARTIALLY_SOLD"
+        else:
+            # For other states where selling is active, default to SELLING
+            if any(
+                sell_indicator in parent_state for sell_indicator in ["SELL", "SOLD"]
+            ):
+                return "SELLING"
+            else:
+                return "NEW"
+
     async def process_ui_queue(self) -> None:
         logger.info("Ready to process UI queue")
         while not self.stop_event.is_set():
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
+                    logger.info(
+                        f"[PROCESS_UI_QUEUE] Received data type: {type(data)}, isinstance HPGuiDataBuy: {isinstance(data, HPGuiDataBuy)}, isinstance HPGuiDataSell: {isinstance(data, HPGuiDataSell)}"
+                    )
                     if isinstance(data, HPGuiDataBuy):
                         # Update the HP list with buy position data
                         logger.info("UI received BUY position data: %s", data)
@@ -336,14 +453,82 @@ class HpFront(BoxLayout):
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
                         logger.info("UI received SELL position data: %s", data)
+                        logger.info(
+                            f"Data type check: {type(data)}, isinstance result: {isinstance(data, HPGuiDataSell)}"
+                        )
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
+                        # Add sell completeness information for collapse logic
+                        data.hp_update.sell_completeness = (
+                            data.data.state_info.completeness
+                        )
+                        logger.info(
+                            f"[DEBUG SELL STATE] Before assignment - data.data.state_info={data.data.state_info}"
+                        )
+                        logger.info(
+                            f"[DEBUG SELL STATE] data.data.state_info.state={data.data.state_info.state}"
+                        )
+                        logger.info(
+                            f"[DEBUG SELL STATE] data.data.state_info.state.value={data.data.state_info.state.value}"
+                        )
+                        data.hp_update.sell_state = data.data.state_info.state.value
+                        logger.info(
+                            f"[DEBUG SELL STATE] After assignment - data.hp_update.sell_state={data.hp_update.sell_state}"
+                        )
+                        logger.info(
+                            f"Assigned sell_completeness={data.hp_update.sell_completeness}, sell_state={data.hp_update.sell_state}"
+                        )
+                        logger.info(
+                            f"Original data completeness: {data.data.state_info.completeness}"
+                        )
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
                         )
                     elif isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
                         assert isinstance(data.content, AllTickers)
                         self._process_all_tickers(data.content)
+                    else:
+                        # Debug: Check what data type we received that doesn't match any expected type
+                        logger.info(
+                            f"[UNMATCHED DATA TYPE] Received data of type: {type(data)}"
+                        )
+                        if hasattr(data, "__class__"):
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] Class name: {data.__class__.__name__}"
+                            )
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] Module: {data.__class__.__module__}"
+                            )
+                        if hasattr(data, "hp_update") and hasattr(data, "data"):
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] Looks like HPGuiDataSell but isinstance failed"
+                            )
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] HPGuiDataSell class: {HPGuiDataSell}"
+                            )
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] HPGuiDataSell module: {HPGuiDataSell.__module__}"
+                            )
+                            logger.info(
+                                f"[UNMATCHED DATA TYPE] Data class module: {data.__class__.__module__}"
+                            )
+                            # Try to process it anyway
+                            if hasattr(data, "data") and hasattr(
+                                data.data, "state_info"
+                            ):
+                                data.hp_update.side = data.data.state_info.side.value
+                                data.hp_update.sell_completeness = (
+                                    data.data.state_info.completeness
+                                )
+                                data.hp_update.sell_state = (
+                                    data.data.state_info.state.value
+                                )
+                                logger.info(
+                                    f"[FORCED SELL STATE] Assigned sell_state={data.hp_update.sell_state}"
+                                )
+                                self.hp_list_data = self.update_hp_list(
+                                    update=data.hp_update, hp_list=self.hp_list_data
+                                )
             except queue.Empty:
                 await asyncio.sleep(0.1)
         self.ui_queue_closed = True
@@ -404,6 +589,9 @@ class HpFront(BoxLayout):
             self._handle_container_position(
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
+
+        # Check if we need to collapse children for completed positions
+        self._collapse_completed_positions(hp_map, update)
 
         self.hp_list = list(hp_map.values())
 
@@ -511,11 +699,14 @@ class HpFront(BoxLayout):
         """Handle new runtime positions with container structure. No multihop creation."""
 
         # Determine if this is a Buy or Sell operation
-        is_buy_operation = (
-            operation_side in ["LONG", "BUY"] or "BUY" in update.state.value
-        )
+        # Priority logic: SELLING state should create separate sell child even if side='BUY'
         is_sell_operation = (
-            operation_side in ["SHORT", "SELL"] or "SELL" in update.state.value
+            operation_side in ["SHORT", "SELL"]
+            or update.state.value in ["SELLING", "SOLD"]
+            or "SELL" in update.state.value
+        )
+        is_buy_operation = not is_sell_operation and (
+            operation_side in ["LONG", "BUY"] or "BUY" in update.state.value
         )
 
         logger.info(
@@ -528,7 +719,7 @@ class HpFront(BoxLayout):
             hp_map[hp_id] = {
                 "hp_id": hp_id,
                 "coin": f"{update.coin}USD",
-                "state": "ACTIVE",
+                "state": update.state.value,
                 "buy_price": "0.0",
                 "quantity": "0.0",
                 "quantity_usd": "0.0",
@@ -564,12 +755,6 @@ class HpFront(BoxLayout):
                     else "0.0"
                 ),
                 "quantity_usd": quantity_usd,
-                "sell_price": "0.0",
-                "expected_return": (
-                    str(update.symbol_info.format_price(update.expected_return))
-                    if update.expected_return
-                    else "0.0"
-                ),
                 "current_price": (
                     str(update.symbol_info.format_price(update.current_price))
                     if update.current_price
@@ -581,7 +766,7 @@ class HpFront(BoxLayout):
                     else "0.0"
                 ),
                 "net_percent": str(update.net_percent) if update.net_percent else "0.0",
-                "state": update.state.value,
+                "state": self._log_and_return_buy_child_state(update),
                 "is_child": True,
                 "side": "BUY",
                 "parent_hp_id": hp_id,
@@ -597,13 +782,49 @@ class HpFront(BoxLayout):
             parent["buy_price"] = buy_child["buy_price"]
             parent["net"] = buy_child["net"]
             parent["net_percent"] = buy_child["net_percent"]
+            parent["state"] = update.state.value
+
+            # For complex states that involve selling, update existing sell child
+            if any(
+                sell_indicator in update.state.value
+                for sell_indicator in ["SELL", "SOLD"]
+            ):
+                sell_child_key = f"{hp_id}_SELL"
+                if sell_child_key in hp_map:
+                    existing_sell_child = hp_map[sell_child_key]
+                    # Update sell child state for complex parent states
+                    existing_sell_child["state"] = (
+                        self._get_sell_child_state_from_update(update)
+                    )
+                    logger.info(
+                        f"[SELL CHILD UPDATE] Updated existing sell child state to: {existing_sell_child['state']} for parent state: {update.state.value}"
+                    )
 
         elif is_sell_operation:
-            # Sell HP: Create dummy buy child + sell child (no multihop)
+            # Sell HP: Create sell child, keeping existing buy child if present
 
-            # Create dummy buy child if it doesn't exist
+            # Check if there's already a real buy child
+            buy_child_key = f"{hp_id}_BUY"
+            has_real_buy_child = buy_child_key in hp_map
+
+            # Update existing buy child if it exists
+            if has_real_buy_child:
+                existing_buy_child = hp_map[buy_child_key]
+                # Update buy child state appropriately for selling phase
+                existing_buy_child["state"] = self._get_buy_child_state(update)
+                logger.info(
+                    f"[BUY CHILD UPDATE] Updated existing buy child state to: {existing_buy_child['state']} for quantity: {update.quantity}"
+                )
+
+                # Update buy child quantities if needed
+                if update.quantity:
+                    # For selling operations, the quantity might be different (e.g., partially sold)
+                    # Update buy child to reflect total original buy quantity, not remaining quantity
+                    pass  # Keep existing quantity for now
+
+            # Create dummy buy child only if no real buy child exists
             dummy_buy_key = f"{hp_id}_DUMMY_BUY"
-            if dummy_buy_key not in hp_map:
+            if not has_real_buy_child and dummy_buy_key not in hp_map:
                 # Get average buy price from portfolio (placeholder for now)
                 avg_buy_price = "0.0"  # TODO: Get from portfolio
                 dummy_buy_quantity = (
@@ -618,8 +839,6 @@ class HpFront(BoxLayout):
                     "buy_price": avg_buy_price,
                     "quantity": dummy_buy_quantity,
                     "quantity_usd": "0.0",  # Calculate based on avg price
-                    "sell_price": "0.0",
-                    "expected_return": "0.0",
                     "current_price": (
                         str(update.symbol_info.format_price(update.current_price))
                         if update.current_price
@@ -644,7 +863,11 @@ class HpFront(BoxLayout):
             sell_child = {
                 "hp_id": sell_child_key,
                 "coin": update.symbol_info.symbol,
-                "buy_price": "0.0",
+                "buy_price": (
+                    str(update.symbol_info.format_price(update.buy_price))
+                    if update.buy_price
+                    else "0.0"
+                ),
                 "quantity": (
                     str(update.symbol_info.format_quantity(update.quantity))
                     if update.quantity
@@ -672,7 +895,7 @@ class HpFront(BoxLayout):
                     else "0.0"
                 ),
                 "net_percent": str(update.net_percent) if update.net_percent else "0.0",
-                "state": update.state.value,
+                "state": self._get_sell_child_state_from_update(update),
                 "is_child": True,
                 "side": "SELL",
                 "parent_hp_id": hp_id,
@@ -687,6 +910,9 @@ class HpFront(BoxLayout):
             parent["sell_price"] = sell_child["sell_price"]
             parent["expected_return"] = sell_child["expected_return"]
             parent["action_buttons"] = ["CANCEL"]  # Parent with sell can cancel
+
+        # Update parent state to reflect the actual operation state
+        parent["state"] = update.state.value
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
@@ -1383,4 +1609,119 @@ class HpFront(BoxLayout):
                 self.ids.hp_state_filter_display.text = (
                     "Showing 11 states (excludes CLOSED, SOLD)"
                 )
-            logger.info("Automatically removed CLOSED and SOLD states from filter")
+
+    def _collapse_completed_positions(
+        self, hp_map: Dict[str, Dict], update: HPUpdate
+    ) -> None:
+        """Collapse parent containers when positions are fully completed (SOLD, CLOSED).
+
+        In the new container-based approach:
+        - Only parent containers collapse when reaching final states
+        - Children are updated to show their latest state, not removed
+        """
+        logger.info(
+            f"[COLLAPSE] Processing update for {update.hp_id}: state={update.state.value}, sell_completeness={getattr(update, 'sell_completeness', 'None')}"
+        )
+
+        # Only collapse parent containers, not children
+        hp_id = update.hp_id
+        is_child = "_" in hp_id and not hp_id.endswith("_PARENT")
+
+        if is_child:
+            # Children are just updated, not collapsed
+            logger.info(f"[COLLAPSE] Skipping child {hp_id}")
+            return
+
+        # Check if parent should be collapsed (final completion states)
+        # For selling positions, only collapse when sell operation has made progress
+        is_selling_completed = (
+            update.state.value == "SELLING"
+            and update.expected_return is not None
+            and update.expected_return > 0
+            and update.sell_completeness is not None
+            and update.sell_completeness > 0.0  # Only collapse when selling has started
+        )
+        is_parent_completed = (
+            update.state.value in ["SOLD", "CLOSED", "SOLD_PART_BOUGHT"]
+            or is_selling_completed
+        )
+
+        logger.info(
+            f"[COLLAPSE] Sell completion check: selling={update.state.value == 'SELLING'}, expected_return={update.expected_return}, sell_completeness={getattr(update, 'sell_completeness', 'None')}"
+        )
+        logger.info(
+            f"[COLLAPSE] is_selling_completed={is_selling_completed}, is_parent_completed={is_parent_completed}"
+        )
+
+        if not is_parent_completed:
+            logger.info(f"[COLLAPSE] Not collapsing {hp_id} - not completed")
+            return
+
+        # Find parent container
+        parent_key = hp_id
+        if parent_key not in hp_map:
+            logger.info(f"[COLLAPSE] Parent {parent_key} not found in hp_map")
+            return
+
+        parent = hp_map[parent_key]
+
+        logger.info(f"[COLLAPSE] Collapsing parent {parent_key}")
+
+        # Remove all children and collapse to just parent
+        children_to_remove = []
+        for child_key in list(hp_map.keys()):
+            if child_key.startswith(f"{hp_id}_"):
+                children_to_remove.append(child_key)
+
+        # Update parent with final completed state data
+        parent.update(
+            {
+                "buy_price": (
+                    str(update.symbol_info.format_price(update.buy_price))
+                    if update.buy_price
+                    else parent.get("buy_price", "0.0")
+                ),
+                "quantity": (
+                    str(update.symbol_info.format_quantity(update.quantity))
+                    if update.quantity is not None
+                    else "0.0"
+                ),
+                "quantity_usd": (
+                    str(update.symbol_info.format_price(update.quantity_usd))
+                    if update.quantity_usd is not None
+                    else "0.0"
+                ),
+                "sell_price": (
+                    str(update.symbol_info.format_price(update.sell_price))
+                    if update.sell_price
+                    else parent.get("sell_price", "0.0")
+                ),
+                "expected_return": (
+                    str(update.symbol_info.format_price(update.expected_return))
+                    if update.expected_return
+                    else parent.get("expected_return", "0.0")
+                ),
+                "current_price": (
+                    str(update.symbol_info.format_price(update.current_price))
+                    if update.current_price
+                    else "0.0"
+                ),
+                "net": (
+                    str(update.symbol_info.format_price(update.net))
+                    if update.net
+                    else "0.0"
+                ),
+                "net_percent": str(update.net_percent) if update.net_percent else "0.0",
+                "state": update.state.value,
+                "children": [],  # Remove all children - collapsed to parent only
+                "action_buttons": [],  # No actions for completed positions
+            }
+        )
+
+        # Remove children from hp_map
+        for child_key in children_to_remove:
+            hp_map.pop(child_key, None)
+
+        logger.info(
+            f"Collapsed completed parent {parent_key} - removed {len(children_to_remove)} children"
+        )

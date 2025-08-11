@@ -48,19 +48,38 @@ class HPRowWidget(BoxLayout):  # type: ignore[misc]
     def setup_styling(self) -> None:
         """Setup row styling based on position type and state."""
         if self.position.position_type == PositionType.HP:
-            self.bg_color = [0.2, 0.3, 0.4, 1.0]  # Dark blue for parent
+            # Parent HP: Blue background similar to portfolio parent rows
+            self.bg_color = [0.15, 0.25, 0.35, 0.8]  # Softer blue with transparency
         elif self.position.is_dummy:
-            self.bg_color = [0.3, 0.3, 0.2, 1.0]  # Dark yellow for dummy
+            # Dummy positions: Muted yellow/brown
+            self.bg_color = [0.25, 0.22, 0.15, 0.7]  # Muted brown-yellow
         elif self.position.position_type == PositionType.BUY:
-            self.bg_color = [0.2, 0.4, 0.2, 1.0]  # Dark green for buy
+            # Buy positions: Subtle green
+            self.bg_color = [0.15, 0.3, 0.2, 0.7]  # Darker green with transparency
         else:  # SELL
-            self.bg_color = [0.4, 0.2, 0.2, 1.0]  # Dark red for sell
+            # Sell positions: Subtle red
+            self.bg_color = [0.3, 0.15, 0.15, 0.7]  # Darker red with transparency
 
         # Add indentation for child positions
         self.padding_left = 20 if self.position.is_child else 0
 
     def build_row(self) -> None:
         """Build the row layout with all columns."""
+        # Add background color using canvas
+        from kivy.graphics import Color, Rectangle, Line
+
+        with self.canvas.before:
+            # Background color
+            Color(*self.bg_color)
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+
+            # Subtle border line at the bottom
+            Color(1, 1, 1, 0.1)  # Light border
+            self.line = Line(width=1)
+
+        # Bind the rectangle and line to update when size/pos changes
+        self.bind(size=self._update_rect, pos=self._update_rect)
+
         # Add left padding for child positions
         if self.position.is_child:
             self.add_widget(Label(text="", size_hint_x=None, width=20))
@@ -133,6 +152,16 @@ class HPRowWidget(BoxLayout):  # type: ignore[misc]
             action_layout.add_widget(Label(text=""))
 
         self.add_widget(action_layout)
+
+    def _update_rect(self, *args: Any) -> None:
+        """Update the background rectangle and border line when size/position changes."""
+        if hasattr(self, "rect"):
+            self.rect.pos = self.pos
+            self.rect.size = self.size
+
+        if hasattr(self, "line"):
+            # Update line to be at the bottom of the row
+            self.line.points = [self.x, self.y, self.x + self.width, self.y]
 
     def _determine_available_actions(self) -> List[str]:
         """Determine available actions based on position properties."""
@@ -435,9 +464,16 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
         self, hp_type: str, hp_id: str, data: Dict[str, Any]
     ) -> None:
         """Update an existing HP position."""
+        # Preserve expansion state before update
+        was_expanded = hp_id in self.hp_data.expanded_hp_ids
+
         # For now, remove and re-add (could be optimized)
         self.remove_hp_position(hp_type, hp_id)
         self.add_hp_position(hp_type, hp_id, data)
+
+        # Restore expansion state if it was expanded
+        if was_expanded:
+            self.hp_data.expanded_hp_ids.add(hp_id)
 
     def remove_hp_position(self, hp_type: str, hp_id: str) -> None:
         """Remove an HP position from the display."""
@@ -506,7 +542,8 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
                 state=state,
                 is_child=is_child,
                 parent_hp_id=parent_hp_id,
-                is_expanded=data.get("is_expanded", False),
+                is_expanded=hp_id
+                in self.hp_data.expanded_hp_ids,  # Check actual expansion state
                 raw_quantity=float(data.get("quantity", 0)),
                 raw_price=float(data.get("buy_price", data.get("sell_price", 0))),
                 raw_net=float(data.get("net", 0)),
@@ -514,11 +551,9 @@ class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
                 can_cancel=state not in ["COMPLETED", "SOLD", "CLOSED"],
                 children=children_data.copy() if children_data else [],
                 has_children=len(children_data) > 0 if children_data else False,
+                action_buttons=action_buttons,
+                side=side,
             )
-
-            # Add action buttons and side information to position for use in UI
-            position.action_buttons = action_buttons
-            position.side = side
 
             logger.debug(
                 f"Created position {hp_id}: has_children={position.has_children}, children={position.children}, side={side}"

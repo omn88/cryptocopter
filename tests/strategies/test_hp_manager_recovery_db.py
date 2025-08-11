@@ -13,7 +13,11 @@ from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
 from src.gui.hpfront import HpFront
 from tests.helpers import get_new_orders
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_manager_helpers import (
+    wait_for_condition,
+    wait_for_active_buy_positions,
+    get_sell_positions,
+)
 from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.crash_recovery import CrashRecoveryHelper
 
@@ -172,7 +176,7 @@ async def test_default_buy_position_send_orders_recovery(crash_recovery_factory)
 
     # Assert position is actively buying
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
-    await wait_for_condition(condition_func=lambda: front.active_records_buy)
+    await wait_for_active_buy_positions(front)
 
     # === DETAILED PRE-CRASH ASSERTIONS ===
     # Verify strategy state
@@ -1675,7 +1679,8 @@ async def test_recovery_send_sell_order_for_bought_position(crash_recovery_facto
     assert strategy.sell.current_position.sell_order.quantity == 0.85
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-    active_sell_item = front.active_records_sell[0]
+    active_sell_positions = get_sell_positions(front, state="active")
+    active_sell_item = active_sell_positions[0]
 
     assert active_sell_item["hp_id"] == "1000"
     assert active_sell_item["symbol"] == "BTCUSDC"

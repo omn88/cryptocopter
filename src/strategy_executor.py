@@ -828,6 +828,7 @@ class StrategyExecutor:
                     state=state,
                     buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
+                    side="BUY",  # Set side to BUY for buy positions
                 ),
             )
         )
@@ -856,6 +857,7 @@ class StrategyExecutor:
                     quantity=config.quantity,
                     quantity_usd=quantity_usd,
                     expected_return=expected_return,
+                    side="SELL",  # Set side to SELL for sell positions
                 ),
             )
         )

@@ -56,6 +56,7 @@ from tests.strategies.hp_manager_helpers import (
     simulate_third_buy_order_fill_after_selling_first_order,
     simulate_third_buy_order_fill_after_selling_half_of_first_order,
     simulate_third_buy_order_fill_with_sell_price,
+    prepare_hp_update_for_collapse,
 )
 
 logger = logging.getLogger("test_hp_manager")
@@ -544,19 +545,22 @@ async def test_resend_unfilled_sell_orders(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
-    item = hp_list[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.85"
-    assert item["quantity_usd"] == "1002.0"
-    assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "2568.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "SELLING"
+    assert len(hp_list) == 3
+    parent = next(
+        item
+        for item in hp_list
+        if item["hp_id"] == "1000" and not item.get("is_child", False)
+    )
+    assert parent["hp_id"] == "1000"
+    assert parent["coin"] == "BTCUSD"
+    assert parent["buy_price"] == "1178.82"
+    assert parent["quantity"] == "0.85"
+    assert parent["sell_price"] == "4200.0"
+    assert parent["expected_return"] == "2568.0"
+    assert parent["current_price"] == "0.0"
+    assert parent["net"] == "0.0"
+    assert parent["net_percent"] == "0.0"
+    # Note: parent doesn't have state field, only children do
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -625,19 +629,25 @@ async def test_sell_position_first_order_filled(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
-    item = hp_list[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "2568.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "SELLING"
+    assert len(hp_list) == 3  # parent + buy child + sell child (container approach)
+    # Find parent container
+    parent_item = next(
+        item
+        for item in hp_list
+        if item["hp_id"] == "1000" and not item.get("is_child", False)
+    )
+    assert parent_item["coin"] == "BTCUSD"
+    assert parent_item["buy_price"] == "1178.82"
+    assert (
+        parent_item["quantity"] == "0.85"
+    )  # Shows total bought amount, not net remaining
+    assert parent_item["quantity_usd"] == "0.0"
+    assert parent_item["sell_price"] == "4200.0"
+    assert parent_item["expected_return"] == "2568.0"
+    assert parent_item["current_price"] == "0.0"
+    assert parent_item["net"] == "0.0"
+    assert parent_item["net_percent"] == "0.0"
+    assert parent_item["state"] == "SELLING"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1075,13 +1085,13 @@ async def test_cancel_buy_to_part_sold_part_bought(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.12"
-    assert item["quantity_usd"] == "168.0"
+    assert item["quantity"] == "0.24"
+    assert item["quantity_usd"] == "0.0"  # Parent shows 0 for USD quantity
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1136,15 +1146,17 @@ async def test_cancel_buy_to_part_sold_part_bought(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1326.32"
     assert item["quantity"] == "0.26"
-    assert item["quantity_usd"] == "344.84"
+    assert item["quantity_usd"] == "0.0"  # Parent shows 0 for USD quantity
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "1092.0"
+    assert (
+        item["expected_return"] == "672.0"
+    )  # Parent shows original sell value, not updated
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"

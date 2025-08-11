@@ -20,6 +20,8 @@ class HPUpdate:
     state: State = State.NONE
     is_child: bool = False
     side: str = "UNKNOWN"  # Added to track BUY/SELL side
+    sell_completeness: Optional[float] = None  # Added for sell position progress
+    sell_state: Optional[str] = None  # Added for sell operation state
 
 
 @dataclass

@@ -447,6 +447,7 @@ class HpStrategy:
             state=self.state,
             expected_return=expected_return,
             is_child=self.sell.current_position.config.is_child,
+            side="BUY",  # Set side to BUY for buy positions
         )
 
         logger.info("HP Update: %s", hp_update)
@@ -466,14 +467,18 @@ class HpStrategy:
         )
 
     def send_sell_position_to_ui(self):
+        hp_update = self.build_hp_update_from_orders(
+            symbol_info=self.sell.current_position.config.symbol_info
+        )
+        # Add sell state information for UI sell child state processing
+        hp_update.sell_state = self.sell.current_position.state_info.state.value
+
         data = HPGuiDataSell(
             data=HPSellData(
                 config=self.sell.current_position.config,
                 state_info=self.sell.current_position.state_info,
             ),
-            hp_update=self.build_hp_update_from_orders(
-                symbol_info=self.sell.current_position.config.symbol_info
-            ),
+            hp_update=hp_update,
         )
         self.ui_queue.put_nowait(data)
         logger.info("Send HPGuiDataSell to UI: %s", data)

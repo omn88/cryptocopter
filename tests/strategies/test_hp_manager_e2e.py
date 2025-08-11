@@ -14,7 +14,19 @@ from src.identifiers import (
 )
 from tests.helpers import get_new_orders
 from tests.strategies.hp_simulator import HPSimulator
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_manager_helpers import (
+    wait_for_condition,
+    get_buy_positions,
+    get_sell_positions,
+    wait_for_active_buy_positions,
+    wait_for_no_idle_buy_positions,
+    wait_for_idle_buy_positions,
+    wait_for_no_active_buy_positions,
+    wait_for_active_sell_positions,
+    wait_for_no_idle_sell_positions,
+    wait_for_idle_sell_positions,
+    wait_for_no_active_sell_positions,
+)
 
 logger = logging.getLogger("hp_e2e_test")
 
@@ -52,14 +64,14 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
 
     # Assert new opened position data
     await wait_for_condition(condition_func=lambda: strategy.state == State.BUYING)
-    await wait_for_condition(condition_func=lambda: front.active_records_buy)
-    await wait_for_condition(condition_func=lambda: not front.idle_records_buy)
+    await wait_for_active_buy_positions(front)
+    await wait_for_no_idle_buy_positions(front)
     assert strategy.buy.data.state_info.state == State.NEW
     assert all(order.order_id for order in strategy.buy.orders)
     assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
 
-    logger.info("Active records: %s", front.active_records_buy)
-    logger.info("Idle records: %s", front.idle_records_buy)
+    logger.info("Active buy positions: %s", get_buy_positions(front, state="ACTIVE"))
+    logger.info("Idle buy positions: %s", get_buy_positions(front, state="NEW"))
 
 
 async def test_cancel_default_position_untouched(frontend_backend_setup):
@@ -534,7 +546,8 @@ async def test_send_sell_order_for_bought_position(
     assert strategy.sell.current_position.sell_order.quantity == 0.85
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-    active_sell_item = front.active_records_sell[0]
+    active_sell_positions = get_sell_positions(front, state="active")
+    active_sell_item = active_sell_positions[0]
 
     assert active_sell_item["hp_id"] == "1000"
     assert active_sell_item["symbol"] == "BTCUSDC"
