@@ -12,6 +12,10 @@ class HPUpdate:
     buy_price: Optional[float] = None
     quantity: Optional[float] = None
     quantity_usd: Optional[float] = None
+    realized_quantity: Optional[float] = None  # Added for actual filled quantity
+    total_quantity: Optional[float] = (
+        None  # Added for total bought quantity (before any sells)
+    )
     sell_price: Optional[float] = None
     expected_return: Optional[float] = None
     current_price: Optional[float] = None

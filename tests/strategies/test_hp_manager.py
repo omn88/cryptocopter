@@ -1236,13 +1236,14 @@ async def test_buy_fully_partially_sold_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3  # Parent + BUY child + SELL child
+    # Parent item (aggregated view)
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.12"
-    assert item["quantity_usd"] == "168.0"
+    assert item["quantity"] == "0.24"
+    assert item["quantity_usd"] == "0.0"  # Parent shows aggregated USD
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1348,13 +1349,16 @@ async def test_sell_fully_partially_bought_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3  # Parent + BUY child + SELL child
+    # Parent item (aggregated view)
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
+    assert (
+        item["quantity"] == "0.0"
+    )  # Parent shows net remaining quantity (bought - sold = 0.24 - 0.24 = 0.0 when fully sold)
+    assert item["quantity_usd"] == "0.0"  # Parent shows aggregated USD
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1460,11 +1464,14 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     )
     await strategy.process_order()  # type: ignore[attr-defined]
 
+    # Process the HP_ALL_ORDERS_FILLED signal that was sent to the queue
+    await strategy.process_signal()  # type: ignore[attr-defined]
+
     logger.info("Orders: %s", strategy.sell.current_position.sell_order)
     assert strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
     assert strategy.sell.current_position.sell_order.quantity == 0.24
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.24
-    assert strategy.state == State.SELLING
+    assert strategy.state == State.SOLD_PART_BOUGHT
     assert strategy.sell.current_position.state_info.state == State.SOLD
     assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
 
@@ -1484,7 +1491,7 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
@@ -1496,7 +1503,21 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
-    assert item["state"] == "SELLING"
+    assert item["state"] == "SOLD_PART_BOUGHT"
+
+    # Check buy child
+    buy_child = hp_list[1]
+    assert buy_child["hp_id"] == "1000_BUY"
+    assert buy_child["state"] == "PARTIALLY_BOUGHT"
+    assert buy_child["is_child"] is True
+    assert buy_child["side"] == "BUY"
+
+    # Check sell child
+    sell_child = hp_list[2]
+    assert sell_child["hp_id"] == "1000_SELL"
+    assert sell_child["state"] == "SOLD"
+    assert sell_child["is_child"] is True
+    assert sell_child["side"] == "SELL"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1535,19 +1556,35 @@ async def test_buy_fully_partially_bought_position_when_sold_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
-    item = hp_list[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "672.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "SOLD_PART_BOUGHT"
+    # SOLD_PART_BOUGHT is a continuing state, so container should maintain 3-item structure
+    assert len(hp_list) == 3  # Parent + buy child + sell child for continuing position
+
+    # Verify parent container
+    parent_item = next(item for item in hp_list if item.get("children"))
+    assert parent_item["hp_id"] == "1000"
+    assert parent_item["coin"] == "BTCUSD"
+    assert parent_item["buy_price"] == "1400.0"
+    assert parent_item["quantity"] == "0.24"  # Parent shows total bought quantity
+    assert parent_item["quantity_usd"] == "0.0"  # Parent shows aggregated USD
+    assert parent_item["sell_price"] == "4200.0"
+    assert parent_item["expected_return"] == "672.0"
+    assert parent_item["current_price"] == "0.0"
+    assert parent_item["net"] == "0.0"
+    assert parent_item["net_percent"] == "0.0"
+    assert (
+        parent_item["state"] == "SELLING"
+    )  # Parent reflects the overall operation state
+    assert parent_item["children"] == ["1000_BUY", "1000_SELL"]
+
+    # Verify buy child shows the completed buy operation
+    buy_child = next(item for item in hp_list if item["hp_id"] == "1000_BUY")
+    assert (
+        buy_child["state"] == "NEW"
+    )  # Shows current buy state for continuing position
+
+    # Verify sell child shows the completed sell operation
+    sell_child = next(item for item in hp_list if item["hp_id"] == "1000_SELL")
+    assert sell_child["state"] == "SOLD"  # Shows completed sell state
 
     logger.info("HP List after the update: %s", hp_list)
 

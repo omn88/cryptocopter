@@ -439,6 +439,7 @@ class HpStrategy:
             symbol_info=symbol_info,
             quantity=quantity,
             quantity_usd=quantity_usd,
+            total_quantity=total_quantity,  # Add total bought quantity
             buy_price=buy_price,
             sell_price=self.sell.current_position.config.sell_price,
             current_price=current_price,
@@ -1335,10 +1336,28 @@ class HpStrategy:
     def conditions_for_closing_sold_position_which_is_part_bought(
         self, *args, **kwargs
     ) -> bool:
+        logger.debug(
+            f"[TRANSITION DEBUG] Checking conditions for SOLD_PART_BOUGHT transition:"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] self.state == SELLING: {self.state == State.SELLING}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] buy state == PARTIALLY_BOUGHT: {self.buy.data.state_info.state == State.PARTIALLY_BOUGHT}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] sell order status == FILLED: {self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED}"
+        )
+        logger.debug(f"[TRANSITION DEBUG] signal_update: {self.signal_update}")
+        logger.debug(
+            f"[TRANSITION DEBUG] expected signal: {SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] signal match: {self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)}"
+        )
         condition = (
             self.state == State.SELLING
             and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.current_position.state_info.state == State.SOLD
             and self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
@@ -1381,6 +1400,8 @@ class HpStrategy:
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
+        # Clear the signal after processing
+        self.signal_update = SignalUpdate()
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs

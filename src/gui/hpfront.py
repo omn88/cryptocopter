@@ -721,7 +721,8 @@ class HpFront(BoxLayout):
                 "coin": f"{update.coin}USD",
                 "state": update.state.value,
                 "buy_price": "0.0",
-                "quantity": "0.0",
+                "quantity": "0.0",  # Total realized buy quantity
+                "realized_quantity": "0.0",  # Total realized sell quantity
                 "quantity_usd": "0.0",
                 "sell_price": "0.0",
                 "expected_return": "0.0",
@@ -741,6 +742,17 @@ class HpFront(BoxLayout):
         if is_buy_operation:
             # Buy HP: Create buy child only (no multihop)
             buy_child_key = f"{hp_id}_BUY"
+
+            # Buy children according to new specification:
+            # - quantity: Total trade quantity (use total_quantity if available)
+            # - realized_quantity: Actually realized quantity (use total_quantity if available)
+
+            # Get total quantity for buy child display
+            total_bought_qty = getattr(update, "total_quantity", None)
+            if total_bought_qty is None:
+                # Fallback to current quantity for buy child display
+                total_bought_qty = update.quantity or 0.0
+
             buy_child = {
                 "hp_id": buy_child_key,
                 "coin": update.symbol_info.symbol,
@@ -750,8 +762,13 @@ class HpFront(BoxLayout):
                     else "0.0"
                 ),
                 "quantity": (
-                    str(update.symbol_info.format_quantity(update.quantity))
-                    if update.quantity
+                    str(update.symbol_info.format_quantity(total_bought_qty))
+                    if total_bought_qty
+                    else "0.0"
+                ),
+                "realized_quantity": (
+                    str(update.symbol_info.format_quantity(total_bought_qty))
+                    if total_bought_qty
                     else "0.0"
                 ),
                 "quantity_usd": quantity_usd,
@@ -773,12 +790,79 @@ class HpFront(BoxLayout):
                 "action_buttons": ["SELL", "CANCEL"],  # Buy child can sell and cancel
             }
 
+            # Buy children NEVER have sell_price or expected_return fields
+            # They are purely buy operations and should not show sell-related information
+
             hp_map[buy_child_key] = buy_child
             if buy_child_key not in parent["children"]:
                 parent["children"].append(buy_child_key)
 
-            # Update parent with buy data
-            parent["quantity"] = buy_child["quantity"]
+            # Update parent quantities according to new specification:
+            # - quantity: Total realized buy quantity (always reflects total bought)
+            # - realized_quantity: Total realized sell quantity (how much was sold)
+
+            # Calculate total bought quantity - use total_quantity from strategy if available
+            total_bought = getattr(update, "total_quantity", None)
+            if total_bought is None:
+                # Fallback to current quantity if total_quantity not available
+                total_bought = getattr(update, "quantity", 0.0) or 0.0
+
+            logger.info(
+                f"[PARENT DEBUG] total_bought={total_bought}, update.quantity={getattr(update, 'quantity', None)}, update.total_quantity={getattr(update, 'total_quantity', None)}"
+            )
+
+            # For sell operations, we need to calculate how much was actually sold
+            short_condition = operation_side == "SHORT"
+            sell_condition = "SELL" in update.state.value
+            logger.info(
+                f"[PARENT CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
+            )
+            logger.info(
+                f"[PARENT CONDITION DEBUG] state type: {type(update.state)}, state value type: {type(update.state.value)}"
+            )
+            logger.info(
+                f"[PARENT CONDITION DEBUG] repr(state.value): {repr(update.state.value)}"
+            )
+            logger.info(
+                f"[PARENT CONDITION DEBUG] 'SELL' in repr: {'SELL' in repr(update.state.value)}"
+            )
+
+            combined_condition = short_condition or sell_condition
+            logger.info(
+                f"[PARENT CONDITION DEBUG] Combined condition: {combined_condition}"
+            )
+
+            if combined_condition:
+                # During selling, update.quantity represents remaining quantity after sells
+                # So sold quantity = total_bought - remaining_quantity
+                remaining_qty = float(update.quantity) if update.quantity else 0.0
+
+                # Calculate sold quantity
+                sold_qty = max(0.0, total_bought - remaining_qty)
+
+                # Parent quantity should show total bought amount (not remaining)
+                parent["quantity"] = str(
+                    update.symbol_info.format_quantity(total_bought)
+                )
+                parent["realized_quantity"] = str(
+                    update.symbol_info.format_quantity(sold_qty)
+                )
+                logger.info(
+                    f"[PARENT SELL] Total bought: {parent['quantity']}, Sold: {parent['realized_quantity']}, Remaining: {remaining_qty}"
+                )
+
+            else:
+                # For buy operations, just update the total bought
+                parent["quantity"] = str(
+                    update.symbol_info.format_quantity(total_bought)
+                )
+                logger.info(
+                    f"[PARENT BUY] Set parent total bought quantity: {parent['quantity']}"
+                )
+
+            # Ensure both fields exist
+            if "realized_quantity" not in parent:
+                parent["realized_quantity"] = "0.0"
             parent["buy_price"] = buy_child["buy_price"]
             parent["net"] = buy_child["net"]
             parent["net_percent"] = buy_child["net_percent"]
@@ -796,6 +880,17 @@ class HpFront(BoxLayout):
                     existing_sell_child["state"] = (
                         self._get_sell_child_state_from_update(update)
                     )
+
+                    # Update sell child quantities according to new specification
+                    total_bought = float(parent.get("quantity", "0.0"))
+                    actually_sold = float(parent.get("realized_quantity", "0.0"))
+                    existing_sell_child["quantity"] = str(
+                        update.symbol_info.format_quantity(total_bought)
+                    )
+                    existing_sell_child["realized_quantity"] = str(
+                        update.symbol_info.format_quantity(actually_sold)
+                    )
+
                     logger.info(
                         f"[SELL CHILD UPDATE] Updated existing sell child state to: {existing_sell_child['state']} for parent state: {update.state.value}"
                     )
@@ -816,11 +911,54 @@ class HpFront(BoxLayout):
                     f"[BUY CHILD UPDATE] Updated existing buy child state to: {existing_buy_child['state']} for quantity: {update.quantity}"
                 )
 
-                # Update buy child quantities if needed
-                if update.quantity:
-                    # For selling operations, the quantity might be different (e.g., partially sold)
-                    # Update buy child to reflect total original buy quantity, not remaining quantity
-                    pass  # Keep existing quantity for now
+                # Update buy child quantities according to new specification
+                if update.quantity is not None:
+                    # For new specification: buy child shows total bought quantity
+                    # Use total_quantity if available, otherwise use calculated total
+                    total_bought_qty = getattr(update, "total_quantity", None)
+                    logger.info(
+                        f"[BUY CHILD DEBUG] update.quantity={update.quantity}, total_quantity={total_bought_qty}"
+                    )
+                    if total_bought_qty is None:
+                        # Fallback calculation - total bought = remaining quantity + sold quantity
+                        sell_total_qty = 0.0
+                        if (
+                            hasattr(update, "sell_completeness")
+                            and update.sell_completeness is not None
+                        ):
+                            # If we have sell completeness info, use it
+                            sell_total_qty = update.sell_completeness * update.quantity
+                        total_bought_qty = update.quantity + sell_total_qty
+                        logger.info(
+                            f"[BUY CHILD DEBUG] Fallback calculation: {update.quantity} + {sell_total_qty} = {total_bought_qty}"
+                        )
+                    else:
+                        logger.info(
+                            f"[BUY CHILD DEBUG] Using total_quantity: {total_bought_qty}"
+                        )
+
+                    existing_buy_child["quantity"] = str(
+                        update.symbol_info.format_quantity(total_bought_qty)
+                    )
+                    # For buy child, realized_quantity = total bought (what we've purchased)
+                    existing_buy_child["realized_quantity"] = str(
+                        update.symbol_info.format_quantity(total_bought_qty)
+                    )
+
+                    # Calculate quantity_usd based on total bought quantity and buy price (money invested)
+                    # This represents the total value of the position regardless of selling status
+                    buy_price = float(existing_buy_child.get("buy_price", 0))
+                    quantity_usd_value = total_bought_qty * buy_price
+                    existing_buy_child["quantity_usd"] = (
+                        str(update.symbol_info.format_price(quantity_usd_value))
+                        if update.symbol_info
+                        else f"{quantity_usd_value:.2f}"
+                    )
+
+                # Buy children should NEVER have sell-related fields
+                # Remove any sell-related fields that might exist
+                existing_buy_child.pop("sell_price", None)
+                existing_buy_child.pop("expected_return", None)
 
             # Create dummy buy child only if no real buy child exists
             dummy_buy_key = f"{hp_id}_DUMMY_BUY"
@@ -860,6 +998,26 @@ class HpFront(BoxLayout):
             # Create single sell child (no multihop for new positions)
             sell_child_key = f"{hp_id}_SELL"
 
+            # Sell children according to new specification:
+            # - quantity: Total buy quantity (the amount that should be sold - same as total bought)
+            # - realized_quantity: Actually sold quantity (how much was actually sold)
+
+            # Get total bought quantity from parent
+            total_bought_qty = float(parent.get("quantity", "0.0"))
+            actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
+
+            # For sell child, calculate quantity_usd same as buy child (total bought value)
+            # This represents the total value of money invested in the position
+            total_bought_qty = float(parent.get("quantity", "0.0"))
+            sell_child_quantity_usd = total_bought_qty * (
+                update.buy_price if update.buy_price else 0.0
+            )
+            sell_child_quantity_usd_str = (
+                str(update.symbol_info.format_price(sell_child_quantity_usd))
+                if update.symbol_info
+                else f"{sell_child_quantity_usd:.2f}"
+            )
+
             sell_child = {
                 "hp_id": sell_child_key,
                 "coin": update.symbol_info.symbol,
@@ -868,12 +1026,11 @@ class HpFront(BoxLayout):
                     if update.buy_price
                     else "0.0"
                 ),
-                "quantity": (
-                    str(update.symbol_info.format_quantity(update.quantity))
-                    if update.quantity
-                    else "0.0"
+                "quantity": (str(update.symbol_info.format_quantity(total_bought_qty))),
+                "realized_quantity": (
+                    str(update.symbol_info.format_quantity(actually_sold_qty))
                 ),
-                "quantity_usd": quantity_usd,
+                "quantity_usd": sell_child_quantity_usd_str,
                 "sell_price": (
                     str(update.symbol_info.format_price(update.sell_price))
                     if update.sell_price
@@ -905,6 +1062,57 @@ class HpFront(BoxLayout):
             hp_map[sell_child_key] = sell_child
             if sell_child_key not in parent["children"]:
                 parent["children"].append(sell_child_key)
+
+            # Update parent quantity using same logic as buy operation
+            # This ensures parent quantity shows remaining vs total based on state
+            operation_side = getattr(update, "side", "BUY")
+            short_condition = operation_side == "SHORT"
+            sell_condition = "SELL" in update.state.value
+            combined_condition = short_condition or sell_condition
+
+            logger.info(
+                f"[PARENT SELL CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
+            )
+            logger.info(
+                f"[PARENT SELL CONDITION DEBUG] state type: {type(update.state)}, state value type: {type(update.state.value)}"
+            )
+            logger.info(
+                f"[PARENT SELL CONDITION DEBUG] repr(state.value): {repr(update.state.value)}"
+            )
+            logger.info(
+                f"[PARENT SELL CONDITION DEBUG] 'SELL' in repr: {'SELL' in update.state.value}"
+            )
+            logger.info(
+                f"[PARENT SELL CONDITION DEBUG] Combined condition: {combined_condition}"
+            )
+
+            if combined_condition:
+                # During selling, update.quantity represents remaining quantity after sells
+                # So sold quantity = total_bought - remaining_quantity
+                remaining_qty = float(update.quantity) if update.quantity else 0.0
+
+                # Calculate sold quantity
+                sold_qty = max(0.0, total_bought_qty - remaining_qty)
+
+                # Parent quantity should show total bought quantity (not remaining)
+                parent["quantity"] = str(
+                    update.symbol_info.format_quantity(total_bought_qty)
+                )
+                parent["realized_quantity"] = str(
+                    update.symbol_info.format_quantity(sold_qty)
+                )
+                logger.info(
+                    f"[PARENT SELL] Total bought: {parent['quantity']}, Sold: {parent['realized_quantity']} (remaining: {remaining_qty})"
+                )
+
+            else:
+                # For sell operations without SELL in state, show total bought
+                parent["quantity"] = str(
+                    update.symbol_info.format_quantity(total_bought_qty)
+                )
+                logger.info(
+                    f"[PARENT SELL BUY] Set parent total bought quantity: {parent['quantity']}"
+                )
 
             # Update parent with sell data
             parent["sell_price"] = sell_child["sell_price"]
@@ -1642,8 +1850,7 @@ class HpFront(BoxLayout):
             and update.sell_completeness > 0.0  # Only collapse when selling has started
         )
         is_parent_completed = (
-            update.state.value in ["SOLD", "CLOSED", "SOLD_PART_BOUGHT"]
-            or is_selling_completed
+            update.state.value in ["SOLD", "CLOSED"] or is_selling_completed
         )
 
         logger.info(
