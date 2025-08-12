@@ -641,7 +641,7 @@ async def test_sell_position_first_order_filled(
     assert (
         parent_item["quantity"] == "0.85"
     )  # Shows total bought amount, not net remaining
-    assert parent_item["quantity_usd"] == "0.0"
+    assert parent_item["quantity_usd"] == "1002.0"
     assert parent_item["sell_price"] == "4200.0"
     assert parent_item["expected_return"] == "2568.0"
     assert parent_item["current_price"] == "0.0"
@@ -1091,7 +1091,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "0.0"  # Parent shows 0 for USD quantity
+    assert item["quantity_usd"] == "336.0"  # Parent shows 0 for USD quantity
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1151,8 +1151,8 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1326.32"
-    assert item["quantity"] == "0.26"
-    assert item["quantity_usd"] == "0.0"  # Parent shows 0 for USD quantity
+    assert item["quantity"] == "0.38"
+    assert item["quantity_usd"] == "504.0"  # Parent shows 0 for USD quantity
     assert item["sell_price"] == "4200.0"
     assert (
         item["expected_return"] == "672.0"
@@ -1243,7 +1243,7 @@ async def test_buy_fully_partially_sold_position(
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "0.0"  # Parent shows aggregated USD
+    assert item["quantity_usd"] == "336.0"  # Parent shows aggregated USD
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1356,9 +1356,9 @@ async def test_sell_fully_partially_bought_position(
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
     assert (
-        item["quantity"] == "0.0"
+        item["quantity"] == "0.24"
     )  # Parent shows net remaining quantity (bought - sold = 0.24 - 0.24 = 0.0 when fully sold)
-    assert item["quantity_usd"] == "0.0"  # Parent shows aggregated USD
+    assert item["quantity_usd"] == "336.0"  # Parent shows aggregated USD
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"
@@ -1403,13 +1403,13 @@ async def test_sell_fully_partially_bought_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
+    assert item["quantity"] == "0.24"
+    assert item["quantity_usd"] == "336.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "672.0"
     assert item["current_price"] == "0.0"

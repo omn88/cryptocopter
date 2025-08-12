@@ -599,6 +599,24 @@ class HpFront(BoxLayout):
         if update.state.value in ["CLOSED", "SOLD"]:
             self.auto_remove_closed_sold_states()
 
+        # Calculate parent quantity_usd as total invested amount from all buy children
+        # This happens at the very end to ensure all containers have been updated first
+        for parent_key, parent in hp_map.items():
+            if not parent.get("is_child", False) and parent.get("side") == "PARENT":
+                total_invested_amount = 0.0
+                for child_key in parent.get("children", []):
+                    if child_key in hp_map and "_BUY" in child_key:
+                        buy_child = hp_map[child_key]
+                        child_quantity_usd = float(buy_child.get("quantity_usd", "0.0"))
+                        total_invested_amount += child_quantity_usd
+
+                if total_invested_amount > 0:
+                    parent["quantity_usd"] = (
+                        str(update.symbol_info.format_price(total_invested_amount))
+                        if hasattr(update.symbol_info, "format_price")
+                        else f"{total_invested_amount:.2f}"
+                    )
+
         # Trigger visual refresh
         self._update_hp_list_view()
 
@@ -753,6 +771,15 @@ class HpFront(BoxLayout):
                 # Fallback to current quantity for buy child display
                 total_bought_qty = update.quantity or 0.0
 
+            # Calculate buy child quantity_usd based on total bought quantity and buy price
+            # This ensures buy child always shows total invested amount, not remaining value
+            buy_child_quantity_usd = total_bought_qty * (update.buy_price or 0.0)
+            buy_child_quantity_usd_str = (
+                str(update.symbol_info.format_price(buy_child_quantity_usd))
+                if update.symbol_info
+                else f"{buy_child_quantity_usd:.2f}"
+            )
+
             buy_child = {
                 "hp_id": buy_child_key,
                 "coin": update.symbol_info.symbol,
@@ -771,7 +798,7 @@ class HpFront(BoxLayout):
                     if total_bought_qty
                     else "0.0"
                 ),
-                "quantity_usd": quantity_usd,
+                "quantity_usd": buy_child_quantity_usd_str,
                 "current_price": (
                     str(update.symbol_info.format_price(update.current_price))
                     if update.current_price
@@ -813,7 +840,9 @@ class HpFront(BoxLayout):
 
             # For sell operations, we need to calculate how much was actually sold
             short_condition = operation_side == "SHORT"
-            sell_condition = "SELL" in update.state.value
+            sell_condition = (
+                "SELL" in update.state.value or "SOLD" in update.state.value
+            )
             logger.info(
                 f"[PARENT CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
             )
