@@ -215,7 +215,15 @@ class HpStrategy:
                 "after": "resend_sell_order",
             },
             {
-                # No 12
+                # No 12 - MOVED to after 18 to prevent race condition
+                "trigger": "process_signal",
+                "source": State.SELLING,
+                "dest": State.SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
+                "after": "close_sold_position_which_is_part_bought",
+            },
+            {
+                # No 13 - Was 12, moved down to check SOLD_PART_BOUGHT first
                 "trigger": "process_signal",
                 "source": State.SELLING,
                 "dest": State.SOLD,
@@ -223,7 +231,7 @@ class HpStrategy:
                 "after": "close_filled_position_sell",
             },
             {
-                # No 13
+                # No 14 - Was 13
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
@@ -231,7 +239,7 @@ class HpStrategy:
                 "after": "cancel_partially_sold_orders",
             },
             {
-                # No 14
+                # No 15 - Was 14
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.SELLING,
@@ -239,7 +247,7 @@ class HpStrategy:
                 "before": "resend_sell_order",
             },
             {
-                # No 15
+                # No 16 - Was 15
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.BUYING,
@@ -247,7 +255,7 @@ class HpStrategy:
                 "after": "resend_buy_orders",
             },
             {
-                # No 16
+                # No 17 - Was 16
                 "trigger": "process_ticker",
                 "source": State.BUYING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
@@ -255,20 +263,12 @@ class HpStrategy:
                 "after": "cancel_partially_bought_orders",
             },
             {
-                # No 17
+                # No 18 - Was 17
                 "trigger": "process_signal",
                 "source": State.BUYING,
                 "dest": State.PARTIALLY_SOLD,
                 "conditions": "conditions_for_buying_fully_previously_partially_sold_position",
                 "after": "close_filled_position_buy",
-            },
-            {
-                # No 18
-                "trigger": "process_signal",
-                "source": State.SELLING,
-                "dest": State.SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
-                "after": "close_sold_position_which_is_part_bought",
             },
             {
                 # No 19
@@ -1400,8 +1400,6 @@ class HpStrategy:
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
-        # Clear the signal after processing
-        self.signal_update = SignalUpdate()
 
     def conditions_for_resending_buy_orders_for_sold_position(
         self, *args, **kwargs
@@ -1756,7 +1754,14 @@ class HpStrategy:
                 elif EventName.SIGNAL == event.name:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
+                    logger.info(
+                        f"[WORKER QUEUE] Processing signal: {self.signal_update}"
+                    )
+                    logger.info(f"[WORKER QUEUE] Current state: {self.state}")
                     await self.process_signal()  # pylint: disable=no-member
+                    logger.info(
+                        f"[WORKER QUEUE] After process_signal, state: {self.state}"
+                    )
 
                 self.worker_queue.task_done()
             except queue.Empty:

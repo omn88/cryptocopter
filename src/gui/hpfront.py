@@ -343,6 +343,17 @@ class HpFront(BoxLayout):
                 return "PARTIALLY_BOUGHT"
             else:
                 return "NEW"  # Edge case: no quantity means nothing was bought
+        elif parent_state in ["SOLD_PART_BOUGHT"]:
+            # For SOLD_PART_BOUGHT, use total_quantity to check original buy completion
+            # quantity=0 (all sold) but total_quantity shows what was originally bought
+            if (
+                hasattr(update, "total_quantity")
+                and update.total_quantity
+                and update.total_quantity > 0
+            ):
+                return "PARTIALLY_BOUGHT"
+            else:
+                return "NEW"
         elif parent_state in ["PART_SOLD_PART_BOUGHT"]:
             # Complex parent state: buy child should show its buy operation status
             if update.quantity and update.quantity > 0:

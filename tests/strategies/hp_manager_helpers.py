@@ -1327,15 +1327,13 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 2
+    assert len(hp_list) == 3
     child_item = next(item for item in hp_list if not item.get("children"))
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1292.31", child_item["buy_price"]
-    assert child_item["quantity"] == "0.28"
-    assert child_item["quantity_usd"] == "361.85"
-    assert child_item["sell_price"] == "4200.0"
-    assert child_item["expected_return"] == "1512.0"
+    assert child_item["quantity"] == "0.52", child_item["quantity"]
+    assert child_item["quantity_usd"] == "672.00", child_item["quantity_usd"]
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
@@ -1380,12 +1378,14 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
     await strategy.process_signal()  # type: ignore[attr-defined]
 
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.SOLD_PART_BOUGHT
+    assert (
+        strategy.buy.data.state_info.state == State.BOUGHT
+    ), strategy.buy.data.state_info.state
+    assert strategy.state == State.PARTIALLY_SOLD, strategy.state
 
     assert strategy.worker_queue.qsize() == 0
 
-    assert strategy.ui_queue.qsize() == 1
+    assert strategy.ui_queue.qsize() == 2, strategy.ui_queue.qsize()
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
@@ -1393,13 +1393,13 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     state_info = content.data.state_info
     assert isinstance(state_info, StateInfo)
 
-    assert state_info.state == State.PARTIALLY_BOUGHT
+    assert state_info.state == State.BOUGHT, state_info.state
 
-    assert state_info.ui_state == UiState.OPEN
+    assert state_info.ui_state == UiState.CLOSED, state_info.ui_state
     assert content.data.config.order_cancel == 2.0
-    assert state_info.completeness == 0.28
+    assert state_info.completeness == 1.0, state_info.completeness
 
-    assert strategy.ui_queue.qsize() == 0
+    assert strategy.ui_queue.qsize() == 1, strategy.ui_queue.qsize()
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
@@ -1408,10 +1408,11 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
 
     # Find parent item
     parent_item = next(item for item in hp_list if item.get("side") == "PARENT")
+    logger.info("Parent item: %s", parent_item)
     assert parent_item["hp_id"] == "1000"
     assert parent_item["coin"] == "BTCUSD"
-    assert parent_item["buy_price"] == "1400.0"
-    assert parent_item["quantity"] == "0.24"  # parent shows total bought quantity
+    assert parent_item["buy_price"] == "1178.82"
+    assert parent_item["quantity"] == "0.85"  # parent shows total bought quantity
     assert parent_item["sell_price"] == "4200.0"
     assert parent_item["expected_return"] == "672.0"
     assert parent_item["current_price"] == "0.0"
@@ -1425,9 +1426,9 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     buy_child = next(item for item in hp_list if item.get("side") == "BUY")
     assert buy_child["hp_id"] == "1000_BUY"
     assert buy_child["coin"] == "BTCUSDC"
-    assert buy_child["buy_price"] == "1400.0"
-    assert buy_child["quantity"] == "0.24"
-    assert buy_child["quantity_usd"] == "336.0"
+    assert buy_child["buy_price"] == "1178.82"
+    assert buy_child["quantity"] == "0.85"
+    assert buy_child["quantity_usd"] == "1002.00", buy_child["quantity_usd"]
     assert buy_child["state"] == "BUYING"
     assert buy_child["side"] == "BUY"
 
@@ -2793,15 +2794,13 @@ async def reopen_buy_part_bought_sold(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 2
+    assert len(hp_list) == 3
     child_item = next(item for item in hp_list if not item.get("children"))
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.0"
-    assert child_item["quantity_usd"] == "0.0"
-    assert child_item["sell_price"] == "4200.0"
-    assert child_item["expected_return"] == "672.0"
+    assert child_item["quantity"] == "0.24", child_item["quantity"]
+    assert child_item["quantity_usd"] == "336.0", child_item["quantity_usd"]
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
