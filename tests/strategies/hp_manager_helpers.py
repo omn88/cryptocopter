@@ -15,7 +15,7 @@ from src.gui.identifiers.spot import HPGuiDataBuy, HPGuiDataSell
 from src.common.symbol_info import SymbolInfo
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     Event,
     EventName,

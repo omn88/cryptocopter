@@ -11,7 +11,7 @@ from binance.enums import (
 from src.database.models import OrderStatus
 from src.identifiers import Order, State
 from src.strategy_executor import StrategyExecutor
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_orders
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,

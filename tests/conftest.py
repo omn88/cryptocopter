@@ -11,7 +11,7 @@ import logging
 
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy

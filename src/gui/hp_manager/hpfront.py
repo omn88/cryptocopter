@@ -123,11 +123,26 @@ class HpFront(BoxLayout):
     def initialize(self):
         self.queue_task = asyncio.create_task(self.process_ui_queue())
 
-        # Setup unified HP manager if available
-        if hasattr(self, "ids") and hasattr(self.ids, "hp_manager"):
-            self.setup_hp_manager()
+        # Initialize the HP list view
+        if hasattr(self, "ids") and hasattr(self.ids, "hp_list_container"):
+            # Trigger initial HP list update
+            self._update_hp_list_view()
 
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
+
+    def show_buy_modal(self):
+        """Show Buy HP modal - delegates to HP manager."""
+        if hasattr(self, "hp_manager") and self.hp_manager:
+            self.hp_manager.show_buy_modal()
+        else:
+            logger.warning("HP manager not available for buy modal")
+
+    def show_sell_modal(self):
+        """Show Sell HP modal - delegates to HP manager."""
+        if hasattr(self, "hp_manager") and self.hp_manager:
+            self.hp_manager.show_sell_modal()
+        else:
+            logger.warning("HP manager not available for sell modal")
 
     def trigger_add_record(self, *args) -> None:
         # This method is deprecated - HP creation now handled by unified HP manager
@@ -1392,24 +1407,6 @@ class HpFront(BoxLayout):
 
         return not validation_message
 
-    def on_sell_tab_open(self):
-        """Ensure the correct UI is displayed immediately when Sell tab is opened."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        # Ensure "New HP" is default when opening the tab
-        self.ids.hp_mode_new.state = "down"
-        self.ids.hp_mode_existing.state = "normal"
-
-        self._create_new_hp_ui()  # Load the default "New HP" UI
-
-        # Force UI refresh
-        self.ids.dynamic_sell_container.do_layout()
-
-    def on_tab_switch(self, tab_name):
-        """Ensures the Sell tab always loads the correct UI layout when opened."""
-        if tab_name == "Sell":
-            self.on_sell_tab_open()
-
     def _on_hp_id_text_change(self, instance, value):
         """Triggers fetch_hp_info when the HP ID input changes."""
         if value.strip():  # Only fetch when there's actual input
@@ -1681,7 +1678,7 @@ class HpFront(BoxLayout):
         return sorted_list
 
     def _update_hp_list_view(self, *args):
-        # Updated for unified HP manager - no longer uses hp_list_view widget
+        """Update the HP list view with current data."""
         logger.info(
             f"_update_hp_list_view called with hp_list_data length: {len(self.hp_list_data)}"
         )
@@ -1691,13 +1688,165 @@ class HpFront(BoxLayout):
             logger.debug("Already syncing HP data, skipping to prevent loop")
             return
 
-        if hasattr(self, "hp_manager") and self.hp_manager:
-            logger.info("Syncing HP manager data...")
-            self._sync_hp_manager_data()
-        else:
-            # Still initializing, skip update
-            logger.warning("HP manager not available, skipping sync")
+        # Check if we have the KV layout elements
+        if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
+            logger.warning("HP list container not available, skipping update")
             return
+
+        self._syncing_hp_data = True
+        try:
+            # Clear existing rows
+            self.ids.hp_list_container.clear_widgets()
+
+            # Get sorted HP list data
+            sorted_hp_data = self._get_sorted_hp_list()
+
+            if not sorted_hp_data:
+                # Show empty state
+                from kivy.uix.label import Label
+
+                empty_label = Label(
+                    text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
+                    size_hint_y=None,
+                    height=100,
+                    halign="center",
+                    valign="middle",
+                    color=[0.7, 0.7, 0.7, 1],
+                )
+                empty_label.bind(size=empty_label.setter("text_size"))
+                self.ids.hp_list_container.add_widget(empty_label)
+            else:
+                # Add HP rows
+                for hp_data in sorted_hp_data:
+                    row_widget = self._create_hp_row_widget(hp_data)
+                    self.ids.hp_list_container.add_widget(row_widget)
+
+        finally:
+            self._syncing_hp_data = False
+
+    def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
+        """Create a widget for an HP row."""
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.label import Label
+        from kivy.graphics import Color, Rectangle, Line
+
+        # Create the main row container
+        row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=40,
+            spacing=2,
+            padding=[5, 2, 5, 2],
+        )
+
+        # Determine styling based on row type
+        is_child = hp_data.get("is_child", False)
+        side = hp_data.get("side", "")
+
+        # Set background color
+        if not is_child and side == "PARENT":
+            bg_color = [0.15, 0.25, 0.35, 0.8]  # Parent: Blue
+        elif is_child and side == "BUY":
+            bg_color = [0.15, 0.3, 0.2, 0.7]  # Buy child: Green
+        elif is_child and side == "SELL":
+            bg_color = [0.3, 0.15, 0.15, 0.7]  # Sell child: Red
+        else:
+            bg_color = [0.2, 0.2, 0.2, 0.5]  # Default: Gray
+
+        # Add background
+        with row.canvas.before:
+            Color(*bg_color)
+            rect = Rectangle(size=row.size, pos=row.pos)
+            Color(1, 1, 1, 0.1)
+            line = Line(width=1)
+
+        def update_graphics(*args):
+            rect.size = row.size
+            rect.pos = row.pos
+            line.points = [row.x, row.y, row.x + row.width, row.y]
+
+        row.bind(size=update_graphics, pos=update_graphics)
+
+        # Left padding for child rows
+        if is_child:
+            row.add_widget(Label(text="", size_hint_x=None, width=20))
+
+        # Expand/collapse button (for parent rows with children)
+        has_children = hp_data.get("has_children", False)
+        is_expanded = hp_data.get("is_expanded", False)
+
+        if has_children:
+            expand_btn = Button(
+                text="▼" if is_expanded else "▶", size_hint_x=None, width=30, height=30
+            )
+            hp_id = hp_data.get("hp_id", "")
+            expand_btn.bind(on_release=lambda x: self.toggle_hp_expansion(hp_id))
+            row.add_widget(expand_btn)
+        else:
+            row.add_widget(Label(text="", size_hint_x=None, width=30))
+
+        # Data columns
+        row.add_widget(self._create_column_label(side if is_child else "HP", 0.08))
+        row.add_widget(self._create_column_label(hp_data.get("hp_id", ""), 0.1))
+        row.add_widget(self._create_column_label(hp_data.get("coin", ""), 0.08))
+        row.add_widget(self._create_column_label(hp_data.get("quantity", "0.0"), 0.12))
+        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.12))
+
+        # Progress column (show completeness or state info)
+        progress_text = (
+            f"{float(hp_data.get('realized_quantity', 0)):.3f}"
+            if hp_data.get("realized_quantity")
+            else "0.000"
+        )
+        row.add_widget(self._create_column_label(progress_text, 0.1))
+
+        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.12))
+        row.add_widget(self._create_column_label(hp_data.get("state", ""), 0.1))
+
+        # Action buttons
+        action_layout = BoxLayout(orientation="horizontal", size_hint_x=0.18, spacing=2)
+        action_buttons = hp_data.get("action_buttons", [])
+
+        if "SELL" in action_buttons:
+            sell_btn = Button(text="Sell", size_hint_x=0.5)
+            hp_id = hp_data.get("hp_id", "")
+            coin = hp_data.get("coin", "")
+            quantity = hp_data.get("quantity", "0.0")
+            buy_price = hp_data.get("buy_price", "0.0")
+            sell_btn.bind(
+                on_release=lambda x: self.sell_hp_button(
+                    hp_id, coin, quantity, buy_price
+                )
+            )
+            action_layout.add_widget(sell_btn)
+
+        if "CANCEL" in action_buttons:
+            cancel_btn = Button(text="Cancel", size_hint_x=0.5)
+            hp_id = hp_data.get("hp_id", "")
+            symbol = hp_data.get("coin", "")
+            side_value = "LONG" if hp_data.get("side") == "BUY" else "SHORT"
+            cancel_btn.bind(
+                on_release=lambda x: self.trigger_remove_record(
+                    hp_id, symbol, side_value
+                )
+            )
+            action_layout.add_widget(cancel_btn)
+
+        # Fill remaining space if no buttons
+        if not action_buttons:
+            action_layout.add_widget(Label(text=""))
+
+        row.add_widget(action_layout)
+        return row
+
+    def _create_column_label(self, text: str, width_hint: float) -> Label:
+        """Create a standardized column label."""
+        label = Label(
+            text=str(text), size_hint_x=width_hint, halign="center", valign="middle"
+        )
+        label.bind(size=label.setter("text_size"))
+        return label
 
     def auto_load_inventory_csv(self):
         """Automatically load inventory from 'inventory.csv' if it exists in current directory."""

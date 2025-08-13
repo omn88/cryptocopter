@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
 from src.common.symbol_info import SymbolInfo
 from src.strategy_executor import StrategyExecutor
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     HPSellConfig,
     HPSellData,

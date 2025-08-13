@@ -7,7 +7,7 @@ from binance.enums import (
     ORDER_STATUS_FILLED,
 )
 from src.common.symbol_info import SymbolInfo
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     Event,
     EventName,

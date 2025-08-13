@@ -23,7 +23,7 @@ from src.identifiers import (
     PositionSide,
 )
 from src.strategies.hp_manager import HpStrategy
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from tests.helpers import get_new_orders
 from tests.strategies.hp_manager_helpers import (
     assert_default_buy_position_data,
