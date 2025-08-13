@@ -1,6 +1,5 @@
 import asyncio
 import csv
-from datetime import datetime
 import os
 import queue
 import logging
@@ -9,12 +8,10 @@ import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
-    StringProperty,
 )
 
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
 from src.database import TradingDatabase
@@ -41,7 +38,6 @@ from src.gui.identifiers.spot import (
     HPGuiDataSell,
     HPUpdate,
 )
-from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.gui.hp_manager import HPManager, HPConfiguration
 
@@ -105,18 +101,11 @@ class HpFront(BoxLayout):
         self.portfolio_queue = portfolio_queue
 
         # Initialize task references for proper cleanup
-        self.refresh_task: Optional[asyncio.Task] = None
         self.queue_task: Optional[asyncio.Task] = None
         self._syncing_hp_data = False  # Prevent sync loops
 
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
-            self.symbol_input = SearchableDropDown(
-                client=self.client, options=self.symbols, symbols_info=self.symbols_info
-            )
-            # Note: symbol_input will be used by unified HP manager modals
-            # No need to add to layout here as unified manager handles this
-
             # Initialize Unified HP Manager (will be set by KV file)
             self.hp_manager = None
 
@@ -144,13 +133,6 @@ class HpFront(BoxLayout):
         else:
             logger.warning("HP manager not available for sell modal")
 
-    def trigger_add_record(self, *args) -> None:
-        # This method is deprecated - HP creation now handled by unified HP manager
-        logger.warning(
-            "trigger_add_record called but deprecated - use unified HP manager"
-        )
-        return
-
     def trigger_remove_record(
         self,
         hp_id: str,
@@ -174,7 +156,7 @@ class HpFront(BoxLayout):
             self.hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
             self.hp_manager.remove_hp_callback = self.on_unified_remove_hp
 
-            # Set symbols_info and client for SearchableDropDown integration
+            # Set symbols_info and client for HP manager integration
             self.hp_manager.symbols_info = self.symbols_info
             self.hp_manager.client = self.client
 
@@ -1221,13 +1203,6 @@ class HpFront(BoxLayout):
         # Trigger visual refresh
         self._update_hp_list_view()
 
-    def trigger_sell_position(self, *args) -> None:
-        # This method is deprecated - HP creation now handled by unified HP manager
-        logger.warning(
-            "trigger_sell_position called but deprecated - use unified HP manager"
-        )
-        return
-
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """
         Moves to the Sell tab and fills the HP data (HP ID, coin, quantity).
@@ -1293,47 +1268,24 @@ class HpFront(BoxLayout):
 
     def fetch_hp_info(self, hp_id):
         """
-        Fetches and populates the HP information into the Sell tab based on the provided hp_id.
-        If hp_id is not found, resets all fields to '---'.
+        Fetches HP information for the new modal system.
+        This method is kept for backward compatibility but now works with modals.
 
         Args:
-        - hp_id: The HP ID entered by the user.
+        - hp_id: The HP ID to look up.
         """
         try:
             for item in self.hp_list_data:
                 if int(item["hp_id"]) == int(hp_id):
-                    # Populate the fields in the Sell tab
-                    self.ids.hp_id_input.text = str(hp_id)
-                    self.ids.coin_input.text = (
-                        item["coin"][:-3]
-                        if item["coin"].endswith("USD")
-                        else item["coin"]
-                    )
-                    self.ids.quantity_input.text = item["quantity"]
-                    self.ids.buy_price_input.text = item["buy_price"]
+                    logger.info(f"Found HP info for ID {hp_id}: {item}")
+                    return item
 
-                    # self.ids.quantity_usd_label.text = str(
-                    #     round(float(item["quantity"]) * float(item["buy_price"]), 2)
-                    # )
-
-                    # Clear or reset the sell price field
-                    self.ids.sell_price_input.text = ""  # Clear any previous sell price
-
-                    # Optional: Set focus on the sell price input field
-                    self.ids.sell_price_input.focus = True
-
-                    return
-
-            # If hp_id is not found in hp_list_data, raise ValueError to reset fields
-            raise ValueError("HP ID not found")
+            logger.error(f"HP ID {hp_id} not found in hp_list_data")
+            return None
 
         except ValueError:
-            # Reset all fields to '---' if HP ID is not found or any error occurs
-            logger.error(f"HP ID {hp_id} not found in hp_list_data, resetting fields.")
-            self.ids.coin_input.text = "---"
-            self.ids.quantity_input.text = "---"
-            self.ids.buy_price_input.text = "---"
-            self.ids.sell_price_input.text = ""
+            logger.error(f"Invalid HP ID format: {hp_id}")
+            return None
 
     def _calculate_trigger_price(self, data: HPBuyData) -> str:
         # For idle positions
@@ -1357,254 +1309,6 @@ class HpFront(BoxLayout):
 
     def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
         return any(record["hp_id"] == hp_id for record in records)
-
-    def _validate_buy_inputs(self) -> bool:
-        symbol = self.symbol_input.selected_value
-        price_low = self.symbol_input.price_low_input.text
-        price_high = self.symbol_input.price_high_input.text
-        budget = self.ids.budget_input.text
-        order_trigger = self.ids.order_trigger_input.text
-        mode = self.ids.mode_input.text
-
-        validation_message = ""
-        if not symbol:
-            validation_message += "Symbol is required. "
-        if not price_low or not price_high:
-            validation_message += "Price range is required. "
-        if not budget:
-            validation_message += "Budget is required. "
-        if not order_trigger:
-            validation_message += "Order trigger is required. "
-        if mode not in [Mode.DCA.value, Mode.SINGLE.value]:
-            validation_message += "Mode has to be selected."
-        if price_low > price_high:
-            validation_message += "Price low is bigger than price high. "
-
-        self.ids.buy_validation_label.text = validation_message
-
-        return not validation_message
-
-    def _validate_sell_inputs(self) -> bool:
-        coin = self.ids.coin_input.text
-        buy_price = self.ids.buy_price_input.text
-        sell_price = self.ids.sell_price_input.text
-        quantity = self.ids.quantity_input.text
-        # total_usd = self.ids.total_usd_value_label.text
-
-        validation_message = ""
-        if not coin:
-            validation_message += "Coin is required. "
-        if not buy_price:
-            validation_message += "Buy price is required. "
-        if not sell_price:
-            validation_message += "Sell price is required. "
-        if not quantity:
-            validation_message += "Quantity is required. "
-        # if not total_usd:
-        #     validation_message += "Total USD price is required. "
-
-        self.ids.sell_validation_label.text = validation_message
-
-        return not validation_message
-
-    def _on_hp_id_text_change(self, instance, value):
-        """Triggers fetch_hp_info when the HP ID input changes."""
-        if value.strip():  # Only fetch when there's actual input
-            self.fetch_hp_info(value)
-
-    def update_hp_mode(self, state):
-        """Dynamically update UI based on HP mode selection."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        if state == "existing":
-            logger.info("Changing to exitign HP GUI")
-            self._create_existing_hp_ui()
-            # Bind fetch_hp_info to hp_id_input.text
-            self.ids.hp_id_input.bind(text=self._on_hp_id_text_change)
-        else:
-            logger.info("Changing to new HP GUI")
-            self._create_new_hp_ui()
-            # Unbind fetch_hp_info to prevent unnecessary calls
-            self.ids.hp_id_input.unbind(text=self._on_hp_id_text_change)
-
-    def _create_existing_hp_ui(self):
-        """Creates UI for existing HP mode"""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        # Main container with padding
-        main_layout = BoxLayout(
-            orientation="vertical",
-            spacing=10,  # Ensure spacing within the main layout
-            size_hint_y=1,
-            padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
-        )
-
-        # **Row 1: HP ID, coin, Quantity**
-        row1 = BoxLayout(
-            orientation="horizontal",
-            spacing=25,
-            size_hint_y=0.3,
-            height="50dp",
-            padding=[10, 0, 10, 0],
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint("HP ID:", "hp_id_input", "")
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint("coin:", "coin_input", "BTC")
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint("Quantity:", "quantity_input", "0.0")
-        )
-
-        # **Row 2: Buy Price, Sell Price, End Currency**
-        row2 = BoxLayout(
-            orientation="horizontal",
-            spacing=25,
-            size_hint_y=0.3,
-            height="50dp",
-            padding=[10, 0, 10, 0],
-        )
-        row2.add_widget(
-            self._create_labeled_input_with_hint("Buy Price:", "buy_price_input", "0.0")
-        )
-        row2.add_widget(
-            self._create_labeled_input_with_hint(
-                "Sell Price:", "sell_price_input", "0.0"
-            )
-        )
-        row2.add_widget(
-            self._create_spinner(
-                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
-            )
-        )
-
-        # **Lower spacer to push content upward slightly**
-        lower_spacer = Widget(size_hint_y=0.4)
-
-        # Add everything to the dynamic container
-        # main_layout.add_widget(spacer_row)  # Adds spacing above inputs
-        main_layout.add_widget(row1)
-        main_layout.add_widget(row2)
-        main_layout.add_widget(lower_spacer)  # Ensures inputs don’t stick to bottom
-
-        self.ids.dynamic_sell_container.add_widget(main_layout)
-        self.ids.dynamic_sell_container.do_layout()
-
-    def _create_new_hp_ui(self):
-        """Creates UI for New HP mode with proper spacing using a dedicated spacer."""
-        self.ids.dynamic_sell_container.clear_widgets()
-
-        # Main container with padding
-        main_layout = BoxLayout(
-            orientation="vertical",
-            spacing=10,  # Ensure spacing within the main layout
-            size_hint_y=1,
-            padding=[40, 20, 40, 0],  # Padding on sides for elegant spacing
-        )
-
-        # **Row 1: HP ID, coin, Quantity**
-        row1 = BoxLayout(
-            orientation="horizontal",
-            spacing=25,
-            size_hint_y=0.3,
-            height="50dp",
-            padding=[10, 0, 10, 0],
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint(
-                "HP ID:", "hp_id_input", "", editable=False
-            )
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint("coin:", "coin_input", "", "AXL")
-        )
-        row1.add_widget(
-            self._create_labeled_input_with_hint(
-                "Quantity:", "quantity_input", "", "10.0"
-            )
-        )
-
-        # **Row 2: Buy Price, Sell Price, End Currency**
-        row2 = BoxLayout(
-            orientation="horizontal",
-            spacing=25,
-            size_hint_y=0.3,
-            height="50dp",
-            padding=[10, 0, 10, 0],
-        )
-        row2.add_widget(
-            self._create_labeled_input_with_hint(
-                "Buy Price:", "buy_price_input", "", "0.28"
-            )
-        )
-        row2.add_widget(
-            self._create_labeled_input_with_hint(
-                "Sell Price:", "sell_price_input", "", "1.14"
-            )
-        )
-        row2.add_widget(
-            self._create_spinner(
-                "End Currency:", "end_currency_spinner", ["USDC", "PLN"]
-            )
-        )
-
-        # **Lower spacer to push content upward slightly**
-        lower_spacer = Widget(size_hint_y=0.4)
-
-        # Add everything to the dynamic container
-        # main_layout.add_widget(spacer_row)  # Adds spacing above inputs
-        main_layout.add_widget(row1)
-        main_layout.add_widget(row2)
-        main_layout.add_widget(lower_spacer)  # Ensures inputs don’t stick to bottom
-
-        self.ids.dynamic_sell_container.add_widget(main_layout)
-        self.ids.dynamic_sell_container.do_layout()
-
-    def _create_labeled_input_with_hint(
-        self, label_text, input_name, hint_text, default_text="", editable=True
-    ):
-        """Creates a label with a TextInput that stays aligned towards the top."""
-        box = BoxLayout(orientation="vertical", spacing=4, size_hint_x=0.33)
-
-        label = Label(text=label_text, size_hint_y=0.4, halign="left", valign="middle")
-        label.bind(size=label.setter("text_size"))
-
-        input_widget = TextInput(
-            text=default_text,
-            size_hint_y=0.6,
-            multiline=False,
-            hint_text=hint_text,
-            foreground_color=(0, 0, 0, 1),
-            hint_text_color=(0.6, 0.6, 0.6, 1),
-            padding=[8, 5, 8, 5],
-            disabled=not editable,
-        )
-
-        self.ids[input_name] = input_widget
-        box.add_widget(label)
-        box.add_widget(input_widget)
-
-        return box
-
-    def _create_spinner(self, label_text, spinner_name, options):
-        """Creates a label and a dropdown spinner for selection, aligned to the top."""
-        box = BoxLayout(orientation="vertical", spacing=4, size_hint_x=0.33)
-
-        label = Label(text=label_text, size_hint_y=0.4, halign="left", valign="middle")
-        label.bind(size=label.setter("text_size"))
-
-        spinner = Spinner(
-            text=options[0],
-            values=options,
-            size_hint_y=0.6,
-        )
-
-        self.ids[spinner_name] = spinner
-        box.add_widget(label)
-        box.add_widget(spinner)
-
-        return box
 
     def toggle_hp_expansion(self, hp_id: str):
         """Toggle the expansion state of a parent HP position"""
