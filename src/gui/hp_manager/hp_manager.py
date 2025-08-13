@@ -260,8 +260,8 @@ class HeaderWidget(BoxLayout):  # type: ignore[misc]
             self.add_widget(label)
 
 
-class UnifiedHPManager(BoxLayout):  # type: ignore[misc]
-    """Main unified HP manager widget."""
+class HPManager(BoxLayout):  # type: ignore[misc]
+    """Main HP manager widget."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

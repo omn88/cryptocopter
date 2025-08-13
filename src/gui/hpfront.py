@@ -43,7 +43,7 @@ from src.gui.identifiers.spot import (
 )
 from src.gui.searchable_drop_down import SearchableDropDown
 from src.portfolio.usd_price_resolver import UsdPriceResolver
-from src.gui.unified import UnifiedHPManager, HPConfiguration
+from src.gui.hp_manager import HPManager, HPConfiguration
 
 
 logger = logging.getLogger("HPFront")
@@ -107,7 +107,7 @@ class HpFront(BoxLayout):
         # Initialize task references for proper cleanup
         self.refresh_task: Optional[asyncio.Task] = None
         self.queue_task: Optional[asyncio.Task] = None
-        self._syncing_unified_data = False  # Prevent sync loops
+        self._syncing_hp_data = False  # Prevent sync loops
 
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
@@ -118,14 +118,14 @@ class HpFront(BoxLayout):
             # No need to add to layout here as unified manager handles this
 
             # Initialize Unified HP Manager (will be set by KV file)
-            self.unified_hp_manager = None
+            self.hp_manager = None
 
     def initialize(self):
         self.queue_task = asyncio.create_task(self.process_ui_queue())
 
         # Setup unified HP manager if available
-        if hasattr(self, "ids") and hasattr(self.ids, "unified_hp_manager"):
-            self.setup_unified_hp_manager()
+        if hasattr(self, "ids") and hasattr(self.ids, "hp_manager"):
+            self.setup_hp_manager()
 
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
 
@@ -148,26 +148,26 @@ class HpFront(BoxLayout):
         logger.info("Remove record added to the queue. %s", record)
 
     # Unified HP Manager callback methods
-    def setup_unified_hp_manager(self):
+    def setup_hp_manager(self):
         """Setup the unified HP manager with callbacks."""
         # Get the unified HP manager from the KV file
-        if hasattr(self, "ids") and hasattr(self.ids, "unified_hp_manager"):
-            self.unified_hp_manager = self.ids.unified_hp_manager
+        if hasattr(self, "ids") and hasattr(self.ids, "hp_manager"):
+            self.hp_manager = self.ids.hp_manager
 
             # Set up callbacks
-            self.unified_hp_manager.create_hp_callback = self.on_unified_create_hp
-            self.unified_hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
-            self.unified_hp_manager.remove_hp_callback = self.on_unified_remove_hp
+            self.hp_manager.create_hp_callback = self.on_unified_create_hp
+            self.hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
+            self.hp_manager.remove_hp_callback = self.on_unified_remove_hp
 
             # Set symbols_info and client for SearchableDropDown integration
-            self.unified_hp_manager.symbols_info = self.symbols_info
-            self.unified_hp_manager.client = self.client
+            self.hp_manager.symbols_info = self.symbols_info
+            self.hp_manager.client = self.client
 
             # Update with current data
-            self.unified_hp_manager.update_symbols(self.symbols)
-            self._sync_unified_hp_data()
+            self.hp_manager.update_symbols(self.symbols)
+            self._sync_hp_manager_data()
         else:
-            logger.warning("Unified HP manager not found in KV file")
+            logger.warning("HP manager not found in KV file")
 
     def on_unified_create_hp(self, hp_type: str, config: HPConfiguration):
         """Handle HP creation from unified manager."""
@@ -254,30 +254,28 @@ class HpFront(BoxLayout):
                 return hp_data.get("symbol", hp_data.get("coin"))
         return None
 
-    def _sync_unified_hp_data(self):
-        """Sync current HP data with unified manager."""
-        if not self.unified_hp_manager:
-            logger.warning("No unified HP manager available for sync")
+    def _sync_hp_manager_data(self):
+        """Sync current HP data with HP manager."""
+        if not self.hp_manager:
+            logger.warning("No HP manager available for sync")
             return
 
         # Prevent sync loops
-        if getattr(self, "_syncing_unified_data", False):
+        if getattr(self, "_syncing_hp_data", False):
             return
 
-        self._syncing_unified_data = True
+        self._syncing_hp_data = True
         try:
-            logger.info(
-                f"Syncing {len(self.hp_list_data)} HP positions to unified manager"
-            )
+            logger.info(f"Syncing {len(self.hp_list_data)} HP positions to HP manager")
 
             # Preserve expansion state before clearing
-            expanded_hp_ids = self.unified_hp_manager.hp_data.expanded_hp_ids.copy()
+            expanded_hp_ids = self.hp_manager.hp_data.expanded_hp_ids.copy()
 
             # Clear existing data
-            self.unified_hp_manager.clear_all_positions()
+            self.hp_manager.clear_all_positions()
 
             # Restore expansion state
-            self.unified_hp_manager.hp_data.expanded_hp_ids = expanded_hp_ids
+            self.hp_manager.hp_data.expanded_hp_ids = expanded_hp_ids
 
             # Directly add positions without complex categorization - this is dev data
             for hp_data in self.hp_list_data:
@@ -289,21 +287,19 @@ class HpFront(BoxLayout):
                         # Determine child type based on side
                         side = hp_data.get("side", "BUY")
                         child_type = "BUY" if side in ["BUY", "LONG"] else "SELL"
-                        self.unified_hp_manager.add_hp_position(
-                            child_type, hp_id, hp_data
-                        )
+                        self.hp_manager.add_hp_position(child_type, hp_id, hp_data)
                         logger.debug(f"Added child: {hp_id} (type: {child_type})")
                     else:
                         # Parent container
-                        self.unified_hp_manager.add_hp_position("HP", hp_id, hp_data)
+                        self.hp_manager.add_hp_position("HP", hp_id, hp_data)
                         logger.debug(f"Added parent: {hp_id}")
 
                 except Exception as e:
                     logger.error(f"Error adding HP position {hp_data}: {e}")
 
-            logger.info("Unified HP sync completed")
+            logger.info("HP manager sync completed")
         finally:
-            self._syncing_unified_data = False
+            self._syncing_hp_data = False
 
     def _determine_hp_type_from_data(self, hp_data: Dict) -> Optional[str]:
         """Determine HP type from existing HP data."""
@@ -845,10 +841,6 @@ class HpFront(BoxLayout):
                 # Fallback to current quantity if total_quantity not available
                 total_bought = getattr(update, "quantity", 0.0) or 0.0
 
-            logger.info(
-                f"[PARENT DEBUG] total_bought={total_bought}, update.quantity={getattr(update, 'quantity', None)}, update.total_quantity={getattr(update, 'total_quantity', None)}"
-            )
-
             # For sell operations, we need to calculate how much was actually sold
             short_condition = operation_side == "SHORT"
             sell_condition = (
@@ -857,20 +849,8 @@ class HpFront(BoxLayout):
             logger.info(
                 f"[PARENT CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
             )
-            logger.info(
-                f"[PARENT CONDITION DEBUG] state type: {type(update.state)}, state value type: {type(update.state.value)}"
-            )
-            logger.info(
-                f"[PARENT CONDITION DEBUG] repr(state.value): {repr(update.state.value)}"
-            )
-            logger.info(
-                f"[PARENT CONDITION DEBUG] 'SELL' in repr: {'SELL' in repr(update.state.value)}"
-            )
 
             combined_condition = short_condition or sell_condition
-            logger.info(
-                f"[PARENT CONDITION DEBUG] Combined condition: {combined_condition}"
-            )
 
             if combined_condition:
                 # During selling, update.quantity represents remaining quantity after sells
@@ -1707,16 +1687,16 @@ class HpFront(BoxLayout):
         )
 
         # Prevent infinite sync loops
-        if getattr(self, "_syncing_unified_data", False):
-            logger.debug("Already syncing unified data, skipping to prevent loop")
+        if getattr(self, "_syncing_hp_data", False):
+            logger.debug("Already syncing HP data, skipping to prevent loop")
             return
 
-        if hasattr(self, "unified_hp_manager") and self.unified_hp_manager:
-            logger.info("Syncing unified HP data...")
-            self._sync_unified_hp_data()
+        if hasattr(self, "hp_manager") and self.hp_manager:
+            logger.info("Syncing HP manager data...")
+            self._sync_hp_manager_data()
         else:
             # Still initializing, skip update
-            logger.warning("Unified HP manager not available, skipping sync")
+            logger.warning("HP manager not available, skipping sync")
             return
 
     def auto_load_inventory_csv(self):

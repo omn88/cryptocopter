@@ -8,7 +8,7 @@ synchronization.
 from typing import Dict, List, Any, Callable, Optional
 import logging
 
-from .unified_hp_manager import UnifiedHPManager
+from .hp_manager import HPManager
 from .models import HPConfiguration
 from src.identifiers import HPBuyConfig, HPSellConfig, Mode
 
@@ -21,16 +21,16 @@ class UnifiedHPIntegration:
     def __init__(self, hp_front_instance: Any) -> None:
         """Initialize with reference to HpFront instance."""
         self.hp_front = hp_front_instance
-        self.unified_manager = UnifiedHPManager()
+        self.hp_manager = HPManager()
 
         # Set up callbacks
-        self.unified_manager.create_hp_callback = self.handle_create_hp
-        self.unified_manager.cancel_hp_callback = self.handle_cancel_hp
-        self.unified_manager.remove_hp_callback = self.handle_remove_hp
+        self.hp_manager.create_hp_callback = self.handle_create_hp
+        self.hp_manager.cancel_hp_callback = self.handle_cancel_hp
+        self.hp_manager.remove_hp_callback = self.handle_remove_hp
 
-    def get_widget(self) -> UnifiedHPManager:
+    def get_widget(self) -> HPManager:
         """Get the unified manager widget."""
-        return self.unified_manager
+        return self.hp_manager
 
     def handle_create_hp(self, hp_type: str, config: HPConfiguration) -> None:
         """Handle HP creation from the unified manager."""
@@ -116,16 +116,16 @@ class UnifiedHPIntegration:
 
     def update_symbols(self, symbols: List[str]) -> None:
         """Update available symbols for Buy HP."""
-        self.unified_manager.update_symbols(symbols)
+        self.hp_manager.update_symbols(symbols)
 
     def update_inventory(self, inventory: Dict[str, List[Any]]) -> None:
         """Update available inventory for Sell HP."""
-        self.unified_manager.update_inventory(inventory)
+        self.hp_manager.update_inventory(inventory)
 
     def sync_hp_data(self, hp_list_data: List[Dict[str, Any]]) -> None:
         """Sync HP data from the existing system."""
         # Clear existing positions
-        self.unified_manager.clear_all_positions()
+        self.hp_manager.clear_all_positions()
 
         # Add all positions from hp_list_data
         for hp_data in hp_list_data:
@@ -134,7 +134,7 @@ class UnifiedHPIntegration:
                 hp_id = hp_data.get("id", "")
 
                 if hp_type and hp_id:
-                    self.unified_manager.add_hp_position(hp_type, hp_id, hp_data)
+                    self.hp_manager.add_hp_position(hp_type, hp_id, hp_data)
             except Exception as e:
                 logger.error(f"Error syncing HP data: {e}")
 

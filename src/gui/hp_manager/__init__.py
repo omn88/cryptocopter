@@ -18,7 +18,7 @@ from .models import (
     PositionState,
 )
 from .modal_configurators import BuyHPModal, SellHPModal
-from .unified_hp_manager import UnifiedHPManager
+from .hp_manager import HPManager
 
 __all__ = [
     "UnifiedPosition",
@@ -28,5 +28,5 @@ __all__ = [
     "PositionState",
     "BuyHPModal",
     "SellHPModal",
-    "UnifiedHPManager",
+    "HPManager",
 ]
