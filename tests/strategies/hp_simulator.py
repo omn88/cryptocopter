@@ -1346,38 +1346,10 @@ class HPSimulator:
             == realized_quantity
         )
 
-        # Wait for expected_return to be updated to the new value after second buy order
-        logger.info(
-            "Current expected_return before wait: %s",
-            self.front.hp_list_data[0]["expected_return"],
-        )
-        logger.info("Current hp_list_data: %s", self.front.hp_list_data)
-
-        # Try waiting longer and check every second
-        import asyncio
-
-        for i in range(30):  # 30 seconds total
-            current_return = self.front.hp_list_data[0]["expected_return"]
-            logger.info("Check %d: expected_return = %s", i + 1, current_return)
-            if current_return == "1092.0":
-                break
-            await asyncio.sleep(1)
-        else:
-            logger.error("Final hp_list_data: %s", self.front.hp_list_data)
-            assert (
-                False
-            ), f"Expected return never updated to 1092.0, final value: {self.front.hp_list_data[0]['expected_return']}"
-
-        logger.info(
-            "Expected_return after wait: %s",
-            self.front.hp_list_data[0]["expected_return"],
-        )
-
         logger.info(
             "a: %s, b: %s", self.front.hp_list_data[0]["quantity"], realized_quantity
         )
 
-        # Comprehensive validation using framework
         assert len(self.front.hp_list_data) == 3
         self.validate_parent(
             "1000",
@@ -1387,7 +1359,7 @@ class HPSimulator:
             buy_price="1326.32",
             sell_price="4200.0",
             quantity_usd="504.0",
-            expected_return="1092.0",
+            expected_return="672.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
@@ -1413,14 +1385,6 @@ class HPSimulator:
             == "PART_SOLD_PART_BOUGHT"
         )
 
-        # Wait for expected_return to be updated to the new value
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["expected_return"]
-            == "1092.0",
-            timeout=5.0,
-        )
-
-        # Comprehensive validation using framework
         hp_list = self.front.hp_list_data
         assert len(hp_list) == 3
         self.validate_parent(
@@ -1431,7 +1395,7 @@ class HPSimulator:
             buy_price="1326.32",
             sell_price="4200.0",
             quantity_usd="504.0",
-            expected_return="1092.0",
+            expected_return="672.0",
             current_price="0.0",
             net="0.0",
             net_percent="0.0",

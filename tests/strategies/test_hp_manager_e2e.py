@@ -36,30 +36,6 @@ from tests.strategies.hp_manager_helpers import (
 logger = logging.getLogger("hp_e2e_test")
 
 
-# ============================== CONVENIENCE METHODS ==============================
-
-
-def validate_standard_buy_position(
-    sim,
-    strategy,
-    hp_id,
-    parent_attrs,
-    child_buy_attrs,
-    buy_order_data,
-    strategy_state,
-):
-    """
-    Complete validation for a standard buy position using the comprehensive methods from simulator.
-    """
-    sim.validate_parent(hp_id, **parent_attrs)
-    sim.validate_child_buy(hp_id, **child_buy_attrs)
-    sim.validate_buy_orders(strategy, buy_order_data)
-    sim.validate_strategy_state(strategy, **strategy_state)
-
-
-# ============================== END VALIDATION HELPERS ==============================
-
-
 async def test_get_default_buy_position(frontend_backend_setup):
     front, back = frontend_backend_setup
 
