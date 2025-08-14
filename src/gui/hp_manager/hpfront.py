@@ -3,6 +3,7 @@ import csv
 import os
 import queue
 import logging
+import time
 from typing import Dict, List, Set, Optional
 import uuid
 from kivy.properties import (
@@ -103,6 +104,11 @@ class HpFront(BoxLayout):
         # Initialize task references for proper cleanup
         self.queue_task: Optional[asyncio.Task] = None
         self._syncing_hp_data = False  # Prevent sync loops
+
+        # Add logging throttling for frequent operations
+        self._last_ticker_log_time = 0.0
+        self._last_ui_queue_log_time = 0.0
+        self._last_view_update_time = 0.0
 
         # Suppress GUI initialization when in test mode
         if not self.test_mode:
@@ -364,7 +370,7 @@ class HpFront(BoxLayout):
     def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
         """Helper method to log and return buy child state."""
         state = self._get_buy_child_state(update)
-        logger.info(
+        logger.debug(
             f"[BUY CHILD] Setting state to: {state} for quantity: {update.quantity}"
         )
         return state
@@ -443,12 +449,25 @@ class HpFront(BoxLayout):
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-                    logger.info(
-                        f"[PROCESS_UI_QUEUE] Received data type: {type(data)}, isinstance HPGuiDataBuy: {isinstance(data, HPGuiDataBuy)}, isinstance HPGuiDataSell: {isinstance(data, HPGuiDataSell)}"
-                    )
+                    # Throttle frequent ticker update logs to reduce spam
+                    current_time = time.time()
+                    if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
+                        # Only log ticker events every 10 seconds
+                        if current_time - self._last_ticker_log_time > 10.0:
+                            logger.debug("[PROCESS_UI_QUEUE] Processing ticker updates")
+                            self._last_ticker_log_time = current_time
+                    else:
+                        # Only log other UI queue events every 5 seconds in production
+                        if self.test_mode or (
+                            current_time - self._last_ui_queue_log_time > 5.0
+                        ):
+                            logger.debug(
+                                f"[PROCESS_UI_QUEUE] Received data type: {type(data)}, isinstance HPGuiDataBuy: {isinstance(data, HPGuiDataBuy)}, isinstance HPGuiDataSell: {isinstance(data, HPGuiDataSell)}"
+                            )
+                            self._last_ui_queue_log_time = current_time
                     if isinstance(data, HPGuiDataBuy):
                         # Update the HP list with buy position data
-                        logger.info("UI received BUY position data: %s", data)
+                        logger.debug("UI received BUY position data: %s", data)
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
                         self.hp_list_data = self.update_hp_list(
@@ -456,8 +475,8 @@ class HpFront(BoxLayout):
                         )
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
-                        logger.info("UI received SELL position data: %s", data)
-                        logger.info(
+                        logger.debug("UI received SELL position data: %s", data)
+                        logger.debug(
                             f"Data type check: {type(data)}, isinstance result: {isinstance(data, HPGuiDataSell)}"
                         )
                         # Add side information to the update
@@ -466,23 +485,23 @@ class HpFront(BoxLayout):
                         data.hp_update.sell_completeness = (
                             data.data.state_info.completeness
                         )
-                        logger.info(
+                        logger.debug(
                             f"[DEBUG SELL STATE] Before assignment - data.data.state_info={data.data.state_info}"
                         )
-                        logger.info(
+                        logger.debug(
                             f"[DEBUG SELL STATE] data.data.state_info.state={data.data.state_info.state}"
                         )
-                        logger.info(
+                        logger.debug(
                             f"[DEBUG SELL STATE] data.data.state_info.state.value={data.data.state_info.state.value}"
                         )
                         data.hp_update.sell_state = data.data.state_info.state.value
-                        logger.info(
+                        logger.debug(
                             f"[DEBUG SELL STATE] After assignment - data.hp_update.sell_state={data.hp_update.sell_state}"
                         )
-                        logger.info(
+                        logger.debug(
                             f"Assigned sell_completeness={data.hp_update.sell_completeness}, sell_state={data.hp_update.sell_state}"
                         )
-                        logger.info(
+                        logger.debug(
                             f"Original data completeness: {data.data.state_info.completeness}"
                         )
                         self.hp_list_data = self.update_hp_list(
@@ -493,27 +512,27 @@ class HpFront(BoxLayout):
                         self._process_all_tickers(data.content)
                     else:
                         # Debug: Check what data type we received that doesn't match any expected type
-                        logger.info(
+                        logger.debug(
                             f"[UNMATCHED DATA TYPE] Received data of type: {type(data)}"
                         )
                         if hasattr(data, "__class__"):
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] Class name: {data.__class__.__name__}"
                             )
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] Module: {data.__class__.__module__}"
                             )
                         if hasattr(data, "hp_update") and hasattr(data, "data"):
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] Looks like HPGuiDataSell but isinstance failed"
                             )
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] HPGuiDataSell class: {HPGuiDataSell}"
                             )
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] HPGuiDataSell module: {HPGuiDataSell.__module__}"
                             )
-                            logger.info(
+                            logger.debug(
                                 f"[UNMATCHED DATA TYPE] Data class module: {data.__class__.__module__}"
                             )
                             # Try to process it anyway
@@ -579,7 +598,7 @@ class HpFront(BoxLayout):
             elif "SELL" in update.state.value or "SHORT" in update.state.value:
                 operation_side = "SHORT"
 
-        logger.info(
+        logger.debug(
             f"Processing HP update: {hp_id}, side: {operation_side}, state: {update.state.value}"
         )
 
@@ -728,7 +747,7 @@ class HpFront(BoxLayout):
             operation_side in ["LONG", "BUY"] or "BUY" in update.state.value
         )
 
-        logger.info(
+        logger.debug(
             f"Container position {hp_id}: is_buy={is_buy_operation}, is_sell={is_sell_operation}"
         )
 
@@ -840,7 +859,7 @@ class HpFront(BoxLayout):
             sell_condition = (
                 "SELL" in update.state.value or "SOLD" in update.state.value
             )
-            logger.info(
+            logger.debug(
                 f"[PARENT CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
             )
 
@@ -870,7 +889,7 @@ class HpFront(BoxLayout):
                 parent["quantity"] = str(
                     update.symbol_info.format_quantity(total_bought)
                 )
-                logger.info(
+                logger.debug(
                     f"[PARENT BUY] Set parent total bought quantity: {parent['quantity']}"
                 )
 
@@ -1105,19 +1124,19 @@ class HpFront(BoxLayout):
             sell_condition = "SELL" in update.state.value
             combined_condition = short_condition or sell_condition
 
-            logger.info(
+            logger.debug(
                 f"[PARENT SELL CONDITION] operation_side={operation_side}, state={update.state.value}, short_condition={short_condition}, sell_condition={sell_condition}"
             )
-            logger.info(
+            logger.debug(
                 f"[PARENT SELL CONDITION DEBUG] state type: {type(update.state)}, state value type: {type(update.state.value)}"
             )
-            logger.info(
+            logger.debug(
                 f"[PARENT SELL CONDITION DEBUG] repr(state.value): {repr(update.state.value)}"
             )
-            logger.info(
+            logger.debug(
                 f"[PARENT SELL CONDITION DEBUG] 'SELL' in repr: {'SELL' in update.state.value}"
             )
-            logger.info(
+            logger.debug(
                 f"[PARENT SELL CONDITION DEBUG] Combined condition: {combined_condition}"
             )
 
@@ -1136,7 +1155,7 @@ class HpFront(BoxLayout):
                 parent["realized_quantity"] = str(
                     update.symbol_info.format_quantity(sold_qty)
                 )
-                logger.info(
+                logger.debug(
                     f"[PARENT SELL] Total bought: {parent['quantity']}, Sold: {parent['realized_quantity']} (remaining: {remaining_qty})"
                 )
 
@@ -1145,7 +1164,7 @@ class HpFront(BoxLayout):
                 parent["quantity"] = str(
                     update.symbol_info.format_quantity(total_bought_qty)
                 )
-                logger.info(
+                logger.debug(
                     f"[PARENT SELL BUY] Set parent total bought quantity: {parent['quantity']}"
                 )
 
@@ -1218,8 +1237,10 @@ class HpFront(BoxLayout):
                                 net_usd
                             )
                             strategy["net_percent"] = str(net_percent)
-        # Trigger visual refresh
-        self._update_hp_list_view()
+        # Only trigger visual refresh if in test mode or if significant changes occurred
+        # In production, UI updates are handled by other mechanisms to reduce spam
+        if getattr(self, "test_mode", False):
+            self._update_hp_list_view()
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """
@@ -1401,9 +1422,20 @@ class HpFront(BoxLayout):
 
     def _update_hp_list_view(self, *args):
         """Update the HP list view with current data."""
-        logger.info(
+        # Throttle frequent updates in production to reduce spam
+        current_time = time.time()
+        if not self.test_mode and hasattr(self, "_last_view_update_time"):
+            if (
+                current_time - self._last_view_update_time < 2.0
+            ):  # Max one update per 2 seconds
+                return
+
+        logger.debug(
             f"_update_hp_list_view called with hp_list_data length: {len(self.hp_list_data)}"
         )
+
+        # Track last update time
+        self._last_view_update_time = current_time
 
         # Prevent infinite sync loops
         if getattr(self, "_syncing_hp_data", False):

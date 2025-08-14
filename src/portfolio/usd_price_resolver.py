@@ -95,7 +95,7 @@ class UsdPriceResolver:
             # logger.info("Coin %s uses fallback to USDT, price: %s", coin, raw_price)
 
         if raw_price is None:
-            logger.error("Cannot resolve USD price for coin: %s", coin)
+            logger.debug("Cannot resolve USD price for coin: %s", coin)
             raise ValueError(f"Cannot resolve USD price for {coin}")
 
         # Apply adjustment using symbol info if available

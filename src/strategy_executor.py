@@ -655,9 +655,9 @@ class StrategyExecutor:
             )
 
             # --- Patch: recalculate state from orders after restoration ---
-            logger.info("[Recovery][Buy] Orders for completeness calculation:")
+            logger.debug("[Recovery][Buy] Orders for completeness calculation:")
             for idx, order in enumerate(strategy.buy.orders):
-                logger.info(
+                logger.debug(
                     "[Recovery][Buy] Order %d: status=%s, quantity=%s, realized_quantity=%s",
                     idx,
                     order.status,
@@ -677,7 +677,7 @@ class StrategyExecutor:
                 order.realized_quantity for order in strategy.buy.orders
             )
             total_quantity = sum(order.quantity for order in strategy.buy.orders)
-            logger.info(
+            logger.debug(
                 "[Recovery][Buy] total_realized_quantity=%s, total_order_quantity=%s",
                 total_realized,
                 total_quantity,
@@ -686,7 +686,7 @@ class StrategyExecutor:
                 completeness = total_realized / total_quantity
             else:
                 completeness = 0.0
-            logger.info("[Recovery][Buy] Calculated completeness=%s", completeness)
+            logger.debug("[Recovery][Buy] Calculated completeness=%s", completeness)
 
             # Default state logic
 
