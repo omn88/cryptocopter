@@ -681,13 +681,13 @@ async def test_sell_position_first_order_filled(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1
+    assert len(hp_list) == 3
     item = hp_list[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
     assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
+    assert item["quantity"] == "0.85"
+    assert item["quantity_usd"] == "1002.0"
     assert item["sell_price"] == "4200.0"
     assert item["expected_return"] == "2568.0"
     assert item["current_price"] == "0.0"

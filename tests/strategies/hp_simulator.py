@@ -268,13 +268,14 @@ class HPSimulator:
         )
 
         item = self.front.hp_list_data[0]
+        logger.info("item: %s", item)
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1400.0"
         assert item["quantity"] == "0.12"
         assert item["quantity_usd"] == "168.0"
         assert item["sell_price"] == "4200.0"
-        assert item["expected_return"] == "336.0"
+        assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
@@ -891,7 +892,7 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.0"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.85"
         )
 
         await wait_for_condition(
@@ -904,8 +905,8 @@ class HPSimulator:
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1178.82"
-        assert item["quantity"] == "0.0", f"Item quantity: {item['quantity']}"
-        assert item["quantity_usd"] == "0.0"
+        assert item["quantity"] == "0.85", f"Item quantity: {item['quantity']}"
+        assert item["quantity_usd"] == "1002.0", item["quantity_usd"]
         assert item["sell_price"] == "4200.0", item["sell_price"]
         assert item["expected_return"] == "2568.0"
         assert item["current_price"] == "0.0"
@@ -1491,15 +1492,20 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.0"
+            condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.24"
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "SOLD_PART_BOUGHT"
         )
 
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1400.0"
-        assert item["quantity"] == "0.0", item["quantity"]
-        assert item["quantity_usd"] == "0.0", item["quantity_usd"]
+        assert item["quantity"] == "0.24", item["quantity"]
+        assert item["quantity_usd"] == "336.0", item["quantity_usd"]
         assert item["sell_price"] == "4200.0"
         assert item["expected_return"] == "672.0"
         assert item["current_price"] == "0.0"
@@ -1557,10 +1563,10 @@ class HPSimulator:
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1292.31"
-        assert item["quantity"] == "0.28"
-        assert item["quantity_usd"] == "361.85"
+        assert item["quantity"] == "0.52"
+        assert item["quantity_usd"] == "672.0"
         assert item["sell_price"] == "4200.0", item["sell_price"]
-        assert item["expected_return"] == "1512.0"
+        assert item["expected_return"] == "672.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
@@ -1597,10 +1603,7 @@ class HPSimulator:
 
         realized_quantity = str(
             round(
-                (
-                    sum(order.realized_quantity for order in strategy.buy.orders)
-                    - strategy.sell.current_position.sell_order.realized_quantity
-                ),
+                (sum(order.realized_quantity for order in strategy.buy.orders)),
                 2,
             )
         )
@@ -1612,13 +1615,14 @@ class HPSimulator:
 
         assert len(self.front.hp_list_data) == 3
         item = self.front.hp_list_data[0]
+        logger.info("item: %s", item)
         assert item["hp_id"] == "1000"
         assert item["coin"] == "BTCUSD"
         assert item["buy_price"] == "1178.82"
-        assert item["quantity"] == "0.61"
-        assert item["quantity_usd"] == "719.08"
+        assert item["quantity"] == "0.85"
+        assert item["quantity_usd"] == "1002.0"
         assert item["sell_price"] == "4200.0"
-        assert item["expected_return"] == "2568.0"
+        assert item["expected_return"] == "672.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"

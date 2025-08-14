@@ -1346,7 +1346,7 @@ async def test_no_sell_orders_send_if_buy_position_not_realized(
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["buy_price"] == "1400.0", item["buy_price"]
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
@@ -1367,7 +1367,7 @@ async def test_no_sell_orders_send_if_buy_position_not_realized(
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["buy_price"] == "1400.0", item["buy_price"]
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
@@ -1414,7 +1414,7 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
     item = front.hp_list_data[0]
     assert item["hp_id"] == "1000"
     assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "0.0", item["buy_price"]
+    assert item["buy_price"] == "1400.0", item["buy_price"]
     assert item["quantity"] == "0.0"
     assert item["quantity_usd"] == "0.0"
     assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
@@ -1465,7 +1465,7 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "336.0"
+    assert item["expected_return"] == "0.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"

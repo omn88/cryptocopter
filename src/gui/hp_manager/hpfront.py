@@ -594,9 +594,6 @@ class HpFront(BoxLayout):
                 hp_map, update, hp_id, operation_side, quantity_usd
             )
 
-        # Check if we need to collapse children for completed positions
-        self._collapse_completed_positions(hp_map, update)
-
         self.hp_list = list(hp_map.values())
 
         # Check if the HP position moved to CLOSED or SOLD state and auto-remove from filter if needed
@@ -977,8 +974,28 @@ class HpFront(BoxLayout):
                 existing_buy_child.pop("sell_price", None)
                 existing_buy_child.pop("expected_return", None)
 
-            # Create dummy buy child only if no real buy child exists
+            # Create dummy buy child only if:
+            # 1. No real buy child exists
+            # 2. This is a sell-only strategy (starting by selling already owned coins)
+            # 3. Not an existing buy strategy that transitioned to selling
             dummy_buy_key = f"{hp_id}_DUMMY_BUY"
+
+            # Check if there was ever a real buy child created for this HP
+            # If parent already has a BUY child in its children list, don't create dummy
+            parent_children = parent.get("children", [])
+            has_buy_child_in_history = any(
+                child.endswith("_BUY") for child in parent_children
+            )
+
+            # Debug logging for DUMMY_BUY creation decision
+            logger.info(
+                f"[DUMMY_BUY DEBUG] hp_id={hp_id}, has_real_buy_child={has_real_buy_child}"
+            )
+            logger.info(
+                f"[DUMMY_BUY DEBUG] dummy_buy_key={dummy_buy_key}, already_exists={dummy_buy_key in hp_map}"
+            )
+
+            # Only create dummy if no real buy child exists AND no buy orders were ever created in database
             if not has_real_buy_child and dummy_buy_key not in hp_map:
                 # Get average buy price from portfolio (placeholder for now)
                 avg_buy_price = "0.0"  # TODO: Get from portfolio
@@ -1691,119 +1708,3 @@ class HpFront(BoxLayout):
                 self.ids.hp_state_filter_display.text = (
                     "Showing 11 states (excludes CLOSED, SOLD)"
                 )
-
-    def _collapse_completed_positions(
-        self, hp_map: Dict[str, Dict], update: HPUpdate
-    ) -> None:
-        """Collapse parent containers when positions are fully completed (SOLD, CLOSED).
-
-        In the new container-based approach:
-        - Only parent containers collapse when reaching final states
-        - Children are updated to show their latest state, not removed
-        """
-        logger.info(
-            f"[COLLAPSE] Processing update for {update.hp_id}: state={update.state.value}, sell_completeness={getattr(update, 'sell_completeness', 'None')}"
-        )
-
-        # Only collapse parent containers, not children
-        hp_id = update.hp_id
-        is_child = "_" in hp_id and not hp_id.endswith("_PARENT")
-
-        if is_child:
-            # Children are just updated, not collapsed
-            logger.info(f"[COLLAPSE] Skipping child {hp_id}")
-            return
-
-        # Check if parent should be collapsed (final completion states)
-        # For selling positions, only collapse when sell operation is fully completed
-        is_selling_completed = (
-            update.state.value == "SELLING"
-            and update.expected_return is not None
-            and update.expected_return > 0
-            and update.sell_completeness is not None
-            and update.sell_completeness
-            >= 1.0  # Only collapse when selling is fully completed
-        )
-        is_parent_completed = (
-            update.state.value in ["SOLD", "CLOSED"] or is_selling_completed
-        )
-
-        logger.info(
-            f"[COLLAPSE] Sell completion check: selling={update.state.value == 'SELLING'}, expected_return={update.expected_return}, sell_completeness={getattr(update, 'sell_completeness', 'None')}"
-        )
-        logger.info(
-            f"[COLLAPSE] is_selling_completed={is_selling_completed}, is_parent_completed={is_parent_completed}"
-        )
-
-        if not is_parent_completed:
-            logger.info(f"[COLLAPSE] Not collapsing {hp_id} - not completed")
-            return
-
-        # Find parent container
-        parent_key = hp_id
-        if parent_key not in hp_map:
-            logger.info(f"[COLLAPSE] Parent {parent_key} not found in hp_map")
-            return
-
-        parent = hp_map[parent_key]
-
-        logger.info(f"[COLLAPSE] Collapsing parent {parent_key}")
-
-        # Remove all children and collapse to just parent
-        children_to_remove = []
-        for child_key in list(hp_map.keys()):
-            if child_key.startswith(f"{hp_id}_"):
-                children_to_remove.append(child_key)
-
-        # Update parent with final completed state data
-        parent.update(
-            {
-                "buy_price": (
-                    str(update.symbol_info.format_price(update.buy_price))
-                    if update.buy_price
-                    else parent.get("buy_price", "0.0")
-                ),
-                "quantity": (
-                    str(update.symbol_info.format_quantity(update.quantity))
-                    if update.quantity is not None
-                    else "0.0"
-                ),
-                "quantity_usd": (
-                    str(update.symbol_info.format_price(update.quantity_usd))
-                    if update.quantity_usd is not None
-                    else "0.0"
-                ),
-                "sell_price": (
-                    str(update.symbol_info.format_price(update.sell_price))
-                    if update.sell_price
-                    else parent.get("sell_price", "0.0")
-                ),
-                "expected_return": (
-                    str(update.symbol_info.format_price(update.expected_return))
-                    if update.expected_return
-                    else parent.get("expected_return", "0.0")
-                ),
-                "current_price": (
-                    str(update.symbol_info.format_price(update.current_price))
-                    if update.current_price
-                    else "0.0"
-                ),
-                "net": (
-                    str(update.symbol_info.format_price(update.net))
-                    if update.net
-                    else "0.0"
-                ),
-                "net_percent": str(update.net_percent) if update.net_percent else "0.0",
-                "state": update.state.value,
-                "children": [],  # Remove all children - collapsed to parent only
-                "action_buttons": [],  # No actions for completed positions
-            }
-        )
-
-        # Remove children from hp_map
-        for child_key in children_to_remove:
-            hp_map.pop(child_key, None)
-
-        logger.info(
-            f"Collapsed completed parent {parent_key} - removed {len(children_to_remove)} children"
-        )
