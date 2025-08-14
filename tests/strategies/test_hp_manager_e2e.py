@@ -1,7 +1,12 @@
 import asyncio
 import logging
 from unittest.mock import AsyncMock
-from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED
+from binance.enums import (
+    ORDER_STATUS_NEW,
+    ORDER_STATUS_CANCELED,
+    ORDER_STATUS_FILLED,
+    ORDER_STATUS_PARTIALLY_FILLED,
+)
 from src.common.symbol_info import SymbolInfo
 from src.strategy_executor import StrategyExecutor
 from src.gui.hp_manager.hpfront import HpFront
@@ -29,6 +34,30 @@ from tests.strategies.hp_manager_helpers import (
 )
 
 logger = logging.getLogger("hp_e2e_test")
+
+
+# ============================== CONVENIENCE METHODS ==============================
+
+
+def validate_standard_buy_position(
+    sim,
+    strategy,
+    hp_id,
+    parent_attrs,
+    child_buy_attrs,
+    buy_order_data,
+    strategy_state,
+):
+    """
+    Complete validation for a standard buy position using the comprehensive methods from simulator.
+    """
+    sim.validate_parent(hp_id, **parent_attrs)
+    sim.validate_child_buy(hp_id, **child_buy_attrs)
+    sim.validate_buy_orders(strategy, buy_order_data)
+    sim.validate_strategy_state(strategy, **strategy_state)
+
+
+# ============================== END VALIDATION HELPERS ==============================
 
 
 async def test_get_default_buy_position(frontend_backend_setup):
@@ -70,6 +99,28 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     assert all(order.order_id for order in strategy.buy.orders)
     assert all(order.status == ORDER_STATUS_NEW for order in strategy.buy.orders)
 
+    # Comprehensive validation for position with orders sent
+    sim.validate_parent(
+        "1000",
+        quantity="0.0",
+        realized_quantity="0.0",
+        state="BUYING",
+        buy_price="1400.0",
+        quantity_usd="0.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.0", realized_quantity="0.0", state="BUYING"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+        ],
+    )
+    sim.validate_strategy_state(strategy, "BUYING", expected_buy_state="NEW")
+
     logger.info("Active buy positions: %s", get_buy_positions(front, state="ACTIVE"))
     logger.info("Idle buy positions: %s", get_buy_positions(front, state="NEW"))
 
@@ -107,18 +158,30 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
         condition_func=lambda: front.hp_list_data[0]["state"] == State.NEW.value
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "NEW"
+    # Validate using comprehensive helper methods from simulator
+    sim.validate_parent(
+        "1000",
+        quantity="0.0",
+        realized_quantity="0.0",
+        state="NEW",
+        buy_price="1400.0",
+        quantity_usd="0.0",
+        sell_price="0.0",
+        expected_return="0.0",
+        current_price="0.0",
+        net="0.0",
+        net_percent="0.0",
+    )
+    sim.validate_child_buy("1000", quantity="0.0", realized_quantity="0.0", state="NEW")
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+        ],
+    )
+    sim.validate_strategy_state(strategy, "NEW", expected_buy_state="NEW")
 
 
 async def test_cancel_default_position_untouched_then_resend_orders(
@@ -178,29 +241,45 @@ async def test_default_position_first_order_filled_then_cancel(
     )
     assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
 
-    assert strategy.buy.orders[0].realized_quantity == 0.24
-    assert strategy.buy.orders[1].realized_quantity == 0.0
-    assert strategy.buy.orders[2].realized_quantity == 0.0
-
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.PARTIALLY_BOUGHT
-
+    # Wait for state transition to complete
     await wait_for_condition(
-        condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
+        condition_func=lambda: strategy.state == State.PARTIALLY_BOUGHT
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "336.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PARTIALLY_BOUGHT"
+    # Wait for frontend data to be updated with the correct state
+    await wait_for_condition(
+        condition_func=lambda: len(front.hp_list_data) > 0
+        and front.hp_list_data[0].get("state") == "PARTIALLY_BOUGHT"
+    )
+
+    # Validate using comprehensive helper methods from simulator
+    sim.validate_parent(
+        "1000",
+        quantity="0.24",
+        realized_quantity="0.0",
+        state="PARTIALLY_BOUGHT",
+        buy_price="1400.0",
+        quantity_usd="336.0",
+        sell_price="0.0",
+        expected_return="0.0",
+        current_price="0.0",
+        net="0.0",
+        net_percent="0.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "PARTIALLY_BOUGHT", expected_buy_state="PARTIALLY_BOUGHT"
+    )
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
@@ -224,6 +303,30 @@ async def test_default_position_first_order_filled_partially(
 
     # Simulate partial fill
     strategy = await sim.simulate_partial_fill()
+
+    # Comprehensive validation for partial fill
+    sim.validate_parent(
+        "1000",
+        quantity="0.12",
+        realized_quantity="0.0",
+        state="BUYING",
+        buy_price="1400.0",
+        quantity_usd="168.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.12", realized_quantity="0.12", state="BUYING"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.12, "status": ORDER_STATUS_PARTIALLY_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "BUYING", expected_buy_state="PARTIALLY_BOUGHT"
+    )
 
 
 async def test_default_position_first_order_filled_partially_then_cancel(
@@ -257,29 +360,36 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     assert strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
     assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
 
-    assert strategy.buy.orders[0].realized_quantity == 0.12
-    assert strategy.buy.orders[1].realized_quantity == 0.0
-    assert strategy.buy.orders[2].realized_quantity == 0.0
-
-    assert strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-    assert strategy.state == State.PARTIALLY_BOUGHT
-
     await wait_for_condition(
         condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.12"
-    assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PARTIALLY_BOUGHT"
+    # Validate using comprehensive helper methods
+    sim.validate_parent(
+        "1000",
+        quantity="0.12",
+        realized_quantity="0.0",
+        state="PARTIALLY_BOUGHT",
+        buy_price="1400.0",
+        quantity_usd="168.0",
+    )
+    sim.validate_child_buy(
+        "1000",
+        quantity="0.12",
+        realized_quantity="0.12",
+        state="PARTIALLY_BOUGHT",
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.12, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "PARTIALLY_BOUGHT", expected_buy_state="PARTIALLY_BOUGHT"
+    )
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
@@ -303,6 +413,30 @@ async def test_default_position_first_order_filled(
     # Simulate first order fill
     strategy = await sim.simulate_first_buy_order_fill()
 
+    # Comprehensive validation for first order filled
+    sim.validate_parent(
+        "1000",
+        quantity="0.24",
+        realized_quantity="0.0",
+        state="BUYING",
+        buy_price="1400.0",
+        quantity_usd="336.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.24", realized_quantity="0.24", state="BUYING"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "BUYING", expected_buy_state="PARTIALLY_BOUGHT"
+    )
+
 
 async def test_default_position_all_buy_orders_filled(
     frontend_backend_setup,
@@ -314,7 +448,29 @@ async def test_default_position_all_buy_orders_filled(
 
     assert len(back.strategies) == 0
 
-    await sim.simulate_bought_position()
+    strategy = await sim.simulate_bought_position()
+
+    # Comprehensive validation for fully bought position
+    sim.validate_parent(
+        "1000",
+        quantity="0.85",
+        realized_quantity="0.0",
+        state="BOUGHT",
+        buy_price="1178.82",
+        quantity_usd="1002.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.85", realized_quantity="0.85", state="BOUGHT"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.28, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.33, "status": ORDER_STATUS_FILLED},
+        ],
+    )
+    sim.validate_strategy_state(strategy, "BOUGHT", expected_buy_state="BOUGHT")
 
 
 async def test_default_position_first_order_filled_partially_then_cancel_then_resend(
@@ -361,18 +517,34 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
         condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.12"
-    assert item["quantity_usd"] == "168.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PARTIALLY_BOUGHT"
+    # Validate using comprehensive helper methods from simulator
+    sim.validate_parent(
+        "1000",
+        quantity="0.12",
+        realized_quantity="0.0",
+        state="PARTIALLY_BOUGHT",
+        buy_price="1400.0",
+        quantity_usd="168.0",
+        sell_price="0.0",
+        expected_return="0.0",
+        current_price="0.0",
+        net="0.0",
+        net_percent="0.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.12, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "PARTIALLY_BOUGHT", expected_buy_state="PARTIALLY_BOUGHT"
+    )
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
@@ -395,6 +567,30 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
 
     await wait_for_condition(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
+    )
+
+    # Comprehensive validation for resent orders state
+    sim.validate_parent(
+        "1000",
+        quantity="0.12",
+        realized_quantity="0.0",
+        state="BUYING",
+        buy_price="1400.0",
+        quantity_usd="168.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.12", realized_quantity="0.12", state="BUYING"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.12, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "BUYING", expected_buy_state="PARTIALLY_BOUGHT"
     )
 
 
@@ -439,18 +635,34 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         condition_func=lambda: front.hp_list_data[0]["state"] == "PARTIALLY_BOUGHT"
     )
 
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1400.0"
-    assert item["quantity"] == "0.24"
-    assert item["quantity_usd"] == "336.0"
-    assert item["sell_price"] == "0.0"
-    assert item["expected_return"] == "0.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "PARTIALLY_BOUGHT"
+    # Validate using comprehensive helper methods from simulator
+    sim.validate_parent(
+        "1000",
+        quantity="0.24",
+        realized_quantity="0.0",
+        state="PARTIALLY_BOUGHT",
+        buy_price="1400.0",
+        quantity_usd="336.0",
+        sell_price="0.0",
+        expected_return="0.0",
+        current_price="0.0",
+        net="0.0",
+        net_percent="0.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_CANCELED},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "PARTIALLY_BOUGHT", expected_buy_state="PARTIALLY_BOUGHT"
+    )
 
     logger.info("HP List after the update: %s", front.hp_list_data)
 
@@ -477,6 +689,30 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         condition_func=lambda: front.hp_list_data[0]["state"] == "BUYING"
     )
 
+    # Comprehensive validation for resent orders state (first order filled scenario)
+    sim.validate_parent(
+        "1000",
+        quantity="0.24",
+        realized_quantity="0.0",
+        state="BUYING",
+        buy_price="1400.0",
+        quantity_usd="336.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.24", realized_quantity="0.24", state="BUYING"
+    )
+    sim.validate_buy_orders(
+        strategy,
+        [
+            {"realized_quantity": 0.24, "status": ORDER_STATUS_FILLED},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+            {"realized_quantity": 0.0, "status": ORDER_STATUS_NEW},
+        ],
+    )
+    sim.validate_strategy_state(
+        strategy, "BUYING", expected_buy_state="PARTIALLY_BOUGHT"
+    )
+
 
 async def test_setup_sell_position_for_bought_position(
     frontend_backend_setup,
@@ -496,6 +732,29 @@ async def test_setup_sell_position_for_bought_position(
         end_currency="USDC",
         coin="BTC",
     )
+
+    # Comprehensive validation for sell position setup
+    strategy = back.strategies["1000"]
+    sim.validate_parent(
+        "1000",
+        quantity="0.85",
+        realized_quantity="0.0",
+        state="BOUGHT",
+        buy_price="1178.82",
+        sell_price="4200.0",
+        quantity_usd="1002.0",
+    )
+    sim.validate_child_buy(
+        "1000", quantity="0.85", realized_quantity="0.85", state="BOUGHT"
+    )
+    sim.validate_child_sell(
+        "1000",
+        quantity="0.85",
+        realized_quantity="0.0",
+        state="SELLING",
+        sell_price="4200.0",
+    )
+    sim.validate_strategy_state(strategy, "BOUGHT")
 
 
 async def test_send_sell_order_for_bought_position(
@@ -526,18 +785,20 @@ async def test_send_sell_order_for_bought_position(
     await wait_for_condition(
         condition_func=lambda: front.hp_list_data[0]["state"] == "SELLING"
     )
-    item = front.hp_list_data[0]
-    assert item["hp_id"] == "1000"
-    assert item["coin"] == "BTCUSD"
-    assert item["buy_price"] == "1178.82"
-    assert item["quantity"] == "0.85"
-    assert item["quantity_usd"] == "1002.0"
-    assert item["sell_price"] == "4200.0", f"Item sell price: {item['sell_price']}"
-    assert item["expected_return"] == "2568.0"
-    assert item["current_price"] == "0.0"
-    assert item["net"] == "0.0"
-    assert item["net_percent"] == "0.0"
-    assert item["state"] == "SELLING"
+    # Validate using comprehensive helper methods from simulator
+    sim.validate_parent(
+        "1000",
+        quantity="0.85",
+        realized_quantity="0.0",
+        state="SELLING",
+        buy_price="1178.82",
+        sell_price="4200.0",
+        quantity_usd="1002.0",
+        expected_return="2568.0",
+        current_price="0.0",
+        net="0.0",
+        net_percent="0.0",
+    )
 
     await wait_for_condition(
         condition_func=lambda: strategy.sell.current_position.sell_order.status
@@ -546,33 +807,14 @@ async def test_send_sell_order_for_bought_position(
     assert strategy.sell.current_position.sell_order.quantity == 0.85
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-    # Use hierarchical approach: Find the sell child (1000_SELL) in hp_list_data
-    sell_child = None
-    for item in front.hp_list_data:
-        if item.get("hp_id") == "1000_SELL" and item.get("side") == "SELL":
-            sell_child = item
-            break
-
-    # If there's no separate sell child, check if the parent is in selling state
-    if sell_child is None:
-        # Check if we have the scenario where the buy child is updated with selling state
-        for item in front.hp_list_data:
-            if (
-                item.get("hp_id") == "1000_BUY"
-                and item.get("state") == "SELLING"
-                and item.get("is_child", False)
-            ):
-                sell_child = item
-                break
-
-    assert (
-        sell_child is not None
-    ), f"No sell child found in hp_list_data: {front.hp_list_data}"
-
-    # Verify sell child properties
-    assert sell_child["buy_price"] == "1178.82"
-    assert sell_child["quantity"] == "0.85"
-    assert sell_child["state"] == "SELLING"
+    # Validate sell child based on the hierarchical approach - try both patterns
+    sim.validate_child_sell(
+        "1000",
+        quantity="0.85",
+        realized_quantity="0.0",
+        state="SELLING",
+        sell_price="4200.0",
+    )
 
 
 async def test_cancel_unfilled_sell_orders(
