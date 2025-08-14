@@ -1070,6 +1070,7 @@ class HpFront(BoxLayout):
                 ),
                 "net_percent": str(update.net_percent) if update.net_percent else "0.0",
                 "state": self._get_sell_child_state_from_update(update),
+                "sell_completeness": str(getattr(update, "sell_completeness", 0.0)),
                 "is_child": True,
                 "side": "SELL",
                 "parent_hp_id": hp_id,
@@ -1714,13 +1715,14 @@ class HpFront(BoxLayout):
             return
 
         # Check if parent should be collapsed (final completion states)
-        # For selling positions, only collapse when sell operation has made progress
+        # For selling positions, only collapse when sell operation is fully completed
         is_selling_completed = (
             update.state.value == "SELLING"
             and update.expected_return is not None
             and update.expected_return > 0
             and update.sell_completeness is not None
-            and update.sell_completeness > 0.0  # Only collapse when selling has started
+            and update.sell_completeness
+            >= 1.0  # Only collapse when selling is fully completed
         )
         is_parent_completed = (
             update.state.value in ["SOLD", "CLOSED"] or is_selling_completed

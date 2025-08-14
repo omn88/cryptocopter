@@ -2177,23 +2177,21 @@ async def simulate_resend_sell_position(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    assert len(hp_list) == 1  # Should be collapsed due to sell_completeness=0.5
-    collapsed_item = hp_list[0]  # The collapsed parent item
-    assert collapsed_item["hp_id"] == "1000"
-    assert collapsed_item["coin"] == "BTCUSD"  # Parent uses converted coin name
-    assert collapsed_item["buy_price"] == "1178.82"
-    assert collapsed_item["quantity"] == "0.425"
+    assert len(hp_list) == 3
+    parent_item = hp_list[0]  # The collapsed parent item
+    assert parent_item["hp_id"] == "1000"
+    assert parent_item["coin"] == "BTCUSD"  # Parent uses converted coin name
+    assert parent_item["buy_price"] == "1178.82"
+    assert parent_item["quantity"] == "0.85"
     assert (
-        collapsed_item["quantity_usd"] == "501.0"
+        parent_item["quantity_usd"] == "1002.0"
     )  # Parent shows actual quantity_usd when collapsed
-    assert collapsed_item["sell_price"] == "4200.0"
-    assert collapsed_item["expected_return"] == "2568.0"
-    assert collapsed_item["current_price"] == "0.0"
-    assert collapsed_item["net"] == "0.0"
-    assert collapsed_item["net_percent"] == "0.0"
-    assert (
-        collapsed_item["state"] == "SELLING"
-    )  # Parent shows actual state when collapsed
+    assert parent_item["sell_price"] == "4200.0"
+    assert parent_item["expected_return"] == "2568.0"
+    assert parent_item["current_price"] == "0.0"
+    assert parent_item["net"] == "0.0"
+    assert parent_item["net_percent"] == "0.0"
+    assert parent_item["state"] == "SELLING"  # Parent shows actual state when collapsed
 
     logger.info("HP List after the update: %s", hp_list)
 
