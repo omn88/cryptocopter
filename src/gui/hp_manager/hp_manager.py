@@ -5,13 +5,8 @@ of all HP positions and modal configurators for creating new ones.
 """
 
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.gridlayout import GridLayout
 from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
-from kivy.factory import Factory
 from typing import Dict, List, Optional, Callable, Any
 import logging
 
@@ -23,13 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class HPManager(BoxLayout):  # type: ignore[misc]
-    """Main HP manager widget."""
+    """HP manager controller - handles modals and data management only.
+
+    UI layout is handled by KV file. This class only manages:
+    - Modal dialogs for creating HP positions
+    - Data management and callbacks
+    - Integration with HpFront
+    """
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.orientation = "vertical"
-        self.spacing = 10
-        self.padding = 10
 
         # Data management
         self.hp_data = UnifiedHPData()
@@ -45,148 +43,9 @@ class HPManager(BoxLayout):  # type: ignore[misc]
         self.symbols_info: Dict[str, Any] = {}
         self.client: Optional[Any] = None
 
-        self.build_ui()
-
-    def build_ui(self) -> None:
-        """Build the main UI."""
-        # Title and control buttons
-        header_layout = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=50, spacing=10
-        )
-
-        title_label = Label(
-            text="HP Manager",
-            size_hint_x=0.6,
-            font_size="20sp",
-            bold=True,
-            halign="left",
-        )
-        title_label.bind(size=title_label.setter("text_size"))
-        header_layout.add_widget(title_label)
-
-        # Control buttons
-        btn_layout = BoxLayout(orientation="horizontal", size_hint_x=0.4, spacing=5)
-
-        buy_hp_btn = Button(text="New Buy HP", size_hint_x=0.5)
-        buy_hp_btn.bind(on_release=self.show_buy_modal)
-
-        sell_hp_btn = Button(text="New Sell HP", size_hint_x=0.5)
-        sell_hp_btn.bind(on_release=self.show_sell_modal)
-
-        btn_layout.add_widget(buy_hp_btn)
-        btn_layout.add_widget(sell_hp_btn)
-        header_layout.add_widget(btn_layout)
-
-        self.add_widget(header_layout)
-
-        # HP list
-        self.build_hp_list()
-
-    def build_hp_list(self) -> None:
-        """Build the scrollable HP list."""
-        # Note: Header is now handled by KV file
-
-        # Scrollable content
-        scroll = ScrollView()
-        self.hp_list_layout = BoxLayout(
-            orientation="vertical", size_hint_y=None, spacing=2
-        )
-        self.hp_list_layout.bind(minimum_height=self.hp_list_layout.setter("height"))
-
-        scroll.add_widget(self.hp_list_layout)
-        self.add_widget(scroll)
-
-        # Initial refresh
-        self.refresh_hp_list()
-
-    def refresh_hp_list(self) -> None:
-        """Refresh the HP list display."""
-        self.hp_list_layout.clear_widgets()
-
-        # Get all positions to display (respecting expand/collapse state)
-        positions_to_show = self.hp_data.get_visible_positions()
-
-        for position in positions_to_show:
-            # Create KV widget using Factory
-            row = Factory.HPRowWidget()
-
-            # Set properties expected by the KV widget
-            row.position_type = position.get_type_display()
-            row.hp_id = position.hp_id
-            row.coin = position.coin
-            row.quantity_display = position.get_quantity_display()
-            row.price_display = position.get_price_display()
-            row.progress_display = position.get_progress_display()
-            row.net_display = position.get_net_display()
-            row.state_display = position.get_state_display()
-
-            # Set expansion properties
-            row.has_children = position.has_children
-            row.is_expanded = position.is_expanded
-            row.child_indent = 20 if position.is_child else 0
-
-            # Set styling
-            if position.position_type == PositionType.HP:
-                row.bg_color = [0.15, 0.25, 0.35, 0.8]  # Blue for parent
-            elif position.is_dummy:
-                row.bg_color = [0.25, 0.22, 0.15, 0.7]  # Brown for dummy
-            elif position.position_type == PositionType.BUY:
-                row.bg_color = [0.15, 0.3, 0.2, 0.7]  # Green for buy
-            else:  # SELL
-                row.bg_color = [0.3, 0.15, 0.15, 0.7]  # Red for sell
-
-            # Set action buttons
-            row.action_buttons = getattr(position, "action_buttons", ["CANCEL"])
-
-            # Set callbacks
-            def create_expand_callback(pos):
-                return lambda: self.on_position_expand(pos.hp_id)
-
-            def create_action_callback(pos):
-                return lambda action: self.on_position_action(pos, action)
-
-            row.toggle_expansion = create_expand_callback(position)
-            row.on_action = create_action_callback(position)
-
-            self.hp_list_layout.add_widget(row)
-
-        # Add empty state message if no positions
-        if not positions_to_show:
-            empty_label = Label(
-                text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
-                size_hint_y=None,
-                height=100,
-                halign="center",
-                valign="middle",
-            )
-            empty_label.bind(size=empty_label.setter("text_size"))
-            self.hp_list_layout.add_widget(empty_label)
-
-    def on_position_expand(self, hp_id: str) -> None:
-        """Handle position expand/collapse."""
-        logger.info(f"Position expand requested for HP ID: {hp_id}")
-        self.hp_data.toggle_expansion(hp_id)
-        logger.info(f"Position {hp_id} expansion state toggled")
-        self.refresh_hp_list()
-
-    def on_position_action(self, position: UnifiedPosition, action: str) -> None:
-        """Handle position action."""
-        if action == "sell":
-            # Show sell modal for this position
-            # Extract coin from position symbol data
-            coin = position.coin
-            if hasattr(self, "show_sell_modal"):
-                self.show_sell_modal(default_coin=coin)
-            else:
-                logger.warning(
-                    f"Sell action requested for {position.hp_id} but no sell modal available"
-                )
-        elif action == "cancel":
-            if self.cancel_hp_callback:
-                self.cancel_hp_callback(position.hp_id, position.position_type.value)
-        elif action == "remove":
-            if self.remove_hp_callback:
-                self.remove_hp_callback(position.hp_id, position.position_type.value)
+        # Modal instances
+        self.buy_modal: Optional[BuyHPModal] = None
+        self.sell_modal: Optional[SellHPModal] = None
 
     def show_buy_modal(
         self, instance: Any = None, default_coin: Optional[str] = None
@@ -254,7 +113,7 @@ class HPManager(BoxLayout):  # type: ignore[misc]
         position = self._convert_data_to_position(hp_type, hp_id, data)
         if position:
             self.hp_data.add_position(position)
-            Clock.schedule_once(lambda dt: self.refresh_hp_list(), 0)
+            # Note: UI refresh is now handled by HpFront through binding
 
     def update_hp_position(
         self, hp_type: str, hp_id: str, data: Dict[str, Any]
@@ -274,12 +133,12 @@ class HPManager(BoxLayout):  # type: ignore[misc]
     def remove_hp_position(self, hp_type: str, hp_id: str) -> None:
         """Remove an HP position from the display."""
         self.hp_data.remove_position(hp_id)
-        Clock.schedule_once(lambda dt: self.refresh_hp_list(), 0)
+        # Note: UI refresh is now handled by HpFront through binding
 
     def clear_all_positions(self) -> None:
         """Clear all positions."""
         self.hp_data.clear_all()
-        Clock.schedule_once(lambda dt: self.refresh_hp_list(), 0)
+        # Note: UI refresh is now handled by HpFront through binding
 
     def _convert_data_to_position(
         self, hp_type: str, hp_id: str, data: Dict[str, Any]

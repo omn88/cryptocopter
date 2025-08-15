@@ -123,6 +123,9 @@ class HpFront(BoxLayout):
             # Trigger initial HP list update
             self._update_hp_list_view()
 
+        # Setup the unified HP manager
+        self.setup_hp_manager()
+
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
 
     def show_buy_modal(self):
