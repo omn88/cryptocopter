@@ -11,6 +11,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
+from kivy.factory import Factory
 from typing import Dict, List, Optional, Callable, Any
 import logging
 
@@ -19,245 +20,6 @@ from .modal_configurators import BuyHPModal, SellHPModal
 from .models import HPConfiguration
 
 logger = logging.getLogger(__name__)
-
-
-class HPRowWidget(BoxLayout):  # type: ignore[misc]
-    """Widget representing a single HP position row."""
-
-    def __init__(
-        self,
-        position: UnifiedPosition,
-        on_expand_callback: Optional[Callable[[str], None]] = None,
-        on_action_callback: Optional[Callable[[UnifiedPosition, str], None]] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.position = position
-        self.on_expand_callback = on_expand_callback
-        self.on_action_callback = on_action_callback
-
-        self.orientation = "horizontal"
-        self.size_hint_y = None
-        self.height = 40
-        self.spacing = 5
-
-        # Determine colors based on position type and state
-        self.setup_styling()
-        self.build_row()
-
-    def setup_styling(self) -> None:
-        """Setup row styling based on position type and state."""
-        if self.position.position_type == PositionType.HP:
-            # Parent HP: Blue background similar to portfolio parent rows
-            self.bg_color = [0.15, 0.25, 0.35, 0.8]  # Softer blue with transparency
-        elif self.position.is_dummy:
-            # Dummy positions: Muted yellow/brown
-            self.bg_color = [0.25, 0.22, 0.15, 0.7]  # Muted brown-yellow
-        elif self.position.position_type == PositionType.BUY:
-            # Buy positions: Subtle green
-            self.bg_color = [0.15, 0.3, 0.2, 0.7]  # Darker green with transparency
-        else:  # SELL
-            # Sell positions: Subtle red
-            self.bg_color = [0.3, 0.15, 0.15, 0.7]  # Darker red with transparency
-
-        # Add indentation for child positions
-        self.padding_left = 20 if self.position.is_child else 0
-
-    def build_row(self) -> None:
-        """Build the row layout with all columns."""
-        # Add background color using canvas
-        from kivy.graphics import Color, Rectangle, Line
-
-        with self.canvas.before:
-            # Background color
-            Color(*self.bg_color)
-            self.rect = Rectangle(size=self.size, pos=self.pos)
-
-            # Subtle border line at the bottom
-            Color(1, 1, 1, 0.1)  # Light border
-            self.line = Line(width=1)
-
-        # Bind the rectangle and line to update when size/pos changes
-        self.bind(size=self._update_rect, pos=self._update_rect)
-
-        # Add left padding for child positions
-        if self.position.is_child:
-            self.add_widget(Label(text="", size_hint_x=None, width=20))
-
-        # Expand/Collapse button (only for parent positions with children)
-        if (
-            self.position.position_type == PositionType.HP
-            and self.position.has_children
-        ):
-            expand_btn = Button(
-                text="▼" if self.position.is_expanded else "▶",
-                size_hint_x=None,
-                width=30,
-                height=30,
-            )
-            expand_btn.bind(on_release=self.on_expand_clicked)
-            self.add_widget(expand_btn)
-        else:
-            self.add_widget(Label(text="", size_hint_x=None, width=30))
-
-        # Essential columns
-        self.add_column("Type", self.position.get_type_display(), 0.08)
-        self.add_column("ID", self.position.hp_id, 0.1)
-        self.add_column("Coin", self.position.coin, 0.08)
-        self.add_column("Qty", self.position.get_quantity_display(), 0.12)
-        self.add_column("Price", self.position.get_price_display(), 0.12)
-        self.add_column("Progress", self.position.get_progress_display(), 0.1)
-        self.add_column("Net", self.position.get_net_display(), 0.12)
-        self.add_column("State", self.position.get_state_display(), 0.1)
-
-        # Action buttons
-        self.add_action_buttons()
-
-    def add_column(self, header: str, value: str, width_hint: float) -> None:
-        """Add a column to the row."""
-        label = Label(
-            text=value, size_hint_x=width_hint, halign="center", valign="middle"
-        )
-        label.bind(size=label.setter("text_size"))
-        self.add_widget(label)
-
-    def add_action_buttons(self) -> None:
-        """Add action buttons based on position type and state."""
-        action_layout = BoxLayout(orientation="horizontal", size_hint_x=0.18, spacing=2)
-
-        # Get action buttons from position data (if available)
-        available_actions = getattr(self.position, "action_buttons", None)
-        if available_actions is None:
-            # Fallback to determine actions based on position properties
-            available_actions = self._determine_available_actions()
-
-        # Add buttons based on available actions
-        if "SELL" in available_actions:
-            sell_btn = Button(text="Sell", size_hint_x=0.5)
-            sell_btn.bind(on_release=lambda x: self.on_action("sell"))
-            action_layout.add_widget(sell_btn)
-
-        if "CANCEL" in available_actions:
-            cancel_btn = Button(text="Cancel", size_hint_x=0.5)
-            cancel_btn.bind(on_release=lambda x: self.on_action("cancel"))
-            action_layout.add_widget(cancel_btn)
-
-        if "REMOVE" in available_actions:
-            remove_btn = Button(text="Remove", size_hint_x=0.5)
-            remove_btn.bind(on_release=lambda x: self.on_action("remove"))
-            action_layout.add_widget(remove_btn)
-
-        # If no actions available, add empty space
-        if not available_actions:
-            action_layout.add_widget(Label(text=""))
-
-        self.add_widget(action_layout)
-
-    def _update_rect(self, *args: Any) -> None:
-        """Update the background rectangle and border line when size/position changes."""
-        if hasattr(self, "rect"):
-            self.rect.pos = self.pos
-            self.rect.size = self.size
-
-        if hasattr(self, "line"):
-            # Update line to be at the bottom of the row
-            self.line.points = [self.x, self.y, self.x + self.width, self.y]
-
-    def _determine_available_actions(self) -> List[str]:
-        """Determine available actions based on position properties."""
-        actions = []
-
-        if self.position.position_type == PositionType.HP:
-            # Parent position: Sell action if it has children
-            if self.position.has_children:
-                actions.append("SELL")
-                actions.append("CANCEL")
-        elif self.position.is_child:
-            # Child position actions based on side
-            side = getattr(self.position, "side", "")
-            if side == "BUY":
-                # Buy child can sell
-                actions.append("SELL")
-                actions.append("CANCEL")
-            elif side == "SELL":
-                # Sell child can typically only cancel
-                if self.position.state in ["ACTIVE", "SELLING", "NEW"]:
-                    actions.append("CANCEL")
-            elif side == "DUMMY_BUY":
-                # Dummy buy has no actions
-                pass
-            else:
-                # Generic child actions
-                if self.position.state in ["ACTIVE", "BUYING", "SELLING", "NEW"]:
-                    actions.append("CANCEL")
-                elif self.position.state in ["COMPLETED", "SOLD", "CLOSED"]:
-                    actions.append("REMOVE")
-        else:
-            # Fallback for other position types
-            if self.position.state in ["ACTIVE", "BUYING", "SELLING", "NEW"]:
-                actions.append("CANCEL")
-            elif self.position.state in ["COMPLETED", "SOLD", "CLOSED"]:
-                actions.append("REMOVE")
-
-        return actions
-
-    def on_expand_clicked(self, instance: Any) -> None:
-        """Handle expand/collapse button click."""
-        logger.info(f"Expand button clicked for position: {self.position.hp_id}")
-        if self.on_expand_callback:
-            self.on_expand_callback(self.position.hp_id)
-        else:
-            logger.warning(
-                f"No expand callback set for position: {self.position.hp_id}"
-            )
-
-    def on_action(self, action: str) -> None:
-        """Handle action button click."""
-        if self.on_action_callback is not None:
-            self.on_action_callback(self.position, action)
-
-
-class HeaderWidget(BoxLayout):  # type: ignore[misc]
-    """Header widget with column titles."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.orientation = "horizontal"
-        self.size_hint_y = None
-        self.height = 35
-        self.spacing = 5
-
-        # Build header
-        self.build_header()
-
-    def build_header(self) -> None:
-        """Build header with column titles."""
-        # Expand button space
-        self.add_widget(Label(text="", size_hint_x=None, width=30))
-
-        # Column headers
-        headers = [
-            ("Type", 0.08),
-            ("ID", 0.1),
-            ("Coin", 0.08),
-            ("Quantity", 0.12),
-            ("Price", 0.12),
-            ("Progress", 0.1),
-            ("Net", 0.12),
-            ("State", 0.1),
-            ("Actions", 0.18),
-        ]
-
-        for title, width_hint in headers:
-            label = Label(
-                text=title,
-                size_hint_x=width_hint,
-                bold=True,
-                halign="center",
-                valign="middle",
-            )
-            label.bind(size=label.setter("text_size"))
-            self.add_widget(label)
 
 
 class HPManager(BoxLayout):  # type: ignore[misc]
@@ -322,9 +84,7 @@ class HPManager(BoxLayout):  # type: ignore[misc]
 
     def build_hp_list(self) -> None:
         """Build the scrollable HP list."""
-        # Header
-        header = HeaderWidget()
-        self.add_widget(header)
+        # Note: Header is now handled by KV file
 
         # Scrollable content
         scroll = ScrollView()
@@ -347,11 +107,47 @@ class HPManager(BoxLayout):  # type: ignore[misc]
         positions_to_show = self.hp_data.get_visible_positions()
 
         for position in positions_to_show:
-            row = HPRowWidget(
-                position=position,
-                on_expand_callback=self.on_position_expand,
-                on_action_callback=self.on_position_action,
-            )
+            # Create KV widget using Factory
+            row = Factory.HPRowWidget()
+
+            # Set properties expected by the KV widget
+            row.position_type = position.get_type_display()
+            row.hp_id = position.hp_id
+            row.coin = position.coin
+            row.quantity_display = position.get_quantity_display()
+            row.price_display = position.get_price_display()
+            row.progress_display = position.get_progress_display()
+            row.net_display = position.get_net_display()
+            row.state_display = position.get_state_display()
+
+            # Set expansion properties
+            row.has_children = position.has_children
+            row.is_expanded = position.is_expanded
+            row.child_indent = 20 if position.is_child else 0
+
+            # Set styling
+            if position.position_type == PositionType.HP:
+                row.bg_color = [0.15, 0.25, 0.35, 0.8]  # Blue for parent
+            elif position.is_dummy:
+                row.bg_color = [0.25, 0.22, 0.15, 0.7]  # Brown for dummy
+            elif position.position_type == PositionType.BUY:
+                row.bg_color = [0.15, 0.3, 0.2, 0.7]  # Green for buy
+            else:  # SELL
+                row.bg_color = [0.3, 0.15, 0.15, 0.7]  # Red for sell
+
+            # Set action buttons
+            row.action_buttons = getattr(position, "action_buttons", ["CANCEL"])
+
+            # Set callbacks
+            def create_expand_callback(pos):
+                return lambda: self.on_position_expand(pos.hp_id)
+
+            def create_action_callback(pos):
+                return lambda action: self.on_position_action(pos, action)
+
+            row.toggle_expansion = create_expand_callback(position)
+            row.on_action = create_action_callback(position)
+
             self.hp_list_layout.add_widget(row)
 
         # Add empty state message if no positions

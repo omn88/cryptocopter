@@ -470,8 +470,17 @@ class HpFront(BoxLayout):
                         logger.debug("UI received BUY position data: %s", data)
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
+                        logger.debug(
+                            f"[BINDING DEBUG] Before updating hp_list_data - current length: {len(self.hp_list_data)}"
+                        )
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
+                        )
+                        logger.debug(
+                            f"[BINDING DEBUG] After updating hp_list_data - new length: {len(self.hp_list_data)}"
+                        )
+                        logger.debug(
+                            f"[BINDING DEBUG] hp_list_data contents: {self.hp_list_data}"
                         )
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
@@ -1422,12 +1431,18 @@ class HpFront(BoxLayout):
 
     def _update_hp_list_view(self, *args):
         """Update the HP list view with current data."""
+        logger.debug(f"[BINDING DEBUG] _update_hp_list_view called with args: {args}")
+        logger.debug(f"[BINDING DEBUG] hp_list_data length: {len(self.hp_list_data)}")
+
         # Throttle frequent updates in production to reduce spam
         current_time = time.time()
         if not self.test_mode and hasattr(self, "_last_view_update_time"):
             if (
                 current_time - self._last_view_update_time < 2.0
             ):  # Max one update per 2 seconds
+                logger.debug(
+                    "[BINDING DEBUG] Throttled - skipping update due to time limit"
+                )
                 return
 
         logger.debug(
