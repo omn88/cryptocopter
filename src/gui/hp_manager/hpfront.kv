@@ -288,3 +288,4 @@
             opacity: 1 if 'CANCEL' in (self.parent.action_buttons if hasattr(self.parent, 'action_buttons') else []) else 0
             disabled: 'CANCEL' not in (self.parent.action_buttons if hasattr(self.parent, 'action_buttons') else [])
             on_release: self.parent.on_action('cancel') if hasattr(self.parent, 'on_action') else None
+

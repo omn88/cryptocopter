@@ -13,7 +13,6 @@ from kivy.properties import (
 
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.uix.spinner import Spinner
 from kivy.uix.widget import Widget
 from src.database import TradingDatabase
 from src.identifiers import (
@@ -40,7 +39,7 @@ from src.gui.identifiers.spot import (
     HPUpdate,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
-from src.gui.hp_manager import HPManager, HPConfiguration
+from src.gui.hp_manager import HPConfiguration
 
 
 logger = logging.getLogger("HPFront")
@@ -452,6 +451,7 @@ class HpFront(BoxLayout):
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
+
                     # Throttle frequent ticker update logs to reduce spam
                     current_time = time.time()
                     if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
@@ -459,31 +459,14 @@ class HpFront(BoxLayout):
                         if current_time - self._last_ticker_log_time > 10.0:
                             logger.debug("[PROCESS_UI_QUEUE] Processing ticker updates")
                             self._last_ticker_log_time = current_time
-                    else:
-                        # Only log other UI queue events every 5 seconds in production
-                        if self.test_mode or (
-                            current_time - self._last_ui_queue_log_time > 5.0
-                        ):
-                            logger.debug(
-                                f"[PROCESS_UI_QUEUE] Received data type: {type(data)}, isinstance HPGuiDataBuy: {isinstance(data, HPGuiDataBuy)}, isinstance HPGuiDataSell: {isinstance(data, HPGuiDataSell)}"
-                            )
-                            self._last_ui_queue_log_time = current_time
+
                     if isinstance(data, HPGuiDataBuy):
                         # Update the HP list with buy position data
-                        logger.debug("UI received BUY position data: %s", data)
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
-                        logger.debug(
-                            f"[BINDING DEBUG] Before updating hp_list_data - current length: {len(self.hp_list_data)}"
-                        )
+                        # Update HP list data (KV binding will handle UI updates)
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
-                        )
-                        logger.debug(
-                            f"[BINDING DEBUG] After updating hp_list_data - new length: {len(self.hp_list_data)}"
-                        )
-                        logger.debug(
-                            f"[BINDING DEBUG] hp_list_data contents: {self.hp_list_data}"
                         )
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
@@ -901,10 +884,6 @@ class HpFront(BoxLayout):
                 parent["quantity"] = str(
                     update.symbol_info.format_quantity(total_bought)
                 )
-                logger.debug(
-                    f"[PARENT BUY] Set parent total bought quantity: {parent['quantity']}"
-                )
-
             # Ensure both fields exist
             if "realized_quantity" not in parent:
                 parent["realized_quantity"] = "0.0"
@@ -1436,24 +1415,6 @@ class HpFront(BoxLayout):
         """Update the HP list view with current data."""
         logger.debug(f"[BINDING DEBUG] _update_hp_list_view called with args: {args}")
         logger.debug(f"[BINDING DEBUG] hp_list_data length: {len(self.hp_list_data)}")
-
-        # Throttle frequent updates in production to reduce spam
-        current_time = time.time()
-        if not self.test_mode and hasattr(self, "_last_view_update_time"):
-            if (
-                current_time - self._last_view_update_time < 2.0
-            ):  # Max one update per 2 seconds
-                logger.debug(
-                    "[BINDING DEBUG] Throttled - skipping update due to time limit"
-                )
-                return
-
-        logger.debug(
-            f"_update_hp_list_view called with hp_list_data length: {len(self.hp_list_data)}"
-        )
-
-        # Track last update time
-        self._last_view_update_time = current_time
 
         # Prevent infinite sync loops
         if getattr(self, "_syncing_hp_data", False):

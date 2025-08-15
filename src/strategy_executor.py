@@ -767,7 +767,6 @@ class StrategyExecutor:
             state=strategy.state,
             buy_orders=strategy.buy.orders,
         )
-
         self.broker.subscribe(
             system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
