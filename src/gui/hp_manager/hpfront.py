@@ -141,6 +141,77 @@ class HpFront(BoxLayout):
         else:
             logger.warning("HP manager not available for sell modal")
 
+    def show_cancel_confirmation(self, hp_id: str, symbol: str, side: str) -> None:
+        """Show confirmation dialog for canceling HP position."""
+        from kivy.uix.popup import Popup
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.label import Label
+
+        content = BoxLayout(orientation="vertical", spacing=10, padding=10)
+
+        # Warning message
+        warning_text = f"""Are you sure you want to CANCEL position {hp_id}?
+
+This action will:
+• Cancel all remaining orders on the exchange
+• Close the position with status CLOSED
+• This action cannot be undone
+
+Position: {hp_id} ({symbol})
+Side: {side}"""
+
+        warning_label = Label(
+            text=warning_text,
+            halign="center",
+            valign="middle",
+            text_size=(None, None),
+            color=[1, 0.8, 0.2, 1],  # Yellow warning color
+        )
+        warning_label.bind(size=warning_label.setter("text_size"))
+        content.add_widget(warning_label)
+
+        # Buttons
+        button_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+
+        cancel_btn = Button(text="Cancel", background_color=[0.5, 0.5, 0.5, 1])
+        confirm_btn = Button(text="CONFIRM CANCEL", background_color=[0.8, 0.2, 0.2, 1])
+
+        button_layout.add_widget(cancel_btn)
+        button_layout.add_widget(confirm_btn)
+        content.add_widget(button_layout)
+
+        popup = Popup(
+            title="Cancel HP Position - CONFIRMATION REQUIRED",
+            content=content,
+            size_hint=(0.6, 0.5),
+            auto_dismiss=False,
+            title_color=[1, 0.8, 0.2, 1],
+        )
+
+        # Button actions
+        cancel_btn.bind(on_release=popup.dismiss)
+        confirm_btn.bind(
+            on_release=lambda x: self._confirm_cancel_hp(popup, hp_id, symbol, side)
+        )
+
+        popup.open()
+
+    def _confirm_cancel_hp(self, popup, hp_id: str, symbol: str, side: str) -> None:
+        """Actually cancel the HP position after confirmation."""
+        popup.dismiss()
+        # Use PositionSide enum correctly
+        if side == "LONG":
+            position_side = PositionSide.LONG
+        else:
+            position_side = PositionSide.LONG  # Default to LONG for buy positions
+
+        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=position_side)
+        self.config_queue.put_nowait(record)
+        logger.info("Remove record added to the queue. %s", record)
+
     def trigger_remove_record(
         self,
         hp_id: str,
@@ -148,7 +219,15 @@ class HpFront(BoxLayout):
         side: str,
         *args,
     ) -> None:
-        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=PositionSide(side))
+        # Handle PositionSide enum correctly
+        if side == "LONG":
+            position_side = PositionSide.LONG
+        elif side == "SHORT":
+            position_side = PositionSide.SHORT
+        else:
+            position_side = PositionSide.LONG  # Default to LONG
+
+        record = RemoveRecord(hp_id=hp_id, symbol=symbol, side=position_side)
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
 
@@ -1524,7 +1603,10 @@ class HpFront(BoxLayout):
         row.add_widget(self._create_column_label(hp_data.get("hp_id", ""), 0.1))
         row.add_widget(self._create_column_label(hp_data.get("coin", ""), 0.08))
         row.add_widget(self._create_column_label(hp_data.get("quantity", "0.0"), 0.12))
-        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.12))
+        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.1))
+        row.add_widget(
+            self._create_column_label(hp_data.get("current_price", "0.0"), 0.1)
+        )
 
         # Progress column (show completeness or state info)
         progress_text = (
@@ -1532,9 +1614,9 @@ class HpFront(BoxLayout):
             if hp_data.get("realized_quantity")
             else "0.000"
         )
-        row.add_widget(self._create_column_label(progress_text, 0.1))
+        row.add_widget(self._create_column_label(progress_text, 0.08))
 
-        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.12))
+        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.1))
         row.add_widget(self._create_column_label(hp_data.get("state", ""), 0.1))
 
         # Action buttons
@@ -1558,9 +1640,13 @@ class HpFront(BoxLayout):
             cancel_btn = Button(text="Cancel", size_hint_x=0.5)
             hp_id = hp_data.get("hp_id", "")
             symbol = hp_data.get("coin", "")
-            side_value = "LONG" if hp_data.get("side") == "BUY" else "SHORT"
+            # Map side correctly to PositionSide enum values
+            if hp_data.get("side") == "BUY" or hp_data.get("side") == "BUY":
+                side_value = "LONG"
+            else:
+                side_value = "LONG"  # Default to LONG for buy positions
             cancel_btn.bind(
-                on_release=lambda x: self.trigger_remove_record(
+                on_release=lambda x: self.show_cancel_confirmation(
                     hp_id, symbol, side_value
                 )
             )
