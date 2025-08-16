@@ -4,7 +4,7 @@ import os
 import queue
 import logging
 import time
-from typing import Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional, Union
 import uuid
 from kivy.properties import (
     ListProperty,
@@ -711,6 +711,19 @@ Side: {side}"""
                         else f"{total_invested_amount:.2f}"
                     )
 
+        # Apply action button logic to all HP items
+        temp_hp_list = list(
+            hp_map.values()
+        )  # Create temporary list for the helper methods
+        self.hp_list_data = (
+            temp_hp_list  # Update the instance variable for helper methods
+        )
+
+        for hp_item in hp_map.values():
+            button_config = self._determine_action_buttons(hp_item)
+            hp_item["action_buttons"] = button_config["buttons"]
+            hp_item["button_states"] = button_config["states"]
+
         # Trigger visual refresh
         self._update_hp_list_view()
 
@@ -845,7 +858,10 @@ Side: {side}"""
                 "side": "PARENT",
                 "children": [],
                 "is_expanded": True,  # Start expanded so children are visible
-                "action_buttons": ["SELL", "CANCEL"],  # Parent can sell and cancel
+                "action_buttons": [
+                    "SELL",
+                    "CANCEL",
+                ],  # Will be determined by _determine_action_buttons later
             }
 
         parent = hp_map[hp_id]
@@ -908,7 +924,9 @@ Side: {side}"""
                 "is_child": True,
                 "side": "BUY",
                 "parent_hp_id": hp_id,
-                "action_buttons": ["SELL", "CANCEL"],  # Buy child can sell and cancel
+                "action_buttons": [
+                    "CANCEL"
+                ],  # Will be determined by _determine_action_buttons later
             }
 
             # Buy children NEVER have sell_price or expected_return fields
@@ -1180,7 +1198,9 @@ Side: {side}"""
                 "is_child": True,
                 "side": "SELL",
                 "parent_hp_id": hp_id,
-                "action_buttons": ["CANCEL"],  # Sell child can cancel
+                "action_buttons": [
+                    "CANCEL"
+                ],  # Will be determined by _determine_action_buttons later
             }
 
             hp_map[sell_child_key] = sell_child
@@ -1241,7 +1261,10 @@ Side: {side}"""
             # Update parent with sell data
             parent["sell_price"] = sell_child["sell_price"]
             parent["expected_return"] = sell_child["expected_return"]
-            parent["action_buttons"] = ["CANCEL"]  # Parent with sell can cancel
+            parent["action_buttons"] = [
+                "SELL",
+                "CANCEL",
+            ]  # Will be determined by _determine_action_buttons later
 
         # Update parent state to reflect the actual operation state
         parent["state"] = update.state.value
@@ -1355,6 +1378,163 @@ Side: {side}"""
             quantity,
         )
 
+    def new_sell_hp_button(self, hp_id, coin, quantity, buy_price):
+        """Show confirmation dialog for selling HP position."""
+        from kivy.uix.popup import Popup
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.label import Label
+        from kivy.uix.textinput import TextInput
+
+        content = BoxLayout(orientation="vertical", spacing=10, padding=10)
+
+        # Title and info
+        info_text = f"""Sell HP Position {hp_id}
+
+Current Position:
+• Coin: {coin}
+• Quantity: {quantity}
+• Buy Price: {buy_price}
+
+Enter sell price to create sell order:"""
+
+        info_label = Label(
+            text=info_text,
+            halign="center",
+            valign="middle",
+            text_size=(None, None),
+            color=[0.2, 0.8, 0.2, 1],  # Green color
+        )
+        info_label.bind(size=info_label.setter("text_size"))
+        content.add_widget(info_label)
+
+        # Sell price input
+        price_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=40, spacing=10
+        )
+        price_label = Label(text="Sell Price:", size_hint_x=0.3)
+        price_input = TextInput(
+            hint_text="Enter sell price",
+            multiline=False,
+            size_hint_x=0.7,
+            input_filter="float",
+        )
+        price_layout.add_widget(price_label)
+        price_layout.add_widget(price_input)
+        content.add_widget(price_layout)
+
+        # Expected return calculation
+        return_label = Label(
+            text="Expected return will be calculated...",
+            halign="center",
+            size_hint_y=None,
+            height=30,
+            color=[0.8, 0.8, 0.8, 1],
+        )
+        content.add_widget(return_label)
+
+        # Update expected return when price changes
+        def update_expected_return(instance, text):
+            try:
+                sell_price = float(text) if text else 0
+                buy_price_float = float(buy_price)
+                quantity_float = float(quantity)
+                if sell_price > 0 and buy_price_float > 0:
+                    profit = (sell_price - buy_price_float) * quantity_float
+                    profit_percent = ((sell_price / buy_price_float) - 1) * 100
+                    return_label.text = (
+                        f"Expected return: {profit:.2f} (+{profit_percent:.2f}%)"
+                    )
+                else:
+                    return_label.text = "Expected return will be calculated..."
+            except ValueError:
+                return_label.text = "Invalid price entered"
+
+        price_input.bind(text=update_expected_return)
+
+        # Buttons
+        button_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+
+        cancel_btn = Button(text="Cancel", background_color=[0.5, 0.5, 0.5, 1])
+        confirm_btn = Button(
+            text="CREATE SELL ORDER", background_color=[0.2, 0.8, 0.2, 1]
+        )
+
+        button_layout.add_widget(cancel_btn)
+        button_layout.add_widget(confirm_btn)
+        content.add_widget(button_layout)
+
+        popup = Popup(
+            title=f"Sell HP Position {hp_id}",
+            content=content,
+            size_hint=(0.6, 0.6),
+            auto_dismiss=False,
+            title_color=[0.2, 0.8, 0.2, 1],
+        )
+
+        # Button actions
+        cancel_btn.bind(on_release=popup.dismiss)
+        confirm_btn.bind(
+            on_release=lambda x: self._confirm_sell_hp(
+                popup, hp_id, coin, quantity, buy_price, price_input.text
+            )
+        )
+
+        popup.open()
+
+    def _confirm_sell_hp(
+        self, popup, hp_id, coin, quantity, buy_price, sell_price_text
+    ):
+        """Confirm and execute the sell order"""
+        try:
+            sell_price = float(sell_price_text) if sell_price_text else 0
+            if sell_price <= 0:
+                # Show error - could enhance with another popup
+                print("Error: Sell price must be greater than 0")
+                return
+
+            popup.dismiss()
+
+            # Create sell configuration and send to strategy executor
+            coin_symbol = coin[:-3] if coin.endswith("USD") else coin
+            symbol = f"{coin_symbol}USDC"
+
+            logger.info(
+                f"Creating sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
+            )
+
+            # Create proper sell configuration and send to config queue
+            if symbol not in self.symbols_info:
+                logger.error(f"Symbol info not found for {symbol}")
+                return
+
+            sell_config = HPSellData(
+                config=HPSellConfig(
+                    hp_id=hp_id,  # Use the same HP ID to create sell child
+                    coin=coin_symbol,
+                    buy_price=float(buy_price),
+                    sell_price=sell_price,
+                    quantity=float(quantity),
+                    end_currency="USDC",
+                    symbol_info=self.symbols_info[symbol],
+                ),
+                state_info=StateInfo(side=PositionSide.SHORT),
+            )
+
+            # Send to strategy executor
+            self.config_queue.put_nowait(sell_config)
+            logger.info(
+                "Sell HP configuration sent to strategy executor: %s",
+                sell_config.config,
+            )
+
+        except ValueError:
+            print("Error: Invalid sell price")
+        except Exception as e:
+            logger.error(f"Error creating sell order: {e}")
+
     def cancel_sell(self, hp_id: str, coin: str):
         coin = coin[:-3] if coin.endswith("USD") else coin
         config = HPSellConfig(hp_id=hp_id, symbol_info=self.symbols_info[f"{coin}USDT"])
@@ -1367,6 +1547,129 @@ Side: {side}"""
         )
 
         logger.info("Cancel sell send to the config queue: %s", config)
+
+    def _has_sell_child(self, hp_id: str) -> bool:
+        """Check if HP has a sell child"""
+        for item in self.hp_list_data:
+            if item.get("hp_id") == f"{hp_id}_SELL":
+                return True
+        return False
+
+    def _get_parent_realized_quantity(self, hp_id: str) -> float:
+        """Get the realized buy quantity from parent HP"""
+        for item in self.hp_list_data:
+            if item.get("hp_id") == hp_id and item.get("side") == "PARENT":
+                return float(item.get("quantity", "0.0"))
+        return 0.0
+
+    def _get_sell_child_realized_quantity(self, hp_id: str) -> float:
+        """Get the realized sell quantity from sell child"""
+        for item in self.hp_list_data:
+            if item.get("hp_id") == f"{hp_id}_SELL":
+                return float(item.get("realized_quantity", "0.0"))
+        return 0.0
+
+    def _determine_action_buttons(self, hp_data: dict) -> dict:
+        """Determine which action buttons to show and their states"""
+        hp_id = hp_data.get("hp_id", "")
+        side = hp_data.get("side", "")
+        is_child = hp_data.get("is_child", False)
+
+        # Extract base HP ID for children
+        base_hp_id = hp_id.split("_")[0] if is_child else hp_id
+
+        buttons: Dict[str, Any] = {"buttons": [], "states": {}}
+
+        if side == "PARENT":
+            # Parent HP logic
+            has_sell_child = self._has_sell_child(base_hp_id)
+            realized_quantity = float(hp_data.get("quantity", "0.0"))
+
+            # SELL button: Always show, but enabled only if no sell child and realized_quantity > 0
+            buttons["buttons"].append("SELL")
+            buttons["states"]["SELL"] = {
+                "enabled": not has_sell_child and realized_quantity > 0,
+                "text": "Sell",
+            }
+
+            # CANCEL button: Always show and enabled
+            buttons["buttons"].append("CANCEL")
+            buttons["states"]["CANCEL"] = {"enabled": True, "text": "Cancel"}
+
+        elif side == "BUY":
+            # Buy child logic
+            has_sell_child = self._has_sell_child(base_hp_id)
+
+            # CANCEL button: Always show, but enabled only if no sell child
+            buttons["buttons"].append("CANCEL")
+            buttons["states"]["CANCEL"] = {
+                "enabled": not has_sell_child,
+                "text": "Cancel",
+            }
+
+        elif side == "SELL":
+            # Sell child logic
+            realized_sell_quantity = float(hp_data.get("realized_quantity", "0.0"))
+
+            # CANCEL button: Always show, but enabled only if realized_quantity == 0
+            buttons["buttons"].append("CANCEL")
+            buttons["states"]["CANCEL"] = {
+                "enabled": realized_sell_quantity == 0,
+                "text": "Cancel",
+            }
+
+        return buttons
+
+    def _handle_cancel_button_click(
+        self, hp_id: str, symbol: str, side_value: str
+    ) -> None:
+        """Handle cancel button click with enhanced logic"""
+        # Determine if this is a parent, buy child, or sell child
+        if "_" not in hp_id:
+            # This is a parent HP
+            self._cancel_parent_hp(hp_id, symbol)
+        elif hp_id.endswith("_BUY"):
+            # This is a buy child
+            base_hp_id = hp_id.replace("_BUY", "")
+            self._cancel_buy_child(base_hp_id, symbol, side_value)
+        elif hp_id.endswith("_SELL"):
+            # This is a sell child
+            base_hp_id = hp_id.replace("_SELL", "")
+            self._cancel_sell_child(base_hp_id, symbol)
+        else:
+            # Fallback to original logic
+            self.show_cancel_confirmation(hp_id, symbol, side_value)
+
+    def _cancel_parent_hp(self, hp_id: str, symbol: str) -> None:
+        """Cancel parent HP - first cancel sell child (if exists), then buy child"""
+        has_sell_child = self._has_sell_child(hp_id)
+
+        if has_sell_child:
+            # First cancel the sell child
+            self._cancel_sell_child(hp_id, symbol)
+            # Note: After sell child is cancelled, user can click cancel again to cancel buy
+        else:
+            # No sell child, proceed with buy cancellation
+            self.show_cancel_confirmation(hp_id, symbol, "LONG")
+
+    def _cancel_buy_child(self, base_hp_id: str, symbol: str, side_value: str) -> None:
+        """Cancel buy child - same as parent cancel for buy position"""
+        has_sell_child = self._has_sell_child(base_hp_id)
+
+        if not has_sell_child:
+            # Only allow buy cancellation if no sell child exists
+            self.show_cancel_confirmation(base_hp_id, symbol, side_value)
+        # If sell child exists, button should be disabled, so this shouldn't be called
+
+    def _cancel_sell_child(self, base_hp_id: str, symbol: str) -> None:
+        """Cancel sell child"""
+        sell_realized_qty = self._get_sell_child_realized_quantity(base_hp_id)
+
+        if sell_realized_qty == 0:
+            # Only allow sell cancellation if no realized quantity
+            # Use SHORT side for sell position cancellation
+            self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
+        # If realized quantity > 0, button should be disabled, so this shouldn't be called
 
         self.filter_records("active", "All", side="BUY")
         self.filter_records("idle", "All", side="BUY")
@@ -1622,34 +1925,51 @@ Side: {side}"""
         # Action buttons
         action_layout = BoxLayout(orientation="horizontal", size_hint_x=0.18, spacing=2)
         action_buttons = hp_data.get("action_buttons", [])
+        button_states = hp_data.get("button_states", {})
 
         if "SELL" in action_buttons:
             sell_btn = Button(text="Sell", size_hint_x=0.5)
-            hp_id = hp_data.get("hp_id", "")
-            coin = hp_data.get("coin", "")
-            quantity = hp_data.get("quantity", "0.0")
-            buy_price = hp_data.get("buy_price", "0.0")
-            sell_btn.bind(
-                on_release=lambda x: self.sell_hp_button(
-                    hp_id, coin, quantity, buy_price
+
+            # Apply button state
+            sell_state = button_states.get("SELL", {"enabled": True, "text": "Sell"})
+            sell_btn.text = sell_state["text"]
+            sell_btn.disabled = not sell_state["enabled"]
+
+            if sell_state["enabled"]:
+                hp_id = hp_data.get("hp_id", "")
+                coin = hp_data.get("coin", "")
+                quantity = hp_data.get("quantity", "0.0")
+                buy_price = hp_data.get("buy_price", "0.0")
+                sell_btn.bind(
+                    on_release=lambda x: self.new_sell_hp_button(
+                        hp_id, coin, quantity, buy_price
+                    )
                 )
-            )
             action_layout.add_widget(sell_btn)
 
         if "CANCEL" in action_buttons:
             cancel_btn = Button(text="Cancel", size_hint_x=0.5)
-            hp_id = hp_data.get("hp_id", "")
-            symbol = hp_data.get("coin", "")
-            # Map side correctly to PositionSide enum values
-            if hp_data.get("side") == "BUY" or hp_data.get("side") == "BUY":
-                side_value = "LONG"
-            else:
-                side_value = "LONG"  # Default to LONG for buy positions
-            cancel_btn.bind(
-                on_release=lambda x: self.show_cancel_confirmation(
-                    hp_id, symbol, side_value
-                )
+
+            # Apply button state
+            cancel_state = button_states.get(
+                "CANCEL", {"enabled": True, "text": "Cancel"}
             )
+            cancel_btn.text = cancel_state["text"]
+            cancel_btn.disabled = not cancel_state["enabled"]
+
+            if cancel_state["enabled"]:
+                hp_id = hp_data.get("hp_id", "")
+                symbol = hp_data.get("coin", "")
+                # Map side correctly to PositionSide enum values
+                if hp_data.get("side") == "BUY":
+                    side_value = "LONG"
+                else:
+                    side_value = "LONG"  # Default to LONG for buy positions
+                cancel_btn.bind(
+                    on_release=lambda x: self._handle_cancel_button_click(
+                        hp_id, symbol, side_value
+                    )
+                )
             action_layout.add_widget(cancel_btn)
 
         # Fill remaining space if no buttons
