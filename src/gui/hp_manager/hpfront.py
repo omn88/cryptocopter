@@ -676,16 +676,16 @@ Side: {side}"""
             f"Processing HP update: {hp_id}, side: {operation_side}, state: {update.state.value}"
         )
 
-        if is_multihop_child:
-            # Handle existing multihop children (1000a, 1000b) - no new multihop created
-            self._handle_existing_multihop_child(
-                hp_map, update, hp_id, base_hp_id, operation_side
-            )
-        else:
-            # Handle new runtime positions - always create container structure
-            self._handle_container_position(
-                hp_map, update, hp_id, operation_side, quantity_usd
-            )
+        # Handle both regular children and multihop children in unified container logic
+        self._handle_container_position(
+            hp_map,
+            update,
+            hp_id,
+            operation_side,
+            quantity_usd,
+            is_multihop_child,
+            base_hp_id,
+        )
 
         self.hp_list = list(hp_map.values())
 
@@ -729,90 +729,6 @@ Side: {side}"""
 
         return self.hp_list
 
-    def _handle_existing_multihop_child(
-        self,
-        hp_map: Dict[str, Dict],
-        update: HPUpdate,
-        hp_id: str,
-        parent_id: str,
-        operation_side: str,
-    ) -> None:
-        """Handle existing multihop children (1000a, 1000b) - legacy positions only."""
-        quantity_usd = (
-            update.symbol_info.format_price(update.quantity_usd)
-            if update.quantity_usd is not None
-            else "0.0"
-        )
-
-        # Create child record
-        child_record = {
-            "hp_id": hp_id,
-            "coin": update.symbol_info.symbol,
-            "buy_price": (
-                str(update.symbol_info.format_price(update.buy_price))
-                if update.buy_price
-                else "0.0"
-            ),
-            "quantity": (
-                str(update.symbol_info.format_quantity(update.quantity))
-                if update.quantity
-                else "0.0"
-            ),
-            "quantity_usd": quantity_usd,
-            "sell_price": (
-                str(update.symbol_info.format_price(update.sell_price))
-                if update.sell_price
-                else "0.0"
-            ),
-            "expected_return": (
-                str(update.symbol_info.format_price(update.expected_return))
-                if update.expected_return
-                else "0.0"
-            ),
-            "current_price": (
-                str(update.symbol_info.format_price(update.current_price))
-                if update.current_price
-                else "0.0"
-            ),
-            "net": (
-                str(update.symbol_info.format_price(update.net))
-                if update.net
-                else "0.0"
-            ),
-            "net_percent": str(update.net_percent) if update.net_percent else "0.0",
-            "state": update.state.value,
-            "is_child": True,
-            "side": operation_side,
-            "parent_hp_id": parent_id,
-        }
-
-        hp_map[hp_id] = child_record
-
-        # Ensure parent container exists for legacy multihop
-        if parent_id not in hp_map:
-            hp_map[parent_id] = {
-                "hp_id": parent_id,
-                "coin": f"{update.coin}USD",
-                "state": "CHILD_ACTIVE",
-                "buy_price": "0.0",
-                "quantity": "0.0",
-                "quantity_usd": "0.0",
-                "sell_price": "0.0",
-                "expected_return": "0.0",
-                "current_price": "0.0",
-                "net": "0.0",
-                "net_percent": "0.0",
-                "is_child": False,
-                "side": "PARENT",
-                "children": [hp_id],
-                "is_expanded": True,
-            }
-        else:
-            parent = hp_map[parent_id]
-            parent.setdefault("children", [])
-            if hp_id not in parent["children"]:
-                parent["children"].append(hp_id)
-
     def _handle_container_position(
         self,
         hp_map: Dict[str, Dict],
@@ -820,8 +736,10 @@ Side: {side}"""
         hp_id: str,
         operation_side: str,
         quantity_usd: str,
+        is_multihop_child: bool = False,
+        base_hp_id: Optional[str] = None,
     ) -> None:
-        """Handle new runtime positions with container structure. No multihop creation."""
+        """Handle new runtime positions with container structure, including multihop children."""
 
         # Determine if this is a Buy or Sell operation
         # Priority logic: SELLING state should create separate sell child even if side='BUY'
@@ -835,14 +753,17 @@ Side: {side}"""
         )
 
         logger.debug(
-            f"Container position {hp_id}: is_buy={is_buy_operation}, is_sell={is_sell_operation}"
+            f"Container position {hp_id}: is_buy={is_buy_operation}, is_sell={is_sell_operation}, multihop={is_multihop_child}"
         )
 
+        # For multihop children, use base_hp_id for parent container
+        parent_hp_id = base_hp_id if is_multihop_child and base_hp_id else hp_id
+
         # Always ensure parent container exists
-        if hp_id not in hp_map or hp_map[hp_id].get("is_child", True):
+        if parent_hp_id not in hp_map or hp_map[parent_hp_id].get("is_child", True):
             # Create parent container
-            hp_map[hp_id] = {
-                "hp_id": hp_id,
+            hp_map[parent_hp_id] = {
+                "hp_id": parent_hp_id,
                 "coin": f"{update.coin}USD",
                 "state": update.state.value,
                 "buy_price": "0.0",
@@ -864,22 +785,29 @@ Side: {side}"""
                 ],  # Will be determined by _determine_action_buttons later
             }
 
-        parent = hp_map[hp_id]
+        parent = hp_map[parent_hp_id]
         parent.setdefault("children", [])
 
         if is_buy_operation:
-            # Buy HP: Create buy child only (no multihop)
-            buy_child_key = f"{hp_id}_BUY"
+            # Buy HP: Create buy child (includes multihop children)
+            if is_multihop_child:
+                # For multihop children, use the actual hp_id (e.g., "1000a")
+                buy_child_key = hp_id
+            else:
+                # For regular children, use standard naming convention
+                buy_child_key = f"{hp_id}_BUY"
 
             # Buy children according to new specification:
             # - quantity: Total trade quantity (use total_quantity if available)
             # - realized_quantity: Actually realized quantity (use total_quantity if available)
 
             # Get total quantity for buy child display
-            total_bought_qty = getattr(update, "total_quantity", None)
-            if total_bought_qty is None:
+            total_bought_qty_raw = getattr(update, "total_quantity", None)
+            if total_bought_qty_raw is None:
                 # Fallback to current quantity for buy child display
                 total_bought_qty = update.quantity or 0.0
+            else:
+                total_bought_qty = float(total_bought_qty_raw)
 
             # Calculate buy child quantity_usd based on total bought quantity and buy price
             # This ensures buy child always shows total invested amount, not remaining value
@@ -923,7 +851,7 @@ Side: {side}"""
                 "state": self._log_and_return_buy_child_state(update),
                 "is_child": True,
                 "side": "BUY",
-                "parent_hp_id": hp_id,
+                "parent_hp_id": parent_hp_id,  # Use parent_hp_id instead of hp_id for multihop
                 "action_buttons": [
                     "CANCEL"
                 ],  # Will be determined by _determine_action_buttons later
@@ -1020,7 +948,12 @@ Side: {side}"""
             # Sell HP: Create sell child, keeping existing buy child if present
 
             # Check if there's already a real buy child
-            buy_child_key = f"{hp_id}_BUY"
+            if is_multihop_child:
+                # For multihop children, use the actual hp_id (e.g., "1000a")
+                buy_child_key = hp_id
+            else:
+                # For regular children, use standard naming convention
+                buy_child_key = f"{hp_id}_BUY"
             has_real_buy_child = buy_child_key in hp_map
 
             # Update existing buy child if it exists
@@ -1036,11 +969,11 @@ Side: {side}"""
                 if update.quantity is not None:
                     # For new specification: buy child shows total bought quantity
                     # Use total_quantity if available, otherwise use calculated total
-                    total_bought_qty = getattr(update, "total_quantity", None)
+                    total_bought_qty_raw = getattr(update, "total_quantity", None)
                     logger.info(
-                        f"[BUY CHILD DEBUG] update.quantity={update.quantity}, total_quantity={total_bought_qty}"
+                        f"[BUY CHILD DEBUG] update.quantity={update.quantity}, total_quantity={total_bought_qty_raw}"
                     )
-                    if total_bought_qty is None:
+                    if total_bought_qty_raw is None:
                         # Fallback calculation - total bought = remaining quantity + sold quantity
                         sell_total_qty = 0.0
                         if (
@@ -1054,6 +987,7 @@ Side: {side}"""
                             f"[BUY CHILD DEBUG] Fallback calculation: {update.quantity} + {sell_total_qty} = {total_bought_qty}"
                         )
                     else:
+                        total_bought_qty = float(total_bought_qty_raw)
                         logger.info(
                             f"[BUY CHILD DEBUG] Using total_quantity: {total_bought_qty}"
                         )
@@ -1085,7 +1019,12 @@ Side: {side}"""
             # 1. No real buy child exists
             # 2. This is a sell-only strategy (starting by selling already owned coins)
             # 3. Not an existing buy strategy that transitioned to selling
-            dummy_buy_key = f"{hp_id}_DUMMY_BUY"
+
+            # For multihop children, use parent's dummy buy key instead of creating separate ones
+            if is_multihop_child:
+                dummy_buy_key = f"{base_hp_id}_DUMMY_BUY"  # Use parent's dummy buy
+            else:
+                dummy_buy_key = f"{hp_id}_DUMMY_BUY"
 
             # Check if there was ever a real buy child created for this HP
             # If parent already has a BUY child in its children list, don't create dummy
@@ -1106,7 +1045,7 @@ Side: {side}"""
             if not has_real_buy_child and dummy_buy_key not in hp_map:
                 # Get average buy price from portfolio (placeholder for now)
                 avg_buy_price = "0.0"  # TODO: Get from portfolio
-                dummy_buy_quantity = (
+                dummy_buy_quantity_str = (
                     str(update.symbol_info.format_quantity(update.quantity))
                     if update.quantity
                     else "0.0"
@@ -1116,7 +1055,7 @@ Side: {side}"""
                     "hp_id": dummy_buy_key,
                     "coin": update.symbol_info.symbol,
                     "buy_price": avg_buy_price,
-                    "quantity": dummy_buy_quantity,
+                    "quantity": dummy_buy_quantity_str,
                     "quantity_usd": "0.0",  # Calculate based on avg price
                     "current_price": (
                         str(update.symbol_info.format_price(update.current_price))
@@ -1128,7 +1067,7 @@ Side: {side}"""
                     "state": "DUMMY",
                     "is_child": True,
                     "side": "DUMMY_BUY",
-                    "parent_hp_id": hp_id,
+                    "parent_hp_id": parent_hp_id,  # Use parent_hp_id instead of hp_id for multihop
                     "action_buttons": [],  # Dummy has no actions
                 }
 
@@ -1136,8 +1075,13 @@ Side: {side}"""
                 if dummy_buy_key not in parent["children"]:
                     parent["children"].append(dummy_buy_key)
 
-            # Create single sell child (no multihop for new positions)
-            sell_child_key = f"{hp_id}_SELL"
+            # Create single sell child (including multihop children)
+            if is_multihop_child:
+                # For multihop children, use the actual hp_id (e.g., "1000a")
+                sell_child_key = hp_id
+            else:
+                # For regular children, use standard naming convention
+                sell_child_key = f"{hp_id}_SELL"
 
             # Sell children according to new specification:
             # - quantity: Total buy quantity (the amount that should be sold - same as total bought)
@@ -1145,11 +1089,21 @@ Side: {side}"""
 
             # Get total bought quantity from parent
             total_bought_qty = float(parent.get("quantity", "0.0"))
+
+            # For sell-first strategies, if parent quantity is 0, get it from dummy buy child
+            if total_bought_qty == 0.0 and dummy_buy_key in hp_map:
+                dummy_buy_quantity = float(hp_map[dummy_buy_key].get("quantity", "0.0"))
+                if dummy_buy_quantity > 0.0:
+                    total_bought_qty = dummy_buy_quantity
+                    # Update parent quantity from dummy buy
+                    parent["quantity"] = str(
+                        update.symbol_info.format_quantity(total_bought_qty)
+                    )
+
             actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
 
             # For sell child, calculate quantity_usd same as buy child (total bought value)
             # This represents the total value of money invested in the position
-            total_bought_qty = float(parent.get("quantity", "0.0"))
             sell_child_quantity_usd = total_bought_qty * (
                 update.buy_price if update.buy_price else 0.0
             )
@@ -1197,7 +1151,7 @@ Side: {side}"""
                 "sell_completeness": str(getattr(update, "sell_completeness", 0.0)),
                 "is_child": True,
                 "side": "SELL",
-                "parent_hp_id": hp_id,
+                "parent_hp_id": parent_hp_id,  # Use parent_hp_id instead of hp_id for multihop
                 "action_buttons": [
                     "CANCEL"
                 ],  # Will be determined by _determine_action_buttons later
@@ -1258,9 +1212,27 @@ Side: {side}"""
                     f"[PARENT SELL BUY] Set parent total bought quantity: {parent['quantity']}"
                 )
 
-            # Update parent with sell data
-            parent["sell_price"] = sell_child["sell_price"]
-            parent["expected_return"] = sell_child["expected_return"]
+            # Update parent with sell data (only for non-multihop children)
+            if not is_multihop_child:
+                parent["buy_price"] = sell_child[
+                    "buy_price"
+                ]  # Only update from main sell child
+                parent["sell_price"] = sell_child[
+                    "sell_price"
+                ]  # Only update from main sell child
+                parent["expected_return"] = sell_child[
+                    "expected_return"
+                ]  # Only update from main sell child
+
+            # For sell-first strategies, calculate parent quantity_usd from parent data
+            parent_quantity = float(parent.get("quantity", "0.0"))
+            parent_buy_price = float(parent.get("buy_price", "0.0"))
+            if parent_quantity > 0.0 and parent_buy_price > 0.0:
+                parent_quantity_usd = parent_quantity * parent_buy_price
+                parent["quantity_usd"] = str(
+                    update.symbol_info.format_price(parent_quantity_usd)
+                )
+
             parent["action_buttons"] = [
                 "SELL",
                 "CANCEL",
@@ -1671,13 +1643,6 @@ Enter sell price to create sell order:"""
             self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
         # If realized quantity > 0, button should be disabled, so this shouldn't be called
 
-        self.filter_records("active", "All", side="BUY")
-        self.filter_records("idle", "All", side="BUY")
-        self.filter_records("archive", "All", side="BUY")
-        self.filter_records("active", "All", side="SELL")
-        self.filter_records("idle", "All", side="SELL")
-        self.filter_records("archive", "All", side="SELL")
-
     def fetch_hp_info(self, hp_id):
         """
         Fetches HP information for the new modal system.
@@ -1724,20 +1689,73 @@ Enter sell price to create sell order:"""
 
     def toggle_hp_expansion(self, hp_id: str):
         """Toggle the expansion state of a parent HP position"""
+        logger.info(f"[EXPANSION] Toggling expansion for HP {hp_id}")
+
+        # Count rows before expansion change
+        total_rows_before = (
+            len(self.hp_list_data) if hasattr(self, "hp_list_data") else 0
+        )
+        logger.info(f"[EXPANSION] Total rows BEFORE toggle: {total_rows_before}")
+
         if hp_id in self.expanded_hp_ids:
+            logger.info(f"[EXPANSION] Collapsing HP {hp_id}")
             self.expanded_hp_ids.remove(hp_id)
         else:
+            logger.info(f"[EXPANSION] Expanding HP {hp_id}")
             self.expanded_hp_ids.add(hp_id)
+
+        logger.info(f"[EXPANSION] Current expanded HPs: {self.expanded_hp_ids}")
+
+        # Check what children exist for this HP
+        children_for_hp = []
+        for hp_data in self.hp_containers.values():
+            for child_key, child_data in hp_data.items():
+                if child_key.startswith(f"{hp_id}_"):
+                    children_for_hp.append(child_key)
+                    logger.info(
+                        f"[EXPANSION] Found child {child_key} with data: coin={child_data.get('coin', 'N/A')}, side={child_data.get('side', 'N/A')}, state={child_data.get('state', 'N/A')}"
+                    )
+        logger.info(f"[EXPANSION] HP {hp_id} has children: {children_for_hp}")
+
+        # Also check hp_list_data for children
+        list_children = [
+            item
+            for item in self.hp_list_data
+            if item.get("hp_id", "").startswith(f"{hp_id}_")
+        ]
+        logger.info(
+            f"[EXPANSION] HP {hp_id} children in hp_list_data: {[c.get('hp_id') for c in list_children]}"
+        )
+        for child in list_children:
+            logger.info(
+                f"[EXPANSION] List child {child.get('hp_id')}: side={child.get('side')}, state={child.get('state')}, is_child={child.get('is_child')}"
+            )
+
         # Trigger UI update
         self._update_hp_list_view()
 
+        # Count rows after expansion change
+        total_rows_after = (
+            len(self.hp_list_data) if hasattr(self, "hp_list_data") else 0
+        )
+        logger.info(f"[EXPANSION] Total rows AFTER toggle: {total_rows_after}")
+        logger.info(
+            f"[EXPANSION] Row difference: {total_rows_after - total_rows_before}"
+        )
+
     def _get_sorted_hp_list(self):
+        logger.info(
+            f"[SORT DEBUG] Starting _get_sorted_hp_list with {len(self.hp_list_data)} total items"
+        )
+        logger.info(f"[SORT DEBUG] Expanded HPs: {self.expanded_hp_ids}")
+
         # Apply state filtering first
         filtered_data = [
             hp
             for hp in self.hp_list_data
             if hp.get("state", "") in self.hp_state_filter
         ]
+        logger.info(f"[SORT DEBUG] After state filtering: {len(filtered_data)} items")
 
         # Separate parents and children
         parents = [
@@ -1745,21 +1763,29 @@ Enter sell price to create sell order:"""
             for hp in filtered_data
             if not hp.get("is_child", False) and hp.get("side", "") == "PARENT"
         ]
+        logger.info(f"[SORT DEBUG] Found {len(parents)} parent items")
+
         multihop_children = [
             hp
             for hp in filtered_data
-            if hp.get("is_child", False) and hp.get("hp_id", "")[-1:].isalpha()
+            if hp.get("is_child", False)
+            and hp.get("hp_id", "")[-1:].isalpha()
+            and "_" not in hp.get("hp_id", "")
         ]
+        logger.info(f"[SORT DEBUG] Found {len(multihop_children)} multihop children")
+
         regular_children = [
             hp
             for hp in filtered_data
-            if hp.get("is_child", False) and not hp.get("hp_id", "")[-1:].isalpha()
+            if hp.get("is_child", False) and "_" in hp.get("hp_id", "")
         ]
+        logger.info(f"[SORT DEBUG] Found {len(regular_children)} regular children")
 
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x.get("hp_id", "0"))):
             # Find children for this parent
             parent_id = parent["hp_id"]
+            logger.info(f"[SORT DEBUG] Processing parent {parent_id}")
 
             # Multihop children (1000a, 1000b)
             parent_multihop_children = [
@@ -1773,24 +1799,42 @@ Enter sell price to create sell order:"""
             parent_regular_children = [
                 c
                 for c in regular_children
-                if c.get("parent_hp_id") == parent_id or c.get("hp_id") == parent_id
+                if c.get("parent_hp_id") == parent_id
+                or c.get("hp_id", "").startswith(f"{parent_id}_")
             ]
 
             all_children = parent_multihop_children + parent_regular_children
+            logger.info(
+                f"[SORT DEBUG] Parent {parent_id} has {len(all_children)} children: {[c.get('hp_id') for c in all_children]}"
+            )
 
-            # Add has_children property to parent for UI rendering
-            parent["has_children"] = len(all_children) > 0
+            # Expansion button is always visible for parent rows since there are always children
+            parent["has_children"] = True
             parent["is_expanded"] = parent["hp_id"] in self.expanded_hp_ids
             sorted_list.append(parent)
+            logger.info(
+                f"[SORT DEBUG] Added parent {parent_id} to sorted list (expanded: {parent['is_expanded']})"
+            )
 
             # Only add children if parent is expanded
             if parent["hp_id"] in self.expanded_hp_ids:
+                logger.info(
+                    f"[SORT DEBUG] Parent {parent_id} is expanded, adding {len(all_children)} children"
+                )
                 # Sort children: multihop first, then regular by side
                 for child in sorted(
                     all_children, key=lambda x: (x.get("hp_id", ""), x.get("side", ""))
                 ):
                     sorted_list.append(child)
+                    logger.info(
+                        f"[SORT DEBUG] Added child {child.get('hp_id')} (side: {child.get('side')}) to sorted list"
+                    )
+            else:
+                logger.info(
+                    f"[SORT DEBUG] Parent {parent_id} is collapsed, skipping {len(all_children)} children"
+                )
 
+        logger.info(f"[SORT DEBUG] Final sorted list has {len(sorted_list)} items")
         return sorted_list
 
     def _update_hp_list_view(self, *args):

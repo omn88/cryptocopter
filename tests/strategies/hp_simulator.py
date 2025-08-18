@@ -1709,7 +1709,8 @@ class HPSimulator:
         logger.info("Sell config added to the queue: %s", sell_config.config)
 
         await wait_for_condition(
-            condition_func=lambda: len(self.front.hp_list_data) == 3
+            condition_func=lambda: len(self.front.hp_list_data)
+            == 5  # Updated: Parent + Dummy Buy + Main Sell + 2 Multihop children
         )
         strategy = self.back.strategies["1000"]
         assert isinstance(strategy, HpStrategy)
