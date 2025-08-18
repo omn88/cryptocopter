@@ -1713,7 +1713,6 @@ class HPSimulator:
             await wait_for_condition(
                 condition_func=lambda: len(self.front.hp_list_data)
                 == 3,  # Updated: Parent + 2 Multihop children (no dummy buy)
-                timeout=5.0,  # Increased timeout to allow UI processing
             )
         except AssertionError:
             # Debug: log what we actually have when condition fails

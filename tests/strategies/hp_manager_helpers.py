@@ -458,7 +458,8 @@ def assert_default_buy_position_data(
         logger.info("Item %s: %s", i, item)
 
     # With unified HP manager, we expect 2 items: parent container and child position
-    assert len(hp_list) == 2
+
+    assert len(hp_list) == 2, len(hp_list)
 
     # Find the parent container (should have children)
     parent_item = None
