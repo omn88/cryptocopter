@@ -274,6 +274,16 @@ async def frontend_backend_setup(
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
     hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+
+    # Debug: Verify queue objects are the same
+    logger.info(
+        f"[FIXTURE DEBUG] Backend UI queue id: {id(strategy_executor_fixture.ui_queue)}"
+    )
+    logger.info(f"[FIXTURE DEBUG] Frontend UI queue id: {id(hp_gui.ui_queue)}")
+    logger.info(
+        f"[FIXTURE DEBUG] Queue objects same: {strategy_executor_fixture.ui_queue is hp_gui.ui_queue}"
+    )
+
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
     for strategy in strategy_executor_fixture.strategies.values():

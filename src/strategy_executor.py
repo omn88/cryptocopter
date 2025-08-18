@@ -1065,6 +1065,11 @@ class StrategyExecutor:
         )
 
         for position in strategy.sell.sell_positions:
+            logger.info(
+                "[MULTIHOP DEBUG] Processing position: %s, state: %s",
+                position.config.hp_id,
+                position.state_info.state,
+            )
             self.send_sell_position_to_ui(
                 config=position.config,
                 state_info=position.state_info,
@@ -1093,6 +1098,20 @@ class StrategyExecutor:
         await self.db.upsert_sell_price_level(
             data=strategy.sell.current_position, strategy_state=strategy.state
         )
+
+        # For two-hop scenarios, save all sell positions to database (not just current position)
+        if len(strategy.sell.sell_positions) > 1:
+            for position in strategy.sell.sell_positions:
+                if (
+                    position != strategy.sell.current_position
+                ):  # Don't duplicate the current position
+                    logger.info(
+                        "[MULTIHOP DEBUG] Saving additional position to DB: %s",
+                        position.config.hp_id,
+                    )
+                    await self.db.upsert_sell_price_level(
+                        data=position, strategy_state=strategy.state
+                    )
 
         # Send HP sell position created event to portfolio for quantity locking
         if not is_restoration:  # Only send for new positions, not restored ones

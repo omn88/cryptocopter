@@ -224,6 +224,10 @@ class HPPositionSell:
                 sell_type=SellType.TWOHOPS,
             ),
         ]
+        logger.info(
+            "[MULTIHOP DEBUG] Created 2-hop positions: %s",
+            [pos.config.hp_id for pos in sell_positions],
+        )
         return sell_positions
 
     def _generate_order(

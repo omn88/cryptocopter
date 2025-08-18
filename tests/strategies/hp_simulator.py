@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from binance.enums import (
     ORDER_STATUS_NEW,
@@ -1708,10 +1709,17 @@ class HPSimulator:
         self.front.config_queue.put_nowait(sell_config)
         logger.info("Sell config added to the queue: %s", sell_config.config)
 
-        await wait_for_condition(
-            condition_func=lambda: len(self.front.hp_list_data)
-            == 5  # Updated: Parent + Dummy Buy + Main Sell + 2 Multihop children
-        )
+        try:
+            await wait_for_condition(
+                condition_func=lambda: len(self.front.hp_list_data)
+                == 3,  # Updated: Parent + 2 Multihop children (no dummy buy)
+                timeout=5.0,  # Increased timeout to allow UI processing
+            )
+        except AssertionError:
+            # Debug: log what we actually have when condition fails
+            logger.info(f"Current HP list has {len(self.front.hp_list_data)} items")
+            raise  # Re-raise the original exception
+
         strategy = self.back.strategies["1000"]
         assert isinstance(strategy, HpStrategy)
 
