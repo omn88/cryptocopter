@@ -433,6 +433,11 @@ class HPSimulator:
             == realized_quantity
         )
 
+        # Wait for final state transition to BOUGHT
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"] == "BOUGHT"
+        )
+
         assert len(self.front.hp_list_data) == 2
         item = self.front.hp_list_data[0]
         assert item["hp_id"] == "1000"

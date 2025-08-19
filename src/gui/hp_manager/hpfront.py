@@ -1024,7 +1024,12 @@ Side: {side}"""
 
         # Update parent quantities
         parent["quantity"] = str(update.symbol_info.format_quantity(total_bought_qty))
-        parent["realized_quantity"] = str(update.symbol_info.format_quantity(sold_qty))
+
+        # Parent realized_quantity should track sell child realized quantity, not calculated sold_qty
+        sell_child_realized_qty = self._get_sell_child_realized_quantity(update.hp_id)
+        parent["realized_quantity"] = str(
+            update.symbol_info.format_quantity(sell_child_realized_qty)
+        )
 
     def _create_multihop_sell_child(
         self,
@@ -1071,7 +1076,22 @@ Side: {side}"""
         # Store the parent's quantity_usd AFTER potentially setting it above
         # so it doesn't get overwritten by _update_parent_sell_quantities
         parent_quantity_usd_saved = parent.get("quantity_usd", "0.0")
-        actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
+
+        # Calculate actually sold quantity from sell completion if available
+        if (
+            hasattr(update, "realized_quantity")
+            and update.realized_quantity is not None
+        ):
+            # Use actual realized quantity from sell order if available
+            actually_sold_qty = update.realized_quantity
+        elif (
+            hasattr(update, "sell_completeness")
+            and update.sell_completeness is not None
+        ):
+            # Fallback: Use sell completeness to calculate realized quantity for sell operations
+            actually_sold_qty = total_bought_qty * update.sell_completeness
+        else:
+            actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
 
         # Calculate quantity_usd
         sell_child_quantity_usd = total_bought_qty * (

@@ -433,12 +433,24 @@ class HpStrategy:
             )
             logger.info("Expected return : %s", expected_return)
 
+        # Get sell order realized quantity if available
+        sell_realized_quantity = None
+        if hasattr(self.sell, "current_position") and self.sell.current_position:
+            if (
+                hasattr(self.sell.current_position, "sell_order")
+                and self.sell.current_position.sell_order
+            ):
+                sell_realized_quantity = (
+                    self.sell.current_position.sell_order.realized_quantity
+                )
+
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
             symbol_info=symbol_info,
             quantity=quantity,
             quantity_usd=quantity_usd,
+            realized_quantity=sell_realized_quantity,  # Add sell order realized quantity
             total_quantity=total_quantity,  # Add total bought quantity
             buy_price=buy_price,
             sell_price=self.sell.current_position.config.sell_price,
