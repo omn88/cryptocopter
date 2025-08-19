@@ -473,10 +473,20 @@ Side: {side}"""
                 f"_get_sell_child_state_from_update: Using sell_state={sell_state}"
             )
             if sell_state in ["NEW"]:
-                logger.info("_get_sell_child_state_from_update: Returning SELLING")
-                return "SELLING"  # Active sell order
+                # For NEW state, check the overall strategy state to determine if this is
+                # initial setup (idle) or active selling
+                if update.state.value == "SELLING":
+                    # Strategy is actively selling - show as SELLING
+                    logger.info("_get_sell_child_state_from_update: Returning SELLING")
+                    return "SELLING"
+                else:
+                    # Initial setup or other states - show as idle
+                    logger.info("_get_sell_child_state_from_update: Returning NEW")
+                    return "NEW"
             elif sell_state in ["PARTIALLY_SOLD"]:
-                logger.info("_get_sell_child_state_from_update: Returning PARTIALLY_SOLD")
+                logger.info(
+                    "_get_sell_child_state_from_update: Returning PARTIALLY_SOLD"
+                )
                 return "PARTIALLY_SOLD"
             elif sell_state in ["SOLD", "FILLED"]:
                 logger.info("_get_sell_child_state_from_update: Returning SOLD")
@@ -756,27 +766,29 @@ Side: {side}"""
             parts = hp_id.split("_CONVERT")
             if len(parts) == 2 and parts[0].isdigit() and parts[1] == "":
                 return "convert"
-        
+
         # Regular position: numeric + "_" + operation (e.g., "1000_BUY", "1000_SELL")
         if "_" in hp_id:
             parts = hp_id.split("_")
             if len(parts) == 2 and parts[0].isdigit() and parts[1] in ["BUY", "SELL"]:
                 return "regular"
-        
+
         # Multihop position: numeric + single letter (e.g., "1000a", "1000b")
         if len(hp_id) >= 2 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
             return "multihop"
-        
+
         # Pure numeric (e.g., "1000"): needs context to determine if parent-only or parent+child
         if hp_id.isdigit():
             # For regular BUY/SELL operations, we need to create parent + child
             # For true parent positions (like in multihop), we create parent only
             # We can distinguish by checking if this is a child-creating operation
-            if update.side in ["BUY", "SELL"] and not getattr(update, 'is_child', False):
+            if update.side in ["BUY", "SELL"] and not getattr(
+                update, "is_child", False
+            ):
                 return "regular_parent"  # Create parent + child
             else:
                 return "parent"  # Create parent only
-        
+
         # Default to parent if pattern doesn't match
         return "parent"
 
@@ -915,19 +927,26 @@ Side: {side}"""
         """Handle regular parent position that needs both parent container and child position."""
         # Create parent container
         self._ensure_parent_container(hp_map, update, hp_id)
-        
+
         # Update parent state based on the operation
         if self._is_sell_operation(update, operation_side):
             # For sell operations, update parent state to match the update state
             hp_map[hp_id]["state"] = update.state.value
-        
+            # Also update parent quantity_usd from the HPUpdate
+            if hasattr(update, "quantity_usd") and update.quantity_usd:
+                hp_map[hp_id]["quantity_usd"] = str(update.quantity_usd)
+
         # Determine child HP ID and create child position
         if self._is_sell_operation(update, operation_side):
             child_hp_id = f"{hp_id}_SELL"
-            self._create_sell_child(hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd)
+            self._create_sell_child(
+                hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
+            )
         else:
             child_hp_id = f"{hp_id}_BUY"
-            self._create_buy_child(hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd)
+            self._create_buy_child(
+                hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
+            )
 
     def _is_sell_operation(self, update: HPUpdate, operation_side: str) -> bool:
         """Determine if this is a sell operation."""
@@ -942,6 +961,15 @@ Side: {side}"""
     ) -> None:
         """Ensure parent container exists with proper initialization."""
         if parent_hp_id not in hp_map or hp_map[parent_hp_id].get("is_child", True):
+            # Check if we already have quantity_usd from the original HPUpdate
+            # This happens when parent is processed before children
+            original_quantity_usd = "0.0"
+            if hasattr(update, "quantity_usd") and update.quantity_usd is not None:
+                # For multihop positions, update is for the child, but we need parent's quantity_usd
+                # Only use update.quantity_usd if this is being called for the actual parent
+                if parent_hp_id == update.hp_id:
+                    original_quantity_usd = str(update.quantity_usd)
+
             hp_map[parent_hp_id] = {
                 "hp_id": parent_hp_id,
                 "coin": f"{update.coin}USD",
@@ -949,7 +977,7 @@ Side: {side}"""
                 "buy_price": "0.0",
                 "quantity": "0.0",  # Total realized buy quantity
                 "realized_quantity": "0.0",  # Total realized sell quantity
-                "quantity_usd": "0.0",
+                "quantity_usd": original_quantity_usd,
                 "sell_price": "0.0",
                 "expected_return": "0.0",
                 "current_price": "0.0",
@@ -961,6 +989,13 @@ Side: {side}"""
                 "is_expanded": True,  # Start expanded so children are visible
                 "action_buttons": ["SELL", "CANCEL"],
             }
+        else:
+            # Parent already exists, preserve existing quantity_usd
+            # This handles the case where parent was already processed and we're now adding children
+            logger.debug(
+                f"[PARENT_USD] _ensure_parent_container parent {parent_hp_id} already exists with quantity_usd: {hp_map[parent_hp_id].get('quantity_usd', 'MISSING')}"
+            )
+            pass
 
         # Ensure children list exists
         hp_map[parent_hp_id].setdefault("children", [])
@@ -1001,8 +1036,41 @@ Side: {side}"""
         """Create multihop sell child."""
         parent = hp_map[parent_hp_id]
 
-        # Get quantities from parent
-        total_bought_qty = float(parent.get("quantity", "0.0"))
+        # When adding the first multihop child, remove any regular sell child (_SELL)
+        # that may have been created when the parent was initially processed
+        regular_sell_child_id = f"{parent_hp_id}_SELL"
+        if regular_sell_child_id in parent.get("children", []):
+            parent["children"].remove(regular_sell_child_id)
+            if regular_sell_child_id in hp_map:
+                del hp_map[regular_sell_child_id]
+
+        # Get quantities from parent, but for multihop, use update quantity if parent is still 0
+        parent_qty = float(parent.get("quantity", "0.0"))
+
+        # Check if this is a regular sell child (e.g., "1000_SELL") vs actual multihop child (e.g., "1000a")
+        is_regular_sell_child = hp_id.endswith("_SELL")
+
+        if parent_qty == 0.0 and update.quantity and not is_regular_sell_child:
+            # This is likely the first multihop child, use the original quantity
+            total_bought_qty = float(update.quantity)
+            # Update parent with the correct quantity and quantity_usd
+            parent["quantity"] = str(
+                update.symbol_info.format_quantity(total_bought_qty)
+            )
+            # Calculate quantity_usd for parent using parent's buy price (not multihop child's)
+            parent_buy_price = float(parent.get("buy_price", "0.0"))
+            parent_quantity_usd = total_bought_qty * parent_buy_price
+            parent["quantity_usd"] = (
+                str(update.symbol_info.format_price(parent_quantity_usd))
+                if update.symbol_info
+                else f"{parent_quantity_usd:.2f}"
+            )
+        else:
+            total_bought_qty = parent_qty
+
+        # Store the parent's quantity_usd AFTER potentially setting it above
+        # so it doesn't get overwritten by _update_parent_sell_quantities
+        parent_quantity_usd_saved = parent.get("quantity_usd", "0.0")
         actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
 
         # Calculate quantity_usd
@@ -1063,6 +1131,10 @@ Side: {side}"""
 
         # Update parent quantities
         self._update_parent_sell_quantities(parent, update)
+
+        # Restore the parent's quantity_usd after _update_parent_sell_quantities
+        # to prevent it from being overwritten by child processing
+        parent["quantity_usd"] = parent_quantity_usd_saved
 
     def _create_buy_child(
         self,
@@ -1145,7 +1217,7 @@ Side: {side}"""
         quantity_usd: str,
     ) -> None:
         """Create regular sell child (e.g., '1000_SELL')."""
-        
+
         # Update existing buy child if it exists
         buy_child_key = f"{parent_hp_id}_BUY"
         if buy_child_key in hp_map:
