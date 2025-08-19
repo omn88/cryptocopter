@@ -1041,7 +1041,9 @@ Side: {side}"""
             )
         else:
             # Fallback: try to get from sell child data
-            sell_child_realized_qty = self._get_sell_child_realized_quantity(update.hp_id)
+            sell_child_realized_qty = self._get_sell_child_realized_quantity(
+                update.hp_id
+            )
             parent["realized_quantity"] = str(
                 update.symbol_info.format_quantity(sell_child_realized_qty)
             )
