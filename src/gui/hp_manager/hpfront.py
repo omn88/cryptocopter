@@ -1033,11 +1033,18 @@ Side: {side}"""
         # Update parent quantities
         parent["quantity"] = str(update.symbol_info.format_quantity(total_bought_qty))
 
-        # Parent realized_quantity should track sell child realized quantity, not calculated sold_qty
-        sell_child_realized_qty = self._get_sell_child_realized_quantity(update.hp_id)
-        parent["realized_quantity"] = str(
-            update.symbol_info.format_quantity(sell_child_realized_qty)
-        )
+        # Parent realized_quantity should use the update's realized_quantity when available
+        if update.realized_quantity is not None:
+            # Use the realized_quantity from the update (this is what was actually sold)
+            parent["realized_quantity"] = str(
+                update.symbol_info.format_quantity(float(update.realized_quantity))
+            )
+        else:
+            # Fallback: try to get from sell child data
+            sell_child_realized_qty = self._get_sell_child_realized_quantity(update.hp_id)
+            parent["realized_quantity"] = str(
+                update.symbol_info.format_quantity(sell_child_realized_qty)
+            )
 
     def _create_multihop_sell_child(
         self,

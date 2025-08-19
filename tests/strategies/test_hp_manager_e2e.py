@@ -1771,6 +1771,12 @@ async def test_default_convert_position(frontend_backend_setup):
 
     # Wait for conversion to be reflected in frontend
     await wait_for_condition(lambda: front.hp_list_data[0]["state"] == "SOLD")
+    
+    # Wait for realized_quantity to be updated
+    await wait_for_condition(
+        lambda: front.hp_list_data[0]["realized_quantity"] == str(quantity)
+    )
+    
     item = front.hp_list_data[0]
     assert item["state"] == "SOLD"
     assert item["quantity"] == str(
