@@ -1073,6 +1073,19 @@ Side: {side}"""
         else:
             total_bought_qty = parent_qty
 
+        # For multihop children, determine the correct quantity to display
+        if not is_regular_sell_child:
+            # For multihop children, use current remaining quantity (update.quantity)
+            # for ongoing positions, and total_quantity only for initial setup
+            if update.quantity is not None:
+                child_qty = float(update.quantity)
+            elif hasattr(update, "total_quantity") and update.total_quantity:
+                child_qty = float(update.total_quantity)
+            else:
+                child_qty = total_bought_qty
+        else:
+            child_qty = total_bought_qty
+
         # Store the parent's quantity_usd AFTER potentially setting it above
         # so it doesn't get overwritten by _update_parent_sell_quantities
         parent_quantity_usd_saved = parent.get("quantity_usd", "0.0")
@@ -1089,12 +1102,12 @@ Side: {side}"""
             and update.sell_completeness is not None
         ):
             # Fallback: Use sell completeness to calculate realized quantity for sell operations
-            actually_sold_qty = total_bought_qty * update.sell_completeness
+            actually_sold_qty = child_qty * update.sell_completeness
         else:
             actually_sold_qty = float(parent.get("realized_quantity", "0.0"))
 
-        # Calculate quantity_usd
-        sell_child_quantity_usd = total_bought_qty * (
+        # Calculate quantity_usd based on remaining quantity for multihop children
+        sell_child_quantity_usd = child_qty * (
             update.buy_price if update.buy_price else 0.0
         )
         sell_child_quantity_usd_str = (
@@ -1111,7 +1124,7 @@ Side: {side}"""
                 if update.buy_price
                 else "0.0"
             ),
-            "quantity": str(update.symbol_info.format_quantity(total_bought_qty)),
+            "quantity": str(update.symbol_info.format_quantity(child_qty)),
             "realized_quantity": str(
                 update.symbol_info.format_quantity(actually_sold_qty)
             ),

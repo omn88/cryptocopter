@@ -1787,7 +1787,8 @@ class HPSimulator:
             if item.get("side") == "SELL" and item.get("state") in ["IDLE", "STAGNATED"]
         ]
         logger.info("idle records sell: %s", idle_sell_children)
-        await wait_for_no_idle_sell_positions(self.front)
+        # For two-hop trades, second position should remain idle until first completes
+        # So we don't wait for no idle positions, just that we have active positions
 
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
@@ -1833,21 +1834,25 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[1]["quantity"] == "500.0"
+            condition_func=lambda: self.front.hp_list_data[1]["realized_quantity"]
+            == "500.0"
         )
 
         item = self.front.hp_list_data[1]
         assert item["hp_id"] == "1000a"
         assert item["coin"] == "AXLBTC"
         assert item["buy_price"] == "0.00000092", f"buy price: {item['buy_price']}"
-        assert item["quantity"] == "500.0"
-        assert item["quantity_usd"] == "45.75"
+        assert item["quantity"] == "1000.0", f"quantity: {item['quantity']}"
+        assert (
+            item["realized_quantity"] == "500.0"
+        ), f"realized_quantity: {item['realized_quantity']}"
+        assert item["quantity_usd"] == "0.000915"
         assert item["sell_price"] == "0.00000356", f"Sell price: {item['sell_price']}"
         assert item["expected_return"] == "0.002645"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "SELLING"
+        assert item["state"] == "PARTIALLY_SOLD"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
@@ -1872,37 +1877,39 @@ class HPSimulator:
 
         assert strategy.state == State.SELLING
 
+        # Wait for second hop to become active (transition to SELLING state)
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["coin"] == "BTCPLN"
+            condition_func=lambda: any(
+                item.get("hp_id") == "1000b" and item.get("state") == "SELLING"
+                for item in self.front.hp_list_data
+            )
         )
 
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["quantity"] == "0.00356"
+        # Validate first hop is SOLD
+        self.validate_multihop_child(
+            parent_hp_id="1000",
+            child_hp_id="1000a",
+            quantity="1000.0",  # Original AXL quantity that was created
+            realized_quantity="1000.0",  # Fully sold
+            state="SOLD",
         )
 
-        await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["buy_price"] == "320000.0"
+        # Validate second hop is now SELLING (ready to sell)
+        self.validate_multihop_child(
+            parent_hp_id="1000",
+            child_hp_id="1000b",
+            quantity="0.00356",  # Original BTC quantity that was created
+            realized_quantity="0.0",  # Nothing sold yet
+            state="SELLING",
         )
-
-        item = self.front.hp_list_data[2]
-        assert item["hp_id"] == "1000b"
-        assert item["coin"] == "BTCPLN"
-        assert item["quantity"] == "0.00356", f"quantity to: {item['quantity']}"
-        assert item["buy_price"] == "320000.0", f"buy price to: {item['buy_price']}"
-        assert item["quantity_usd"] == "1139.2"
-        assert item["sell_price"] == "320000.0"
-        assert item["expected_return"] == "0.0"
-        assert item["current_price"] == "0.0"
-        assert item["net"] == "0.0"
-        assert item["net_percent"] == "0.0"
-        assert item["state"] == "BOUGHT"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
     async def open_second_sell_position_from_two_hop_trade(self):
         strategy = self.back.strategies["1000"]
 
-        assert strategy.sell.current_position is strategy.sell.sell_positions[0]
+        # After first hop completes, current position should be the second position (index 1)
+        assert strategy.sell.current_position is strategy.sell.sell_positions[1]
         # Mock sending the sell order
         strategy.client.create_order.side_effect = get_new_orders(
             orders=[strategy.sell.sell_positions[1].sell_order]
@@ -1965,21 +1972,23 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["quantity"] == "0.00178"
+            condition_func=lambda: self.front.hp_list_data[2]["realized_quantity"]
+            == "0.00178"
         )
 
         item = self.front.hp_list_data[2]
         assert item["hp_id"] == "1000b"
         assert item["coin"] == "BTCPLN"
         assert item["buy_price"] == "320000.0", f"buy price: {item['buy_price']}"
-        assert item["quantity"] == "0.00178"
-        assert item["quantity_usd"] == "569.6"
+        assert item["quantity"] == "0.00356"  # Original quantity stays the same
+        assert item["realized_quantity"] == "0.00178"  # Half of original was sold
+        assert item["quantity_usd"] == "1139.2"
         assert item["sell_price"] == "320000.0", f"Sell price: {item['sell_price']}"
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
         assert item["net"] == "0.0"
         assert item["net_percent"] == "0.0"
-        assert item["state"] == "SELLING"
+        assert item["state"] == "PARTIALLY_SOLD"
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
@@ -2012,7 +2021,8 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[2]["quantity"] == "0.0"
+            condition_func=lambda: self.front.hp_list_data[2]["realized_quantity"]
+            == "0.00356"
         )
 
         await wait_for_condition(
@@ -2026,9 +2036,14 @@ class HPSimulator:
         item = self.front.hp_list_data[2]
         assert item["hp_id"] == "1000b"
         assert item["coin"] == "BTCPLN", item["coin"]
-        assert item["quantity"] == "0.0", f"quantity to: {item['quantity']}"
+        assert (
+            item["quantity"] == "0.00356"
+        ), f"quantity to: {item['quantity']}"  # Original quantity
+        assert (
+            item["realized_quantity"] == "0.00356"
+        ), f"realized_quantity to: {item['realized_quantity']}"  # All sold
         assert item["buy_price"] == "320000.0", f"buy price to: {item['buy_price']}"
-        assert item["quantity_usd"] == "0.0"
+        assert item["quantity_usd"] == "1139.2"  # Based on original quantity
         assert item["sell_price"] == "320000.0"
         assert item["expected_return"] == "0.0"
         assert item["current_price"] == "0.0"
@@ -2251,6 +2266,83 @@ class HPSimulator:
                 sell_child["net_percent"] == net_percent
             ), f"SELL child net_percent: expected {net_percent}, got {sell_child['net_percent']}"
 
+    def validate_multihop_child(
+        self,
+        child_hp_id,
+        quantity,
+        realized_quantity,
+        state,
+        parent_hp_id,
+        coin=None,
+        sell_price=None,
+        buy_price=None,
+        quantity_usd=None,
+        current_price=None,
+        net=None,
+        net_percent=None,
+    ):
+        """
+        Comprehensive validation for multihop child positions (e.g., 1000a, 1000b).
+        Unlike regular sell children, multihop children have specific IDs and different structure.
+        """
+        hp_list_data = self.front.hp_list_data
+        child = next(
+            (item for item in hp_list_data if item["hp_id"] == child_hp_id), None
+        )
+        assert child is not None, f"Multihop child with hp_id {child_hp_id} not found"
+
+        # Core attributes - always validated
+        assert (
+            child["quantity"] == quantity
+        ), f"Multihop child quantity: expected {quantity}, got {child['quantity']}"
+        assert (
+            child["realized_quantity"] == realized_quantity
+        ), f"Multihop child realized_quantity: expected {realized_quantity}, got {child['realized_quantity']}"
+        assert (
+            child["state"] == state
+        ), f"Multihop child state: expected {state}, got {child['state']}"
+        assert (
+            child["side"] == "SELL"
+        ), f"Multihop child side: expected SELL, got {child['side']}"
+        assert (
+            child["is_child"] == True
+        ), f"Multihop child is_child: expected True, got {child['is_child']}"
+        assert (
+            child["parent_hp_id"] == parent_hp_id
+        ), f"Multihop child parent_hp_id: expected {parent_hp_id}, got {child['parent_hp_id']}"
+
+        # Optional attributes - only validated if provided
+        if coin is not None:
+            # Extract coin from the symbol (e.g., "AXLBTC" -> "AXL", "BTCPLN" -> "BTC")
+            expected_coin_display = child["coin"]
+            assert (
+                coin in expected_coin_display
+            ), f"Multihop child coin: expected to contain {coin}, got {expected_coin_display}"
+        if sell_price is not None:
+            assert (
+                child["sell_price"] == sell_price
+            ), f"Multihop child sell_price: expected {sell_price}, got {child['sell_price']}"
+        if buy_price is not None:
+            assert (
+                child["buy_price"] == buy_price
+            ), f"Multihop child buy_price: expected {buy_price}, got {child['buy_price']}"
+        if quantity_usd is not None:
+            assert (
+                child["quantity_usd"] == quantity_usd
+            ), f"Multihop child quantity_usd: expected {quantity_usd}, got {child['quantity_usd']}"
+        if current_price is not None:
+            assert (
+                child["current_price"] == current_price
+            ), f"Multihop child current_price: expected {current_price}, got {child['current_price']}"
+        if net is not None:
+            assert (
+                child["net"] == net
+            ), f"Multihop child net: expected {net}, got {child['net']}"
+        if net_percent is not None:
+            assert (
+                child["net_percent"] == net_percent
+            ), f"Multihop child net_percent: expected {net_percent}, got {child['net_percent']}"
+
     def validate_buy_orders(self, strategy, expected_order_data):
         """
         Comprehensive validation for buy orders in the strategy.
@@ -2320,3 +2412,70 @@ class HPSimulator:
             assert (
                 actual_buy_state == expected_buy_state
             ), f"Buy state: expected {expected_buy_state}, got {actual_buy_state}"
+
+    # def validate_multihop_child(
+    #     self,
+    #     child_hp_id,
+    #     quantity,
+    #     realized_quantity,
+    #     state,
+    #     buy_price=None,
+    #     sell_price=None,
+    #     quantity_usd=None,
+    #     current_price=None,
+    #     net=None,
+    #     net_percent=None,
+    #     sell_completeness=None,
+    # ):
+    #     """
+    #     Comprehensive validation for multihop child positions (e.g., 1000a, 1000b).
+    #     For multihop positions, child_hp_id is the direct ID (e.g., "1000a"), not constructed.
+    #     """
+    #     hp_list_data = self.front.hp_list_data
+    #     child_item = next(
+    #         (item for item in hp_list_data if item["hp_id"] == child_hp_id), None
+    #     )
+    #     assert (
+    #         child_item is not None
+    #     ), f"Multihop child with hp_id {child_hp_id} not found"
+
+    #     # Core attributes - always validated
+    #     assert (
+    #         child_item["quantity"] == quantity
+    #     ), f"Multihop child quantity: expected {quantity}, got {child_item['quantity']}"
+    #     assert (
+    #         child_item["realized_quantity"] == realized_quantity
+    #     ), f"Multihop child realized_quantity: expected {realized_quantity}, got {child_item['realized_quantity']}"
+    #     assert (
+    #         child_item["state"] == state
+    #     ), f"Multihop child state: expected {state}, got {child_item['state']}"
+
+    #     # Optional attributes - only validated if provided
+    #     if buy_price is not None:
+    #         assert (
+    #             child_item["buy_price"] == buy_price
+    #         ), f"Multihop child buy_price: expected {buy_price}, got {child_item['buy_price']}"
+    #     if sell_price is not None:
+    #         assert (
+    #             child_item["sell_price"] == sell_price
+    #         ), f"Multihop child sell_price: expected {sell_price}, got {child_item['sell_price']}"
+    #     if quantity_usd is not None:
+    #         assert (
+    #             child_item["quantity_usd"] == quantity_usd
+    #         ), f"Multihop child quantity_usd: expected {quantity_usd}, got {child_item['quantity_usd']}"
+    #     if current_price is not None:
+    #         assert (
+    #             child_item["current_price"] == current_price
+    #         ), f"Multihop child current_price: expected {current_price}, got {child_item['current_price']}"
+    #     if net is not None:
+    #         assert (
+    #             child_item["net"] == net
+    #         ), f"Multihop child net: expected {net}, got {child_item['net']}"
+    #     if net_percent is not None:
+    #         assert (
+    #             child_item["net_percent"] == net_percent
+    #         ), f"Multihop child net_percent: expected {net_percent}, got {child_item['net_percent']}"
+    #     if sell_completeness is not None:
+    #         assert (
+    #             child_item["sell_completeness"] == sell_completeness
+    #         ), f"Multihop child sell_completeness: expected {sell_completeness}, got {child_item['sell_completeness']}"

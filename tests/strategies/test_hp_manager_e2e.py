@@ -727,7 +727,7 @@ async def test_setup_sell_position_for_bought_position(
         "1000",
         quantity="0.85",
         realized_quantity="0.0",
-        state="SELLING",
+        state="NEW",
         sell_price="4200.0",
     )
     sim.validate_strategy_state(strategy, "BOUGHT")

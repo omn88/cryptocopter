@@ -365,11 +365,8 @@ class HpStrategy:
 
     def _calculate_from_sell_only(self) -> float:
         # Used when sell is started independently
-
-        return (
-            self.sell.current_position.config.quantity
-            - self.sell.current_position.sell_order.realized_quantity
-        )
+        # Return the original quantity, not remaining quantity
+        return self.sell.current_position.config.quantity
 
     def build_hp_update_from_orders(
         self,
