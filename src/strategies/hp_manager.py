@@ -373,15 +373,36 @@ class HpStrategy:
         symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
-        logger.info("Enter build hp update")
+        logger.info("!!! ENTER build_hp_update_from_orders !!!")
+        logger.debug("DEBUG: self.buy.orders exists: %s", bool(self.buy.orders))
         if self.buy.orders:
             logger.info("HP update in self buy orders")
-            if all(order.realized_quantity == 0.0 for order in self.buy.orders):
+            all_unrealized = all(
+                order.realized_quantity == 0.0 for order in self.buy.orders
+            )
+            logger.debug("DEBUG: all orders unrealized: %s", all_unrealized)
+            if all_unrealized:
                 buy_price = self.buy.data.config.price_high
+                logger.debug("DEBUG: using buy config price_high: %s", buy_price)
             else:
                 buy_price = self.buy.calculate_avg_buy_price()
+                logger.debug("DEBUG: using calculated avg buy price: %s", buy_price)
         else:
-            buy_price = self.sell.current_position.config.buy_price
+            logger.debug("DEBUG: no buy orders, checking for buy config")
+            # If no buy orders exist, use the original buy configuration price
+            # If that's not available or is 0, fall back to sell config buy_price
+            if (
+                hasattr(self.buy.data, "config")
+                and hasattr(self.buy.data.config, "price_high")
+                and self.buy.data.config.price_high > 0
+            ):
+                buy_price = self.buy.data.config.price_high
+                logger.debug("DEBUG: using buy data config price_high: %s", buy_price)
+            else:
+                buy_price = self.sell.current_position.config.buy_price
+                logger.debug(
+                    "DEBUG: falling back to sell config buy_price: %s", buy_price
+                )
 
         logger.info("HP update buy price: %s", buy_price)
 
@@ -477,8 +498,13 @@ class HpStrategy:
         )
 
     def send_sell_position_to_ui(self):
+        logger.info("!!! SEND_SELL_POSITION_TO_UI CALLED !!!")
+        logger.debug(f"[SELL TO UI] About to call build_hp_update_from_orders")
         hp_update = self.build_hp_update_from_orders(
             symbol_info=self.sell.current_position.config.symbol_info
+        )
+        logger.info(
+            f"!!! build_hp_update_from_orders returned buy_price: {hp_update.buy_price} !!!"
         )
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value

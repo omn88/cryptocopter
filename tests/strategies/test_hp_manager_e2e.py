@@ -1773,8 +1773,15 @@ async def test_default_convert_position(frontend_backend_setup):
     await wait_for_condition(lambda: front.hp_list_data[0]["state"] == "SOLD")
     item = front.hp_list_data[0]
     assert item["state"] == "SOLD"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
+    assert item["quantity"] == str(
+        quantity
+    ), f"quantity: {item['quantity']}"  # Should remain original quantity
+    assert item["realized_quantity"] == str(
+        quantity
+    ), f"realized_quantity: {item['realized_quantity']}"  # Should show what was sold
+    assert item["quantity_usd"] == str(
+        round(quantity * buy_price, 2)
+    ), f"quantity_usd: {item['quantity_usd']}"  # Should remain original USD value
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
     assert item["buy_price"] == str(buy_price)

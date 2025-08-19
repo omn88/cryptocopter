@@ -1015,8 +1015,16 @@ Side: {side}"""
 
     def _update_parent_sell_quantities(self, parent: Dict, update: HPUpdate) -> None:
         """Update parent quantities for sell operations."""
-        # Get total bought quantity
-        total_bought_qty = float(parent.get("quantity", "0.0"))
+        # For convert-only positions, use the quantity from the update since there's no actual buying
+        if (
+            update.symbol_info
+            and hasattr(update.symbol_info, "is_convert_only")
+            and update.symbol_info.is_convert_only
+        ):
+            total_bought_qty = float(update.quantity) if update.quantity else 0.0
+        else:
+            # Get total bought quantity from existing parent data
+            total_bought_qty = float(parent.get("quantity", "0.0"))
 
         # Calculate sold quantity based on remaining quantity
         remaining_qty = float(update.quantity) if update.quantity else 0.0

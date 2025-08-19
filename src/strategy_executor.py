@@ -835,20 +835,36 @@ class StrategyExecutor:
     def send_sell_position_to_ui(
         self, config: HPSellConfig, state_info: StateInfo, state: State
     ):
+        # Get the correct buy_price - if sell config has 0.0, look up from existing buy position
+        buy_price = config.buy_price
+        if buy_price == 0.0 and config.hp_id in self.strategies:
+            strategy = self.strategies[config.hp_id]
+            if (
+                hasattr(strategy, "buy")
+                and hasattr(strategy.buy, "data")
+                and hasattr(strategy.buy.data, "config")
+            ):
+                buy_price = strategy.buy.data.config.price_high
+                logger.info(
+                    f"Using buy config price_high {buy_price} instead of sell config buy_price {config.buy_price}"
+                )
+            else:
+                logger.warning(
+                    f"Could not find buy config for HP {config.hp_id}, using sell config buy_price"
+                )
+
         expected_return = None
-        if config.buy_price is not None and config.sell_price is not None:
+        if buy_price is not None and config.sell_price is not None:
             expected_return = config.symbol_info.adjust_price(
-                (config.sell_price - config.buy_price) * config.quantity
+                (config.sell_price - buy_price) * config.quantity
             )
-        quantity_usd = config.symbol_info.adjust_price(
-            config.quantity * config.buy_price
-        )
+        quantity_usd = config.symbol_info.adjust_price(config.quantity * buy_price)
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    buy_price=config.buy_price,
+                    buy_price=buy_price,
                     sell_price=config.sell_price,
                     coin=config.coin,
                     symbol_info=config.symbol_info,
