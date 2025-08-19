@@ -11,14 +11,33 @@ import logging
 
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.broker import BrokerSpot
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.database.recovery_service import RecoveryService
-from tests.strategies.hp_manager_helpers import wait_for_condition
+from tests.strategies.hp_manager_helpers import (
+    wait_for_condition,
+    get_hp_positions_by_type,
+    get_parent_hp_positions,
+    get_child_hp_positions,
+    get_buy_positions,
+    get_sell_positions,
+    has_active_buy_positions,
+    has_idle_buy_positions,
+    has_active_sell_positions,
+    has_idle_sell_positions,
+    wait_for_active_buy_positions,
+    wait_for_no_idle_buy_positions,
+    wait_for_idle_buy_positions,
+    wait_for_no_active_buy_positions,
+    wait_for_active_sell_positions,
+    wait_for_no_idle_sell_positions,
+    wait_for_idle_sell_positions,
+    wait_for_no_active_sell_positions,
+)
 
 import asyncio
 import logging
@@ -141,6 +160,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
         balances=balances,
         test_mode=True,
         price_resolver=price_resolver,
+        portfolio_ui_queue=queue.Queue(),
     )
     executor.client = mock_async_client
 
@@ -254,6 +274,16 @@ async def frontend_backend_setup(
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
     hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+
+    # Debug: Verify queue objects are the same
+    logger.info(
+        f"[FIXTURE DEBUG] Backend UI queue id: {id(strategy_executor_fixture.ui_queue)}"
+    )
+    logger.info(f"[FIXTURE DEBUG] Frontend UI queue id: {id(hp_gui.ui_queue)}")
+    logger.info(
+        f"[FIXTURE DEBUG] Queue objects same: {strategy_executor_fixture.ui_queue is hp_gui.ui_queue}"
+    )
+
     yield hp_gui, strategy_executor_fixture  # Provide both components
 
     for strategy in strategy_executor_fixture.strategies.values():

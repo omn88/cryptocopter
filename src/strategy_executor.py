@@ -35,6 +35,7 @@ from src.identifiers import (
     BinanceClient,
     PositionSide,
     HPSellPositionCreated,
+    HPBuyPositionCreated,
     HPSellPositionCompleted,
     HPBuyPositionFilled,
     HPPositionCancelled,
@@ -87,9 +88,7 @@ class StrategyExecutor:
         self.db = db
         self.broker = broker
         self.ui_queue = ui_queue
-        self.portfolio_ui_queue = (
-            portfolio_ui_queue  # Queue for sending HP events to portfolio
-        )
+        self.portfolio_ui_queue = portfolio_ui_queue
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
@@ -612,8 +611,6 @@ class StrategyExecutor:
         assert self.client is not None
         worker_queue: queue.Queue = queue.Queue()
 
-        logger.info("Self balances: %s", self.balances)
-
         logger.info("Creating HpStrategy for HP %s", new_hp.config.hp_id)
         strategy = HpStrategy(
             client=self.client,
@@ -658,9 +655,9 @@ class StrategyExecutor:
             )
 
             # --- Patch: recalculate state from orders after restoration ---
-            logger.info("[Recovery][Buy] Orders for completeness calculation:")
+            logger.debug("[Recovery][Buy] Orders for completeness calculation:")
             for idx, order in enumerate(strategy.buy.orders):
-                logger.info(
+                logger.debug(
                     "[Recovery][Buy] Order %d: status=%s, quantity=%s, realized_quantity=%s",
                     idx,
                     order.status,
@@ -680,7 +677,7 @@ class StrategyExecutor:
                 order.realized_quantity for order in strategy.buy.orders
             )
             total_quantity = sum(order.quantity for order in strategy.buy.orders)
-            logger.info(
+            logger.debug(
                 "[Recovery][Buy] total_realized_quantity=%s, total_order_quantity=%s",
                 total_realized,
                 total_quantity,
@@ -689,7 +686,7 @@ class StrategyExecutor:
                 completeness = total_realized / total_quantity
             else:
                 completeness = 0.0
-            logger.info("[Recovery][Buy] Calculated completeness=%s", completeness)
+            logger.debug("[Recovery][Buy] Calculated completeness=%s", completeness)
 
             # Default state logic
 
@@ -770,7 +767,6 @@ class StrategyExecutor:
             state=strategy.state,
             buy_orders=strategy.buy.orders,
         )
-
         self.broker.subscribe(
             system_id=str(new_hp.config.hp_id),
             subscription_info=SubscriptionInfo(
@@ -794,6 +790,22 @@ class StrategyExecutor:
             data=strategy.buy.data, strategy_state=strategy.state
         )
 
+        # Send HP buy position created event to portfolio for budget locking
+        if not is_restoration:  # Only send for new positions, not restored ones
+            hp_buy_created = HPBuyPositionCreated(
+                hp_id=str(new_hp.config.hp_id),
+                coin=new_hp.config.coin,
+                budget=new_hp.config.budget,
+                price_low=new_hp.config.price_low,
+                price_high=new_hp.config.price_high,
+                end_currency="USDC",  # Default to USDC for budget locking
+            )
+            if self.portfolio_ui_queue is not None:
+                event = Event(
+                    name=EventName.HP_BUY_POSITION_CREATED, content=hp_buy_created
+                )
+                self.portfolio_ui_queue.put_nowait(event)
+
         strategy.worker_task = asyncio.create_task(strategy.worker())
         logger.info("System with ID %s initialized.", new_hp.config.hp_id)
 
@@ -815,6 +827,7 @@ class StrategyExecutor:
                     state=state,
                     buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
+                    side="BUY",  # Set side to BUY for buy positions
                 ),
             )
         )
@@ -822,20 +835,36 @@ class StrategyExecutor:
     def send_sell_position_to_ui(
         self, config: HPSellConfig, state_info: StateInfo, state: State
     ):
+        # Get the correct buy_price - if sell config has 0.0, look up from existing buy position
+        buy_price = config.buy_price
+        if buy_price == 0.0 and config.hp_id in self.strategies:
+            strategy = self.strategies[config.hp_id]
+            if (
+                hasattr(strategy, "buy")
+                and hasattr(strategy.buy, "data")
+                and hasattr(strategy.buy.data, "config")
+            ):
+                buy_price = strategy.buy.data.config.price_high
+                logger.info(
+                    f"Using buy config price_high {buy_price} instead of sell config buy_price {config.buy_price}"
+                )
+            else:
+                logger.warning(
+                    f"Could not find buy config for HP {config.hp_id}, using sell config buy_price"
+                )
+
         expected_return = None
-        if config.buy_price is not None and config.sell_price is not None:
+        if buy_price is not None and config.sell_price is not None:
             expected_return = config.symbol_info.adjust_price(
-                (config.sell_price - config.buy_price) * config.quantity
+                (config.sell_price - buy_price) * config.quantity
             )
-        quantity_usd = config.symbol_info.adjust_price(
-            config.quantity * config.buy_price
-        )
+        quantity_usd = config.symbol_info.adjust_price(config.quantity * buy_price)
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
                     hp_id=config.hp_id,
-                    buy_price=config.buy_price,
+                    buy_price=buy_price,
                     sell_price=config.sell_price,
                     coin=config.coin,
                     symbol_info=config.symbol_info,
@@ -843,6 +872,7 @@ class StrategyExecutor:
                     quantity=config.quantity,
                     quantity_usd=quantity_usd,
                     expected_return=expected_return,
+                    side="SELL",  # Set side to SELL for sell positions
                 ),
             )
         )
@@ -1051,6 +1081,11 @@ class StrategyExecutor:
         )
 
         for position in strategy.sell.sell_positions:
+            logger.info(
+                "[MULTIHOP DEBUG] Processing position: %s, state: %s",
+                position.config.hp_id,
+                position.state_info.state,
+            )
             self.send_sell_position_to_ui(
                 config=position.config,
                 state_info=position.state_info,
@@ -1079,6 +1114,20 @@ class StrategyExecutor:
         await self.db.upsert_sell_price_level(
             data=strategy.sell.current_position, strategy_state=strategy.state
         )
+
+        # For two-hop scenarios, save all sell positions to database (not just current position)
+        if len(strategy.sell.sell_positions) > 1:
+            for position in strategy.sell.sell_positions:
+                if (
+                    position != strategy.sell.current_position
+                ):  # Don't duplicate the current position
+                    logger.info(
+                        "[MULTIHOP DEBUG] Saving additional position to DB: %s",
+                        position.config.hp_id,
+                    )
+                    await self.db.upsert_sell_price_level(
+                        data=position, strategy_state=strategy.state
+                    )
 
         # Send HP sell position created event to portfolio for quantity locking
         if not is_restoration:  # Only send for new positions, not restored ones

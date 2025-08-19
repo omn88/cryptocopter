@@ -12,6 +12,10 @@ class HPUpdate:
     buy_price: Optional[float] = None
     quantity: Optional[float] = None
     quantity_usd: Optional[float] = None
+    realized_quantity: Optional[float] = None  # Added for actual filled quantity
+    total_quantity: Optional[float] = (
+        None  # Added for total bought quantity (before any sells)
+    )
     sell_price: Optional[float] = None
     expected_return: Optional[float] = None
     current_price: Optional[float] = None
@@ -19,6 +23,9 @@ class HPUpdate:
     net_percent: Optional[float] = None
     state: State = State.NONE
     is_child: bool = False
+    side: str = "UNKNOWN"  # Added to track BUY/SELL side
+    sell_completeness: Optional[float] = None  # Added for sell position progress
+    sell_state: Optional[str] = None  # Added for sell operation state
 
 
 @dataclass

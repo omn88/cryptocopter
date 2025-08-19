@@ -28,7 +28,7 @@ from src.identifiers import (
 from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
 from src.common.symbol_info import SymbolInfo
-from src.gui.hpfront import HpFront
+from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.database import TradingDatabase
 from src.broker import BrokerSpot
@@ -170,7 +170,7 @@ class AsyncApp(App):
                 )
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
-        Builder.load_file("src/gui/hpfront.kv")
+        Builder.load_file("src/gui/hp_manager/hpfront.kv")
         ui_queue: queue.Queue = queue.Queue()
 
         self.broker.subscribe(
@@ -192,7 +192,7 @@ class AsyncApp(App):
             price_resolver=self.price_resolver,
             portfolio_ui_queue=(
                 self.portfolio_ui.ui_queue if self.portfolio_ui else None
-            ),  # Pass portfolio UI queue for HP events
+            ),
         )
 
         self.trading_systems.append(back_end)

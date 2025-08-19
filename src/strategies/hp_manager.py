@@ -215,7 +215,15 @@ class HpStrategy:
                 "after": "resend_sell_order",
             },
             {
-                # No 12
+                # No 12 - MOVED to after 18 to prevent race condition
+                "trigger": "process_signal",
+                "source": State.SELLING,
+                "dest": State.SOLD_PART_BOUGHT,
+                "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
+                "after": "close_sold_position_which_is_part_bought",
+            },
+            {
+                # No 13 - Was 12, moved down to check SOLD_PART_BOUGHT first
                 "trigger": "process_signal",
                 "source": State.SELLING,
                 "dest": State.SOLD,
@@ -223,7 +231,7 @@ class HpStrategy:
                 "after": "close_filled_position_sell",
             },
             {
-                # No 13
+                # No 14 - Was 13
                 "trigger": "process_ticker",
                 "source": State.SELLING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
@@ -231,7 +239,7 @@ class HpStrategy:
                 "after": "cancel_partially_sold_orders",
             },
             {
-                # No 14
+                # No 15 - Was 14
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.SELLING,
@@ -239,7 +247,7 @@ class HpStrategy:
                 "before": "resend_sell_order",
             },
             {
-                # No 15
+                # No 16 - Was 15
                 "trigger": "process_ticker",
                 "source": State.PART_SOLD_PART_BOUGHT,
                 "dest": State.BUYING,
@@ -247,7 +255,7 @@ class HpStrategy:
                 "after": "resend_buy_orders",
             },
             {
-                # No 16
+                # No 17 - Was 16
                 "trigger": "process_ticker",
                 "source": State.BUYING,
                 "dest": State.PART_SOLD_PART_BOUGHT,
@@ -255,20 +263,12 @@ class HpStrategy:
                 "after": "cancel_partially_bought_orders",
             },
             {
-                # No 17
+                # No 18 - Was 17
                 "trigger": "process_signal",
                 "source": State.BUYING,
                 "dest": State.PARTIALLY_SOLD,
                 "conditions": "conditions_for_buying_fully_previously_partially_sold_position",
                 "after": "close_filled_position_buy",
-            },
-            {
-                # No 18
-                "trigger": "process_signal",
-                "source": State.SELLING,
-                "dest": State.SOLD_PART_BOUGHT,
-                "conditions": "conditions_for_closing_sold_position_which_is_part_bought",
-                "after": "close_sold_position_which_is_part_bought",
             },
             {
                 # No 19
@@ -365,26 +365,44 @@ class HpStrategy:
 
     def _calculate_from_sell_only(self) -> float:
         # Used when sell is started independently
-
-        return (
-            self.sell.current_position.config.quantity
-            - self.sell.current_position.sell_order.realized_quantity
-        )
+        # Return the original quantity, not remaining quantity
+        return self.sell.current_position.config.quantity
 
     def build_hp_update_from_orders(
         self,
         symbol_info: SymbolInfo,
         current_price: Optional[float] = None,
     ) -> HPUpdate:
-        logger.info("Enter build hp update")
+        logger.info("!!! ENTER build_hp_update_from_orders !!!")
+        logger.debug("DEBUG: self.buy.orders exists: %s", bool(self.buy.orders))
         if self.buy.orders:
             logger.info("HP update in self buy orders")
-            if all(order.realized_quantity == 0.0 for order in self.buy.orders):
+            all_unrealized = all(
+                order.realized_quantity == 0.0 for order in self.buy.orders
+            )
+            logger.debug("DEBUG: all orders unrealized: %s", all_unrealized)
+            if all_unrealized:
                 buy_price = self.buy.data.config.price_high
+                logger.debug("DEBUG: using buy config price_high: %s", buy_price)
             else:
                 buy_price = self.buy.calculate_avg_buy_price()
+                logger.debug("DEBUG: using calculated avg buy price: %s", buy_price)
         else:
-            buy_price = self.sell.current_position.config.buy_price
+            logger.debug("DEBUG: no buy orders, checking for buy config")
+            # If no buy orders exist, use the original buy configuration price
+            # If that's not available or is 0, fall back to sell config buy_price
+            if (
+                hasattr(self.buy.data, "config")
+                and hasattr(self.buy.data.config, "price_high")
+                and self.buy.data.config.price_high > 0
+            ):
+                buy_price = self.buy.data.config.price_high
+                logger.debug("DEBUG: using buy data config price_high: %s", buy_price)
+            else:
+                buy_price = self.sell.current_position.config.buy_price
+                logger.debug(
+                    "DEBUG: falling back to sell config buy_price: %s", buy_price
+                )
 
         logger.info("HP update buy price: %s", buy_price)
 
@@ -433,12 +451,25 @@ class HpStrategy:
             )
             logger.info("Expected return : %s", expected_return)
 
+        # Get sell order realized quantity if available
+        sell_realized_quantity = None
+        if hasattr(self.sell, "current_position") and self.sell.current_position:
+            if (
+                hasattr(self.sell.current_position, "sell_order")
+                and self.sell.current_position.sell_order
+            ):
+                sell_realized_quantity = (
+                    self.sell.current_position.sell_order.realized_quantity
+                )
+
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
             symbol_info=symbol_info,
             quantity=quantity,
             quantity_usd=quantity_usd,
+            realized_quantity=sell_realized_quantity,  # Add sell order realized quantity
+            total_quantity=total_quantity,  # Add total bought quantity
             buy_price=buy_price,
             sell_price=self.sell.current_position.config.sell_price,
             current_price=current_price,
@@ -447,6 +478,7 @@ class HpStrategy:
             state=self.state,
             expected_return=expected_return,
             is_child=self.sell.current_position.config.is_child,
+            side="BUY",  # Set side to BUY for buy positions
         )
 
         logger.info("HP Update: %s", hp_update)
@@ -466,14 +498,23 @@ class HpStrategy:
         )
 
     def send_sell_position_to_ui(self):
+        logger.info("!!! SEND_SELL_POSITION_TO_UI CALLED !!!")
+        logger.debug(f"[SELL TO UI] About to call build_hp_update_from_orders")
+        hp_update = self.build_hp_update_from_orders(
+            symbol_info=self.sell.current_position.config.symbol_info
+        )
+        logger.info(
+            f"!!! build_hp_update_from_orders returned buy_price: {hp_update.buy_price} !!!"
+        )
+        # Add sell state information for UI sell child state processing
+        hp_update.sell_state = self.sell.current_position.state_info.state.value
+
         data = HPGuiDataSell(
             data=HPSellData(
                 config=self.sell.current_position.config,
                 state_info=self.sell.current_position.state_info,
             ),
-            hp_update=self.build_hp_update_from_orders(
-                symbol_info=self.sell.current_position.config.symbol_info
-            ),
+            hp_update=hp_update,
         )
         self.ui_queue.put_nowait(data)
         logger.info("Send HPGuiDataSell to UI: %s", data)
@@ -1330,10 +1371,28 @@ class HpStrategy:
     def conditions_for_closing_sold_position_which_is_part_bought(
         self, *args, **kwargs
     ) -> bool:
+        logger.debug(
+            f"[TRANSITION DEBUG] Checking conditions for SOLD_PART_BOUGHT transition:"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] self.state == SELLING: {self.state == State.SELLING}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] buy state == PARTIALLY_BOUGHT: {self.buy.data.state_info.state == State.PARTIALLY_BOUGHT}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] sell order status == FILLED: {self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED}"
+        )
+        logger.debug(f"[TRANSITION DEBUG] signal_update: {self.signal_update}")
+        logger.debug(
+            f"[TRANSITION DEBUG] expected signal: {SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)}"
+        )
+        logger.debug(
+            f"[TRANSITION DEBUG] signal match: {self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)}"
+        )
         condition = (
             self.state == State.SELLING
             and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
-            and self.sell.current_position.state_info.state == State.SOLD
             and self.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
             and self.signal_update == SignalUpdate(signal=Signal.HP_ALL_ORDERS_FILLED)
         )
@@ -1730,7 +1789,14 @@ class HpStrategy:
                 elif EventName.SIGNAL == event.name:
                     assert isinstance(event.content, SignalUpdate)
                     self.signal_update = event.content
+                    logger.info(
+                        f"[WORKER QUEUE] Processing signal: {self.signal_update}"
+                    )
+                    logger.info(f"[WORKER QUEUE] Current state: {self.state}")
                     await self.process_signal()  # pylint: disable=no-member
+                    logger.info(
+                        f"[WORKER QUEUE] After process_signal, state: {self.state}"
+                    )
 
                 self.worker_queue.task_done()
             except queue.Empty:

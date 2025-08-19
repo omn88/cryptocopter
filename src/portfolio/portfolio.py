@@ -315,7 +315,7 @@ async def fetch_initial_balances(
                 total_value=total_value,
             )
         else:
-            logger.warning("Skipping coin %s: only worth $%.2f", coin, total_value)
+            logger.debug("Skipping coin %s: only worth $%.2f", coin, total_value)
 
     logger.info("Initial balances fetched: %s", balances)
     return balances
