@@ -24,7 +24,6 @@ from tests.strategies.hp_manager_helpers import (
     get_parent_hp_positions,
     get_child_hp_positions,
     get_buy_positions,
-    get_sell_positions,
     has_active_buy_positions,
     has_idle_buy_positions,
     has_active_sell_positions,

@@ -22,7 +22,6 @@ from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,
     get_buy_positions,
-    get_sell_positions,
     wait_for_active_buy_positions,
     wait_for_no_idle_buy_positions,
     wait_for_idle_buy_positions,

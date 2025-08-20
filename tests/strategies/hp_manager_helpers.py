@@ -282,22 +282,16 @@ def has_idle_buy_positions(front: HpFront) -> bool:
 
 def has_active_sell_positions(front: HpFront) -> bool:
     """Check if there are active sell positions (equivalent to old active_records_sell)."""
-    # Check for sell positions with SELLING state (old behavior)
-    selling_positions = get_sell_positions(front, state="SELLING")
-    if len(selling_positions) > 0:
-        return True
-
-    # Also check for any position with SELLING state (could be parent positions from two-hop trades)
     if not front.hp_list_data:
         return False
 
     for hp_data in front.hp_list_data:
+        # Check for any position with SELLING state (covers both regular and two-hop trades)
         if hp_data.get("state") == "SELLING":
             return True
 
-    # Also check for sell positions whose parent is in SELLING state (orders placed)
-    # This handles the case where sell child shows operational state instead of parent state
-    for hp_data in front.hp_list_data:
+        # Also check for sell children whose parent is in SELLING state (orders placed)
+        # This handles the case where sell child shows operational state instead of parent state
         if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
             parent_hp_id = hp_data.get("parent_hp_id")
             if parent_hp_id:

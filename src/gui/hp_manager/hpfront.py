@@ -445,34 +445,24 @@ Side: {side}"""
         if parent_state in ["BUYING", "SELLING"]:
             return "BUYING"  # Buy child shows BUYING when parent is actively operating
 
-        # When parent is stable/idle, child shows completion state based on realized quantity
-        elif parent_state in ["NEW"]:
+        # When parent is stable/idle, child shows completion state based on quantities
+        total_qty = getattr(update, "total_quantity", 0) or 0
+        realized_qty = getattr(update, "realized_quantity", 0) or 0
+        current_qty = getattr(update, "quantity", 0) or 0
+
+        # Use the maximum quantity to determine if we have any bought quantity
+        bought_qty = max(total_qty, realized_qty, current_qty)
+
+        if parent_state == "NEW":
             return "NEW"
-        elif parent_state in ["PARTIALLY_BOUGHT", "SOLD_PART_BOUGHT"]:
-            # Check if we have any bought quantity to determine completion state
-            total_qty = getattr(update, "total_quantity", 0) or 0
-            realized_qty = getattr(update, "realized_quantity", 0) or 0
-
-            if total_qty > 0 or realized_qty > 0:
-                return "PARTIALLY_BOUGHT"  # We have some bought quantity
+        elif bought_qty > 0:
+            # Check if fully bought
+            if current_qty >= bought_qty or abs(current_qty - bought_qty) < 0.00001:
+                return "BOUGHT"  # Fully bought
             else:
-                return "NEW"  # No quantities yet
+                return "PARTIALLY_BOUGHT"  # Partially bought
         else:
-            # For other states, use quantity-based logic to determine completion state
-            current_qty = getattr(update, "quantity", 0) or 0
-            total_qty = getattr(update, "total_quantity", 0) or 0
-            realized_qty = getattr(update, "realized_quantity", 0) or 0
-
-            # Use total_qty or realized_qty to determine if we have any bought quantity
-            bought_qty = max(total_qty, realized_qty)
-
-            if bought_qty > 0:
-                if current_qty >= bought_qty or abs(current_qty - bought_qty) < 0.00001:
-                    return "BOUGHT"  # Fully bought
-                else:
-                    return "PARTIALLY_BOUGHT"  # Partially bought
-            else:
-                return "NEW"  # No quantities, still new
+            return "NEW"  # No quantities, still new
 
     def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
         """Helper method to log and return buy child state."""
