@@ -228,26 +228,115 @@ def get_sell_positions(front: HpFront, state: Optional[str] = None):
 
 def has_active_buy_positions(front: HpFront) -> bool:
     """Check if there are active buy positions (equivalent to old active_records_buy)."""
+    # Check for buy positions with BUYING state (old behavior)
     buying_positions = get_buy_positions(front, state="BUYING")
-    return len(buying_positions) > 0
+    if len(buying_positions) > 0:
+        return True
+
+    # Also check for buy positions whose parent is in BUYING state (orders placed)
+    # This handles the case where buy child shows operational state instead of parent state
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                # Find parent and check if it's in BUYING state
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "BUYING"
+                    ):
+                        return True
+
+    return False
 
 
 def has_idle_buy_positions(front: HpFront) -> bool:
     """Check if there are idle/new buy positions (equivalent to old idle_records_buy)."""
-    new_buys = get_buy_positions(front, state="NEW")
-    return len(new_buys) > 0
+    # A position is only considered "idle" if it's NEW AND its parent is not BUYING
+    # (meaning no orders have been placed yet)
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            if hp_data.get("state") == "NEW":
+                # Check if parent is in BUYING state (orders placed)
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    # Find parent and check its state
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "BUYING":
+                                # Parent is not BUYING, so this is truly idle
+                                return True
+                            break
+                else:
+                    # No parent found, treat as idle
+                    return True
+
+    return False
 
 
 def has_active_sell_positions(front: HpFront) -> bool:
     """Check if there are active sell positions (equivalent to old active_records_sell)."""
+    # Check for sell positions with SELLING state (old behavior)
     selling_positions = get_sell_positions(front, state="SELLING")
-    return len(selling_positions) > 0
+    if len(selling_positions) > 0:
+        return True
+
+    # Also check for any position with SELLING state (could be parent positions from two-hop trades)
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("state") == "SELLING":
+            return True
+
+    # Also check for sell positions whose parent is in SELLING state (orders placed)
+    # This handles the case where sell child shows operational state instead of parent state
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                # Find parent and check if it's in SELLING state
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "SELLING"
+                    ):
+                        return True
+
+    return False
 
 
 def has_idle_sell_positions(front: HpFront) -> bool:
     """Check if there are idle/new sell positions (equivalent to old idle_records_sell)."""
-    new_sells = get_sell_positions(front, state="NEW")
-    return len(new_sells) > 0
+    # A position is only considered "idle" if it's NEW AND its parent is not SELLING
+    # (meaning no orders have been placed yet)
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            if hp_data.get("state") == "NEW":
+                # Check if parent is in SELLING state (orders placed)
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    # Find parent and check its state
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "SELLING":
+                                # Parent is not SELLING, so this is truly idle
+                                return True
+                            break
+                else:
+                    # No parent found, treat as idle
+                    return True
+
+    return False
 
 
 # Convenience functions for the most common wait conditions

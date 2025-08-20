@@ -522,7 +522,12 @@ class HpStrategy:
         )
         # Set specific child ID for sell operations
         parent_id = str(self.sell.current_position.config.hp_id)
-        hp_update.hp_id = f"{parent_id}_SELL"
+        # For two-hop trades (child positions), keep the original ID (e.g., 1000a)
+        # For regular trades, append _SELL suffix (e.g., 1000_SELL)
+        if self.sell.current_position.config.is_child:
+            hp_update.hp_id = parent_id
+        else:
+            hp_update.hp_id = f"{parent_id}_SELL"
 
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value
