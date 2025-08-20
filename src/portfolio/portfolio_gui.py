@@ -476,6 +476,9 @@ class PortfolioUI(BoxLayout):
                         quantity=float(row["quantity"]),
                         available_quantity=float(row["quantity"]),
                         locked_quantity=0.0,
+                        source="CSV_IMPORT",
+                        timestamp=time.time(),
+                        notes="Imported from CSV",
                     )
                     inventory_items.append(item)
                 except Exception as e:
@@ -1082,6 +1085,9 @@ class PortfolioUI(BoxLayout):
             quantity=event.quantity_bought,
             available_quantity=event.quantity_bought,
             locked_quantity=0.0,
+            source="HP_BUY",
+            timestamp=time.time(),
+            notes=f"HP buy position {event.hp_id}",
         )
 
         # Find existing parent coin or create new one

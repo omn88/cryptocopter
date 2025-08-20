@@ -122,10 +122,27 @@ class HpFront(BoxLayout):
             # Trigger initial HP list update
             self._update_hp_list_view()
 
+        # Setup filter dropdown values
+        self._setup_filter_dropdown()
+
         # Setup the unified HP manager
         self.setup_hp_manager()
 
         # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
+
+    def _setup_filter_dropdown(self):
+        """Setup the HP state filter dropdown with available options."""
+        if (
+            not self.test_mode
+            and hasattr(self, "ids")
+            and hasattr(self.ids, "hp_state_filter_spinner")
+        ):
+            self.ids.hp_state_filter_spinner.values = [
+                "Active States (11)",
+                "All States (13)",
+                "SOLD Only",
+                "CLOSED Only",
+            ]
 
     def show_buy_modal(self):
         """Show Buy HP modal - delegates to HP manager."""
@@ -406,47 +423,56 @@ Side: {side}"""
         return "BUY"
 
     def _get_buy_child_state(self, update: HPUpdate) -> str:
-        """Get appropriate state for buy child based on parent state and buy completion status."""
+        """Get appropriate state for buy child based on actual buy operation state.
+
+        Architecture: Children should primarily show the actual operation state (from buy_operation_state)
+        when available, falling back to parent-derived states.
+        """
+
+        # First priority: Use actual buy operation state if available
+        # This comes from the HPGuiDataBuy.data.state_info.state and represents the actual buy operation state
+        if hasattr(update, "buy_operation_state") and update.buy_operation_state:
+            actual_state = update.buy_operation_state
+            logger.debug(
+                f"[BUY CHILD] Using actual buy operation state: {actual_state}"
+            )
+            return actual_state
+
+        # Fallback: Use parent state to determine child state
         parent_state = update.state.value
 
-        # Map parent states to appropriate buy child states
-        if parent_state in ["NEW", "BUYING"]:
-            return parent_state
-        elif parent_state in ["PARTIALLY_BOUGHT"]:
-            return "PARTIALLY_BOUGHT"
-        elif parent_state in ["BOUGHT"]:
-            return "BOUGHT"
-        elif parent_state in ["SELLING", "PARTIALLY_SOLD", "SOLD"]:
-            # When selling, buy child should maintain its buy completion state
-            # If we have quantity, we were partially bought; if no quantity, we were never bought
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
+        # When parent is actively operating (BUYING/SELLING), child shows operational state
+        if parent_state in ["BUYING", "SELLING"]:
+            return "BUYING"  # Buy child shows BUYING when parent is actively operating
+
+        # When parent is stable/idle, child shows completion state based on realized quantity
+        elif parent_state in ["NEW"]:
+            return "NEW"
+        elif parent_state in ["PARTIALLY_BOUGHT", "SOLD_PART_BOUGHT"]:
+            # Check if we have any bought quantity to determine completion state
+            total_qty = getattr(update, "total_quantity", 0) or 0
+            realized_qty = getattr(update, "realized_quantity", 0) or 0
+
+            if total_qty > 0 or realized_qty > 0:
+                return "PARTIALLY_BOUGHT"  # We have some bought quantity
             else:
-                return "NEW"  # Edge case: no quantity means nothing was bought
-        elif parent_state in ["SOLD_PART_BOUGHT"]:
-            # For SOLD_PART_BOUGHT, use total_quantity to check original buy completion
-            # quantity=0 (all sold) but total_quantity shows what was originally bought
-            if (
-                hasattr(update, "total_quantity")
-                and update.total_quantity
-                and update.total_quantity > 0
-            ):
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"
-        elif parent_state in ["PART_SOLD_PART_BOUGHT"]:
-            # Complex parent state: buy child should show its buy operation status
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"
+                return "NEW"  # No quantities yet
         else:
-            # For any other complex states, determine appropriate buy state
-            # based on quantity (if we have quantity, we completed some buy orders)
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
+            # For other states, use quantity-based logic to determine completion state
+            current_qty = getattr(update, "quantity", 0) or 0
+            total_qty = getattr(update, "total_quantity", 0) or 0
+            realized_qty = getattr(update, "realized_quantity", 0) or 0
+
+            # Use total_qty or realized_qty to determine if we have any bought quantity
+            bought_qty = max(total_qty, realized_qty)
+
+            if bought_qty > 0:
+                if current_qty >= bought_qty or abs(current_qty - bought_qty) < 0.00001:
+                    return "BOUGHT"  # Fully bought
+                else:
+                    return "PARTIALLY_BOUGHT"  # Partially bought
             else:
-                return "NEW"
+                return "NEW"  # No quantities, still new
 
     def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
         """Helper method to log and return buy child state."""
@@ -546,6 +572,9 @@ Side: {side}"""
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
+                    logger.debug(
+                        f"[QUEUE DEBUG] Retrieved data from ui_queue: {type(data)}"
+                    )
 
                     # Throttle frequent ticker update logs to reduce spam
                     current_time = time.time()
@@ -557,8 +586,20 @@ Side: {side}"""
 
                     if isinstance(data, HPGuiDataBuy):
                         # Update the HP list with buy position data
+                        logger.debug(
+                            f"[DEBUG] Processing HPGuiDataBuy with state: {data.data.state_info.state}"
+                        )
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
+                        # Add actual buy operation state for proper child state determination
+                        buy_state = data.data.state_info.state.value
+                        logger.debug(
+                            f"[BUY OPERATION STATE] Setting buy_operation_state to: {buy_state}"
+                        )
+                        data.hp_update.buy_operation_state = buy_state
+                        logger.debug(
+                            f"[DEBUG] After setting, buy_operation_state is: {data.hp_update.buy_operation_state}"
+                        )
                         # Update HP list data (KV binding will handle UI updates)
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
@@ -886,6 +927,10 @@ Side: {side}"""
 
         # Ensure parent container exists
         self._ensure_parent_container(hp_map, update, parent_hp_id)
+
+        # Update parent state for sell operations to reflect overall operation state
+        if child_operation == "SELL":
+            hp_map[parent_hp_id]["state"] = update.state.value
 
         if child_operation == "BUY":
             self._create_buy_child(
@@ -1268,11 +1313,6 @@ Side: {side}"""
     ) -> None:
         """Create regular sell child (e.g., '1000_SELL')."""
 
-        # Update existing buy child if it exists
-        buy_child_key = f"{parent_hp_id}_BUY"
-        if buy_child_key in hp_map:
-            self._update_existing_buy_child_for_sell(hp_map[buy_child_key], update)
-
         # Create sell child
         self._create_multihop_sell_child(hp_map, update, hp_id, parent_hp_id)
 
@@ -1352,8 +1392,10 @@ Side: {side}"""
         self, buy_child: Dict, update: HPUpdate
     ) -> None:
         """Update existing buy child when sell operation occurs."""
-        # Update buy child state appropriately for selling phase
-        buy_child["state"] = self._get_buy_child_state(update)
+        # Preserve the existing buy child state - DO NOT update it based on sell operations
+        # Buy child state should only be updated by buy operations, not sell operations
+        # Store the current state to preserve it
+        preserved_state = buy_child.get("state", "UNKNOWN")
 
         if update.quantity is not None:
             # Calculate total bought quantity
@@ -1388,6 +1430,9 @@ Side: {side}"""
         # Remove sell-related fields from buy child
         buy_child.pop("sell_price", None)
         buy_child.pop("expected_return", None)
+
+        # Restore the preserved buy child state to prevent cross-contamination from sell operations
+        buy_child["state"] = preserved_state
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
@@ -2206,6 +2251,9 @@ Enter sell price to create sell order:"""
                         quantity=float(row["quantity"]),
                         available_quantity=float(row["quantity"]),
                         locked_quantity=0.0,
+                        source="CSV_AUTO_LOAD",
+                        timestamp=time.time(),
+                        notes="Auto-loaded from CSV",
                     )
                     inventory_items.append(item)
                 except Exception as e:
@@ -2272,30 +2320,57 @@ Enter sell price to create sell order:"""
             return
 
         self._update_hp_list_view()
-        if not self.test_mode:
-            self.ids.hp_state_filter_display.text = display_text
+        if (
+            not self.test_mode
+            and hasattr(self, "ids")
+            and hasattr(self.ids, "hp_state_filter_display")
+        ):
+            try:
+                self.ids.hp_state_filter_display.text = display_text
+            except Exception as e:
+                logger.error(f"Error updating filter display text: {e}")
         logger.info("HP state filter changed to: %s", filter_text)
 
     def reset_hp_state_filter(self):
         """Reset HP state filter to default (excludes CLOSED and SOLD)"""
-        self.hp_state_filter = [
-            "NEW",
-            "BUYING",
-            "PARTIALLY_BOUGHT",
-            "BOUGHT",
-            "READY_TO_SELL",
-            "SELLING",
-            "PARTIALLY_SOLD",
-            "SOLD_PART_BOUGHT",
-            "WAITING_CHILD",
-            "NONE",
-        ]
-        self._update_hp_list_view()
-        if not self.test_mode:
-            self.ids.hp_state_filter_spinner.text = "Active States (11)"
-            self.ids.hp_state_filter_display.text = (
-                "Showing 11 states (excludes CLOSED, SOLD)"
-            )
+        try:
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            self._update_hp_list_view()
+            if not self.test_mode and hasattr(self, "ids"):
+                if hasattr(self.ids, "hp_state_filter_spinner"):
+                    self.ids.hp_state_filter_spinner.text = "Active States (11)"
+                if hasattr(self.ids, "hp_state_filter_display"):
+                    self.ids.hp_state_filter_display.text = (
+                        "Showing 11 states (excludes CLOSED, SOLD)"
+                    )
+            logger.info("HP state filter reset to default")
+        except Exception as e:
+            logger.error(f"Error resetting HP state filter: {e}")
+            # At minimum, update the filter data even if UI update fails
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            self._update_hp_list_view()
         logger.info("HP state filter reset to default")
 
     def auto_remove_closed_sold_states(self):
@@ -2313,8 +2388,13 @@ Enter sell price to create sell order:"""
             self.hp_state_filter = current_filter
             self._update_hp_list_view()
             # Update the spinner and display to reflect the change
-            if not self.test_mode:
-                self.ids.hp_state_filter_spinner.text = "Active States (11)"
-                self.ids.hp_state_filter_display.text = (
-                    "Showing 11 states (excludes CLOSED, SOLD)"
-                )
+            if not self.test_mode and hasattr(self, "ids"):
+                try:
+                    if hasattr(self.ids, "hp_state_filter_spinner"):
+                        self.ids.hp_state_filter_spinner.text = "Active States (11)"
+                    if hasattr(self.ids, "hp_state_filter_display"):
+                        self.ids.hp_state_filter_display.text = (
+                            "Showing 11 states (excludes CLOSED, SOLD)"
+                        )
+                except Exception as e:
+                    logger.error(f"Error updating filter UI after auto-remove: {e}")

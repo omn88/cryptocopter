@@ -486,16 +486,30 @@ class HpStrategy:
         return hp_update
 
     def send_buy_position_to_ui(self):
+        logger.debug(f"[SEND_BUY_TO_UI] Called send_buy_position_to_ui")
+        hp_update = self.build_hp_update_from_orders(
+            symbol_info=self.buy.data.config.symbol_info
+        )
+        # Set specific child ID for buy operations
+        parent_id = str(self.buy.data.config.hp_id)
+        hp_update.hp_id = f"{parent_id}_BUY"
+
+        # Set actual buy operation state for proper child state determination
+        # This comes from the actual buy state, not the strategy state
+        buy_state = self.buy.data.state_info.state.value
+        hp_update.buy_operation_state = buy_state
+        logger.debug(f"[SEND_BUY_TO_UI] Set buy_operation_state to: {buy_state}")
+
+        logger.debug(f"[SEND_BUY_TO_UI] About to put HPGuiDataBuy into ui_queue")
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
                 data=HPBuyData(
                     config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
-                hp_update=self.build_hp_update_from_orders(
-                    symbol_info=self.buy.data.config.symbol_info
-                ),
+                hp_update=hp_update,
             )
         )
+        logger.debug(f"[SEND_BUY_TO_UI] Successfully put HPGuiDataBuy into ui_queue")
 
     def send_sell_position_to_ui(self):
         logger.info("!!! SEND_SELL_POSITION_TO_UI CALLED !!!")
@@ -506,6 +520,10 @@ class HpStrategy:
         logger.info(
             f"!!! build_hp_update_from_orders returned buy_price: {hp_update.buy_price} !!!"
         )
+        # Set specific child ID for sell operations
+        parent_id = str(self.sell.current_position.config.hp_id)
+        hp_update.hp_id = f"{parent_id}_SELL"
+
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value
 

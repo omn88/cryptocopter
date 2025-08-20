@@ -5,7 +5,7 @@ from enum import Enum, auto
 import logging
 import queue
 import time
-from typing import Dict, List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union, Any
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
@@ -21,6 +21,7 @@ class CoinBalance:
 
 
 @dataclass
+@dataclass
 class InventoryItem:
     id: str
     coin: str
@@ -28,6 +29,9 @@ class InventoryItem:
     quantity: float
     available_quantity: float
     locked_quantity: float
+    source: str = "UNKNOWN"  # Add default value for source
+    timestamp: Optional[Any] = None  # Add timestamp field
+    notes: str = ""  # Add notes field
 
 
 @dataclass

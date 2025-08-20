@@ -26,6 +26,7 @@ class HPUpdate:
     side: str = "UNKNOWN"  # Added to track BUY/SELL side
     sell_completeness: Optional[float] = None  # Added for sell position progress
     sell_state: Optional[str] = None  # Added for sell operation state
+    buy_operation_state: Optional[str] = None  # Added for buy operation state
 
 
 @dataclass
