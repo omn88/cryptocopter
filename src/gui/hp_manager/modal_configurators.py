@@ -10,12 +10,10 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
-from kivy.properties import StringProperty, ObjectProperty
-from typing import Dict, List, Callable, Optional, Any, Tuple
+from typing import Dict, List, Callable, Any, Tuple
 import logging
 import uuid
 
-from src.identifiers import HPBuyConfig, HPSellConfig, Mode
 from src.common.symbol_info import SymbolInfo
 from src.gui.searchable_drop_down import SearchableDropDown
 from .models import HPConfiguration

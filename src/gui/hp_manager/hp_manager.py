@@ -115,21 +115,6 @@ class HPManager(BoxLayout):  # type: ignore[misc]
             self.hp_data.add_position(position)
             # Note: UI refresh is now handled by HpFront through binding
 
-    def update_hp_position(
-        self, hp_type: str, hp_id: str, data: Dict[str, Any]
-    ) -> None:
-        """Update an existing HP position."""
-        # Preserve expansion state before update
-        was_expanded = hp_id in self.hp_data.expanded_hp_ids
-
-        # For now, remove and re-add (could be optimized)
-        self.remove_hp_position(hp_type, hp_id)
-        self.add_hp_position(hp_type, hp_id, data)
-
-        # Restore expansion state if it was expanded
-        if was_expanded:
-            self.hp_data.expanded_hp_ids.add(hp_id)
-
     def remove_hp_position(self, hp_type: str, hp_id: str) -> None:
         """Remove an HP position from the display."""
         self.hp_data.remove_position(hp_id)

@@ -5,7 +5,7 @@ system and the new unified HP manager, handling callbacks and data
 synchronization.
 """
 
-from typing import Dict, List, Any, Callable, Optional
+from typing import Dict, List, Any
 import logging
 
 from .hp_manager import HPManager
@@ -121,40 +121,3 @@ class UnifiedHPIntegration:
     def update_inventory(self, inventory: Dict[str, List[Any]]) -> None:
         """Update available inventory for Sell HP."""
         self.hp_manager.update_inventory(inventory)
-
-    def sync_hp_data(self, hp_list_data: List[Dict[str, Any]]) -> None:
-        """Sync HP data from the existing system."""
-        # Clear existing positions
-        self.hp_manager.clear_all_positions()
-
-        # Add all positions from hp_list_data
-        for hp_data in hp_list_data:
-            try:
-                hp_type = self._determine_hp_type(hp_data)
-                hp_id = hp_data.get("id", "")
-
-                if hp_type and hp_id:
-                    self.hp_manager.add_hp_position(hp_type, hp_id, hp_data)
-            except Exception as e:
-                logger.error(f"Error syncing HP data: {e}")
-
-    def _determine_hp_type(self, hp_data: Dict[str, Any]) -> Optional[str]:
-        """Determine HP type from existing HP data structure."""
-        # This needs to be adapted based on the actual structure
-        # of hp_list_data from the existing system
-
-        # Look for indicators of Buy vs Sell HP
-        if "buy_price" in hp_data or "budget" in hp_data:
-            return "BUY"
-        elif "sell_price" in hp_data or "quantity" in hp_data:
-            return "SELL"
-
-        # Fallback: try to infer from state or other fields
-        state = hp_data.get("state", "").upper()
-        if "BUY" in state:
-            return "BUY"
-        elif "SELL" in state:
-            return "SELL"
-
-        logger.warning(f"Could not determine HP type for data: {hp_data}")
-        return None

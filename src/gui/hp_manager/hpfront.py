@@ -4,15 +4,18 @@ import os
 import queue
 import logging
 import time
-from typing import Any, Dict, List, Set, Optional, Union
+from typing import Any, Dict, List, Set, Optional
 import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
 )
-
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+from kivy.graphics import Color, Rectangle, Line
 from kivy.uix.widget import Widget
 from src.database import TradingDatabase
 from src.identifiers import (
@@ -93,7 +96,7 @@ class HpFront(BoxLayout):
         self.config_queue = config_queue
         self.db = db
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [symbol for symbol, info in self.symbols_info.items()]
+        self.symbols = [symbol for symbol, _ in self.symbols_info.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -128,8 +131,6 @@ class HpFront(BoxLayout):
         # Setup the unified HP manager
         self.setup_hp_manager()
 
-        # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
-
     def _setup_filter_dropdown(self):
         """Setup the HP state filter dropdown with available options."""
         if (
@@ -160,10 +161,6 @@ class HpFront(BoxLayout):
 
     def show_cancel_confirmation(self, hp_id: str, symbol: str, side: str) -> None:
         """Show confirmation dialog for canceling HP position."""
-        from kivy.uix.popup import Popup
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
 
         content = BoxLayout(orientation="vertical", spacing=10, padding=10)
 
@@ -258,9 +255,9 @@ Side: {side}"""
             self.hp_manager = self.ids.hp_manager
 
             # Set up callbacks
-            self.hp_manager.create_hp_callback = self.on_unified_create_hp
-            self.hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
-            self.hp_manager.remove_hp_callback = self.on_unified_remove_hp
+            self.hp_manager.create_hp_callback = self.create_hp
+            self.hp_manager.cancel_hp_callback = self.cancel_hp
+            self.hp_manager.remove_hp_callback = self.remove_hp
 
             # Set symbols_info and client for HP manager integration
             self.hp_manager.symbols_info = self.symbols_info
@@ -272,7 +269,7 @@ Side: {side}"""
         else:
             logger.warning("HP manager not found in KV file")
 
-    def on_unified_create_hp(self, hp_type: str, config: HPConfiguration):
+    def create_hp(self, hp_type: str, config: HPConfiguration):
         """Handle HP creation from unified manager."""
         try:
             if hp_type == "BUY":
@@ -326,7 +323,7 @@ Side: {side}"""
         self.config_queue.put_nowait(sell_config)
         logger.info("Sell HP created from unified manager: %s", sell_config.config)
 
-    def on_unified_cancel_hp(self, hp_id: str, hp_type: str):
+    def cancel_hp(self, hp_id: str, hp_type: str):
         """Handle HP cancellation from unified manager."""
         try:
             if hp_type.upper() == "BUY":
@@ -343,10 +340,10 @@ Side: {side}"""
         except Exception as e:
             logger.error(f"Error cancelling HP {hp_id}: {e}")
 
-    def on_unified_remove_hp(self, hp_id: str, hp_type: str):
+    def remove_hp(self, hp_id: str, hp_type: str):
         """Handle HP removal from unified manager."""
         # For now, use same logic as cancel
-        self.on_unified_cancel_hp(hp_id, hp_type)
+        self.cancel_hp(hp_id, hp_type)
 
     def _get_symbol_from_hp_id(self, hp_id: str) -> Optional[str]:
         """Get symbol from HP ID by searching HP list data."""
@@ -402,26 +399,6 @@ Side: {side}"""
         finally:
             self._syncing_hp_data = False
 
-    def _determine_hp_type_from_data(self, hp_data: Dict) -> Optional[str]:
-        """Determine HP type from existing HP data."""
-        side = hp_data.get("side", "").upper()
-        state = hp_data.get("state", "").upper()
-
-        # First check side information (most reliable)
-        if side == "LONG" or "BUY" in side:
-            return "BUY"
-        elif side == "SHORT" or "SELL" in side:
-            return "SELL"
-
-        # Fallback to state analysis
-        if any(x in state for x in ["BUY", "BOUGHT"]):
-            return "BUY"
-        elif any(x in state for x in ["SELL", "SOLD"]):
-            return "SELL"
-
-        # Default to BUY if unclear
-        return "BUY"
-
     def _get_buy_child_state(self, update: HPUpdate) -> str:
         """Get appropriate state for buy child based on actual buy operation state.
 
@@ -460,11 +437,6 @@ Side: {side}"""
                 return "PARTIALLY_BOUGHT"  # Partially bought
         else:
             return "NEW"  # No quantities, still new
-
-    def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
-        """Helper method to log and return buy child state."""
-        state = self._get_buy_child_state(update)
-        return state
 
     def _get_sell_child_state_from_update(self, update: HPUpdate) -> str:
         """Get sell child state, prioritizing sell operation state from update."""
@@ -1431,55 +1403,7 @@ Side: {side}"""
                 self._last_view_update_time = current_time
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
-        """
-        Moves to the Sell tab and fills the HP data (HP ID, coin, quantity).
-
-        Args:
-        - hp_id: The ID of the HP to sell.
-        - coin: The coin involved in the HP.
-        - quantity: The amount of the coin to sell.
-        """
-        # Switch into Existing-HP mode, then move to the "Sell" tab
-        # self.ids.hp_mode_existing.state = "down"
-        # self.ids.hp_mode_new.state      = "normal"
-        self.ids.hp_tabbed_panel.switch_to(
-            self.ids.hp_sell_tab
-        )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
-        # rebuild the “Existing HP” UI
-        self.update_hp_mode("existing")
-
-        # Populate the fields in the Sell tab
-        self.ids.hp_id_input.text = str(hp_id)
-        self.ids.coin_input.text = str(coin[:-3] if coin.endswith("USD") else coin)
-        self.ids.quantity_input.text = str(quantity)
-        # self.ids.quantity_usd_label.text = str(
-        #     round(float(quantity) * float(buy_price), 2)
-        # )
-        self.ids.buy_price_input.text = str(buy_price)
-
-        # Clear or reset the sell price field
-        self.ids.sell_price_input.text = ""
-
-        # Optional: If you want to set focus on the sell price input field
-        self.ids.sell_price_input.focus = True
-
-        self.ids.hp_mode_existing.state = "down"
-        self.ids.hp_mode_new.state = "normal"
-
-        logger.info(
-            "Moved to 'Sell' tab for HP ID: %s, coin: %s, Quantity: %s",
-            hp_id,
-            coin,
-            quantity,
-        )
-
-    def new_sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """Show confirmation dialog for selling HP position."""
-        from kivy.uix.popup import Popup
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
-        from kivy.uix.textinput import TextInput
 
         content = BoxLayout(orientation="vertical", spacing=10, padding=10)
 
@@ -1766,27 +1690,6 @@ Enter sell price to create sell order:"""
             self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
         # If realized quantity > 0, button should be disabled, so this shouldn't be called
 
-    def fetch_hp_info(self, hp_id):
-        """
-        Fetches HP information for the new modal system.
-        This method is kept for backward compatibility but now works with modals.
-
-        Args:
-        - hp_id: The HP ID to look up.
-        """
-        try:
-            for item in self.hp_list_data:
-                if int(item["hp_id"]) == int(hp_id):
-                    logger.info(f"Found HP info for ID {hp_id}: {item}")
-                    return item
-
-            logger.error(f"HP ID {hp_id} not found in hp_list_data")
-            return None
-
-        except ValueError:
-            logger.error(f"Invalid HP ID format: {hp_id}")
-            return None
-
     def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
         return any(record["hp_id"] == hp_id for record in records)
 
@@ -1960,10 +1863,6 @@ Enter sell price to create sell order:"""
 
     def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
         """Create a widget for an HP row."""
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
-        from kivy.graphics import Color, Rectangle, Line
 
         # Create the main row container
         row = BoxLayout(
@@ -2072,7 +1971,7 @@ Enter sell price to create sell order:"""
                 quantity = hp_data.get("quantity", "0.0")
                 buy_price = hp_data.get("buy_price", "0.0")
                 sell_btn.bind(
-                    on_release=lambda x: self.new_sell_hp_button(
+                    on_release=lambda x: self.sell_hp_button(
                         hp_id, coin, quantity, buy_price
                     )
                 )
