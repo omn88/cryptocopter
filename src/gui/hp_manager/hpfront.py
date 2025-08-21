@@ -297,9 +297,7 @@ Side: {side}"""
                 price_low=config.price_low or 0.0,
                 price_high=config.price_high or 0.0,
                 budget=config.budget or 1000.0,
-                order_trigger=(
-                    config.order_trigger / 100.0 if config.order_trigger else 0.01
-                ),
+                order_trigger=config.order_trigger if config.order_trigger else 1.0,
                 mode=Mode.DCA if config.mode == "DCA" else Mode.SINGLE,
             ),
             state_info=StateInfo(),
@@ -1789,26 +1787,6 @@ Enter sell price to create sell order:"""
             logger.error(f"Invalid HP ID format: {hp_id}")
             return None
 
-    def _calculate_trigger_price(self, data: HPBuyData) -> str:
-        # For idle positions
-        if data.state_info.side.value == PositionSide.LONG.value:
-            base = data.config.price_high
-            factor = 1 + (data.config.order_trigger / 100)
-        else:
-            base = data.config.price_low
-            factor = 1 - (data.config.order_trigger / 100)
-        return data.config.symbol_info.format_price(base * factor)
-
-    def _calculate_cancel_price(self, data: HPBuyData) -> float:
-        # For active positions; note the 2*order_trigger
-        if data.state_info.side.value == PositionSide.LONG.value:
-            base = data.config.price_high
-            factor = 1 + (2 * data.config.order_trigger / 100)
-        else:
-            base = data.config.price_low
-            factor = 1 - (2 * data.config.order_trigger / 100)
-        return data.config.symbol_info.adjust_price(base * factor)
-
     def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
         return any(record["hp_id"] == hp_id for record in records)
 
@@ -1925,9 +1903,6 @@ Enter sell price to create sell order:"""
             parent["has_children"] = True
             parent["is_expanded"] = parent["hp_id"] in self.expanded_hp_ids
             sorted_list.append(parent)
-            logger.info(
-                f"[SORT DEBUG] Added parent {parent_id} to sorted list (expanded: {parent['is_expanded']})"
-            )
 
             # Only add children if parent is expanded
             if parent["hp_id"] in self.expanded_hp_ids:

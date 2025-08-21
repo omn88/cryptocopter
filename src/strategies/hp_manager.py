@@ -544,13 +544,20 @@ class HpStrategy:
         logger.info("Send HPGuiDataSell to UI: %s", data)
 
     def calculate_trigger_send_orders_price_buy(self):
-        price = self.buy.data.config.symbol_info.adjust_price(
-            max(
-                order.price
-                for order in self.buy.orders
-                if order.status != ORDER_STATUS_FILLED
+
+        logger.info(self.buy.orders)
+
+        price = (
+            self.buy.data.config.symbol_info.adjust_price(
+                max(
+                    order.price
+                    for order in self.buy.orders
+                    if order.status != ORDER_STATUS_FILLED
+                )
+                * (1 + self.buy.data.config.order_trigger / 100)
             )
-            * (1 + (self.buy.data.config.order_trigger / 100))
+            if any(order.status != ORDER_STATUS_FILLED for order in self.buy.orders)
+            else 0.0
         )
         # logger.info(
         #     "Calculated price for trigger send orders price buy: %s, config: %s",

@@ -1264,6 +1264,43 @@ class StrategyExecutor:
 
             await self.db.upsert_buy_price_level(data=buy.data)
 
+        if side == PositionSide.LONG and buy.data.state_info.state == State.BOUGHT:
+            logger.info("Cancelling fully bought position: %s", hp_id)
+
+            # Send HP buy position cancelled event to portfolio
+            total_quantity = sum(order.realized_quantity for order in buy.orders)
+            hp_cancelled = HPPositionCancelled(
+                hp_id=hp_id,
+                coin=buy.data.config.coin,
+                quantity=total_quantity,
+                position_type="BUY",
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_POSITION_CANCELLED, hp_cancelled
+            )
+            logger.info(
+                f"Sent manual HP bought position cancellation event for position: {hp_id}"
+            )
+
+            # Close the position
+            strategy.state = State.CLOSED
+            buy.data.state_info.state = State.CLOSED
+            buy.data.state_info.ui_state = UiState.CLOSED
+
+            # Update buy orders and database
+            await self.db.upsert_buy_price_level(data=buy.data)
+
+            # Send UI update
+            self.send_buy_position_to_ui(
+                config=strategy.buy.data.config,
+                state_info=strategy.buy.data.state_info,
+                state=strategy.state,
+                buy_orders=strategy.buy.orders,
+            )
+
+            logger.info("Cancelled fully bought position %s.", hp_id)
+            return
+
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
                 sell_rlzd_qty = (
