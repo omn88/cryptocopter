@@ -978,6 +978,7 @@ class StrategyExecutor:
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
+                is_restoration=is_restoration,
             ),
             balance=self.balances["USDC"].total,
             db=self.db,

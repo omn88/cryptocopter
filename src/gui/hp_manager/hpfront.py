@@ -222,6 +222,8 @@ Side: {side}"""
         # Use PositionSide enum correctly
         if side == "LONG":
             position_side = PositionSide.LONG
+        elif side == "SHORT":
+            position_side = PositionSide.SHORT
         else:
             position_side = PositionSide.LONG  # Default to LONG for buy positions
 
@@ -433,9 +435,6 @@ Side: {side}"""
         # This comes from the HPGuiDataBuy.data.state_info.state and represents the actual buy operation state
         if hasattr(update, "buy_operation_state") and update.buy_operation_state:
             actual_state = update.buy_operation_state
-            logger.debug(
-                f"[BUY CHILD] Using actual buy operation state: {actual_state}"
-            )
             return actual_state
 
         # Fallback: Use parent state to determine child state
@@ -467,51 +466,28 @@ Side: {side}"""
     def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
         """Helper method to log and return buy child state."""
         state = self._get_buy_child_state(update)
-        logger.debug(
-            f"[BUY CHILD] Setting state to: {state} for quantity: {update.quantity}"
-        )
         return state
 
     def _get_sell_child_state_from_update(self, update: HPUpdate) -> str:
         """Get sell child state, prioritizing sell operation state from update."""
         # Check if we have specific sell state information in the update
-        logger.info(
-            f"_get_sell_child_state_from_update: hasattr(update, 'sell_state')={hasattr(update, 'sell_state')}"
-        )
-        if hasattr(update, "sell_state"):
-            logger.info(
-                f"_get_sell_child_state_from_update: sell_state={getattr(update, 'sell_state', None)}"
-            )
-
         if hasattr(update, "sell_state") and update.sell_state:
             sell_state = update.sell_state
-            logger.info(
-                f"_get_sell_child_state_from_update: Using sell_state={sell_state}"
-            )
             if sell_state in ["NEW"]:
                 # For NEW state, check the overall strategy state to determine if this is
                 # initial setup (idle) or active selling
                 if update.state.value == "SELLING":
                     # Strategy is actively selling - show as SELLING
-                    logger.info("_get_sell_child_state_from_update: Returning SELLING")
                     return "SELLING"
                 else:
                     # Initial setup or other states - show as idle
-                    logger.info("_get_sell_child_state_from_update: Returning NEW")
                     return "NEW"
             elif sell_state in ["PARTIALLY_SOLD"]:
-                logger.info(
-                    "_get_sell_child_state_from_update: Returning PARTIALLY_SOLD"
-                )
                 return "PARTIALLY_SOLD"
             elif sell_state in ["SOLD", "FILLED"]:
-                logger.info("_get_sell_child_state_from_update: Returning SOLD")
                 return "SOLD"
 
         # Fall back to parent state logic
-        logger.info(
-            f"_get_sell_child_state_from_update: Falling back to parent state logic"
-        )
         return self._get_sell_child_state(update)
 
     def _get_sell_child_state(self, update: HPUpdate, sell_data=None) -> str:
@@ -562,44 +538,29 @@ Side: {side}"""
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
-                    logger.debug(
-                        f"[QUEUE DEBUG] Retrieved data from ui_queue: {type(data)}"
-                    )
+                    # Removed excessive debug logging here
 
                     # Throttle frequent ticker update logs to reduce spam
                     current_time = time.time()
                     if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                        # Only log ticker events every 10 seconds
-                        if current_time - self._last_ticker_log_time > 10.0:
+                        # Only log ticker events every 30 seconds (increased from 10)
+                        if current_time - self._last_ticker_log_time > 30.0:
                             logger.debug("[PROCESS_UI_QUEUE] Processing ticker updates")
                             self._last_ticker_log_time = current_time
 
                     if isinstance(data, HPGuiDataBuy):
                         # Update the HP list with buy position data
-                        logger.debug(
-                            f"[DEBUG] Processing HPGuiDataBuy with state: {data.data.state_info.state}"
-                        )
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
                         # Add actual buy operation state for proper child state determination
                         buy_state = data.data.state_info.state.value
-                        logger.debug(
-                            f"[BUY OPERATION STATE] Setting buy_operation_state to: {buy_state}"
-                        )
                         data.hp_update.buy_operation_state = buy_state
-                        logger.debug(
-                            f"[DEBUG] After setting, buy_operation_state is: {data.hp_update.buy_operation_state}"
-                        )
                         # Update HP list data (KV binding will handle UI updates)
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
                         )
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
-                        logger.debug("UI received SELL position data: %s", data)
-                        logger.debug(
-                            f"Data type check: {type(data)}, isinstance result: {isinstance(data, HPGuiDataSell)}"
-                        )
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
                         # Add sell completeness information for collapse logic
@@ -614,30 +575,8 @@ Side: {side}"""
                         assert isinstance(data.content, AllTickers)
                         self._process_all_tickers(data.content)
                     else:
-                        # Debug: Check what data type we received that doesn't match any expected type
-                        logger.debug(
-                            f"[UNMATCHED DATA TYPE] Received data of type: {type(data)}"
-                        )
-                        if hasattr(data, "__class__"):
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Class name: {data.__class__.__name__}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Module: {data.__class__.__module__}"
-                            )
+                        # Check for data types that might need processing
                         if hasattr(data, "hp_update") and hasattr(data, "data"):
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Looks like HPGuiDataSell but isinstance failed"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] HPGuiDataSell class: {HPGuiDataSell}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] HPGuiDataSell module: {HPGuiDataSell.__module__}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Data class module: {data.__class__.__module__}"
-                            )
                             # Try to process it anyway
                             if hasattr(data, "data") and hasattr(
                                 data.data, "state_info"
@@ -1027,9 +966,6 @@ Side: {side}"""
         else:
             # Parent already exists, preserve existing quantity_usd
             # This handles the case where parent was already processed and we're now adding children
-            logger.debug(
-                f"[PARENT_USD] _ensure_parent_container parent {parent_hp_id} already exists with quantity_usd: {hp_map[parent_hp_id].get('quantity_usd', 'MISSING')}"
-            )
             pass
 
         # Ensure children list exists
@@ -1485,10 +1421,16 @@ Side: {side}"""
                                 net_usd
                             )
                             strategy["net_percent"] = str(net_percent)
-        # Only trigger visual refresh if in test mode or if significant changes occurred
-        # In production, UI updates are handled by other mechanisms to reduce spam
+        # Only trigger visual refresh if significant changes occurred
+        # Use throttling to ensure 1-second refresh interval for prices
         if getattr(self, "test_mode", False):
             self._update_hp_list_view()
+        else:
+            # Throttle HP list view updates to 1 second maximum frequency
+            current_time = time.time()
+            if current_time - self._last_view_update_time > 1.0:
+                self._update_hp_list_view()
+                self._last_view_update_time = current_time
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """
@@ -1928,18 +1870,12 @@ Enter sell price to create sell order:"""
         )
 
     def _get_sorted_hp_list(self):
-        logger.info(
-            f"[SORT DEBUG] Starting _get_sorted_hp_list with {len(self.hp_list_data)} total items"
-        )
-        logger.info(f"[SORT DEBUG] Expanded HPs: {self.expanded_hp_ids}")
-
         # Apply state filtering first
         filtered_data = [
             hp
             for hp in self.hp_list_data
             if hp.get("state", "") in self.hp_state_filter
         ]
-        logger.info(f"[SORT DEBUG] After state filtering: {len(filtered_data)} items")
 
         # Separate parents and children
         parents = [
@@ -1947,7 +1883,6 @@ Enter sell price to create sell order:"""
             for hp in filtered_data
             if not hp.get("is_child", False) and hp.get("side", "") == "PARENT"
         ]
-        logger.info(f"[SORT DEBUG] Found {len(parents)} parent items")
 
         multihop_children = [
             hp
@@ -1956,20 +1891,17 @@ Enter sell price to create sell order:"""
             and hp.get("hp_id", "")[-1:].isalpha()
             and "_" not in hp.get("hp_id", "")
         ]
-        logger.info(f"[SORT DEBUG] Found {len(multihop_children)} multihop children")
 
         regular_children = [
             hp
             for hp in filtered_data
             if hp.get("is_child", False) and "_" in hp.get("hp_id", "")
         ]
-        logger.info(f"[SORT DEBUG] Found {len(regular_children)} regular children")
 
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x.get("hp_id", "0"))):
             # Find children for this parent
             parent_id = parent["hp_id"]
-            logger.info(f"[SORT DEBUG] Processing parent {parent_id}")
 
             # Multihop children (1000a, 1000b)
             parent_multihop_children = [
@@ -1988,9 +1920,6 @@ Enter sell price to create sell order:"""
             ]
 
             all_children = parent_multihop_children + parent_regular_children
-            logger.info(
-                f"[SORT DEBUG] Parent {parent_id} has {len(all_children)} children: {[c.get('hp_id') for c in all_children]}"
-            )
 
             # Expansion button is always visible for parent rows since there are always children
             parent["has_children"] = True
@@ -2002,29 +1931,16 @@ Enter sell price to create sell order:"""
 
             # Only add children if parent is expanded
             if parent["hp_id"] in self.expanded_hp_ids:
-                logger.info(
-                    f"[SORT DEBUG] Parent {parent_id} is expanded, adding {len(all_children)} children"
-                )
                 # Sort children: multihop first, then regular by side
                 for child in sorted(
                     all_children, key=lambda x: (x.get("hp_id", ""), x.get("side", ""))
                 ):
                     sorted_list.append(child)
-                    logger.info(
-                        f"[SORT DEBUG] Added child {child.get('hp_id')} (side: {child.get('side')}) to sorted list"
-                    )
-            else:
-                logger.info(
-                    f"[SORT DEBUG] Parent {parent_id} is collapsed, skipping {len(all_children)} children"
-                )
 
-        logger.info(f"[SORT DEBUG] Final sorted list has {len(sorted_list)} items")
         return sorted_list
 
     def _update_hp_list_view(self, *args):
         """Update the HP list view with current data."""
-        logger.debug(f"[BINDING DEBUG] _update_hp_list_view called with args: {args}")
-        logger.debug(f"[BINDING DEBUG] hp_list_data length: {len(self.hp_list_data)}")
 
         # Prevent infinite sync loops
         if getattr(self, "_syncing_hp_data", False):
@@ -2139,12 +2055,24 @@ Enter sell price to create sell order:"""
             self._create_column_label(hp_data.get("current_price", "0.0"), 0.1)
         )
 
-        # Progress column (show completeness or state info)
-        progress_text = (
-            f"{float(hp_data.get('realized_quantity', 0)):.3f}"
-            if hp_data.get("realized_quantity")
-            else "0.000"
-        )
+        # Progress column (show completeness percentage or state info)
+        progress_value = 0.0
+        if hp_data.get("sell_completeness"):
+            # For SELL positions, use sell_completeness as percentage
+            try:
+                progress_value = float(hp_data.get("sell_completeness", 0.0)) * 100
+            except (ValueError, TypeError):
+                progress_value = 0.0
+        elif hp_data.get("realized_quantity") and hp_data.get("quantity"):
+            # For other positions, calculate based on realized vs total quantity
+            try:
+                realized = float(hp_data.get("realized_quantity", 0))
+                total = float(hp_data.get("quantity", 1))  # Avoid division by zero
+                progress_value = (realized / total) * 100 if total > 0 else 0.0
+            except (ValueError, TypeError):
+                progress_value = 0.0
+
+        progress_text = f"{progress_value:.1f}%"
         row.add_widget(self._create_column_label(progress_text, 0.08))
 
         row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.1))

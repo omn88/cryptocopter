@@ -339,7 +339,8 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": [State.CLOSED, State.SOLD],
                 "dest": "=",
-                "after": "allow_messages",
+                # No "after" action - just consume the ticker event gracefully
+                # This prevents state machine errors during teardown
             },
         ]
 

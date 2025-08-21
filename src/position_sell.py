@@ -53,6 +53,7 @@ class HPPositionSell:
         price_resolver: UsdPriceResolver,
         broker: BrokerSpot,
         worker_queue: queue.Queue,
+        is_restoration: bool = False,
     ):
         self.client = client
         self.original_position = original_position
@@ -61,6 +62,7 @@ class HPPositionSell:
         self.broker = broker
         self.price_resolver = price_resolver
         self.worker_queue = worker_queue
+        self.is_restoration = is_restoration
 
         self.sell_positions: List[SellPosition] = []
         self.current_position: SellPosition = SellPosition(
@@ -70,7 +72,18 @@ class HPPositionSell:
             sell_type=SellType.DIRECT,
         )
 
-        self.initialize_positions()
+        # Only initialize positions (and subscribe to tickers) if not restoration
+        # This avoids waste of resources for historical positions
+        if not self.is_restoration:
+            self.initialize_positions()
+        else:
+            # For restoration, build positions but skip ticker subscriptions
+            self._build_sell_positions()
+            if self.sell_positions:
+                self.current_position = self.sell_positions[0]
+            else:
+                # Fallback: use original position if no sell positions were built
+                self.current_position = self.original_position
 
     def initialize_positions(self) -> None:
         """Initializes sell positions and sets the current active position."""
@@ -79,6 +92,12 @@ class HPPositionSell:
 
         if self.sell_positions:
             self.current_position = self.sell_positions[0]
+
+        # Subscribe to tickers for price updates
+        self._subscribe_to_tickers()
+
+    def _subscribe_to_tickers(self) -> None:
+        """Subscribe to ticker updates for price monitoring."""
 
         if len(self.sell_positions) == 2:
             for position in self.sell_positions:
