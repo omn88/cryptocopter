@@ -264,7 +264,6 @@ Side: {side}"""
 
             # Update with current data
             self.hp_manager.update_symbols(self.symbols)
-            self._sync_hp_manager_data()
         else:
             logger.warning("HP manager not found in KV file")
 
