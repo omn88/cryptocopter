@@ -104,8 +104,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         len(portfolio_ui.coin_list_data),
     )
 
-    # Should have 4 inventory items (original 3 + HP buy at 50k) + 1 new HP buy at 51k = 5 total
-    assert len(portfolio_ui.inventory) == 5
+    # Should have 4 inventory items (original 3 + 1 HP item for hp_lifecycle_001 with aggregated quantities)
+    assert len(portfolio_ui.inventory) == 4
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 = 1.5)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
@@ -128,8 +128,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         "After third HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
     )
 
-    # Should still have 5 inventory items (no new lot created, existing updated) + 1 new from different HP ID = 6 total
-    assert len(portfolio_ui.inventory) == 6
+    # Should have 5 inventory items (original 3 + 1 for hp_lifecycle_001 + 1 for hp_lifecycle_001_additional)
+    assert len(portfolio_ui.inventory) == 5
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 + 0.1 = 1.6)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
@@ -184,7 +184,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     total_btc_inventory = get_inventory_balance(portfolio_ui, "BTC")
     assert total_btc_inventory == 1.3  # Updated total after sale
 
-    # Find the HP inventory item specifically (this should be unchanged by FIFO sell)
+    # Find the HP inventory item specifically (should have reduced quantity after partial sell)
     hp_inventory_item = None
     for item in portfolio_ui.inventory:
         if item.id == f"hp_{hp_id}":
@@ -193,8 +193,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     assert hp_inventory_item is not None
     assert (
-        hp_inventory_item.quantity == 0.3
-    )  # HP item unchanged - FIFO sold from mock inventory instead
+        hp_inventory_item.quantity == 0.2
+    )  # HP item reduced: originally 0.5, sold 0.3, remaining 0.2
 
     # ===== STEP 6: CREATE ANOTHER SELL FOR REMAINING =====
     # Create sell for remaining BTC inventory at $56,000

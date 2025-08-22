@@ -328,6 +328,118 @@ class PortfolioUI(BoxLayout):
             f"Updated {symbol} parent quantities. New quantity: {new_quantity}, Available: {new_available}"
         )
 
+    async def _update_lots_after_hp_sell(
+        self, hp_id: str, symbol: str, quantity_sold: float
+    ):
+        """Update the specific HP lot after a sell - either reduce quantity or remove completely."""
+        logger.info(
+            f"Updating HP lot: hp_{hp_id} for {symbol} (qty sold: {quantity_sold})"
+        )
+
+        # Find the parent coin
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
+                parent_coin = coin
+                break
+
+        if not parent_coin or not parent_coin.get("lots"):
+            logger.warning(f"No lots found for {symbol} or parent coin not found")
+            return
+
+        # Find the specific lot with the HP ID (now just hp_{hp_id})
+        lot_to_update = None
+        lot_id_to_find = f"hp_{hp_id}"
+
+        for lot in parent_coin["lots"]:
+            lot_id = getattr(lot, "id", "") if hasattr(lot, "id") else lot.get("id", "")
+            if lot_id == lot_id_to_find:
+                lot_to_update = lot
+                break
+
+        if not lot_to_update:
+            logger.warning(
+                f"Could not find lot with ID {lot_id_to_find} for HP {hp_id}"
+            )
+            # Fallback to FIFO if we can't find the specific lot
+            await self._update_lots_after_sell(symbol, quantity_sold)
+            return
+
+        # Update the HP inventory item
+        inventory_item_to_update = None
+        for item in self.inventory:
+            if item.id == lot_id_to_find:
+                inventory_item_to_update = item
+                break
+
+        if not inventory_item_to_update:
+            logger.warning(f"Could not find inventory item with ID {lot_id_to_find}")
+            return
+
+        # Check if this is a partial sell or complete sell
+        if inventory_item_to_update.quantity <= quantity_sold:
+            # Complete sell - remove the entire HP inventory item
+            parent_coin["lots"].remove(lot_to_update)
+            self.inventory.remove(inventory_item_to_update)
+            logger.info(
+                f"Removed HP lot {lot_id_to_find} completely (sold {quantity_sold})"
+            )
+        else:
+            # Partial sell - reduce the quantity
+            new_quantity = inventory_item_to_update.quantity - quantity_sold
+            inventory_item_to_update.quantity = new_quantity
+            inventory_item_to_update.available_quantity = (
+                new_quantity  # Assume all available for now
+            )
+            logger.info(
+                f"Reduced HP lot {lot_id_to_find} from {inventory_item_to_update.quantity + quantity_sold} to {new_quantity}"
+            )
+
+        # Recalculate parent coin totals
+        total_quantity = 0.0
+        total_value = 0.0
+
+        for remaining_lot in parent_coin["lots"]:
+            lot_qty = (
+                getattr(remaining_lot, "quantity", 0)
+                if hasattr(remaining_lot, "quantity")
+                else remaining_lot.get("quantity", 0)
+            )
+            lot_price = (
+                getattr(remaining_lot, "buy_price", 0)
+                if hasattr(remaining_lot, "buy_price")
+                else remaining_lot.get("buy_price", 0)
+            )
+            total_quantity += lot_qty
+            total_value += lot_qty * lot_price
+
+        # Update parent coin quantities
+        parent_coin["quantity"] = str(round(total_quantity, 8))
+        parent_coin["available_qty"] = str(
+            round(total_quantity, 8)
+        )  # Assume all available for now
+        parent_coin["locked_qty"] = "0"
+
+        # Update weighted average buy price
+        if total_quantity > 0:
+            weighted_avg_price = total_value / total_quantity
+            parent_coin["weighted_avg_buy_price"] = weighted_avg_price
+            parent_coin["buy_price"] = str(round(weighted_avg_price, 2))
+        else:
+            # No lots left - remove the parent coin entirely
+            logger.info(
+                f"No lots remaining for {symbol} - removing parent coin from inventory"
+            )
+            self.coin_list_data.remove(parent_coin)
+            return
+
+        # Update has_lots flag
+        parent_coin["has_lots"] = len(parent_coin["lots"]) > 0
+
+        logger.info(
+            f"Updated {symbol} after removing HP lot {hp_id}. Remaining quantity: {total_quantity}, lots: {len(parent_coin['lots'])}"
+        )
+
     def toggle_expand_coin_item(self, symbol: str) -> None:
         """Toggle the expanded state for a coin, following HP list approach."""
         logger.info(f"Toggling expand for {symbol}")
@@ -714,7 +826,6 @@ class PortfolioUI(BoxLayout):
         assert isinstance(data, Event)
 
         # DEBUG: Log all incoming events
-        logger.debug(f"[PORTFOLIO GUI DEBUG] Processing UI event: {data.name}")
 
         if data.name == EventName.PORTFOLIO_INVENTORY:
             logger.debug(
@@ -728,7 +839,11 @@ class PortfolioUI(BoxLayout):
             self.set_inventory(data.content)
         if data.name == EventName.ACCOUNT_POSITION:
             assert isinstance(data.content, AccountPosition)
-            self.update_coin_list(data.content)
+            # Don't update inventory from account positions - inventory is managed separately
+            # Account positions only show exchange balances, not full portfolio inventory
+            logger.debug(
+                f"[PORTFOLIO GUI DEBUG] Received ACCOUNT_POSITION but ignoring - inventory managed separately"
+            )
         if data.name == EventName.PRICE_UPDATES:
             assert isinstance(data.content, PriceUpdates)
             # Update saldo in USD and BTC
@@ -975,13 +1090,15 @@ class PortfolioUI(BoxLayout):
             self.ids.coin_list.refresh_from_data()
 
     async def handle_hp_sell_completed(self, event: HPSellPositionCompleted):
-        """Handle HP sell completion - remove inventory and add received currency."""
+        """Handle HP sell completion - remove the specific HP inventory item and add received currency."""
         logger.info(
             f"HP Sell Completed: {event.hp_id} - Sold {event.quantity_sold} {event.coin}, Received {event.end_currency_received} {event.end_currency}"
         )
 
-        # Remove sold inventory using FIFO
-        await self._update_lots_after_sell(event.coin, event.quantity_sold)
+        # Use HP-specific lot removal to remove the exact HP inventory item
+        await self._update_lots_after_hp_sell(
+            event.hp_id, event.coin, event.quantity_sold
+        )
 
         # Add received end currency (USDC) to portfolio
         await self._add_received_currency(
@@ -1072,21 +1189,51 @@ class PortfolioUI(BoxLayout):
             f"HP Buy Filled: {event.hp_id} - Bought {event.quantity_bought} {event.coin} at ${event.buy_price}"
         )
 
-        # Create new inventory item
-        new_lot = InventoryItem(
-            id=f"hp_{event.hp_id}",
-            coin=event.coin,
-            buy_price=event.buy_price,
-            quantity=event.quantity_bought,
-            available_quantity=event.quantity_bought,
-            locked_quantity=0.0,
-            source="HP_BUY",
-            timestamp=time.time(),
-            notes=f"HP buy position {event.hp_id}",
-        )
+        # Create one inventory item per HP ID (not per price)
+        inventory_id = f"hp_{event.hp_id}"
 
-        # Add to main inventory list
-        self.inventory.append(new_lot)
+        # Check if inventory item with this HP ID already exists
+        existing_item = None
+        for item in self.inventory:
+            if item.id == inventory_id:
+                existing_item = item
+                break
+
+        if existing_item:
+            # Update existing item - accumulate quantity and calculate weighted average price
+            total_value = (existing_item.quantity * existing_item.buy_price) + (
+                event.quantity_bought * event.buy_price
+            )
+            total_quantity = existing_item.quantity + event.quantity_bought
+            weighted_avg_price = total_value / total_quantity
+
+            existing_item.quantity = total_quantity
+            existing_item.available_quantity += event.quantity_bought
+            existing_item.buy_price = weighted_avg_price
+
+            logger.info(
+                f"Updated existing HP item {inventory_id}: new qty={existing_item.quantity}, weighted avg price=${weighted_avg_price:.2f}"
+            )
+            new_lot = existing_item
+        else:
+            # Create new inventory item for this HP ID
+            new_lot = InventoryItem(
+                id=inventory_id,
+                coin=event.coin,
+                buy_price=event.buy_price,
+                quantity=event.quantity_bought,
+                available_quantity=event.quantity_bought,
+                locked_quantity=0.0,
+                source="HP_BUY",
+                timestamp=time.time(),
+                notes=f"HP buy position {event.hp_id}",
+            )
+
+            # Add to main inventory list
+            self.inventory.append(new_lot)
+            logger.info(
+                f"Created new HP item {inventory_id}: qty={event.quantity_bought}, price=${event.buy_price}"
+            )
 
         # Find existing parent coin or create new one
         parent_coin = None
