@@ -69,6 +69,10 @@ class PortfolioManager:
         try:
             # Priority 1: Use fetch_all_inventory_items for DB inventory retrieval
             db_items = await self.db.fetch_all_inventory_items()
+            logger.debug(
+                f"[PORTFOLIO DEBUG] Database query returned {len(db_items) if db_items else 0} items"
+            )
+
             if db_items:
                 # Convert dict items to InventoryItem objects
                 self.inventory = [InventoryItem(**item) for item in db_items]
@@ -76,11 +80,40 @@ class PortfolioManager:
                 logger.info(
                     f"Portfolio loaded from database with {len(self.inventory)} items."
                 )
+
+                # DEBUG: Validate database inventory
+                assert (
+                    len(self.inventory) > 0
+                ), f"Database inventory should not be empty but got {len(self.inventory)} items"
+                coin_summary = self.inventory_manager.get_coin_summary()
+                assert (
+                    len(coin_summary) > 0
+                ), f"Database coin_summary should not be empty but got {len(coin_summary)} coins"
+                logger.debug(
+                    f"[PORTFOLIO DEBUG] Database loaded coin_summary: {list(coin_summary.keys())}"
+                )
             else:
                 # Priority 2: Try to load from inventory.csv if database is empty
                 logger.info("Database empty, checking for inventory.csv file.")
                 if await self._try_load_inventory_csv():
                     logger.info("Portfolio loaded from inventory.csv file.")
+
+                    # DEBUG: Final validation after CSV load
+                    assert hasattr(
+                        self, "inventory"
+                    ), "self.inventory should exist after CSV load"
+                    assert (
+                        len(self.inventory) > 0
+                    ), f"CSV inventory should not be empty but got {len(self.inventory)} items"
+
+                    # Validate InventoryManager state
+                    coin_summary = self.inventory_manager.get_coin_summary()
+                    assert (
+                        len(coin_summary) > 0
+                    ), f"CSV coin_summary should not be empty but got {len(coin_summary)} coins"
+                    logger.info(
+                        f"[PORTFOLIO DEBUG] Final coin_summary after CSV load: {list(coin_summary.keys())}"
+                    )
                 else:
                     # Priority 3: Start with empty inventory
                     logger.info(
@@ -95,9 +128,10 @@ class PortfolioManager:
     async def _try_load_inventory_csv(self) -> bool:
         """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
 
-        filename = "inventory.csv"
+        # Look for inventory.csv in the src/portfolio directory
+        filename = os.path.join(os.path.dirname(__file__), "inventory.csv")
         if not os.path.exists(filename):
-            logger.info("No inventory.csv file found in current directory.")
+            logger.info(f"No inventory.csv file found at {filename}.")
             return False
 
         try:
@@ -129,6 +163,53 @@ class PortfolioManager:
                 logger.info(
                     f"Successfully loaded {len(inventory_items)} items from {filename}"
                 )
+
+                # DEBUG: Add comprehensive debugging for inventory structure
+                logger.debug(
+                    f"[PORTFOLIO DEBUG] Total inventory items loaded: {len(inventory_items)}"
+                )
+
+                # Assert that inventory is not empty
+                assert (
+                    len(inventory_items) > 0
+                ), f"Inventory should not be empty but got {len(inventory_items)} items"
+
+                # Debug first few items structure
+                for i, item in enumerate(inventory_items[:5]):
+                    logger.debug(
+                        f"[PORTFOLIO DEBUG] Item {i}: coin={item.coin}, quantity={item.quantity}, buy_price={item.buy_price}"
+                    )
+
+                # Test InventoryManager aggregation
+                coin_summary = self.inventory_manager.get_coin_summary()
+                logger.debug(
+                    f"[PORTFOLIO DEBUG] InventoryManager coin_summary: {coin_summary}"
+                )
+
+                # Assert that coin_summary is not empty
+                assert (
+                    len(coin_summary) > 0
+                ), f"InventoryManager coin_summary should not be empty but got {len(coin_summary)} coins"
+
+                # Test specific coin aggregation
+                for coin in list(coin_summary.keys())[:3]:  # Test first 3 coins
+                    total_qty = self.inventory_manager.get_total_quantity_by_coin(coin)
+                    avg_price = self.inventory_manager.get_weighted_average_price(coin)
+                    logger.debug(
+                        f"[PORTFOLIO DEBUG] Coin {coin}: total_qty={total_qty}, avg_price={avg_price}"
+                    )
+
+                    # Assert aggregation results are valid
+                    assert (
+                        total_qty > 0
+                    ), f"Total quantity for {coin} should be > 0 but got {total_qty}"
+                    assert (
+                        avg_price > 0
+                    ), f"Average price for {coin} should be > 0 but got {avg_price}"
+
+                logger.info(
+                    "[PORTFOLIO DEBUG] All inventory validations passed successfully"
+                )
                 return True
             else:
                 logger.warning("No valid inventory items found in CSV file.")
@@ -154,12 +235,32 @@ class PortfolioManager:
         # Initialize portfolio inventory before starting the main loop
         await self.init_portfolio_source()
 
-        # Send initial inventory to UI
-        self.ui_queue.put_nowait(
-            Event(
-                name=EventName.PORTFOLIO_INVENTORY,
-                content=self.inventory,
+        # DEBUG: Validate inventory before sending to UI
+        logger.debug(
+            f"[PORTFOLIO DEBUG] About to send inventory to UI: {len(self.inventory)} items"
+        )
+        if hasattr(self, "inventory") and self.inventory:
+            logger.debug(
+                f"[PORTFOLIO DEBUG] Inventory exists with {len(self.inventory)} items"
             )
+            for i, item in enumerate(self.inventory[:3]):  # Log first 3 items
+                logger.debug(
+                    f"[PORTFOLIO DEBUG] UI Send Item {i}: {item.coin} qty={item.quantity} price={item.buy_price}"
+                )
+        else:
+            logger.warning(
+                "[PORTFOLIO DEBUG] No inventory to send to UI - inventory is empty or None"
+            )
+
+        # Send initial inventory to UI
+        ui_event = Event(
+            name=EventName.PORTFOLIO_INVENTORY,
+            content=self.inventory,
+        )
+
+        self.ui_queue.put_nowait(ui_event)
+        logger.info(
+            f"[PORTFOLIO DEBUG] Successfully sent portfolio inventory to UI queue: {len(self.inventory)} items"
         )
 
         # Subscribe to user and price updates for portfolio management

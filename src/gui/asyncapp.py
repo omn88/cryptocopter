@@ -138,6 +138,9 @@ class AsyncApp(App):
             db=self.db,
         )
 
+        # Initialize the PortfolioUI to start UI queue processing
+        self.portfolio_ui.initialize()
+
         # Add the PortfolioManager tab to the tabbed panel
         tab = TabbedPanelItem(
             text="Portfolio",

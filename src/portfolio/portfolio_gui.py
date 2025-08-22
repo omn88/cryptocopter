@@ -68,6 +68,12 @@ class PortfolioUI(BoxLayout):
         # Note: Portfolio initialization is now handled by PortfolioManager backend
         # The GUI will receive inventory data via EventName.PORTFOLIO_INVENTORY events
 
+    def initialize(self):
+        """Initialize the PortfolioUI and start UI queue processing."""
+        if not self.test_mode:
+            self.queue_task = asyncio.create_task(self.update_ui())
+            logger.debug("[PORTFOLIO GUI DEBUG] Started UI queue processing task")
+
     def set_hp_manager_reference(self, hp_manager, app):
         """Set reference to HP manager and main app for sell functionality."""
         self.hp_manager = hp_manager
@@ -561,6 +567,23 @@ class PortfolioUI(BoxLayout):
     def set_inventory(self, inventory: List[InventoryItem]):
         """Update the coin list data from the inventory, with all resources available."""
 
+        # DEBUG: Add comprehensive logging for inventory processing
+        logger.debug(
+            f"[PORTFOLIO GUI DEBUG] set_inventory called with {len(inventory)} items"
+        )
+
+        # Assert that inventory is not empty
+        if len(inventory) == 0:
+            logger.warning(
+                "[PORTFOLIO GUI DEBUG] set_inventory called with empty inventory list"
+            )
+        else:
+            logger.debug(f"[PORTFOLIO GUI DEBUG] First few inventory items:")
+            for i, item in enumerate(inventory[:3]):
+                logger.debug(
+                    f"[PORTFOLIO GUI DEBUG] Item {i}: {item.coin} qty={item.quantity} price={item.buy_price}"
+                )
+
         # Store the inventory items
         self.inventory = inventory.copy()  # Make a copy to avoid reference issues
 
@@ -568,6 +591,10 @@ class PortfolioUI(BoxLayout):
         coin_lots = defaultdict(list)
         for item in inventory:
             coin_lots[item.coin].append(item)
+
+        logger.debug(
+            f"[PORTFOLIO GUI DEBUG] Grouped into {len(coin_lots)} unique coins: {list(coin_lots.keys())}"
+        )
 
         coin_list = []
 
@@ -584,34 +611,44 @@ class PortfolioUI(BoxLayout):
             # Calculate total value based on inventory
             total_value = sum(lot.quantity * lot.buy_price for lot in lots)
 
-            coin_list.append(
-                {
-                    "symbol": coin,
-                    "buy_price": (
-                        f"${weighted_avg_buy_price}"
-                        if weighted_avg_buy_price > 0
-                        else "—"
-                    ),
-                    "quantity": str(total_qty),
-                    "available_qty": str(total_available),
-                    "locked_qty": str(total_locked),
-                    "price_usd": "0.00",
-                    "total_usd": f"{total_value:.2f}",
-                    "pnl": "—",  # Will be calculated when current prices are available
-                    "pnl_color": [
-                        1,
-                        1,
-                        1,
-                        1,
-                    ],  # Default white color (RGBA), will be updated based on PnL
-                    "weighted_avg_buy_price": weighted_avg_buy_price,  # Store for PnL calculation
-                    "lots": lots,
-                    "expanded": False,
-                    "has_lots": len(lots) > 0,
-                    "portfolio_manager": self,  # Add reference to portfolio manager
-                }
+            coin_data = {
+                "symbol": coin,
+                "buy_price": (
+                    f"${weighted_avg_buy_price}" if weighted_avg_buy_price > 0 else "—"
+                ),
+                "quantity": str(total_qty),
+                "available_qty": str(total_available),
+                "locked_qty": str(total_locked),
+                "price_usd": "0.00",
+                "total_usd": f"{total_value:.2f}",
+                "pnl": "—",  # Will be calculated when current prices are available
+                "pnl_color": [
+                    1,
+                    1,
+                    1,
+                    1,
+                ],  # Default white color (RGBA), will be updated based on PnL
+                "weighted_avg_buy_price": weighted_avg_buy_price,  # Store for PnL calculation
+                "lots": lots,
+                "expanded": False,
+                "has_lots": len(lots) > 0,
+                "portfolio_manager": self,  # Add reference to portfolio manager
+            }
+
+            coin_list.append(coin_data)
+            logger.debug(
+                f"[PORTFOLIO GUI DEBUG] Added coin {coin}: qty={total_qty}, value=${total_value:.2f}"
             )
+
         self.coin_list_data = coin_list
+        logger.info(
+            f"[PORTFOLIO GUI DEBUG] set_inventory completed: coin_list_data has {len(self.coin_list_data)} coins"
+        )
+
+        # Assert final state
+        assert (
+            len(self.coin_list_data) > 0
+        ), f"coin_list_data should not be empty after processing {len(inventory)} inventory items"
 
     def _calculate_weighted_average_buy_price(
         self, lots: List[InventoryItem], coin_symbol: str
@@ -676,7 +713,17 @@ class PortfolioUI(BoxLayout):
         """Process a single UI event."""
         assert isinstance(data, Event)
 
+        # DEBUG: Log all incoming events
+        logger.debug(f"[PORTFOLIO GUI DEBUG] Processing UI event: {data.name}")
+
         if data.name == EventName.PORTFOLIO_INVENTORY:
+            logger.debug(
+                f"[PORTFOLIO GUI DEBUG] Received PORTFOLIO_INVENTORY event with content type: {type(data.content)}"
+            )
+            if isinstance(data.content, List):
+                logger.debug(
+                    f"[PORTFOLIO GUI DEBUG] PORTFOLIO_INVENTORY content is list with {len(data.content)} items"
+                )
             assert isinstance(data.content, List)
             self.set_inventory(data.content)
         if data.name == EventName.ACCOUNT_POSITION:
@@ -688,10 +735,20 @@ class PortfolioUI(BoxLayout):
             await self.update_coin_prices(data.content)
         if data.name == EventName.PORTFOLIO_INVENTORY:
             # Inventory event: update UI with new inventory (all available)
+            logger.debug(
+                f"[PORTFOLIO GUI DEBUG] Second PORTFOLIO_INVENTORY handler - content type: {type(data.content)}"
+            )
             if isinstance(data.content, List):
+                logger.debug(
+                    f"[PORTFOLIO GUI DEBUG] Calling set_inventory with {len(data.content)} items"
+                )
                 self.set_inventory(data.content)
                 if not self.test_mode:
+                    logger.debug(
+                        "[PORTFOLIO GUI DEBUG] Calling refresh_from_data() on coin_list"
+                    )
                     self.ids.coin_list.refresh_from_data()
+                    logger.debug("[PORTFOLIO GUI DEBUG] refresh_from_data() completed")
             else:
                 logger.warning(
                     f"PORTFOLIO_INVENTORY event received with unexpected content type: {type(data.content)}"
