@@ -585,7 +585,7 @@ class HpStrategy:
             self.state == State.NEW
             and self.buy.data.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.data.config.budget
+            and self.balance >= self.buy.data.config.budget
         )
         if condition:
             logger.info(
@@ -718,12 +718,15 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
+        remaining_quantity = self.get_remaining_quantity_buy()
+
         condition = (
             self.state == State.PARTIALLY_BOUGHT
             and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.data.config.budget
+            and self.balance
+            >= remaining_quantity  # Check if we have enough balance for remaining orders
         )
         if condition:
             logger.info(

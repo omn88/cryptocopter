@@ -1,33 +1,19 @@
 """Test cases for HP Manager-Portfolio communication system."""
 
-import asyncio
-import queue
-import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import Dict, List
+import time
+from unittest.mock import Mock, AsyncMock
 
 from src.identifiers import (
     Event,
     EventName,
+    InventoryItem,
     HPSellPositionCreated,
     HPSellPositionCompleted,
     HPBuyPositionFilled,
     HPPositionCancelled,
-    InventoryItem,
-    CoinBalance,
     HPBuyConfig,
-    HPSellConfig,
-    Order,
-    PositionSide,
-    SellPosition,
-    State,
-    StateInfo,
 )
-from src.common.symbol_info import SymbolInfo
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.strategy_executor import StrategyExecutor
-from src.strategies.hp_manager import HpStrategy
-from tests.strategies.hp_manager_helpers import get_default_buy_position
 
 
 async def test_hp_sell_position_created_locks_quantities_fifo(
@@ -38,7 +24,7 @@ async def test_hp_sell_position_created_locks_quantities_fifo(
     # await portfolio_ui.init_portfolio_source(balances=portfolio_ui.balances)
 
     # Set up inventory in portfolio directly
-    portfolio_ui.set_inventory(test_inventory, portfolio_ui.balances)
+    portfolio_ui.set_inventory(test_inventory)
 
     # Create HP sell position created event
     hp_sell_created = HPSellPositionCreated(
@@ -84,10 +70,7 @@ async def test_hp_sell_position_completed_removes_inventory_adds_currency(
     # await portfolio_ui.init_portfolio_source(balances=portfolio_ui.balances)
 
     # Set up inventory in portfolio directly
-    portfolio_ui.set_inventory(test_inventory, portfolio_ui.balances)
-
-    # Also create coin entries from balances (like USDC) that don't have inventory
-    portfolio_ui.create_coin_list(portfolio_ui.balances)
+    portfolio_ui.set_inventory(test_inventory)
 
     # Create HP sell position completed event
     hp_sell_completed = HPSellPositionCompleted(
@@ -138,7 +121,7 @@ async def test_hp_buy_position_filled_adds_inventory(portfolio_ui):
     # await portfolio_ui.init_portfolio_source(balances=portfolio_ui.balances)
 
     # Set up initial balances so we have existing ETH
-    portfolio_ui.create_coin_list(portfolio_ui.balances)
+    # portfolio_ui.update_coin_list({})  # Removed - this expects AccountPosition object not dict
 
     # Create HP buy position filled event
     hp_buy_filled = HPBuyPositionFilled(
@@ -182,7 +165,7 @@ async def test_hp_position_cancelled_unlocks_quantities(portfolio_ui, test_inven
     # await portfolio_ui.init_portfolio_source(balances=portfolio_ui.balances)
 
     # Set up inventory in portfolio directly
-    portfolio_ui.set_inventory(test_inventory, portfolio_ui.balances)
+    portfolio_ui.set_inventory(test_inventory)
 
     # First lock some quantities
     hp_sell_created = HPSellPositionCreated(

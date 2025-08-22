@@ -12,16 +12,6 @@ from src.common.symbol_info import SymbolInfo
 
 
 @dataclass
-class CoinBalance:
-    coin: str
-    free: float
-    locked: float
-    total: float
-    total_value: float
-
-
-@dataclass
-@dataclass
 class InventoryItem:
     id: str
     coin: str
@@ -128,7 +118,6 @@ class EventName(Enum):
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
     ALL_TICKERS = "All"
-    BALANCES = "Balances"
     PRICE_UPDATES = "PriceUpdates"
     PORTFOLIO_INVENTORY = "PortfolioInventory"
     # HP Manager → Portfolio Events
@@ -296,7 +285,6 @@ class Event(NamedTuple):
         PriceUpdates,
         ErrorMessage,
         List[InventoryItem],
-        Dict[str, CoinBalance],
         HPBuyPositionCreated,
     ]
 

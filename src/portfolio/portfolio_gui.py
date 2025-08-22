@@ -16,7 +16,6 @@ from kivy.uix.label import Label
 
 from src.identifiers import (
     AccountPosition,
-    CoinBalance,
     Event,
     EventName,
     InventoryItem,
@@ -47,7 +46,6 @@ class PortfolioUI(BoxLayout):
         ui_queue: queue.Queue,
         symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
-        balances: Dict[str, CoinBalance],
         test_mode: bool = False,
         **kwargs,
     ) -> None:
@@ -63,20 +61,12 @@ class PortfolioUI(BoxLayout):
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
-        self.balances: Dict[str, CoinBalance] = balances
         self.test_mode = test_mode  # Add test_mode parameter
         self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
         self.hp_manager = None  # Reference to HP manager for sell functionality
         self.app = None  # Reference to the main app for tab switching
-        # On startup, check if DB is empty and choose data source (skip in test mode)
-        if not self.test_mode:
-            try:
-                # Check if there's an active event loop
-                loop = asyncio.get_running_loop()
-                asyncio.create_task(self.init_portfolio_source(balances=balances))
-            except RuntimeError:
-                # No event loop running (e.g., in tests), skip async initialization
-                logger.debug("No event loop running, skipping async initialization")
+        # Note: Portfolio initialization is now handled by PortfolioManager backend
+        # The GUI will receive inventory data via EventName.PORTFOLIO_INVENTORY events
 
     def set_hp_manager_reference(self, hp_manager, app):
         """Set reference to HP manager and main app for sell functionality."""
@@ -222,6 +212,12 @@ class PortfolioUI(BoxLayout):
                 remaining_to_sell -= lot_quantity
                 lots_to_remove.append(i)
 
+                # Remove from inventory if it exists
+                if hasattr(self, "inventory") and self.inventory and hasattr(lot, "id"):
+                    self.inventory = [
+                        item for item in self.inventory if item.id != lot.id
+                    ]
+
                 # Remove from database if it's an InventoryItem
                 if hasattr(lot, "id"):
                     try:
@@ -235,8 +231,30 @@ class PortfolioUI(BoxLayout):
                 # Partial sell of this lot
                 new_quantity = lot_quantity - remaining_to_sell
                 if hasattr(lot, "quantity"):  # InventoryItem object
+                    # Update the lot in coin_list_data
                     lot.quantity = new_quantity
                     lot.available_quantity = new_quantity
+                    # Also reduce locked quantity proportionally
+                    if hasattr(lot, "locked_quantity") and lot.locked_quantity > 0:
+                        # Calculate how much of the locked quantity was sold
+                        sold_from_locked = min(remaining_to_sell, lot.locked_quantity)
+                        lot.locked_quantity = max(
+                            0, lot.locked_quantity - sold_from_locked
+                        )
+
+                    # Update corresponding inventory item if it exists
+                    if (
+                        hasattr(self, "inventory")
+                        and self.inventory
+                        and hasattr(lot, "id")
+                    ):
+                        for inv_item in self.inventory:
+                            if inv_item.id == lot.id:
+                                inv_item.quantity = new_quantity
+                                inv_item.available_quantity = new_quantity
+                                if hasattr(inv_item, "locked_quantity"):
+                                    inv_item.locked_quantity = lot.locked_quantity
+                                break
 
                     # Update in database
                     try:
@@ -425,35 +443,6 @@ class PortfolioUI(BoxLayout):
         if not self.test_mode:
             self.ids.coin_list.refresh_from_data()
 
-    async def init_portfolio_source(self, balances: Dict[str, CoinBalance]) -> None:
-        """Check portfolio data sources in priority order: 1) Database, 2) CSV file, 3) Exchange."""
-        try:
-            # Priority 1: Use fetch_all_inventory_items for DB inventory retrieval
-            db_items = await self.db.fetch_all_inventory_items()
-            if db_items:
-                self.set_inventory(db_items, balances)
-                # Only refresh if not in test mode to avoid Kivy widget access
-                if not self.test_mode:
-                    self.ids.coin_list.refresh_from_data()
-                logger.info("Portfolio loaded from database.")
-            else:
-                # Priority 2: Try to load from inventory.csv if database is empty
-                logger.info("Database empty, checking for inventory.csv file.")
-                if await self._try_load_inventory_csv():
-                    logger.info("Portfolio loaded from inventory.csv file.")
-                else:
-                    # Priority 3: Fallback to exchange data
-                    logger.info(
-                        "No inventory.csv found, portfolio will be loaded from exchange."
-                    )
-
-            # Always start update_ui() to handle price updates and other events (skip in test mode)
-            if not self.test_mode:
-                asyncio.create_task(self.update_ui())
-
-        except Exception as e:
-            logger.error(f"Failed to initialize portfolio source: {e}")
-
     async def _try_load_inventory_csv(self) -> bool:
         """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
         filename = "inventory.csv"
@@ -485,7 +474,7 @@ class PortfolioUI(BoxLayout):
                     logger.error("Failed to parse inventory row: %s error: %s", row, e)
 
             if inventory_items:
-                self.set_inventory(inventory_items, self.balances)
+                self.set_inventory(inventory_items)
                 # Only refresh if not in test mode to avoid Kivy widget access
                 if not self.test_mode:
                     self.ids.coin_list.refresh_from_data()
@@ -569,10 +558,11 @@ class PortfolioUI(BoxLayout):
             if not self.test_mode:
                 self.ids.coin_list.refresh_from_data()
 
-    def set_inventory(
-        self, inventory: List[InventoryItem], balances: Dict[str, CoinBalance]
-    ):
+    def set_inventory(self, inventory: List[InventoryItem]):
         """Update the coin list data from the inventory, with all resources available."""
+
+        # Store the inventory items
+        self.inventory = inventory.copy()  # Make a copy to avoid reference issues
 
         # Group inventory items by coin
         coin_lots = defaultdict(list)
@@ -583,16 +573,17 @@ class PortfolioUI(BoxLayout):
 
         for coin, lots in coin_lots.items():
             total_qty = sum(lot.quantity for lot in lots)
+            total_available = sum(lot.available_quantity for lot in lots)
+            total_locked = sum(lot.locked_quantity for lot in lots)
+
             # Calculate weighted average buy price
             weighted_avg_buy_price = self._calculate_weighted_average_buy_price(
                 lots, coin
             )
 
-            # Use CoinBalance if available, else fallback to inventory
-            cb = balances.get(coin)
-            available_qty = str(cb.free) if cb else str(total_qty)
-            locked_qty = str(cb.locked) if cb else "0"
-            total_value = str(cb.total_value) if cb else "0.00"
+            # Calculate total value based on inventory
+            total_value = sum(lot.quantity * lot.buy_price for lot in lots)
+
             coin_list.append(
                 {
                     "symbol": coin,
@@ -602,10 +593,10 @@ class PortfolioUI(BoxLayout):
                         else "—"
                     ),
                     "quantity": str(total_qty),
-                    "available_qty": available_qty,
-                    "locked_qty": locked_qty,
+                    "available_qty": str(total_available),
+                    "locked_qty": str(total_locked),
                     "price_usd": "0.00",
-                    "total_usd": total_value,
+                    "total_usd": f"{total_value:.2f}",
                     "pnl": "—",  # Will be calculated when current prices are available
                     "pnl_color": [
                         1,
@@ -685,9 +676,9 @@ class PortfolioUI(BoxLayout):
         """Process a single UI event."""
         assert isinstance(data, Event)
 
-        if data.name == EventName.BALANCES:
-            assert isinstance(data.content, Dict)
-            self.create_coin_list(data.content)
+        if data.name == EventName.PORTFOLIO_INVENTORY:
+            assert isinstance(data.content, List)
+            self.set_inventory(data.content)
         if data.name == EventName.ACCOUNT_POSITION:
             assert isinstance(data.content, AccountPosition)
             self.update_coin_list(data.content)
@@ -698,7 +689,7 @@ class PortfolioUI(BoxLayout):
         if data.name == EventName.PORTFOLIO_INVENTORY:
             # Inventory event: update UI with new inventory (all available)
             if isinstance(data.content, List):
-                self.set_inventory(data.content, balances=self.balances)
+                self.set_inventory(data.content)
                 if not self.test_mode:
                     self.ids.coin_list.refresh_from_data()
             else:
@@ -719,59 +710,6 @@ class PortfolioUI(BoxLayout):
         if data.name == EventName.HP_POSITION_CANCELLED:
             assert isinstance(data.content, HPPositionCancelled)
             await self.handle_hp_position_cancelled(data.content)
-
-    def create_coin_list(self, balances: Dict[str, CoinBalance]) -> None:
-        """Create the coin list in the UI based on new ticker data."""
-        logger.info("Going to prepare initial coin list.")
-
-        # Get existing coin symbols to avoid duplicates (from CSV or DB)
-        existing_coins = {
-            coin["symbol"]: coin
-            for coin in self.coin_list_data
-            if not coin.get("is_lot_row", False)
-        }
-
-        for symbol, coin_balance in balances.items():
-            # If coin already exists from CSV/DB import, update its balance info
-            if symbol in existing_coins:
-                logger.debug(f"Updating balance info for existing {symbol}")
-                existing_coin = existing_coins[symbol]
-                existing_coin["available_qty"] = str(coin_balance.free)
-                existing_coin["locked_qty"] = str(coin_balance.locked)
-                # Keep the imported total_value if it exists, otherwise use exchange value
-                if existing_coin.get("total_usd") == "0.00":
-                    existing_coin["total_usd"] = str(coin_balance.total_value)
-                continue
-
-            try:
-                # Round up to coins precision, to filter out first close to zero quantities
-                rounded = self.symbols_info[f"{symbol}USDT"].adjust_quantity(
-                    quantity=coin_balance.total
-                )
-                if rounded:
-                    coin_data = {
-                        "symbol": symbol,
-                        "buy_price": "—",  # Exchange balances don't have buy price history
-                        "quantity": str(rounded),
-                        "available_qty": str(coin_balance.free),
-                        "locked_qty": str(coin_balance.locked),
-                        "price_usd": "0.00",
-                        "total_usd": "0.00",
-                        "pnl": "—",  # No buy price available for exchange balances
-                        "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
-                        "weighted_avg_buy_price": 0.0,  # No buy price for exchange balances
-                        "lots": [],
-                        "expanded": False,
-                        "has_lots": False,
-                        "portfolio_manager": self,  # Add reference to portfolio manager
-                    }
-                    self.coin_list_data.append(coin_data)
-            except KeyError as e:
-                # Log the error and skip the symbol
-                logger.warning(
-                    f"Symbol {symbol} not found in symbol info. Skipping. Error: {e}"
-                )
-                continue
 
     async def update_coin_prices(self, price_updates: PriceUpdates) -> None:
         """Update the prices of coins based on ticker data from AllTickers and filter based on total value."""
@@ -1090,6 +1028,9 @@ class PortfolioUI(BoxLayout):
             notes=f"HP buy position {event.hp_id}",
         )
 
+        # Add to main inventory list
+        self.inventory.append(new_lot)
+
         # Find existing parent coin or create new one
         parent_coin = None
         for coin in self.coin_list_data:
@@ -1235,7 +1176,7 @@ class PortfolioUI(BoxLayout):
 
     async def _add_received_currency(self, currency: str, amount: float):
         """Add received currency (like USDC) to portfolio."""
-        # Find existing currency or create new entry
+        # Find existing currency in coin_list_data
         existing_currency = None
         for coin_data in self.coin_list_data:
             if (
@@ -1245,18 +1186,35 @@ class PortfolioUI(BoxLayout):
                 existing_currency = coin_data
                 break
 
+        # Find existing currency in inventory
+        existing_inventory = None
+        if hasattr(self, "inventory") and self.inventory:
+            for item in self.inventory:
+                if item.coin == currency:
+                    existing_inventory = item
+                    break
+
         if existing_currency:
-            # Add to existing currency
+            # Add to existing currency in coin_list_data
             current_qty = float(existing_currency.get("quantity", 0))
             current_available = float(existing_currency.get("available_qty", 0))
 
             existing_currency["quantity"] = str(current_qty + amount)
             existing_currency["available_qty"] = str(current_available + amount)
+
+            # Also update inventory if it exists
+            if existing_inventory:
+                existing_inventory.available_quantity += amount
+                existing_inventory.quantity = (
+                    existing_inventory.available_quantity
+                    + existing_inventory.locked_quantity
+                )
+
             logger.info(
                 f"Added {amount} {currency} to existing balance. New total: {current_qty + amount}"
             )
         else:
-            # Create new currency entry
+            # Create new currency entry in coin_list_data
             new_currency = {
                 "symbol": currency,
                 "buy_price": "—",  # Received currency doesn't have buy price
@@ -1274,4 +1232,17 @@ class PortfolioUI(BoxLayout):
                 "portfolio_manager": self,
             }
             self.coin_list_data.append(new_currency)
+
+            # Also create new inventory item if inventory exists
+            if hasattr(self, "inventory") and self.inventory is not None:
+                new_inventory_item = InventoryItem(
+                    id=str(uuid.uuid4()),
+                    coin=currency,
+                    buy_price=1.0 if currency == "USDC" else 0.0,
+                    quantity=amount,
+                    available_quantity=amount,
+                    locked_quantity=0.0,
+                )
+                self.inventory.append(new_inventory_item)
+
             logger.info(f"Created new {currency} entry with {amount}")

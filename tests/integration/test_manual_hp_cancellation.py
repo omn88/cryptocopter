@@ -1,31 +1,20 @@
 """Test cases for manual HP position cancellation via GUI buttons."""
 
 import asyncio
-import queue
-import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from src.identifiers import (
-    Event,
     EventName,
     HPSellPositionCreated,
     HPPositionCancelled,
     InventoryItem,
-    CoinBalance,
     HPBuyConfig,
-    HPSellConfig,
     Order,
     PositionSide,
-    SellPosition,
     State,
-    StateInfo,
     RemoveRecord,
 )
 from src.common.symbol_info import SymbolInfo
-from src.portfolio.portfolio_gui import PortfolioUI
-from src.strategy_executor import StrategyExecutor
-from src.strategies.hp_manager import HpStrategy
-from binance.enums import ORDER_STATUS_NEW, ORDER_STATUS_FILLED
+from binance.enums import ORDER_STATUS_NEW
 
 
 async def test_manual_hp_sell_cancellation_unlocks_quantities(
@@ -52,16 +41,7 @@ async def test_manual_hp_sell_cancellation_unlocks_quantities(
         ),
     ]
 
-    test_balances = {
-        "BTC": CoinBalance(
-            coin="BTC", free=1.0, locked=0.0, total=1.0, total_value=50000.0
-        ),
-        "USDC": CoinBalance(
-            coin="USDC", free=1000.0, locked=0.0, total=1000.0, total_value=1000.0
-        ),
-    }
-
-    portfolio_ui.set_inventory(test_inventory, test_balances)
+    portfolio_ui.set_inventory(test_inventory)
 
     # Setup strategy executor with portfolio UI queue
     strategy_executor_fixture.portfolio_ui_queue = asyncio.Queue()

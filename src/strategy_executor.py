@@ -14,7 +14,6 @@ from binance.enums import (
 from src.common.common import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
-    CoinBalance,
     Event,
     EventName,
     ExecutionReport,
@@ -22,6 +21,7 @@ from src.identifiers import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    InventoryItem,
     Order,
     RemoveRecord,
     SellPosition,
@@ -48,6 +48,7 @@ from src.gui.identifiers.spot import (
     HPUpdate,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.portfolio.inventory_manager import InventoryManager
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
@@ -78,7 +79,7 @@ class StrategyExecutor:
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
-        balances: Dict[str, CoinBalance],
+        inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
@@ -92,7 +93,8 @@ class StrategyExecutor:
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
         self.symbols_info = symbols_info
-        self.balances = balances
+        self.inventory = inventory
+        self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
@@ -614,7 +616,7 @@ class StrategyExecutor:
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            balance=self.balances["USDC"].total,
+            balance=self.inventory_manager["USDC"]["total_quantity"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -979,7 +981,7 @@ class StrategyExecutor:
                 worker_queue=worker_queue,
                 is_restoration=is_restoration,
             ),
-            balance=self.balances["USDC"].total,
+            balance=self.inventory_manager["USDC"]["total_quantity"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,

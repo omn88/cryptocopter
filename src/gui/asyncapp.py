@@ -23,7 +23,6 @@ from src.identifiers import (
     SubscriptionTarget,
     SubscriptionType,
     BinanceClient,
-    CoinBalance,
 )
 from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
@@ -64,7 +63,6 @@ class AsyncApp(App):
         db: TradingDatabase,
         symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
-        balances: Dict[str, CoinBalance],
         **kwargs,
     ):
         """Initializes the `AsyncApp` instance.
@@ -79,7 +77,6 @@ class AsyncApp(App):
         self.db = db
         self.symbols_info = symbols_info
         self.price_resolver = price_resolver
-        self.balances = balances  # Dict[str, CoinBalance]
         self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
@@ -129,7 +126,6 @@ class AsyncApp(App):
         self.portfolio = PortfolioManager(
             broker=self.broker,
             ui_queue=ui_queue,
-            balances=self.balances,
             symbols_info=self.symbols_info,
             price_resolver=self.price_resolver,
             db=self.db,
@@ -140,7 +136,6 @@ class AsyncApp(App):
             ui_queue=ui_queue,
             symbols_info=self.symbols_info,
             db=self.db,
-            balances=self.balances,
         )
 
         # Add the PortfolioManager tab to the tabbed panel
@@ -190,7 +185,7 @@ class AsyncApp(App):
             db=self.db,
             broker=self.broker,
             ui_queue=ui_queue,
-            balances=self.portfolio.balances,
+            inventory=self.portfolio.inventory,
             price_resolver=self.price_resolver,
             portfolio_ui_queue=(
                 self.portfolio_ui.ui_queue if self.portfolio_ui else None
