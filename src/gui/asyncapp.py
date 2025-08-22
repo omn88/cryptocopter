@@ -170,6 +170,8 @@ class AsyncApp(App):
                 )
 
     def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
+
+        logger.info("Setting up HP Manager with strategy ID: %s", strategy_id)
         Builder.load_file("src/gui/hp_manager/hpfront.kv")
         ui_queue: queue.Queue = queue.Queue()
 
@@ -197,7 +199,6 @@ class AsyncApp(App):
 
         self.trading_systems.append(back_end)
 
-        logger.info("Await before HP manager starts")
         front_end = HpFront(
             client=self.client,
             strategy_id=strategy_id,
@@ -223,6 +224,8 @@ class AsyncApp(App):
         self.strategies["HPManager"] = tab
         # Add a new tab for the strategy
         self.root.add_widget(tab)
+
+        logger.info("HP Manager setup complete.")
 
     def start_strategy(self):
         """Starts a new strategy."""

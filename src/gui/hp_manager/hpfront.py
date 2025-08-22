@@ -105,7 +105,6 @@ class HpFront(BoxLayout):
 
         # Initialize task references for proper cleanup
         self.queue_task: Optional[asyncio.Task] = None
-        self._syncing_hp_data = False  # Prevent sync loops
 
         # Add logging throttling for frequent operations
         self._last_ticker_log_time = 0.0
@@ -351,53 +350,6 @@ Side: {side}"""
             if hp_data.get("hp_id") == hp_id:
                 return hp_data.get("symbol", hp_data.get("coin"))
         return None
-
-    def _sync_hp_manager_data(self):
-        """Sync current HP data with HP manager."""
-        if not self.hp_manager:
-            logger.warning("No HP manager available for sync")
-            return
-
-        # Prevent sync loops
-        if getattr(self, "_syncing_hp_data", False):
-            return
-
-        self._syncing_hp_data = True
-        try:
-            logger.info(f"Syncing {len(self.hp_list_data)} HP positions to HP manager")
-
-            # Preserve expansion state before clearing
-            expanded_hp_ids = self.hp_manager.hp_data.expanded_hp_ids.copy()
-
-            # Clear existing data
-            self.hp_manager.clear_all_positions()
-
-            # Restore expansion state
-            self.hp_manager.hp_data.expanded_hp_ids = expanded_hp_ids
-
-            # Directly add positions without complex categorization - this is dev data
-            for hp_data in self.hp_list_data:
-                try:
-                    hp_id = hp_data.get("hp_id", "")
-                    is_child = hp_data.get("is_child", False)
-
-                    if is_child:
-                        # Determine child type based on side
-                        side = hp_data.get("side", "BUY")
-                        child_type = "BUY" if side in ["BUY", "LONG"] else "SELL"
-                        self.hp_manager.add_hp_position(child_type, hp_id, hp_data)
-                        logger.debug(f"Added child: {hp_id} (type: {child_type})")
-                    else:
-                        # Parent container
-                        self.hp_manager.add_hp_position("HP", hp_id, hp_data)
-                        logger.debug(f"Added parent: {hp_id}")
-
-                except Exception as e:
-                    logger.error(f"Error adding HP position {hp_data}: {e}")
-
-            logger.info("HP manager sync completed")
-        finally:
-            self._syncing_hp_data = False
 
     def _get_buy_child_state(self, update: HPUpdate) -> str:
         """Get appropriate state for buy child based on actual buy operation state.
@@ -1820,46 +1772,33 @@ Enter sell price to create sell order:"""
     def _update_hp_list_view(self, *args):
         """Update the HP list view with current data."""
 
-        # Prevent infinite sync loops
-        if getattr(self, "_syncing_hp_data", False):
-            logger.debug("Already syncing HP data, skipping to prevent loop")
-            return
-
         # Check if we have the KV layout elements
         if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
             logger.warning("HP list container not available, skipping update")
             return
 
-        self._syncing_hp_data = True
-        try:
-            # Clear existing rows
-            self.ids.hp_list_container.clear_widgets()
+        # Clear existing rows
+        self.ids.hp_list_container.clear_widgets()
 
-            # Get sorted HP list data
-            sorted_hp_data = self._get_sorted_hp_list()
+        # Get sorted HP list data
+        sorted_hp_data = self._get_sorted_hp_list()
 
-            if not sorted_hp_data:
-                # Show empty state
-                from kivy.uix.label import Label
-
-                empty_label = Label(
-                    text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
-                    size_hint_y=None,
-                    height=100,
-                    halign="center",
-                    valign="middle",
-                    color=[0.7, 0.7, 0.7, 1],
-                )
-                empty_label.bind(size=empty_label.setter("text_size"))
-                self.ids.hp_list_container.add_widget(empty_label)
-            else:
-                # Add HP rows
-                for hp_data in sorted_hp_data:
-                    row_widget = self._create_hp_row_widget(hp_data)
-                    self.ids.hp_list_container.add_widget(row_widget)
-
-        finally:
-            self._syncing_hp_data = False
+        if not sorted_hp_data:
+            empty_label = Label(
+                text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
+                size_hint_y=None,
+                height=100,
+                halign="center",
+                valign="middle",
+                color=[0.7, 0.7, 0.7, 1],
+            )
+            empty_label.bind(size=empty_label.setter("text_size"))
+            self.ids.hp_list_container.add_widget(empty_label)
+        else:
+            # Add HP rows
+            for hp_data in sorted_hp_data:
+                row_widget = self._create_hp_row_widget(hp_data)
+                self.ids.hp_list_container.add_widget(row_widget)
 
     def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
         """Create a widget for an HP row."""
