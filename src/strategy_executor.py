@@ -14,7 +14,6 @@ from binance.enums import (
 from src.common.common import generate_hp_id
 from src.database import TradingDatabase
 from src.identifiers import (
-    CoinBalance,
     Event,
     EventName,
     ExecutionReport,
@@ -22,6 +21,7 @@ from src.identifiers import (
     HPBuyData,
     HPSellConfig,
     HPSellData,
+    InventoryItem,
     Order,
     RemoveRecord,
     SellPosition,
@@ -48,6 +48,7 @@ from src.gui.identifiers.spot import (
     HPUpdate,
 )
 from src.portfolio.usd_price_resolver import UsdPriceResolver
+from src.portfolio.inventory_manager import InventoryManager
 from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategies.hp_manager import HpStrategy
@@ -78,12 +79,11 @@ class StrategyExecutor:
         broker: BrokerSpot,
         symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
-        balances: Dict[str, CoinBalance],
+        inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
         portfolio_ui_queue: Optional[queue.Queue] = None,
         test_mode: bool = False,
     ):
-        logger.info("StrategyExecutor.__init__ called with test_mode=%s", test_mode)
         self.client: Optional[BinanceClient] = None
         self.db = db
         self.broker = broker
@@ -93,7 +93,8 @@ class StrategyExecutor:
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
         self.symbols_info = symbols_info
-        self.balances = balances
+        self.inventory = inventory
+        self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
         self.test_mode = test_mode  # Add a test_mode parameter
         self.price_resolver = price_resolver
@@ -104,10 +105,10 @@ class StrategyExecutor:
         self._websocket_error_suppression_time = 600  # 10 minutes
         self.loop = None
         self.stop_event = threading.Event()
-        logger.info("Starting StrategyExecutor thread")
+        logger.debug("Starting StrategyExecutor thread")
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
-        logger.info("StrategyExecutor thread started")
+        logger.debug("StrategyExecutor thread started")
 
     def start_loop(self):
         """Starts the asyncio loop in a new thread."""
@@ -615,7 +616,7 @@ class StrategyExecutor:
         strategy = HpStrategy(
             client=self.client,
             ui_queue=self.ui_queue,
-            balance=self.balances["USDC"].total,
+            balance=self.inventory_manager["USDC"]["total_quantity"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -978,8 +979,9 @@ class StrategyExecutor:
                 price_resolver=self.price_resolver,
                 broker=self.broker,
                 worker_queue=worker_queue,
+                is_restoration=is_restoration,
             ),
-            balance=self.balances["USDC"].total,
+            balance=self.inventory_manager["USDC"]["total_quantity"],
             db=self.db,
             worker_queue=worker_queue,
             config_queue=self.config_queue,
@@ -991,7 +993,7 @@ class StrategyExecutor:
 
         # Handle restoration vs new position setup
         if is_restoration:
-            logger.info(
+            logger.debug(
                 "[Recovery] Entering sell position restoration for HP %s", parent_hp_id
             )
             # Restore existing sell orders from database
@@ -999,19 +1001,11 @@ class StrategyExecutor:
                 sell_config=strategy.sell.current_position.config,
                 worker_queue=worker_queue,
             )
-            logger.info("[Recovery] restore_sell_orders() returned: %s", sell_order)
+            logger.debug("[Recovery] restore_sell_orders() returned: %s", sell_order)
             if sell_order:
-                logger.info(
-                    "[Recovery] Assigning restored sell order to in-memory: %s",
-                    sell_order,
-                )
                 strategy.sell.current_position.sell_order = sell_order
-                logger.info(
-                    "[Recovery] In-memory sell order after assignment: %s",
-                    strategy.sell.current_position.sell_order,
-                )
             else:
-                logger.info(
+                logger.debug(
                     "[Recovery] No sell orders found in DB for HP %s", parent_hp_id
                 )
 
@@ -1020,7 +1014,7 @@ class StrategyExecutor:
             buy_orders = await self.db.fetch_orders_for_price_level(
                 hp_id=parent_hp_id, side=PositionSide.LONG.value
             )
-            logger.info(
+            logger.debug(
                 "[Recovery] fetch_orders_for_price_level(BUY) returned: %s", buy_orders
             )
             if buy_orders:
@@ -1028,14 +1022,12 @@ class StrategyExecutor:
                 strategy.buy.orders = await self.restore_buy_orders(
                     buy_position=strategy.buy, worker_queue=worker_queue
                 )
-                logger.info(
-                    "[Recovery] In-memory buy orders after restore: %s",
-                    strategy.buy.orders,
-                )
                 strategy_state_str = await self._get_strategy_state_from_db(
                     parent_hp_id
                 )
-                logger.info("[Recovery] Strategy state from DB: %s", strategy_state_str)
+                logger.debug(
+                    "[Recovery] Strategy state from DB: %s", strategy_state_str
+                )
                 strategy.state = State(strategy_state_str)
 
                 # Set buy state based on actual buy order statuses
@@ -1081,7 +1073,7 @@ class StrategyExecutor:
         )
 
         for position in strategy.sell.sell_positions:
-            logger.info(
+            logger.debug(
                 "[MULTIHOP DEBUG] Processing position: %s, state: %s",
                 position.config.hp_id,
                 position.state_info.state,
@@ -1263,6 +1255,43 @@ class StrategyExecutor:
 
             await self.db.upsert_buy_price_level(data=buy.data)
 
+        if side == PositionSide.LONG and buy.data.state_info.state == State.BOUGHT:
+            logger.info("Cancelling fully bought position: %s", hp_id)
+
+            # Send HP buy position cancelled event to portfolio
+            total_quantity = sum(order.realized_quantity for order in buy.orders)
+            hp_cancelled = HPPositionCancelled(
+                hp_id=hp_id,
+                coin=buy.data.config.coin,
+                quantity=total_quantity,
+                position_type="BUY",
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_POSITION_CANCELLED, hp_cancelled
+            )
+            logger.info(
+                f"Sent manual HP bought position cancellation event for position: {hp_id}"
+            )
+
+            # Close the position
+            strategy.state = State.CLOSED
+            buy.data.state_info.state = State.CLOSED
+            buy.data.state_info.ui_state = UiState.CLOSED
+
+            # Update buy orders and database
+            await self.db.upsert_buy_price_level(data=buy.data)
+
+            # Send UI update
+            self.send_buy_position_to_ui(
+                config=strategy.buy.data.config,
+                state_info=strategy.buy.data.state_info,
+                state=strategy.state,
+                buy_orders=strategy.buy.orders,
+            )
+
+            logger.info("Cancelled fully bought position %s.", hp_id)
+            return
+
         if side == PositionSide.SHORT:
             if strategy.state == State.SELLING:
                 sell_rlzd_qty = (
@@ -1371,7 +1400,7 @@ class StrategyExecutor:
         3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
         """
         logger.info("Starting crash recovery process...")
-        logger.info(
+        logger.debug(
             "Recovery debug: test_mode=%s, client=%s",
             self.test_mode,
             type(self.client).__name__ if self.client else None,
@@ -1398,8 +1427,6 @@ class StrategyExecutor:
             )
             logger.info("Recovery service created successfully")
 
-            # Recover all positions and convert them to trading objects
-            logger.info("Calling recovery_service.recover_all_positions()")
             (
                 buy_positions,
                 sell_positions,
@@ -1480,8 +1507,6 @@ class StrategyExecutor:
         Restore a sell position from crash recovery with its existing HP ID and state.
         Uses the normal setup process but with restoration flag to preserve state.
         """
-        logger.info("Restoring sell position: %s", sell_data.config.hp_id)
-
         # Convert HPSellData to SellPosition format expected by setup method
         sell_position = SellPosition(
             config=sell_data.config,

@@ -339,7 +339,8 @@ class HpStrategy:
                 "trigger": "process_ticker",
                 "source": [State.CLOSED, State.SOLD],
                 "dest": "=",
-                "after": "allow_messages",
+                # No "after" action - just consume the ticker event gracefully
+                # This prevents state machine errors during teardown
             },
         ]
 
@@ -486,16 +487,30 @@ class HpStrategy:
         return hp_update
 
     def send_buy_position_to_ui(self):
+        logger.debug(f"[SEND_BUY_TO_UI] Called send_buy_position_to_ui")
+        hp_update = self.build_hp_update_from_orders(
+            symbol_info=self.buy.data.config.symbol_info
+        )
+        # Set specific child ID for buy operations
+        parent_id = str(self.buy.data.config.hp_id)
+        hp_update.hp_id = f"{parent_id}_BUY"
+
+        # Set actual buy operation state for proper child state determination
+        # This comes from the actual buy state, not the strategy state
+        buy_state = self.buy.data.state_info.state.value
+        hp_update.buy_operation_state = buy_state
+        logger.debug(f"[SEND_BUY_TO_UI] Set buy_operation_state to: {buy_state}")
+
+        logger.debug(f"[SEND_BUY_TO_UI] About to put HPGuiDataBuy into ui_queue")
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
                 data=HPBuyData(
                     config=self.buy.data.config, state_info=self.buy.data.state_info
                 ),
-                hp_update=self.build_hp_update_from_orders(
-                    symbol_info=self.buy.data.config.symbol_info
-                ),
+                hp_update=hp_update,
             )
         )
+        logger.debug(f"[SEND_BUY_TO_UI] Successfully put HPGuiDataBuy into ui_queue")
 
     def send_sell_position_to_ui(self):
         logger.info("!!! SEND_SELL_POSITION_TO_UI CALLED !!!")
@@ -506,6 +521,15 @@ class HpStrategy:
         logger.info(
             f"!!! build_hp_update_from_orders returned buy_price: {hp_update.buy_price} !!!"
         )
+        # Set specific child ID for sell operations
+        parent_id = str(self.sell.current_position.config.hp_id)
+        # For two-hop trades (child positions), keep the original ID (e.g., 1000a)
+        # For regular trades, append _SELL suffix (e.g., 1000_SELL)
+        if self.sell.current_position.config.is_child:
+            hp_update.hp_id = parent_id
+        else:
+            hp_update.hp_id = f"{parent_id}_SELL"
+
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value
 
@@ -520,13 +544,20 @@ class HpStrategy:
         logger.info("Send HPGuiDataSell to UI: %s", data)
 
     def calculate_trigger_send_orders_price_buy(self):
-        price = self.buy.data.config.symbol_info.adjust_price(
-            max(
-                order.price
-                for order in self.buy.orders
-                if order.status != ORDER_STATUS_FILLED
+
+        logger.info(self.buy.orders)
+
+        price = (
+            self.buy.data.config.symbol_info.adjust_price(
+                max(
+                    order.price
+                    for order in self.buy.orders
+                    if order.status != ORDER_STATUS_FILLED
+                )
+                * (1 + self.buy.data.config.order_trigger / 100)
             )
-            * (1 + (self.buy.data.config.order_trigger / 100))
+            if any(order.status != ORDER_STATUS_FILLED for order in self.buy.orders)
+            else 0.0
         )
         # logger.info(
         #     "Calculated price for trigger send orders price buy: %s, config: %s",
@@ -554,7 +585,7 @@ class HpStrategy:
             self.state == State.NEW
             and self.buy.data.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.data.config.budget
+            and self.balance >= self.buy.data.config.budget
         )
         if condition:
             logger.info(
@@ -687,12 +718,15 @@ class HpStrategy:
         self, *args, **kwargs
     ) -> bool:
         trigger_send_orders_price = self.calculate_trigger_send_orders_price_buy()
+        remaining_quantity = self.get_remaining_quantity_buy()
+
         condition = (
             self.state == State.PARTIALLY_BOUGHT
             and self.buy.data.state_info.state == State.PARTIALLY_BOUGHT
             and self.sell.current_position.state_info.state == State.NEW
             and self.ticker_update.last_price <= trigger_send_orders_price
-            and self.balance > self.buy.data.config.budget
+            and self.balance
+            >= remaining_quantity  # Check if we have enough balance for remaining orders
         )
         if condition:
             logger.info(

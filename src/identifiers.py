@@ -5,19 +5,10 @@ from enum import Enum, auto
 import logging
 import queue
 import time
-from typing import Dict, List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union, Any
 from binance.enums import ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC, ORDER_STATUS_NEW
 from binance import AsyncClient
 from src.common.symbol_info import SymbolInfo
-
-
-@dataclass
-class CoinBalance:
-    coin: str
-    free: float
-    locked: float
-    total: float
-    total_value: float
 
 
 @dataclass
@@ -28,6 +19,9 @@ class InventoryItem:
     quantity: float
     available_quantity: float
     locked_quantity: float
+    source: str = "UNKNOWN"  # Add default value for source
+    timestamp: Optional[Any] = None  # Add timestamp field
+    notes: str = ""  # Add notes field
 
 
 @dataclass
@@ -124,7 +118,6 @@ class EventName(Enum):
     SENTINEL = "Sentinel"
     TICKER = "Ticker"
     ALL_TICKERS = "All"
-    BALANCES = "Balances"
     PRICE_UPDATES = "PriceUpdates"
     PORTFOLIO_INVENTORY = "PortfolioInventory"
     # HP Manager → Portfolio Events
@@ -292,7 +285,6 @@ class Event(NamedTuple):
         PriceUpdates,
         ErrorMessage,
         List[InventoryItem],
-        Dict[str, CoinBalance],
         HPBuyPositionCreated,
     ]
 

@@ -73,6 +73,17 @@
                 width: '60dp'
                 on_release: root.reset_hp_state_filter()
 
+    # Filter status display
+    Label:
+        id: hp_state_filter_display
+        text: 'Showing 11 states (excludes CLOSED, SOLD)'
+        size_hint_y: None
+        height: '25dp'
+        color: 0.7, 0.7, 0.7, 1
+        font_size: '12sp'
+        halign: 'left'
+        valign: 'middle'
+
     # Header row for HP list
     BoxLayout:
         orientation: 'horizontal'

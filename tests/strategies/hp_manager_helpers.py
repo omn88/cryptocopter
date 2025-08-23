@@ -228,26 +228,109 @@ def get_sell_positions(front: HpFront, state: Optional[str] = None):
 
 def has_active_buy_positions(front: HpFront) -> bool:
     """Check if there are active buy positions (equivalent to old active_records_buy)."""
+    # Check for buy positions with BUYING state (old behavior)
     buying_positions = get_buy_positions(front, state="BUYING")
-    return len(buying_positions) > 0
+    if len(buying_positions) > 0:
+        return True
+
+    # Also check for buy positions whose parent is in BUYING state (orders placed)
+    # This handles the case where buy child shows operational state instead of parent state
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                # Find parent and check if it's in BUYING state
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "BUYING"
+                    ):
+                        return True
+
+    return False
 
 
 def has_idle_buy_positions(front: HpFront) -> bool:
     """Check if there are idle/new buy positions (equivalent to old idle_records_buy)."""
-    new_buys = get_buy_positions(front, state="NEW")
-    return len(new_buys) > 0
+    # A position is only considered "idle" if it's NEW AND its parent is not BUYING
+    # (meaning no orders have been placed yet)
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "BUY":
+            if hp_data.get("state") == "NEW":
+                # Check if parent is in BUYING state (orders placed)
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    # Find parent and check its state
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "BUYING":
+                                # Parent is not BUYING, so this is truly idle
+                                return True
+                            break
+                else:
+                    # No parent found, treat as idle
+                    return True
+
+    return False
 
 
 def has_active_sell_positions(front: HpFront) -> bool:
     """Check if there are active sell positions (equivalent to old active_records_sell)."""
-    selling_positions = get_sell_positions(front, state="SELLING")
-    return len(selling_positions) > 0
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        # Check for any position with SELLING state (covers both regular and two-hop trades)
+        if hp_data.get("state") == "SELLING":
+            return True
+
+        # Also check for sell children whose parent is in SELLING state (orders placed)
+        # This handles the case where sell child shows operational state instead of parent state
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            parent_hp_id = hp_data.get("parent_hp_id")
+            if parent_hp_id:
+                # Find parent and check if it's in SELLING state
+                for parent_data in front.hp_list_data:
+                    if (
+                        parent_data.get("hp_id") == parent_hp_id
+                        and parent_data.get("state") == "SELLING"
+                    ):
+                        return True
+
+    return False
 
 
 def has_idle_sell_positions(front: HpFront) -> bool:
     """Check if there are idle/new sell positions (equivalent to old idle_records_sell)."""
-    new_sells = get_sell_positions(front, state="NEW")
-    return len(new_sells) > 0
+    # A position is only considered "idle" if it's NEW AND its parent is not SELLING
+    # (meaning no orders have been placed yet)
+    if not front.hp_list_data:
+        return False
+
+    for hp_data in front.hp_list_data:
+        if hp_data.get("is_child", False) and hp_data.get("side", "").upper() == "SELL":
+            if hp_data.get("state") == "NEW":
+                # Check if parent is in SELLING state (orders placed)
+                parent_hp_id = hp_data.get("parent_hp_id")
+                if parent_hp_id:
+                    # Find parent and check its state
+                    for parent_data in front.hp_list_data:
+                        if parent_data.get("hp_id") == parent_hp_id:
+                            if parent_data.get("state") != "SELLING":
+                                # Parent is not SELLING, so this is truly idle
+                                return True
+                            break
+                else:
+                    # No parent found, treat as idle
+                    return True
+
+    return False
 
 
 # Convenience functions for the most common wait conditions
@@ -586,7 +669,9 @@ async def move_to_buy_position_active(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    # Child should show actual buy operation state, not strategy state
+    # When strategy transitions to BUYING but buy orders are still NEW, child shows NEW
+    assert child_item["state"] == "NEW"
 
     return strategy, hp_list
 
@@ -650,7 +735,7 @@ async def simulate_partial_fill(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -718,7 +803,8 @@ async def simulate_first_buy_order_fill(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    # After partial fill, the buy child should be PARTIALLY_BOUGHT
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -782,7 +868,7 @@ async def simulate_second_buy_order_fill(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -860,7 +946,7 @@ async def simulate_third_buy_order_fill(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -962,7 +1048,7 @@ async def simulate_second_buy_order_fill_with_sell_price(
     assert buy_child_item["current_price"] == "0.0"
     assert buy_child_item["net"] == "0.0"
     assert buy_child_item["net_percent"] == "0.0"
-    assert buy_child_item["state"] == "BUYING"
+    assert buy_child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1009,46 +1095,12 @@ async def simulate_third_buy_order_fill_with_sell_price(
     assert strategy.worker_queue.qsize() == 0
 
     assert strategy.ui_queue.qsize() == 2
-    content = strategy.ui_queue.get_nowait()
-    logger.info("Content: %s", content)
-    assert isinstance(content, HPGuiDataBuy)
+    # Get first content (partial fill update)
+    first_content = strategy.ui_queue.get_nowait()
+    # Process first update to simulate UI behavior
+    hp_list = hp_gui.update_hp_list(update=first_content.hp_update, hp_list=hp_list)
 
-    state_info = content.data.state_info
-    assert isinstance(state_info, StateInfo)
-
-    assert state_info.state == State.BOUGHT
-
-    assert state_info.ui_state == UiState.CLOSED
-    assert content.data.config.order_cancel == 2.0
-    assert state_info.completeness == 1.00
-
-    assert strategy.ui_queue.qsize() == 1
-
-    hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
-
-    # Expect 3 items because this position has both buy and sell history (parent + buy child + sell child)
-    assert len(hp_list) == 3
-    # Find the buy child item
-    buy_child_item = next(
-        item for item in hp_list if item.get("side") == "BUY" and item.get("is_child")
-    )
-    assert buy_child_item["hp_id"] == "1000_BUY"
-    assert buy_child_item["coin"] == "BTCUSDC"
-    assert buy_child_item["buy_price"] == "1178.82"
-    assert buy_child_item["quantity"] == "0.85"
-    assert buy_child_item["quantity_usd"] == "1002.00"
-    # Buy children should not have sell-related fields
-    assert "sell_price" not in buy_child_item
-    assert "expected_return" not in buy_child_item
-    assert buy_child_item["current_price"] == "0.0"
-    assert buy_child_item["net"] == "0.0"
-    assert buy_child_item["net_percent"] == "0.0"
-    assert buy_child_item["state"] == "BUYING"
-
-    logger.info("HP List after the update: %s", hp_list)
-
-    assert strategy.ui_queue.qsize() == 1
-
+    # Get second content (final BOUGHT update)
     content = strategy.ui_queue.get_nowait()
     logger.info("Content: %s", content)
     assert isinstance(content, HPGuiDataBuy)
@@ -1066,7 +1118,9 @@ async def simulate_third_buy_order_fill_with_sell_price(
 
     hp_list = hp_gui.update_hp_list(update=content.hp_update, hp_list=hp_list)
 
-    # Still expect 3 items because this position has both buy and sell history, even though buying is complete
+    logger.info("HP List after final update: %s", hp_list)
+
+    # Expect 3 items because this position has both buy and sell history (parent + buy child + sell child)
     assert len(hp_list) == 3
     # Find the buy child item since it should now have full buy information
     buy_child_item = next(
@@ -1084,8 +1138,7 @@ async def simulate_third_buy_order_fill_with_sell_price(
     assert buy_child_item["current_price"] == "0.0"
     assert buy_child_item["net"] == "0.0"
     assert buy_child_item["net_percent"] == "0.0"
-    # Since the parent is now BOUGHT, the buy child should show state BOUGHT
-    assert buy_child_item["state"] == "BOUGHT"
+    assert buy_child_item["state"] == "BOUGHT", buy_child_item["state"]
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1151,7 +1204,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert buy_child["current_price"] == "0.0"
     assert buy_child["net"] == "0.0"
     assert buy_child["net_percent"] == "0.0"
-    assert buy_child["state"] == "BUYING"
+    assert buy_child["state"] == "PARTIALLY_BOUGHT"
 
     # Find the sell child and verify it has sell fields
     sell_child = next(
@@ -1225,6 +1278,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
 
     assert len(hp_list) == 3
     child_item = next(item for item in hp_list if not item.get("children"))
+
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1178.82", child_item["buy_price"]
@@ -1236,7 +1290,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT", child_item["state"]
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1273,7 +1327,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert buy_child["current_price"] == "0.0"
     assert buy_child["net"] == "0.0"
     assert buy_child["net_percent"] == "0.0"
-    assert buy_child["state"] == "PARTIALLY_BOUGHT", buy_child["state"]
+    assert buy_child["state"] == "BOUGHT", buy_child["state"]
 
     # Get the sell child - should have sell fields and partially sold state
     sell_child = next(item for item in hp_list if item.get("hp_id") == "1000_SELL")
@@ -1338,7 +1392,7 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1430,7 +1484,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert buy_child["buy_price"] == "1178.82"
     assert buy_child["quantity"] == "0.85"
     assert buy_child["quantity_usd"] == "1002.00", buy_child["quantity_usd"]
-    assert buy_child["state"] == "BUYING"
+    assert buy_child["state"] == "PARTIALLY_BOUGHT"
     assert buy_child["side"] == "BUY"
 
     # Find sell child item
@@ -1503,7 +1557,7 @@ async def resend_part_bought_first_order_filled(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1570,7 +1624,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert buy_child_item["current_price"] == "0.0"
     assert buy_child_item["net"] == "0.0"
     assert buy_child_item["net_percent"] == "0.0"
-    assert buy_child_item["state"] == "BUYING"
+    assert buy_child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1633,7 +1687,7 @@ async def simulate_second_buy_order_partial_fill(
     assert buy_child_item["current_price"] == "0.0"
     assert buy_child_item["net"] == "0.0"
     assert buy_child_item["net_percent"] == "0.0"
-    assert buy_child_item["state"] == "BUYING"
+    assert buy_child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -1754,7 +1808,7 @@ async def resend_part_bought_first_order_filled_partially(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 
@@ -2354,7 +2408,7 @@ async def send_sell_order_for_bought_position(
 
         # Verify buy child - Fixed: now correctly shows operation-specific state instead of inheriting parent state
         assert buy_child["side"] == "BUY"
-        assert buy_child["state"] == "PARTIALLY_BOUGHT"
+        assert buy_child["state"] == "BOUGHT"
 
         # Verify sell child
         assert sell_child["hp_id"] == "1000_SELL"
@@ -2746,7 +2800,9 @@ async def reopen_buy_part_bought_part_sold(
     assert buy_child["current_price"] == "0.0"
     assert buy_child["net"] == "0.0"
     assert buy_child["net_percent"] == "0.0"
-    assert buy_child["state"] == "BUYING"
+    assert (
+        buy_child["state"] == "PARTIALLY_BOUGHT"
+    )  # Buy child shows its operational state
 
     # Check sell child (should maintain its state)
     sell_child = next(item for item in hp_list if item.get("side") == "SELL")
@@ -2803,7 +2859,7 @@ async def reopen_buy_part_bought_sold(
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
     assert child_item["net_percent"] == "0.0"
-    assert child_item["state"] == "BUYING"
+    assert child_item["state"] == "PARTIALLY_BOUGHT"
 
     logger.info("HP List after the update: %s", hp_list)
 

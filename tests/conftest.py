@@ -8,6 +8,7 @@ import kivy_config
 
 # Suppress aiosqlite debug logging in tests
 import logging
+from collections import defaultdict
 
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
@@ -24,7 +25,6 @@ from tests.strategies.hp_manager_helpers import (
     get_parent_hp_positions,
     get_child_hp_positions,
     get_buy_positions,
-    get_sell_positions,
     has_active_buy_positions,
     has_idle_buy_positions,
     has_active_sell_positions,
@@ -43,6 +43,7 @@ import asyncio
 import logging
 import queue
 import tempfile
+import time
 import pytest
 from typing import AsyncGenerator, Dict
 from unittest.mock import AsyncMock, MagicMock
@@ -53,7 +54,6 @@ from src.common.common import generate_hp_id
 from src.common.symbol_info import SymbolInfo
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
-    CoinBalance,
     HPBuyConfig,
     HPBuyData,
     HPSellConfig,
@@ -119,7 +119,9 @@ def mock_async_client(mocker: MockerFixture) -> AsyncMock:
 
 
 @pytest.fixture
-def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
+def strategy_executor_fixture(
+    test_db: TradingDatabase, mock_async_client, mock_inventory
+):
     """
     Fixture to create and run a StrategyExecutor instance.
 
@@ -131,11 +133,6 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
     # Mock dependencies
     mock_broker = MagicMock(spec=BrokerSpot)
     ui_queue: queue.Queue = queue.Queue()
-    balances = {
-        "USDC": CoinBalance(
-            coin="USDC", free=10000.0, locked=0.0, total=10000.0, total_value=10000.0
-        )
-    }  # Mock balance
     symbols_info = {
         "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
         "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
@@ -157,7 +154,7 @@ def strategy_executor_fixture(test_db: TradingDatabase, mock_async_client):
         broker=mock_broker,
         ui_queue=ui_queue,
         symbols_info=symbols_info,
-        balances=balances,
+        inventory=mock_inventory,
         test_mode=True,
         price_resolver=price_resolver,
         portfolio_ui_queue=queue.Queue(),
@@ -294,7 +291,9 @@ async def frontend_backend_setup(
 
 
 @pytest.fixture
-async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
+async def crash_recovery_factory(
+    test_db: TradingDatabase, mock_async_client, mock_inventory
+):
     """
     Factory fixture for crash recovery testing.
 
@@ -336,18 +335,6 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
         price_resolver = UsdPriceResolver(
             client=mock_async_client, symbols_info=symbols_info
         )
-        balances = {
-            "BTC": CoinBalance(
-                coin="BTC", free=1.0, locked=0.0, total=1.0, total_value=0.0
-            ),
-            "USDC": CoinBalance(
-                coin="USDC",
-                free=10000.0,
-                locked=0.0,
-                total=10000.0,
-                total_value=10000.0,
-            ),
-        }
         price_resolver.latest_prices["BTCPLN"] = 320000.0
         price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
@@ -359,7 +346,7 @@ async def crash_recovery_factory(test_db: TradingDatabase, mock_async_client):
             broker=mock_broker,
             ui_queue=ui_queue,
             symbols_info=symbols_info,
-            balances=balances,
+            inventory=mock_inventory,
             price_resolver=price_resolver,
             test_mode=True,
         )
@@ -640,54 +627,98 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
 
 
 @pytest.fixture
-def mock_balances():
-    """Mock balances for testing."""
-    return {
-        "BTC": CoinBalance(
-            coin="BTC", free=1.0, locked=0.0, total=1.0, total_value=50000.0
-        ),
-        "ETH": CoinBalance(
-            coin="ETH", free=5.0, locked=0.0, total=5.0, total_value=15000.0
-        ),
-        "USDC": CoinBalance(
-            coin="USDC", free=1000.0, locked=0.0, total=1000.0, total_value=1000.0
-        ),
-    }
-
-
-@pytest.fixture
-def test_inventory():
-    """Test inventory with multiple lots."""
+def mock_inventory():
+    """Mock inventory for testing - replaces mock_balances."""
     return [
         InventoryItem(
-            id="lot1",
+            id="btc_lot",
             coin="BTC",
-            buy_price=45000.0,
-            quantity=0.5,
-            available_quantity=0.5,
+            buy_price=50000.0,
+            quantity=1.0,
+            available_quantity=1.0,
             locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial BTC position",
         ),
         InventoryItem(
-            id="lot2",
-            coin="BTC",
-            buy_price=48000.0,
-            quantity=0.3,
-            available_quantity=0.3,
+            id="eth_lot",
+            coin="ETH",
+            buy_price=3000.0,
+            quantity=5.0,
+            available_quantity=5.0,
             locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial ETH position",
         ),
         InventoryItem(
-            id="lot3",
-            coin="BTC",
-            buy_price=52000.0,
-            quantity=0.2,
-            available_quantity=0.2,
+            id="usdc_lot",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=1000.0,
+            available_quantity=1000.0,
             locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial USDC position",
         ),
     ]
 
 
 @pytest.fixture
-def portfolio_ui(test_db, mock_balances):
+def test_inventory():
+    """Test inventory with multiple BTC lots for FIFO testing."""
+    return [
+        InventoryItem(
+            id="btc_lot_1",
+            coin="BTC",
+            buy_price=46000.0,  # Lowest price - should be locked first in FIFO
+            quantity=0.5,
+            available_quantity=0.5,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 1000,  # Oldest
+            notes="First BTC lot",
+        ),
+        InventoryItem(
+            id="btc_lot_2",
+            coin="BTC",
+            buy_price=47000.0,  # Middle price
+            quantity=0.3,
+            available_quantity=0.3,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 500,  # Middle
+            notes="Second BTC lot",
+        ),
+        InventoryItem(
+            id="btc_lot_3",
+            coin="BTC",
+            buy_price=48000.0,  # Highest price - should be locked last
+            quantity=0.2,
+            available_quantity=0.2,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),  # Newest
+            notes="Third BTC lot",
+        ),
+        InventoryItem(
+            id="usdc_lot",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=1000.0,
+            available_quantity=1000.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="USDC position",
+        ),
+    ]
+
+
+@pytest.fixture
+def portfolio_ui(test_db, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
     ui_queue = queue.Queue()
 
@@ -709,9 +740,11 @@ def portfolio_ui(test_db, mock_balances):
         ui_queue=ui_queue,
         symbols_info=symbols_info,
         db=test_db,
-        balances=mock_balances,
         test_mode=True,  # Enable test mode to suppress UI refresh calls
     )
+
+    # Set up the inventory directly from the mock_inventory fixture
+    portfolio.set_inventory(mock_inventory)
 
     yield portfolio
 
@@ -724,7 +757,7 @@ def portfolio_ui(test_db, mock_balances):
 
 
 @pytest.fixture
-def portfolio_strategy_executor(test_db, mock_async_client, mock_balances):
+def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
     """Create strategy executor with portfolio UI queue for testing HP-Portfolio communication."""
     ui_queue = queue.Queue()
     portfolio_ui_queue = queue.Queue()
@@ -736,6 +769,11 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_balances):
     portfolio.handle_hp_sell_completed = AsyncMock()
     portfolio.handle_hp_buy_filled = AsyncMock()
     portfolio.handle_hp_position_cancelled = AsyncMock()
+
+    # Compute balances from inventory for compatibility with StrategyExecutor
+    inventory_by_coin = defaultdict(float)
+    for item in mock_inventory:
+        inventory_by_coin[item.coin] += item.available_quantity
 
     # Create strategy executor with portfolio queue
     symbols_info = {
@@ -761,7 +799,7 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_balances):
         broker=mock_broker,
         ui_queue=ui_queue,
         symbols_info=symbols_info,
-        balances=mock_balances,
+        inventory=mock_inventory,
         test_mode=True,
         price_resolver=price_resolver,
         portfolio_ui_queue=portfolio_ui_queue,

@@ -4,15 +4,18 @@ import os
 import queue
 import logging
 import time
-from typing import Any, Dict, List, Set, Optional, Union
+from typing import Any, Dict, List, Set, Optional
 import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
 )
-
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+from kivy.uix.textinput import TextInput
+from kivy.graphics import Color, Rectangle, Line
 from kivy.uix.widget import Widget
 from src.database import TradingDatabase
 from src.identifiers import (
@@ -93,7 +96,7 @@ class HpFront(BoxLayout):
         self.config_queue = config_queue
         self.db = db
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [symbol for symbol, info in self.symbols_info.items()]
+        self.symbols = [symbol for symbol, _ in self.symbols_info.items()]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
@@ -102,7 +105,6 @@ class HpFront(BoxLayout):
 
         # Initialize task references for proper cleanup
         self.queue_task: Optional[asyncio.Task] = None
-        self._syncing_hp_data = False  # Prevent sync loops
 
         # Add logging throttling for frequent operations
         self._last_ticker_log_time = 0.0
@@ -122,10 +124,25 @@ class HpFront(BoxLayout):
             # Trigger initial HP list update
             self._update_hp_list_view()
 
+        # Setup filter dropdown values
+        self._setup_filter_dropdown()
+
         # Setup the unified HP manager
         self.setup_hp_manager()
 
-        # Note: CSV auto-loading is now handled by portfolio_gui.py in proper priority order
+    def _setup_filter_dropdown(self):
+        """Setup the HP state filter dropdown with available options."""
+        if (
+            not self.test_mode
+            and hasattr(self, "ids")
+            and hasattr(self.ids, "hp_state_filter_spinner")
+        ):
+            self.ids.hp_state_filter_spinner.values = [
+                "Active States (11)",
+                "All States (13)",
+                "SOLD Only",
+                "CLOSED Only",
+            ]
 
     def show_buy_modal(self):
         """Show Buy HP modal - delegates to HP manager."""
@@ -143,10 +160,6 @@ class HpFront(BoxLayout):
 
     def show_cancel_confirmation(self, hp_id: str, symbol: str, side: str) -> None:
         """Show confirmation dialog for canceling HP position."""
-        from kivy.uix.popup import Popup
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
 
         content = BoxLayout(orientation="vertical", spacing=10, padding=10)
 
@@ -205,6 +218,8 @@ Side: {side}"""
         # Use PositionSide enum correctly
         if side == "LONG":
             position_side = PositionSide.LONG
+        elif side == "SHORT":
+            position_side = PositionSide.SHORT
         else:
             position_side = PositionSide.LONG  # Default to LONG for buy positions
 
@@ -239,9 +254,9 @@ Side: {side}"""
             self.hp_manager = self.ids.hp_manager
 
             # Set up callbacks
-            self.hp_manager.create_hp_callback = self.on_unified_create_hp
-            self.hp_manager.cancel_hp_callback = self.on_unified_cancel_hp
-            self.hp_manager.remove_hp_callback = self.on_unified_remove_hp
+            self.hp_manager.create_hp_callback = self.create_hp
+            self.hp_manager.cancel_hp_callback = self.cancel_hp
+            self.hp_manager.remove_hp_callback = self.remove_hp
 
             # Set symbols_info and client for HP manager integration
             self.hp_manager.symbols_info = self.symbols_info
@@ -249,11 +264,10 @@ Side: {side}"""
 
             # Update with current data
             self.hp_manager.update_symbols(self.symbols)
-            self._sync_hp_manager_data()
         else:
             logger.warning("HP manager not found in KV file")
 
-    def on_unified_create_hp(self, hp_type: str, config: HPConfiguration):
+    def create_hp(self, hp_type: str, config: HPConfiguration):
         """Handle HP creation from unified manager."""
         try:
             if hp_type == "BUY":
@@ -278,9 +292,7 @@ Side: {side}"""
                 price_low=config.price_low or 0.0,
                 price_high=config.price_high or 0.0,
                 budget=config.budget or 1000.0,
-                order_trigger=(
-                    config.order_trigger / 100.0 if config.order_trigger else 0.01
-                ),
+                order_trigger=config.order_trigger if config.order_trigger else 1.0,
                 mode=Mode.DCA if config.mode == "DCA" else Mode.SINGLE,
             ),
             state_info=StateInfo(),
@@ -309,7 +321,7 @@ Side: {side}"""
         self.config_queue.put_nowait(sell_config)
         logger.info("Sell HP created from unified manager: %s", sell_config.config)
 
-    def on_unified_cancel_hp(self, hp_id: str, hp_type: str):
+    def cancel_hp(self, hp_id: str, hp_type: str):
         """Handle HP cancellation from unified manager."""
         try:
             if hp_type.upper() == "BUY":
@@ -326,10 +338,10 @@ Side: {side}"""
         except Exception as e:
             logger.error(f"Error cancelling HP {hp_id}: {e}")
 
-    def on_unified_remove_hp(self, hp_id: str, hp_type: str):
+    def remove_hp(self, hp_id: str, hp_type: str):
         """Handle HP removal from unified manager."""
         # For now, use same logic as cancel
-        self.on_unified_cancel_hp(hp_id, hp_type)
+        self.cancel_hp(hp_id, hp_type)
 
     def _get_symbol_from_hp_id(self, hp_id: str) -> Optional[str]:
         """Get symbol from HP ID by searching HP list data."""
@@ -338,164 +350,65 @@ Side: {side}"""
                 return hp_data.get("symbol", hp_data.get("coin"))
         return None
 
-    def _sync_hp_manager_data(self):
-        """Sync current HP data with HP manager."""
-        if not self.hp_manager:
-            logger.warning("No HP manager available for sync")
-            return
-
-        # Prevent sync loops
-        if getattr(self, "_syncing_hp_data", False):
-            return
-
-        self._syncing_hp_data = True
-        try:
-            logger.info(f"Syncing {len(self.hp_list_data)} HP positions to HP manager")
-
-            # Preserve expansion state before clearing
-            expanded_hp_ids = self.hp_manager.hp_data.expanded_hp_ids.copy()
-
-            # Clear existing data
-            self.hp_manager.clear_all_positions()
-
-            # Restore expansion state
-            self.hp_manager.hp_data.expanded_hp_ids = expanded_hp_ids
-
-            # Directly add positions without complex categorization - this is dev data
-            for hp_data in self.hp_list_data:
-                try:
-                    hp_id = hp_data.get("hp_id", "")
-                    is_child = hp_data.get("is_child", False)
-
-                    if is_child:
-                        # Determine child type based on side
-                        side = hp_data.get("side", "BUY")
-                        child_type = "BUY" if side in ["BUY", "LONG"] else "SELL"
-                        self.hp_manager.add_hp_position(child_type, hp_id, hp_data)
-                        logger.debug(f"Added child: {hp_id} (type: {child_type})")
-                    else:
-                        # Parent container
-                        self.hp_manager.add_hp_position("HP", hp_id, hp_data)
-                        logger.debug(f"Added parent: {hp_id}")
-
-                except Exception as e:
-                    logger.error(f"Error adding HP position {hp_data}: {e}")
-
-            logger.info("HP manager sync completed")
-        finally:
-            self._syncing_hp_data = False
-
-    def _determine_hp_type_from_data(self, hp_data: Dict) -> Optional[str]:
-        """Determine HP type from existing HP data."""
-        side = hp_data.get("side", "").upper()
-        state = hp_data.get("state", "").upper()
-
-        # First check side information (most reliable)
-        if side == "LONG" or "BUY" in side:
-            return "BUY"
-        elif side == "SHORT" or "SELL" in side:
-            return "SELL"
-
-        # Fallback to state analysis
-        if any(x in state for x in ["BUY", "BOUGHT"]):
-            return "BUY"
-        elif any(x in state for x in ["SELL", "SOLD"]):
-            return "SELL"
-
-        # Default to BUY if unclear
-        return "BUY"
-
     def _get_buy_child_state(self, update: HPUpdate) -> str:
-        """Get appropriate state for buy child based on parent state and buy completion status."""
+        """Get appropriate state for buy child based on actual buy operation state.
+
+        Architecture: Children should primarily show the actual operation state (from buy_operation_state)
+        when available, falling back to parent-derived states.
+        """
+
+        # First priority: Use actual buy operation state if available
+        # This comes from the HPGuiDataBuy.data.state_info.state and represents the actual buy operation state
+        if hasattr(update, "buy_operation_state") and update.buy_operation_state:
+            actual_state = update.buy_operation_state
+            return actual_state
+
+        # Fallback: Use parent state to determine child state
         parent_state = update.state.value
 
-        # Map parent states to appropriate buy child states
-        if parent_state in ["NEW", "BUYING"]:
-            return parent_state
-        elif parent_state in ["PARTIALLY_BOUGHT"]:
-            return "PARTIALLY_BOUGHT"
-        elif parent_state in ["BOUGHT"]:
-            return "BOUGHT"
-        elif parent_state in ["SELLING", "PARTIALLY_SOLD", "SOLD"]:
-            # When selling, buy child should maintain its buy completion state
-            # If we have quantity, we were partially bought; if no quantity, we were never bought
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"  # Edge case: no quantity means nothing was bought
-        elif parent_state in ["SOLD_PART_BOUGHT"]:
-            # For SOLD_PART_BOUGHT, use total_quantity to check original buy completion
-            # quantity=0 (all sold) but total_quantity shows what was originally bought
-            if (
-                hasattr(update, "total_quantity")
-                and update.total_quantity
-                and update.total_quantity > 0
-            ):
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"
-        elif parent_state in ["PART_SOLD_PART_BOUGHT"]:
-            # Complex parent state: buy child should show its buy operation status
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"
-        else:
-            # For any other complex states, determine appropriate buy state
-            # based on quantity (if we have quantity, we completed some buy orders)
-            if update.quantity and update.quantity > 0:
-                return "PARTIALLY_BOUGHT"
-            else:
-                return "NEW"
+        # When parent is actively operating (BUYING/SELLING), child shows operational state
+        if parent_state in ["BUYING", "SELLING"]:
+            return "BUYING"  # Buy child shows BUYING when parent is actively operating
 
-    def _log_and_return_buy_child_state(self, update: HPUpdate) -> str:
-        """Helper method to log and return buy child state."""
-        state = self._get_buy_child_state(update)
-        logger.debug(
-            f"[BUY CHILD] Setting state to: {state} for quantity: {update.quantity}"
-        )
-        return state
+        # When parent is stable/idle, child shows completion state based on quantities
+        total_qty = getattr(update, "total_quantity", 0) or 0
+        realized_qty = getattr(update, "realized_quantity", 0) or 0
+        current_qty = getattr(update, "quantity", 0) or 0
+
+        # Use the maximum quantity to determine if we have any bought quantity
+        bought_qty = max(total_qty, realized_qty, current_qty)
+
+        if parent_state == "NEW":
+            return "NEW"
+        elif bought_qty > 0:
+            # Check if fully bought
+            if current_qty >= bought_qty or abs(current_qty - bought_qty) < 0.00001:
+                return "BOUGHT"  # Fully bought
+            else:
+                return "PARTIALLY_BOUGHT"  # Partially bought
+        else:
+            return "NEW"  # No quantities, still new
 
     def _get_sell_child_state_from_update(self, update: HPUpdate) -> str:
         """Get sell child state, prioritizing sell operation state from update."""
         # Check if we have specific sell state information in the update
-        logger.info(
-            f"_get_sell_child_state_from_update: hasattr(update, 'sell_state')={hasattr(update, 'sell_state')}"
-        )
-        if hasattr(update, "sell_state"):
-            logger.info(
-                f"_get_sell_child_state_from_update: sell_state={getattr(update, 'sell_state', None)}"
-            )
-
         if hasattr(update, "sell_state") and update.sell_state:
             sell_state = update.sell_state
-            logger.info(
-                f"_get_sell_child_state_from_update: Using sell_state={sell_state}"
-            )
             if sell_state in ["NEW"]:
                 # For NEW state, check the overall strategy state to determine if this is
                 # initial setup (idle) or active selling
                 if update.state.value == "SELLING":
                     # Strategy is actively selling - show as SELLING
-                    logger.info("_get_sell_child_state_from_update: Returning SELLING")
                     return "SELLING"
                 else:
                     # Initial setup or other states - show as idle
-                    logger.info("_get_sell_child_state_from_update: Returning NEW")
                     return "NEW"
             elif sell_state in ["PARTIALLY_SOLD"]:
-                logger.info(
-                    "_get_sell_child_state_from_update: Returning PARTIALLY_SOLD"
-                )
                 return "PARTIALLY_SOLD"
             elif sell_state in ["SOLD", "FILLED"]:
-                logger.info("_get_sell_child_state_from_update: Returning SOLD")
                 return "SOLD"
 
         # Fall back to parent state logic
-        logger.info(
-            f"_get_sell_child_state_from_update: Falling back to parent state logic"
-        )
         return self._get_sell_child_state(update)
 
     def _get_sell_child_state(self, update: HPUpdate, sell_data=None) -> str:
@@ -546,12 +459,13 @@ Side: {side}"""
             try:
                 while True:
                     data = self.ui_queue.get_nowait()
+                    # Removed excessive debug logging here
 
                     # Throttle frequent ticker update logs to reduce spam
                     current_time = time.time()
                     if isinstance(data, Event) and data.name == EventName.ALL_TICKERS:
-                        # Only log ticker events every 10 seconds
-                        if current_time - self._last_ticker_log_time > 10.0:
+                        # Only log ticker events every 30 seconds (increased from 10)
+                        if current_time - self._last_ticker_log_time > 30.0:
                             logger.debug("[PROCESS_UI_QUEUE] Processing ticker updates")
                             self._last_ticker_log_time = current_time
 
@@ -559,16 +473,15 @@ Side: {side}"""
                         # Update the HP list with buy position data
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
+                        # Add actual buy operation state for proper child state determination
+                        buy_state = data.data.state_info.state.value
+                        data.hp_update.buy_operation_state = buy_state
                         # Update HP list data (KV binding will handle UI updates)
                         self.hp_list_data = self.update_hp_list(
                             update=data.hp_update, hp_list=self.hp_list_data
                         )
                     elif isinstance(data, HPGuiDataSell):
                         # Update the HP list with sell position data
-                        logger.debug("UI received SELL position data: %s", data)
-                        logger.debug(
-                            f"Data type check: {type(data)}, isinstance result: {isinstance(data, HPGuiDataSell)}"
-                        )
                         # Add side information to the update
                         data.hp_update.side = data.data.state_info.side.value
                         # Add sell completeness information for collapse logic
@@ -583,30 +496,8 @@ Side: {side}"""
                         assert isinstance(data.content, AllTickers)
                         self._process_all_tickers(data.content)
                     else:
-                        # Debug: Check what data type we received that doesn't match any expected type
-                        logger.debug(
-                            f"[UNMATCHED DATA TYPE] Received data of type: {type(data)}"
-                        )
-                        if hasattr(data, "__class__"):
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Class name: {data.__class__.__name__}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Module: {data.__class__.__module__}"
-                            )
+                        # Check for data types that might need processing
                         if hasattr(data, "hp_update") and hasattr(data, "data"):
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Looks like HPGuiDataSell but isinstance failed"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] HPGuiDataSell class: {HPGuiDataSell}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] HPGuiDataSell module: {HPGuiDataSell.__module__}"
-                            )
-                            logger.debug(
-                                f"[UNMATCHED DATA TYPE] Data class module: {data.__class__.__module__}"
-                            )
                             # Try to process it anyway
                             if hasattr(data, "data") and hasattr(
                                 data.data, "state_info"
@@ -887,6 +778,10 @@ Side: {side}"""
         # Ensure parent container exists
         self._ensure_parent_container(hp_map, update, parent_hp_id)
 
+        # Update parent state for sell operations to reflect overall operation state
+        if child_operation == "SELL":
+            hp_map[parent_hp_id]["state"] = update.state.value
+
         if child_operation == "BUY":
             self._create_buy_child(
                 hp_map, update, hp_id, parent_hp_id, operation_side, quantity_usd
@@ -992,9 +887,6 @@ Side: {side}"""
         else:
             # Parent already exists, preserve existing quantity_usd
             # This handles the case where parent was already processed and we're now adding children
-            logger.debug(
-                f"[PARENT_USD] _ensure_parent_container parent {parent_hp_id} already exists with quantity_usd: {hp_map[parent_hp_id].get('quantity_usd', 'MISSING')}"
-            )
             pass
 
         # Ensure children list exists
@@ -1268,11 +1160,6 @@ Side: {side}"""
     ) -> None:
         """Create regular sell child (e.g., '1000_SELL')."""
 
-        # Update existing buy child if it exists
-        buy_child_key = f"{parent_hp_id}_BUY"
-        if buy_child_key in hp_map:
-            self._update_existing_buy_child_for_sell(hp_map[buy_child_key], update)
-
         # Create sell child
         self._create_multihop_sell_child(hp_map, update, hp_id, parent_hp_id)
 
@@ -1352,8 +1239,10 @@ Side: {side}"""
         self, buy_child: Dict, update: HPUpdate
     ) -> None:
         """Update existing buy child when sell operation occurs."""
-        # Update buy child state appropriately for selling phase
-        buy_child["state"] = self._get_buy_child_state(update)
+        # Preserve the existing buy child state - DO NOT update it based on sell operations
+        # Buy child state should only be updated by buy operations, not sell operations
+        # Store the current state to preserve it
+        preserved_state = buy_child.get("state", "UNKNOWN")
 
         if update.quantity is not None:
             # Calculate total bought quantity
@@ -1388,6 +1277,9 @@ Side: {side}"""
         # Remove sell-related fields from buy child
         buy_child.pop("sell_price", None)
         buy_child.pop("expected_return", None)
+
+        # Restore the preserved buy child state to prevent cross-contamination from sell operations
+        buy_child["state"] = preserved_state
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
@@ -1450,61 +1342,19 @@ Side: {side}"""
                                 net_usd
                             )
                             strategy["net_percent"] = str(net_percent)
-        # Only trigger visual refresh if in test mode or if significant changes occurred
-        # In production, UI updates are handled by other mechanisms to reduce spam
+        # Only trigger visual refresh if significant changes occurred
+        # Use throttling to ensure 1-second refresh interval for prices
         if getattr(self, "test_mode", False):
             self._update_hp_list_view()
+        else:
+            # Throttle HP list view updates to 1 second maximum frequency
+            current_time = time.time()
+            if current_time - self._last_view_update_time > 1.0:
+                self._update_hp_list_view()
+                self._last_view_update_time = current_time
 
     def sell_hp_button(self, hp_id, coin, quantity, buy_price):
-        """
-        Moves to the Sell tab and fills the HP data (HP ID, coin, quantity).
-
-        Args:
-        - hp_id: The ID of the HP to sell.
-        - coin: The coin involved in the HP.
-        - quantity: The amount of the coin to sell.
-        """
-        # Switch into Existing-HP mode, then move to the "Sell" tab
-        # self.ids.hp_mode_existing.state = "down"
-        # self.ids.hp_mode_new.state      = "normal"
-        self.ids.hp_tabbed_panel.switch_to(
-            self.ids.hp_sell_tab
-        )  # Assuming 'sell_tab' is the ID for the "Sell" tab.
-        # rebuild the “Existing HP” UI
-        self.update_hp_mode("existing")
-
-        # Populate the fields in the Sell tab
-        self.ids.hp_id_input.text = str(hp_id)
-        self.ids.coin_input.text = str(coin[:-3] if coin.endswith("USD") else coin)
-        self.ids.quantity_input.text = str(quantity)
-        # self.ids.quantity_usd_label.text = str(
-        #     round(float(quantity) * float(buy_price), 2)
-        # )
-        self.ids.buy_price_input.text = str(buy_price)
-
-        # Clear or reset the sell price field
-        self.ids.sell_price_input.text = ""
-
-        # Optional: If you want to set focus on the sell price input field
-        self.ids.sell_price_input.focus = True
-
-        self.ids.hp_mode_existing.state = "down"
-        self.ids.hp_mode_new.state = "normal"
-
-        logger.info(
-            "Moved to 'Sell' tab for HP ID: %s, coin: %s, Quantity: %s",
-            hp_id,
-            coin,
-            quantity,
-        )
-
-    def new_sell_hp_button(self, hp_id, coin, quantity, buy_price):
         """Show confirmation dialog for selling HP position."""
-        from kivy.uix.popup import Popup
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
-        from kivy.uix.textinput import TextInput
 
         content = BoxLayout(orientation="vertical", spacing=10, padding=10)
 
@@ -1791,47 +1641,6 @@ Enter sell price to create sell order:"""
             self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
         # If realized quantity > 0, button should be disabled, so this shouldn't be called
 
-    def fetch_hp_info(self, hp_id):
-        """
-        Fetches HP information for the new modal system.
-        This method is kept for backward compatibility but now works with modals.
-
-        Args:
-        - hp_id: The HP ID to look up.
-        """
-        try:
-            for item in self.hp_list_data:
-                if int(item["hp_id"]) == int(hp_id):
-                    logger.info(f"Found HP info for ID {hp_id}: {item}")
-                    return item
-
-            logger.error(f"HP ID {hp_id} not found in hp_list_data")
-            return None
-
-        except ValueError:
-            logger.error(f"Invalid HP ID format: {hp_id}")
-            return None
-
-    def _calculate_trigger_price(self, data: HPBuyData) -> str:
-        # For idle positions
-        if data.state_info.side.value == PositionSide.LONG.value:
-            base = data.config.price_high
-            factor = 1 + (data.config.order_trigger / 100)
-        else:
-            base = data.config.price_low
-            factor = 1 - (data.config.order_trigger / 100)
-        return data.config.symbol_info.format_price(base * factor)
-
-    def _calculate_cancel_price(self, data: HPBuyData) -> float:
-        # For active positions; note the 2*order_trigger
-        if data.state_info.side.value == PositionSide.LONG.value:
-            base = data.config.price_high
-            factor = 1 + (2 * data.config.order_trigger / 100)
-        else:
-            base = data.config.price_low
-            factor = 1 - (2 * data.config.order_trigger / 100)
-        return data.config.symbol_info.adjust_price(base * factor)
-
     def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
         return any(record["hp_id"] == hp_id for record in records)
 
@@ -1893,18 +1702,12 @@ Enter sell price to create sell order:"""
         )
 
     def _get_sorted_hp_list(self):
-        logger.info(
-            f"[SORT DEBUG] Starting _get_sorted_hp_list with {len(self.hp_list_data)} total items"
-        )
-        logger.info(f"[SORT DEBUG] Expanded HPs: {self.expanded_hp_ids}")
-
         # Apply state filtering first
         filtered_data = [
             hp
             for hp in self.hp_list_data
             if hp.get("state", "") in self.hp_state_filter
         ]
-        logger.info(f"[SORT DEBUG] After state filtering: {len(filtered_data)} items")
 
         # Separate parents and children
         parents = [
@@ -1912,7 +1715,6 @@ Enter sell price to create sell order:"""
             for hp in filtered_data
             if not hp.get("is_child", False) and hp.get("side", "") == "PARENT"
         ]
-        logger.info(f"[SORT DEBUG] Found {len(parents)} parent items")
 
         multihop_children = [
             hp
@@ -1921,20 +1723,17 @@ Enter sell price to create sell order:"""
             and hp.get("hp_id", "")[-1:].isalpha()
             and "_" not in hp.get("hp_id", "")
         ]
-        logger.info(f"[SORT DEBUG] Found {len(multihop_children)} multihop children")
 
         regular_children = [
             hp
             for hp in filtered_data
             if hp.get("is_child", False) and "_" in hp.get("hp_id", "")
         ]
-        logger.info(f"[SORT DEBUG] Found {len(regular_children)} regular children")
 
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x.get("hp_id", "0"))):
             # Find children for this parent
             parent_id = parent["hp_id"]
-            logger.info(f"[SORT DEBUG] Processing parent {parent_id}")
 
             # Multihop children (1000a, 1000b)
             parent_multihop_children = [
@@ -1953,91 +1752,55 @@ Enter sell price to create sell order:"""
             ]
 
             all_children = parent_multihop_children + parent_regular_children
-            logger.info(
-                f"[SORT DEBUG] Parent {parent_id} has {len(all_children)} children: {[c.get('hp_id') for c in all_children]}"
-            )
 
             # Expansion button is always visible for parent rows since there are always children
             parent["has_children"] = True
             parent["is_expanded"] = parent["hp_id"] in self.expanded_hp_ids
             sorted_list.append(parent)
-            logger.info(
-                f"[SORT DEBUG] Added parent {parent_id} to sorted list (expanded: {parent['is_expanded']})"
-            )
 
             # Only add children if parent is expanded
             if parent["hp_id"] in self.expanded_hp_ids:
-                logger.info(
-                    f"[SORT DEBUG] Parent {parent_id} is expanded, adding {len(all_children)} children"
-                )
                 # Sort children: multihop first, then regular by side
                 for child in sorted(
                     all_children, key=lambda x: (x.get("hp_id", ""), x.get("side", ""))
                 ):
                     sorted_list.append(child)
-                    logger.info(
-                        f"[SORT DEBUG] Added child {child.get('hp_id')} (side: {child.get('side')}) to sorted list"
-                    )
-            else:
-                logger.info(
-                    f"[SORT DEBUG] Parent {parent_id} is collapsed, skipping {len(all_children)} children"
-                )
 
-        logger.info(f"[SORT DEBUG] Final sorted list has {len(sorted_list)} items")
         return sorted_list
 
     def _update_hp_list_view(self, *args):
         """Update the HP list view with current data."""
-        logger.debug(f"[BINDING DEBUG] _update_hp_list_view called with args: {args}")
-        logger.debug(f"[BINDING DEBUG] hp_list_data length: {len(self.hp_list_data)}")
-
-        # Prevent infinite sync loops
-        if getattr(self, "_syncing_hp_data", False):
-            logger.debug("Already syncing HP data, skipping to prevent loop")
-            return
 
         # Check if we have the KV layout elements
         if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
             logger.warning("HP list container not available, skipping update")
             return
 
-        self._syncing_hp_data = True
-        try:
-            # Clear existing rows
-            self.ids.hp_list_container.clear_widgets()
+        # Clear existing rows
+        self.ids.hp_list_container.clear_widgets()
 
-            # Get sorted HP list data
-            sorted_hp_data = self._get_sorted_hp_list()
+        # Get sorted HP list data
+        sorted_hp_data = self._get_sorted_hp_list()
 
-            if not sorted_hp_data:
-                # Show empty state
-                from kivy.uix.label import Label
-
-                empty_label = Label(
-                    text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
-                    size_hint_y=None,
-                    height=100,
-                    halign="center",
-                    valign="middle",
-                    color=[0.7, 0.7, 0.7, 1],
-                )
-                empty_label.bind(size=empty_label.setter("text_size"))
-                self.ids.hp_list_container.add_widget(empty_label)
-            else:
-                # Add HP rows
-                for hp_data in sorted_hp_data:
-                    row_widget = self._create_hp_row_widget(hp_data)
-                    self.ids.hp_list_container.add_widget(row_widget)
-
-        finally:
-            self._syncing_hp_data = False
+        if not sorted_hp_data:
+            empty_label = Label(
+                text='No HP positions yet. Click "New Buy HP" or "New Sell HP" to get started.',
+                size_hint_y=None,
+                height=100,
+                halign="center",
+                valign="middle",
+                color=[0.7, 0.7, 0.7, 1],
+            )
+            empty_label.bind(size=empty_label.setter("text_size"))
+            self.ids.hp_list_container.add_widget(empty_label)
+        else:
+            # Add HP rows
+            for hp_data in sorted_hp_data:
+                row_widget = self._create_hp_row_widget(hp_data)
+                self.ids.hp_list_container.add_widget(row_widget)
 
     def _create_hp_row_widget(self, hp_data: Dict) -> Widget:
         """Create a widget for an HP row."""
-        from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.button import Button
-        from kivy.uix.label import Label
-        from kivy.graphics import Color, Rectangle, Line
 
         # Create the main row container
         row = BoxLayout(
@@ -2104,12 +1867,24 @@ Enter sell price to create sell order:"""
             self._create_column_label(hp_data.get("current_price", "0.0"), 0.1)
         )
 
-        # Progress column (show completeness or state info)
-        progress_text = (
-            f"{float(hp_data.get('realized_quantity', 0)):.3f}"
-            if hp_data.get("realized_quantity")
-            else "0.000"
-        )
+        # Progress column (show completeness percentage or state info)
+        progress_value = 0.0
+        if hp_data.get("sell_completeness"):
+            # For SELL positions, use sell_completeness as percentage
+            try:
+                progress_value = float(hp_data.get("sell_completeness", 0.0)) * 100
+            except (ValueError, TypeError):
+                progress_value = 0.0
+        elif hp_data.get("realized_quantity") and hp_data.get("quantity"):
+            # For other positions, calculate based on realized vs total quantity
+            try:
+                realized = float(hp_data.get("realized_quantity", 0))
+                total = float(hp_data.get("quantity", 1))  # Avoid division by zero
+                progress_value = (realized / total) * 100 if total > 0 else 0.0
+            except (ValueError, TypeError):
+                progress_value = 0.0
+
+        progress_text = f"{progress_value:.1f}%"
         row.add_widget(self._create_column_label(progress_text, 0.08))
 
         row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.1))
@@ -2134,7 +1909,7 @@ Enter sell price to create sell order:"""
                 quantity = hp_data.get("quantity", "0.0")
                 buy_price = hp_data.get("buy_price", "0.0")
                 sell_btn.bind(
-                    on_release=lambda x: self.new_sell_hp_button(
+                    on_release=lambda x: self.sell_hp_button(
                         hp_id, coin, quantity, buy_price
                     )
                 )
@@ -2206,6 +1981,9 @@ Enter sell price to create sell order:"""
                         quantity=float(row["quantity"]),
                         available_quantity=float(row["quantity"]),
                         locked_quantity=0.0,
+                        source="CSV_AUTO_LOAD",
+                        timestamp=time.time(),
+                        notes="Auto-loaded from CSV",
                     )
                     inventory_items.append(item)
                 except Exception as e:
@@ -2272,30 +2050,57 @@ Enter sell price to create sell order:"""
             return
 
         self._update_hp_list_view()
-        if not self.test_mode:
-            self.ids.hp_state_filter_display.text = display_text
+        if (
+            not self.test_mode
+            and hasattr(self, "ids")
+            and hasattr(self.ids, "hp_state_filter_display")
+        ):
+            try:
+                self.ids.hp_state_filter_display.text = display_text
+            except Exception as e:
+                logger.error(f"Error updating filter display text: {e}")
         logger.info("HP state filter changed to: %s", filter_text)
 
     def reset_hp_state_filter(self):
         """Reset HP state filter to default (excludes CLOSED and SOLD)"""
-        self.hp_state_filter = [
-            "NEW",
-            "BUYING",
-            "PARTIALLY_BOUGHT",
-            "BOUGHT",
-            "READY_TO_SELL",
-            "SELLING",
-            "PARTIALLY_SOLD",
-            "SOLD_PART_BOUGHT",
-            "WAITING_CHILD",
-            "NONE",
-        ]
-        self._update_hp_list_view()
-        if not self.test_mode:
-            self.ids.hp_state_filter_spinner.text = "Active States (11)"
-            self.ids.hp_state_filter_display.text = (
-                "Showing 11 states (excludes CLOSED, SOLD)"
-            )
+        try:
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            self._update_hp_list_view()
+            if not self.test_mode and hasattr(self, "ids"):
+                if hasattr(self.ids, "hp_state_filter_spinner"):
+                    self.ids.hp_state_filter_spinner.text = "Active States (11)"
+                if hasattr(self.ids, "hp_state_filter_display"):
+                    self.ids.hp_state_filter_display.text = (
+                        "Showing 11 states (excludes CLOSED, SOLD)"
+                    )
+            logger.info("HP state filter reset to default")
+        except Exception as e:
+            logger.error(f"Error resetting HP state filter: {e}")
+            # At minimum, update the filter data even if UI update fails
+            self.hp_state_filter = [
+                "NEW",
+                "BUYING",
+                "PARTIALLY_BOUGHT",
+                "BOUGHT",
+                "READY_TO_SELL",
+                "SELLING",
+                "PARTIALLY_SOLD",
+                "SOLD_PART_BOUGHT",
+                "WAITING_CHILD",
+                "NONE",
+            ]
+            self._update_hp_list_view()
         logger.info("HP state filter reset to default")
 
     def auto_remove_closed_sold_states(self):
@@ -2313,8 +2118,13 @@ Enter sell price to create sell order:"""
             self.hp_state_filter = current_filter
             self._update_hp_list_view()
             # Update the spinner and display to reflect the change
-            if not self.test_mode:
-                self.ids.hp_state_filter_spinner.text = "Active States (11)"
-                self.ids.hp_state_filter_display.text = (
-                    "Showing 11 states (excludes CLOSED, SOLD)"
-                )
+            if not self.test_mode and hasattr(self, "ids"):
+                try:
+                    if hasattr(self.ids, "hp_state_filter_spinner"):
+                        self.ids.hp_state_filter_spinner.text = "Active States (11)"
+                    if hasattr(self.ids, "hp_state_filter_display"):
+                        self.ids.hp_state_filter_display.text = (
+                            "Showing 11 states (excludes CLOSED, SOLD)"
+                        )
+                except Exception as e:
+                    logger.error(f"Error updating filter UI after auto-remove: {e}")

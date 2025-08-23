@@ -51,12 +51,12 @@ class WebSocketConfig:
 
     def log_config(self):
         """Log the current configuration"""
-        logger.info("WebSocket Configuration:")
-        logger.info("  Connection timeout: %ss", self.connection_timeout)
-        logger.info("  Read timeout: %ss", self.read_timeout)
-        logger.info("  Keepalive timeout: %ss", self.keepalive_timeout)
-        logger.info("  Max reconnect attempts: %s", self.max_reconnect_attempts)
-        logger.info("  Health check interval: %ss", self.health_check_interval)
+        logger.debug("WebSocket Configuration:")
+        logger.debug("  Connection timeout: %ss", self.connection_timeout)
+        logger.debug("  Read timeout: %ss", self.read_timeout)
+        logger.debug("  Keepalive timeout: %ss", self.keepalive_timeout)
+        logger.debug("  Max reconnect attempts: %s", self.max_reconnect_attempts)
+        logger.debug("  Health check interval: %ss", self.health_check_interval)
 
 
 # Default configuration instance

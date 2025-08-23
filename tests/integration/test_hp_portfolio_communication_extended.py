@@ -1,33 +1,15 @@
 """Simplified extended test cases for HP Manager-Portfolio communication system."""
 
-import asyncio
-import queue
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from typing import Dict, List
+from unittest.mock import Mock
 
 from src.identifiers import (
-    Event,
-    EventName,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
     HPBuyPositionFilled,
     HPPositionCancelled,
-    InventoryItem,
-    CoinBalance,
+    HPSellPositionCreated,
     HPBuyConfig,
-    HPSellConfig,
-    Order,
-    PositionSide,
-    SellPosition,
-    State,
-    StateInfo,
-    Signal,
-    SignalUpdate,
 )
 from src.common.symbol_info import SymbolInfo
-from src.portfolio.portfolio_gui import PortfolioUI
-from src.strategy_executor import StrategyExecutor
 from src.strategies.hp_manager import HpStrategy
 
 

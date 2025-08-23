@@ -22,7 +22,6 @@ from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.hp_manager_helpers import (
     wait_for_condition,
     get_buy_positions,
-    get_sell_positions,
     wait_for_active_buy_positions,
     wait_for_no_idle_buy_positions,
     wait_for_idle_buy_positions,
@@ -84,9 +83,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
         buy_price="1400.0",
         quantity_usd="0.0",
     )
-    sim.validate_child_buy(
-        "1000", quantity="0.0", realized_quantity="0.0", state="BUYING"
-    )
+    sim.validate_child_buy("1000", quantity="0.0", realized_quantity="0.0", state="NEW")
     sim.validate_buy_orders(
         strategy,
         [
@@ -290,7 +287,7 @@ async def test_default_position_first_order_filled_partially(
         quantity_usd="168.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.12", realized_quantity="0.12", state="BUYING"
+        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -399,7 +396,7 @@ async def test_default_position_first_order_filled(
         quantity_usd="336.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="BUYING"
+        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -555,7 +552,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
         quantity_usd="168.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.12", realized_quantity="0.12", state="BUYING"
+        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -675,7 +672,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         quantity_usd="336.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="BUYING"
+        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,

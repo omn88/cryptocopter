@@ -19,7 +19,6 @@ import logging_config  # noinspection PyUnresolvedReferences
 import logging
 from decouple import Config, RepositoryEnv
 from src.identifiers import BinanceClient
-from src.portfolio.portfolio import fetch_initial_balances
 from src.common.symbol_info import fetch_symbol_info
 from src.portfolio.usd_price_resolver import UsdPriceResolver
 
@@ -62,13 +61,11 @@ async def main():
     symbols_info = await fetch_symbol_info(client=client)
     price_resolver = UsdPriceResolver(client=client, symbols_info=symbols_info)
     await price_resolver.fetch_all_prices()
-    balances = await fetch_initial_balances(client=client, resolver=price_resolver)
 
     app = AsyncApp(
         client=client,
         db=db,
         symbols_info=symbols_info,
-        balances=balances,
         price_resolver=price_resolver,
     )
 
