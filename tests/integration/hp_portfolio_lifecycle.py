@@ -26,7 +26,7 @@ def get_inventory_balance(portfolio_ui, coin: str) -> float:
 
 
 def get_inventory_available(portfolio_ui, coin: str) -> float:
-    """Helper to get available quantity of a coin from inventory.""" 
+    """Helper to get available quantity of a coin from inventory."""
     items = [item for item in portfolio_ui.inventory if item.coin == coin]
     return sum(item.available_quantity for item in items)
 
@@ -36,7 +36,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     This test verifies that:
     1. Partial buy creates inventory item at same price (updates existing)
-    2. Buy at different price creates new child lot 
+    2. Buy at different price creates new child lot
     3. Another buy at different price updates the child lot
     4. Partial sell decreases inventory quantity for this HP
     5. Full sell removes the inventory item completely
@@ -53,7 +53,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     # The mock_inventory has BTC at $50,000, so this should update existing lot
     hp_buy_same_price = HPBuyPositionFilled(
         hp_id=hp_id,
-        coin="BTC", 
+        coin="BTC",
         quantity_bought=0.3,
         buy_price=50000.0,  # Same as mock_inventory BTC price
         total_cost=15000.0,
@@ -63,7 +63,9 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     # Debug: Check what happened after the first HP buy (same price)
     logger.info("After first HP buy - inventory: %s", len(portfolio_ui.inventory))
-    logger.info("After first HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data))
+    logger.info(
+        "After first HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
+    )
 
     # Should still have 3 inventory items (original) + 1 new HP buy = 4 total
     assert len(portfolio_ui.inventory) == 4  # 3 original + 1 new HP buy
@@ -98,8 +100,13 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     await portfolio_ui.handle_hp_buy_filled(hp_buy_different_price)
 
     # Debug: Check state after different price buy
-    logger.info("After different price HP buy - inventory: %s", len(portfolio_ui.inventory))
-    logger.info("After different price HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data))
+    logger.info(
+        "After different price HP buy - inventory: %s", len(portfolio_ui.inventory)
+    )
+    logger.info(
+        "After different price HP buy - coin_list_data: %s",
+        len(portfolio_ui.coin_list_data),
+    )
 
     # Should have 4 inventory items (original 3 + HP buy at 50k) + 1 new HP buy at 51k = 5 total
     assert len(portfolio_ui.inventory) == 5
@@ -121,7 +128,9 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     # Debug: Check state after third buy
     logger.info("After third HP buy - inventory: %s", len(portfolio_ui.inventory))
-    logger.info("After third HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data))
+    logger.info(
+        "After third HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
+    )
 
     # Should still have 5 inventory items (no new lot created, existing updated) + 1 new from different HP ID = 6 total
     assert len(portfolio_ui.inventory) == 6
@@ -135,7 +144,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     hp_sell_created = HPSellPositionCreated(
         hp_id=hp_id,
         coin="BTC",
-        quantity=0.5,  # Selling some of the HP-acquired BTC  
+        quantity=0.5,  # Selling some of the HP-acquired BTC
         buy_price=50500.0,  # Average price
         sell_price=55000.0,
         end_currency="USDC",
@@ -146,7 +155,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     # Verify total inventory unchanged but locked quantities updated
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
     assert btc_balance == 1.6  # Total unchanged (1.0 original + 0.6 from HP buys)
-    
+
     # Check available vs locked quantities in inventory
     btc_available = get_inventory_available(portfolio_ui, "BTC")
     btc_locked = btc_balance - btc_available
@@ -187,10 +196,12 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
             break
 
     assert hp_inventory_item is not None
-    assert hp_inventory_item.quantity == 0.3  # HP item unchanged - FIFO sold from mock inventory instead
+    assert (
+        hp_inventory_item.quantity == 0.3
+    )  # HP item unchanged - FIFO sold from mock inventory instead
 
     # ===== STEP 6: CREATE ANOTHER SELL FOR REMAINING =====
-    # Create sell for remaining BTC inventory at $56,000  
+    # Create sell for remaining BTC inventory at $56,000
     hp_sell_final_created = HPSellPositionCreated(
         hp_id=f"{hp_id}_final",
         coin="BTC",
@@ -205,7 +216,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     # Verify additional quantity locked
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
     assert btc_balance == 1.3  # Total unchanged
-    
+
     # ===== STEP 7: COMPLETE FINAL SELL =====
     # Sell remaining 0.2 BTC
     hp_sell_final = HPSellPositionCompleted(
@@ -223,10 +234,12 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     # ===== FINAL VERIFICATION =====
     # Verify BTC remaining (should be reduced by the sold amount)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
-    assert btc_balance == pytest.approx(1.1)  # 1.3 - 0.2 sold = 1.1 (with float precision)
+    assert btc_balance == pytest.approx(
+        1.1
+    )  # 1.3 - 0.2 sold = 1.1 (with float precision)
 
     # Verify total USDC received (original 1000 + 16500 + 11200)
-    usdc_balance = get_inventory_balance(portfolio_ui, "USDC") 
+    usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
     assert usdc_balance == 28700.0  # 1000 + 16500 + 11200
 
     logger.info("Test completed successfully!")
