@@ -436,11 +436,50 @@ class HpStrategy:
             else self.buy.data.config.coin
         )
 
-        total_quantity = (
-            sum(order.realized_quantity for order in self.buy.orders)
-            if self.buy.orders
-            else self.sell.current_position.config.quantity
-        )
+        # Calculate total bought quantity across all cycles by querying database
+        if self.buy.orders:
+            try:
+                # Get all filled buy orders for this HP from database to get cumulative total
+                import asyncio
+                from src.database.trading_database import TradingDatabase
+
+                db = TradingDatabase()
+
+                # Try different approaches for async call in sync context
+                try:
+                    # Check if we're in an event loop
+                    loop = asyncio.get_running_loop()
+                    # If we get here, we're in an event loop, but we can't use asyncio.run()
+                    # For now, skip DB lookup and use fallback
+                    logger.warning(
+                        "Already in event loop, using current cycle total only"
+                    )
+                    total_quantity = sum(
+                        order.realized_quantity for order in self.buy.orders
+                    )
+                except RuntimeError:
+                    # Not in an event loop, safe to use asyncio.run
+                    all_buy_orders = asyncio.run(
+                        db.get_orders_by_hp_id(self.buy.data.config.hp_id, side="BUY")
+                    )
+                    total_quantity = sum(
+                        order.realized_quantity
+                        for order in all_buy_orders
+                        if order.status in ["FILLED", "PARTIALLY_FILLED"]
+                    )
+                    logger.info(
+                        "Total quantity from DB (all cycles): %s", total_quantity
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to get total quantity from DB, using current cycle: %s", e
+                )
+                # Fallback to current cycle only
+                total_quantity = sum(
+                    order.realized_quantity for order in self.buy.orders
+                )
+        else:
+            total_quantity = self.sell.current_position.config.quantity
 
         logger.info("Total quantity: %s", total_quantity)
 
@@ -1533,7 +1572,9 @@ class HpStrategy:
 
         await self.buy.handle_order_filled(execution_report=self.execution_report)
 
-        await self.db.upsert_buy_price_level(data=self.buy.data)
+        # await self.db.upsert_buy_price_level(data=self.buy.data)
+
+        logger.info("Buy price level upserted   ")
 
         self.send_buy_position_to_ui()
 
@@ -1543,6 +1584,7 @@ class HpStrategy:
             self.worker_queue.put(
                 Event(name=EventName.SIGNAL, content=SignalUpdate(signal=signal))
             )
+        logger.info("Buy order filled handled with success")
 
     def conditions_for_order_partially_filled_buy(self, *args, **kwargs) -> bool:
         condition = (

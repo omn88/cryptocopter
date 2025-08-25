@@ -205,7 +205,7 @@ async def test_recovery_default_buy_position_send_orders(crash_recovery_factory)
     )
     sim.validate_strategy_state(strategy, "BUYING", expected_buy_state="NEW")
 
-    logger.info("Active buy positions: %s", get_buy_positions(front, state="ACTIVE"))
+    logger.info("Active buy positions: %s", get_buy_positions(front, state="BUYING"))
     logger.info("Idle buy positions: %s", get_buy_positions(front, state="NEW"))
 
     # === DETAILED PRE-CRASH ASSERTIONS ===
@@ -1709,19 +1709,21 @@ async def test_recovery_send_sell_order_for_bought_position(crash_recovery_facto
     assert strategy.sell.current_position.sell_order.quantity == 0.85
     assert strategy.sell.current_position.sell_order.realized_quantity == 0.0
 
-    active_sell_positions = get_sell_positions(front, state="active")
+    active_sell_positions = get_sell_positions(front, state="SELLING")
     active_sell_item = active_sell_positions[0]
 
-    assert active_sell_item["hp_id"] == "1000"
-    assert active_sell_item["symbol"] == "BTCUSDC"
+    assert active_sell_item["hp_id"] == "1000_SELL"
+    assert active_sell_item["coin"] == "BTCUSDC"  # sell child uses 'coin' not 'symbol'
     assert active_sell_item["buy_price"] == "1178.82"
     assert active_sell_item["quantity"] == "0.85"
-    assert active_sell_item["end_currency"] == "USDC"
+    # Note: end_currency is not available in sell child structure
     assert (
         active_sell_item["sell_price"] == "4200.0"
-    ), f"Item sell price: {item['sell_price']}"
+    ), f"Item sell price: {active_sell_item['sell_price']}"
     assert active_sell_item["side"] == "SELL"
-    assert active_sell_item["completeness"] == "0.0"
+    assert (
+        active_sell_item["sell_completeness"] == "0.0"
+    )  # sell child uses 'sell_completeness' not 'completeness'
 
     # === ASSERT DB STATE IS SELLING BEFORE CRASH ===
     positions_before_crash = await front.db.get_active_positions()
@@ -2240,7 +2242,9 @@ async def test_recovery_resend_sell_position_first_order_filled_partially(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_send_sell_order_for_partially_bought_position(crash_recovery_factory):
+async def test_recovery_send_sell_order_for_partially_bought_position(
+    crash_recovery_factory,
+):
     """
     Test sending a sell order for a partially bought position, with crash recovery.
     """
@@ -2539,7 +2543,9 @@ async def test_recovery_fill_orders_for_previously_partially_bought_position(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_sell_partially_partially_bought_position(crash_recovery_factory):
+async def test_recovery_sell_partially_partially_bought_position(
+    crash_recovery_factory,
+):
     """
     Test selling a partially bought position, with crash recovery.
     """
@@ -3353,7 +3359,9 @@ async def test_recovery_buy_fully_partially_bought_position_when_sold_position(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_start_new_sell_position_for_two_hop_trade(crash_recovery_factory):
+async def test_recovery_start_new_sell_position_for_two_hop_trade(
+    crash_recovery_factory,
+):
     """
     Refactored: Test starting a new sell position for a two-hop trade, with crash recovery and parent/child linkage assertions.
     """
@@ -3578,7 +3586,9 @@ async def test_recovery_fill_partially_first_sell_position_in_two_hop_trade(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_fill_first_sell_position_in_two_hop_trade(crash_recovery_factory):
+async def test_recovery_fill_first_sell_position_in_two_hop_trade(
+    crash_recovery_factory,
+):
     """
     Refactored: Test full fill of the first sell position in a two-hop trade, with crash recovery.
     """
@@ -3665,7 +3675,9 @@ async def test_recovery_fill_first_sell_position_in_two_hop_trade(crash_recovery
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_start_second_sell_position_in_two_hop_trade(crash_recovery_factory):
+async def test_recovery_start_second_sell_position_in_two_hop_trade(
+    crash_recovery_factory,
+):
     """
     Test starting the second sell position in a two-hop trade, with crash recovery.
     """
@@ -3856,7 +3868,9 @@ async def test_recovery_partial_fill_second_sell_position_in_two_hop_trade(
     await recovery_helper.assert_application_db_state_match(hp_id="1000")
 
 
-async def test_recovery_fill_second_sell_position_in_two_hop_trade(crash_recovery_factory):
+async def test_recovery_fill_second_sell_position_in_two_hop_trade(
+    crash_recovery_factory,
+):
     """
     Test full fill of the second sell position in a two-hop trade, with crash recovery.
     After recovery, the second leg should be FILLED and nothing should be open.

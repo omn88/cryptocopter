@@ -1469,7 +1469,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert parent_item["buy_price"] == "1178.82"
     assert parent_item["quantity"] == "0.85"  # parent shows total bought quantity
     assert parent_item["sell_price"] == "4200.0"
-    assert parent_item["expected_return"] == "672.0"
+    assert parent_item["expected_return"] == "2568.0"
     assert parent_item["current_price"] == "0.0"
     assert parent_item["net"] == "0.0"
     assert parent_item["net_percent"] == "0.0"

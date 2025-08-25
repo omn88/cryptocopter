@@ -94,7 +94,7 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
     )
     sim.validate_strategy_state(strategy, "BUYING", expected_buy_state="NEW")
 
-    logger.info("Active buy positions: %s", get_buy_positions(front, state="ACTIVE"))
+    logger.info("Active buy positions: %s", get_buy_positions(front, state="BUYING"))
     logger.info("Idle buy positions: %s", get_buy_positions(front, state="NEW"))
 
 
@@ -1680,7 +1680,7 @@ async def test_sell_orders_send_if_buy_position_realized_partially(
     assert item["quantity"] == "0.12"
     assert item["quantity_usd"] == "168.0"
     assert item["sell_price"] == "4200.0"
-    assert item["expected_return"] == "0.0"
+    assert item["expected_return"] == "336.0"
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"

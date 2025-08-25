@@ -721,12 +721,21 @@ Side: {side}"""
 
         # Update quantity from update data
         if update.quantity is not None:
+            # For parent positions, use total_quantity if available, otherwise use quantity
+            quantity_to_use = (
+                update.total_quantity
+                if update.total_quantity is not None
+                else update.quantity
+            )
             formatted_quantity = (
-                str(update.symbol_info.format_quantity(float(update.quantity)))
+                str(update.symbol_info.format_quantity(float(quantity_to_use)))
                 if update.symbol_info
-                else str(update.quantity)
+                else str(quantity_to_use)
             )
             parent["quantity"] = formatted_quantity
+            print(
+                f"HP Manager Frontend: [_handle_regular_parent_position] Set parent quantity to {formatted_quantity} (from {'total_quantity' if update.total_quantity is not None else 'quantity'}) for HP {update.hp_id}"
+            )
             parent["realized_quantity"] = (
                 formatted_quantity  # For parent, both are the same initially
             )
@@ -823,16 +832,49 @@ Side: {side}"""
         # Create parent container
         self._ensure_parent_container(hp_map, update, hp_id)
 
-        # Update parent state based on the operation
-        if self._is_sell_operation(update, operation_side):
-            # For sell operations, update parent state to match the update state
-            hp_map[hp_id]["state"] = update.state.value
+        # Update parent data based on operation
+        parent = hp_map[hp_id]
+        parent["state"] = update.state.value
+
+        # Update core price data from the update
+        if update.buy_price is not None:
+            parent["buy_price"] = (
+                str(update.symbol_info.format_price(update.buy_price))
+                if update.symbol_info
+                else str(update.buy_price)
+            )
+        if update.sell_price is not None:
+            parent["sell_price"] = (
+                str(update.symbol_info.format_price(update.sell_price))
+                if update.symbol_info
+                else str(update.sell_price)
+            )
+        if update.expected_return is not None:
+            parent["expected_return"] = (
+                str(update.symbol_info.format_price(update.expected_return))
+                if update.symbol_info
+                else str(update.expected_return)
+            )
+
+        # Update quantity_usd if provided
+        if quantity_usd and quantity_usd != "0.0":
+            parent["quantity_usd"] = quantity_usd
+
+        # Determine operation type and update parent quantities
+        is_sell_operation = self._is_sell_operation(update, operation_side)
+
+        if is_sell_operation:
+            # Update parent quantities for sell operations
+            self._update_parent_sell_quantities(parent, update)
             # Also update parent quantity_usd from the HPUpdate
             if hasattr(update, "quantity_usd") and update.quantity_usd:
-                hp_map[hp_id]["quantity_usd"] = str(update.quantity_usd)
+                parent["quantity_usd"] = str(update.quantity_usd)
+        else:
+            # Update parent quantities for buy operations
+            self._update_parent_buy_quantities(parent, update)
 
         # Determine child HP ID and create child position
-        if self._is_sell_operation(update, operation_side):
+        if is_sell_operation:
             child_hp_id = f"{hp_id}_SELL"
             self._create_sell_child(
                 hp_map, update, child_hp_id, hp_id, operation_side, quantity_usd
@@ -895,11 +937,23 @@ Side: {side}"""
     def _update_parent_buy_quantities(self, parent: Dict, update: HPUpdate) -> None:
         """Update parent quantities for buy operations."""
         # Calculate total bought quantity - use total_quantity from strategy if available
-        total_bought = getattr(update, "total_quantity", None)
-        if total_bought is None:
-            total_bought = getattr(update, "quantity", 0.0) or 0.0
+        if update.total_quantity is not None:
+            total_bought = float(update.total_quantity)
+            print(
+                f"HP Manager Frontend: Using total_quantity={total_bought} for parent position"
+            )
+        else:
+            total_bought = (
+                float(update.quantity) if update.quantity is not None else 0.0
+            )
+            print(
+                f"HP Manager Frontend: Using current quantity={total_bought} for parent position"
+            )
 
         parent["quantity"] = str(update.symbol_info.format_quantity(total_bought))
+        print(
+            f"HP Manager Frontend: [_update_parent_buy_quantities] Set parent quantity to {parent['quantity']} (total_bought={total_bought}) for HP {update.hp_id}"
+        )
 
         # Ensure realized_quantity exists
         if "realized_quantity" not in parent:
@@ -915,8 +969,13 @@ Side: {side}"""
         ):
             total_bought_qty = float(update.quantity) if update.quantity else 0.0
         else:
-            # Get total bought quantity from existing parent data
-            total_bought_qty = float(parent.get("quantity", "0.0"))
+            # Use total_quantity from update if available, otherwise fall back to existing parent data
+            total_bought_qty = (
+                float(update.total_quantity)
+                if hasattr(update, "total_quantity")
+                and update.total_quantity is not None
+                else float(parent.get("quantity", "0.0"))
+            )
 
         # Calculate sold quantity based on remaining quantity
         remaining_qty = float(update.quantity) if update.quantity else 0.0
@@ -1145,6 +1204,14 @@ Side: {side}"""
         parent["net"] = buy_child["net"]
         parent["net_percent"] = buy_child["net_percent"]
         parent["state"] = update.state.value
+
+        # Update parent expected_return if available in the update
+        if update.expected_return is not None:
+            parent["expected_return"] = (
+                str(update.symbol_info.format_price(update.expected_return))
+                if update.symbol_info
+                else str(update.expected_return)
+            )
 
         # Update parent quantities
         self._update_parent_buy_quantities(parent, update)
