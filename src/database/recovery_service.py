@@ -398,6 +398,33 @@ class RecoveryService:
             state_info_state = self._convert_to_state_info_state(
                 position.status, position.completeness, PositionSide.LONG
             )
+
+            # Special case: if database status is NEW but strategy_state is BUYING/SELLING,
+            # it means orders were sent but no fills yet, so state should reflect the active trading state
+            logger.debug(
+                "[Recovery] Checking special case: status=%s, strategy_state=%s, condition=%s",
+                position.status,
+                position.strategy_state,
+                (
+                    position.status == PositionStatus.NEW
+                    and position.strategy_state
+                    and position.strategy_state in ["BUYING", "SELLING"]
+                ),
+            )
+            if (
+                position.status == PositionStatus.NEW
+                and position.strategy_state
+                and position.strategy_state in ["BUYING", "SELLING"]
+            ):
+                logger.info(
+                    "[Recovery] Position status=NEW but strategy_state=%s, using strategy state for state_info",
+                    position.strategy_state,
+                )
+                if position.strategy_state == "BUYING":
+                    state_info_state = State.BUYING
+                elif position.strategy_state == "SELLING":
+                    state_info_state = State.SELLING
+
             if position.completeness >= 1.0:
                 if state_info_state != State.BOUGHT:
                     logger.warning(
@@ -444,6 +471,12 @@ class RecoveryService:
                 open_time=position.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 side=PositionSide.LONG,
                 completeness=position.completeness,
+            )
+
+            logger.debug(
+                "[Recovery] Creating HPBuyData with state=%s for hp_id=%s",
+                state_info_state,
+                position.hp_id,
             )
 
             return HPBuyData(config=config, state_info=state_info)
