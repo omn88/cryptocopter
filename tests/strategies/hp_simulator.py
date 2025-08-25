@@ -551,6 +551,11 @@ class HPSimulator:
             == realized_quantity
         )
 
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "PARTIALLY_SOLD"
+        )
+
         logger.info("Front parent: %s", self.front.hp_list_data[0])
 
         # Comprehensive validation using framework
@@ -1047,6 +1052,16 @@ class HPSimulator:
 
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["state"] == "SELLING"
+        )
+
+        # Wait for the position to be in the correct initial SELLING state with 0.0 realized_quantity
+        await wait_for_condition(
+            condition_func=lambda: (
+                len(self.front.hp_list_data) > 0
+                and self.front.hp_list_data[0]["state"] == "SELLING"
+                and self.front.hp_list_data[0]["realized_quantity"] == "0.0"
+            ),
+            timeout=5.0,
         )
 
         # Comprehensive validation using framework

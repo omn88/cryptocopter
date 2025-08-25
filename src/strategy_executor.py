@@ -680,13 +680,7 @@ class StrategyExecutor:
                     if all_filled
                     else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
                 )
-                logger.debug(
-                    "[Recovery] Set buy data state to %s for HP %s (all_filled=%s, part_bought=%s)",
-                    strategy.buy.data.state_info.state,
-                    new_hp.config.hp_id,
-                    all_filled,
-                    part_bought,
-                )
+
             else:
                 # For normal setup, use default state logic for buy data
                 strategy.buy.data.state_info.state = (
@@ -746,11 +740,7 @@ class StrategyExecutor:
             # For restoration mode, get main strategy state from database
             # (separate from buy data state which is in new_hp.state_info.state)
             if is_restoration:
-                logger.debug(
-                    "[Recovery] Received HPBuyData state for HP %s: %s",
-                    new_hp.config.hp_id,
-                    new_hp.state_info.state,
-                )
+
                 # Get main strategy state from database (not from buy data state)
                 strategy_state_str = await self._get_strategy_state_from_db(
                     new_hp.config.hp_id
@@ -1005,9 +995,7 @@ class StrategyExecutor:
 
         # Handle restoration vs new position setup
         if is_restoration:
-            logger.debug(
-                "[Recovery] Entering sell position restoration for HP %s", parent_hp_id
-            )
+
             # Restore existing sell orders from database
             sell_order = await self.restore_sell_orders(
                 sell_config=strategy.sell.current_position.config,
@@ -1074,11 +1062,7 @@ class StrategyExecutor:
         )
 
         for position in strategy.sell.sell_positions:
-            logger.debug(
-                "[MULTIHOP DEBUG] Processing position: %s, state: %s",
-                position.config.hp_id,
-                position.state_info.state,
-            )
+
             self.send_sell_position_to_ui(
                 config=position.config,
                 state_info=position.state_info,
@@ -1401,11 +1385,6 @@ class StrategyExecutor:
         3. Calls setup_buy_position and setup_sell_position_with_new_hp to restore them
         """
         logger.info("Starting crash recovery process...")
-        logger.debug(
-            "Recovery debug: test_mode=%s, client=%s",
-            self.test_mode,
-            type(self.client).__name__ if self.client else None,
-        )
 
         try:
             # Ensure client is available for recovery

@@ -541,7 +541,7 @@ class HpStrategy:
         hp_update = self.build_hp_update_from_orders(
             symbol_info=self.sell.current_position.config.symbol_info
         )
-        
+
         # Set specific child ID for sell operations
         parent_id = str(self.sell.current_position.config.hp_id)
         # For two-hop trades (child positions), keep the original ID (e.g., 1000a)
@@ -984,7 +984,7 @@ class HpStrategy:
         self.buy.data.state_info.get_completeness(self.buy.orders)
         self.buy.data.state_info.ui_state = UiState.CLOSED
 
-        logger.info("Sending HP update with state BOUGHT!!!: %s", self.state)
+        logger.info("Sending HP update with state BOUGHT: %s", self.state)
         self.send_buy_position_to_ui()
 
         # Send HP buy position filled event to portfolio for inventory addition
@@ -1718,7 +1718,7 @@ class HpStrategy:
             if order.order_id == self.execution_report.order_id:
                 order.status = self.execution_report.current_order_status
                 order.order_id = self.execution_report.order_id
-                
+
         if self.sell:
             if (
                 self.sell.current_position.sell_order.order_id
