@@ -1282,7 +1282,8 @@ class HPSimulator:
         )
 
         await wait_for_condition(
-            condition_func=lambda: self.front.hp_list_data[0]["realized_quantity"] == "0.14"
+            condition_func=lambda: self.front.hp_list_data[0]["realized_quantity"]
+            == "0.14"
         )
 
         await wait_for_condition(
