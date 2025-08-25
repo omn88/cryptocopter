@@ -492,6 +492,60 @@ class HpStrategy:
                     self.sell.current_position.sell_order.realized_quantity
                 )
 
+        # Calculate expected quantity from budget and price configuration
+        # For DCA mode, this is the total across all orders
+        expected_qty = 0.0
+        if (
+            hasattr(self.buy.data.config, "budget")
+            and hasattr(self.buy.data.config, "price_high")
+            and hasattr(self.buy.data.config, "price_low")
+            and hasattr(self.buy.data.config, "mode")
+            and self.buy.data.config.budget > 0
+        ):
+
+            if self.buy.data.config.mode == "DCA":
+                # DCA calculation: sum of quantities across all price levels
+                num_orders = 3
+                min_budget_for_max_orders = num_orders * symbol_info.min_notional
+
+                if self.buy.data.config.budget >= min_budget_for_max_orders:
+                    order_quantity_stable = self.buy.data.config.budget / num_orders
+                else:
+                    order_quantity_stable = symbol_info.min_notional
+                    num_orders = int(
+                        self.buy.data.config.budget / symbol_info.min_notional
+                    )
+                    num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
+
+                if num_orders == 1:
+                    # Single order fallback
+                    expected_qty = (
+                        self.buy.data.config.budget / self.buy.data.config.price_high
+                    )
+                else:
+                    # Calculate total expected quantity across all DCA orders
+                    price_increment = (
+                        self.buy.data.config.price_high - self.buy.data.config.price_low
+                    ) / (num_orders - 1)
+                    for i in range(num_orders):
+                        order_price = (
+                            self.buy.data.config.price_high - i * price_increment
+                        )
+                        if order_price > 0:
+                            expected_qty += order_quantity_stable / order_price
+
+                    # Round to symbol precision for consistent formatting
+                    if hasattr(symbol_info, "precision"):
+                        expected_qty = round(expected_qty, symbol_info.precision)
+            else:
+                # SINGLE mode: budget / price_high
+                expected_qty = (
+                    self.buy.data.config.budget / self.buy.data.config.price_high
+                )
+
+        # Calculate sum of all buy order quantities
+        orders_total_qty = sum(order.quantity for order in self.buy.orders)
+
         hp_update = HPUpdate(
             hp_id=hp_id,
             coin=coin,
@@ -500,6 +554,8 @@ class HpStrategy:
             quantity_usd=quantity_usd,
             realized_quantity=sell_realized_quantity,  # Add sell order realized quantity
             total_quantity=total_quantity,  # Add total bought quantity
+            expected_quantity=expected_qty,  # Add total expected quantity based on budget
+            orders_total_quantity=orders_total_qty,  # Add sum of all buy order quantities
             buy_price=buy_price,
             sell_price=self.sell.current_position.config.sell_price,
             current_price=current_price,
@@ -1779,6 +1835,10 @@ class HpStrategy:
     async def worker(self):
         logger.info("Worker start now, state: %s.", self.state)
         self.worker_active = True
+
+        # Send initial UI update for new positions
+        if self.state == State.NEW:
+            self.send_buy_position_to_ui()
         while not self.stop_event.is_set():
             try:
                 event = self.worker_queue.get_nowait()

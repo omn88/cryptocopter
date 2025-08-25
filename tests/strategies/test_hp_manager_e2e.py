@@ -83,7 +83,9 @@ async def test_default_buy_position_send_orders(frontend_backend_setup):
         buy_price="1400.0",
         quantity_usd="0.0",
     )
-    sim.validate_child_buy("1000", quantity="0.0", realized_quantity="0.0", state="NEW")
+    sim.validate_child_buy(
+        "1000", quantity="0.84921", realized_quantity="0.0", state="NEW"
+    )
     sim.validate_buy_orders(
         strategy,
         [
@@ -145,7 +147,9 @@ async def test_cancel_default_position_untouched(frontend_backend_setup):
         net="0.0",
         net_percent="0.0",
     )
-    sim.validate_child_buy("1000", quantity="0.0", realized_quantity="0.0", state="NEW")
+    sim.validate_child_buy(
+        "1000", quantity="0.84921", realized_quantity="0.0", state="NEW"
+    )
     sim.validate_buy_orders(
         strategy,
         [
@@ -212,7 +216,9 @@ async def test_default_position_first_order_filled_then_cancel(
     await wait_for_condition(
         condition_func=lambda: strategy.buy.orders[1].status == ORDER_STATUS_CANCELED
     )
-    assert strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+    await wait_for_condition(
+        condition_func=lambda: strategy.buy.orders[2].status == ORDER_STATUS_CANCELED
+    )
 
     # Wait for state transition to complete
     await wait_for_condition(
@@ -240,7 +246,7 @@ async def test_default_position_first_order_filled_then_cancel(
         net_percent="0.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -287,7 +293,7 @@ async def test_default_position_first_order_filled_partially(
         quantity_usd="168.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -348,7 +354,7 @@ async def test_default_position_first_order_filled_partially_then_cancel(
     )
     sim.validate_child_buy(
         "1000",
-        quantity="0.12",
+        quantity="0.84921",
         realized_quantity="0.12",
         state="PARTIALLY_BOUGHT",
     )
@@ -396,7 +402,7 @@ async def test_default_position_first_order_filled(
         quantity_usd="336.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -433,7 +439,7 @@ async def test_default_position_all_buy_orders_filled(
         quantity_usd="1002.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.85", realized_quantity="0.85", state="BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -505,7 +511,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
         net_percent="0.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -552,7 +558,7 @@ async def test_default_position_first_order_filled_partially_then_cancel_then_re
         quantity_usd="168.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.12", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.12", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -623,7 +629,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         net_percent="0.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -672,7 +678,7 @@ async def test_default_position_first_order_filled_then_cancel_then_resend(
         quantity_usd="336.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.24", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.24", state="PARTIALLY_BOUGHT"
     )
     sim.validate_buy_orders(
         strategy,
@@ -718,7 +724,7 @@ async def test_setup_sell_position_for_bought_position(
         quantity_usd="1002.0",
     )
     sim.validate_child_buy(
-        "1000", quantity="0.85", realized_quantity="0.85", state="BOUGHT"
+        "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
     )
     sim.validate_child_sell(
         "1000",

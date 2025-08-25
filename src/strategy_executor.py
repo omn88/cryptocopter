@@ -821,6 +821,49 @@ class StrategyExecutor:
         buy_orders: List[Order],
     ):
         total_quant = sum(order.realized_quantity for order in buy_orders)
+        orders_total_quantity = sum(order.quantity for order in buy_orders)
+        # Calculate expected quantity from budget and price configuration
+        # For DCA mode, this is the total across all orders
+        expected_qty = 0.0
+        if config.budget > 0:
+            if config.mode.value == "DCA":
+                # DCA calculation: sum of quantities across all price levels
+                num_orders = 3
+                min_budget_for_max_orders = num_orders * config.symbol_info.min_notional
+
+                if config.budget >= min_budget_for_max_orders:
+                    order_quantity_stable = config.budget / num_orders
+                else:
+                    order_quantity_stable = config.symbol_info.min_notional
+                    num_orders = int(config.budget / config.symbol_info.min_notional)
+                    num_orders = num_orders if num_orders % 2 == 1 else num_orders - 1
+
+                if num_orders == 1:
+                    # Single order fallback
+                    expected_qty = (
+                        config.budget / config.price_high
+                        if config.price_high > 0
+                        else 0.0
+                    )
+                else:
+                    # Calculate total expected quantity across all DCA orders
+                    price_increment = (config.price_high - config.price_low) / (
+                        num_orders - 1
+                    )
+                    for i in range(num_orders):
+                        order_price = config.price_high - i * price_increment
+                        if order_price > 0:
+                            expected_qty += order_quantity_stable / order_price
+
+                    # Round to symbol precision for consistent formatting
+                    if hasattr(config.symbol_info, "precision"):
+                        expected_qty = round(expected_qty, config.symbol_info.precision)
+            else:
+                # SINGLE mode: budget / price_high
+                expected_qty = (
+                    config.budget / config.price_high if config.price_high > 0 else 0.0
+                )
+
         self.ui_queue.put_nowait(
             HPGuiDataBuy(
                 data=HPBuyData(config=config, state_info=state_info),
@@ -831,6 +874,8 @@ class StrategyExecutor:
                     state=state,
                     buy_price=config.price_high,
                     quantity=float(total_quant) if total_quant else None,
+                    expected_quantity=expected_qty,
+                    orders_total_quantity=orders_total_quantity,
                     side="BUY",  # Set side to BUY for buy positions
                 ),
             )
