@@ -689,13 +689,39 @@ class StrategyExecutor:
                 completeness = 0.0
             logger.debug("[Recovery][Buy] Calculated completeness=%s", completeness)
 
-            # Default state logic
-
-            strategy.buy.data.state_info.state = (
-                State.BOUGHT
-                if all_filled
-                else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
-            )
+            # Default state logic - for restoration, preserve the strategy state but calculate buy data state
+            if is_restoration:
+                # During restoration, preserve the main strategy state correctly mapped by recovery service
+                # But calculate buy data state based on actual order completion status
+                logger.debug(
+                    "[Recovery] Preserving main strategy state: %s for HP %s",
+                    new_hp.state_info.state,
+                    new_hp.config.hp_id,
+                )
+                logger.debug(
+                    "[Recovery] Calculating buy data state based on order status for HP %s",
+                    new_hp.config.hp_id,
+                )
+                # Calculate buy data state based on actual order fills
+                strategy.buy.data.state_info.state = (
+                    State.BOUGHT
+                    if all_filled
+                    else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
+                )
+                logger.debug(
+                    "[Recovery] Set buy data state to %s for HP %s (all_filled=%s, part_bought=%s)",
+                    strategy.buy.data.state_info.state,
+                    new_hp.config.hp_id,
+                    all_filled,
+                    part_bought,
+                )
+            else:
+                # For normal setup, use default state logic for buy data
+                strategy.buy.data.state_info.state = (
+                    State.BOUGHT
+                    if all_filled
+                    else State.NEW if not part_bought else State.PARTIALLY_BOUGHT
+                )
 
             # --- Restore sell position state and orders if they exist in DB ---
             logger.info(
@@ -748,13 +774,28 @@ class StrategyExecutor:
                     new_hp.config.hp_id,
                 )
 
-            # Restore strategy execution state from database (for main state)
-            strategy_state_str = await self._get_strategy_state_from_db(
-                new_hp.config.hp_id
-            )
-            strategy.state = State(strategy_state_str)
-
-            logger.info("strategy.state restored from DB: %s", strategy.state)
+            # For restoration mode, get main strategy state from database 
+            # (separate from buy data state which is in new_hp.state_info.state)
+            if is_restoration:
+                logger.debug(
+                    "[Recovery] Received HPBuyData state for HP %s: %s", 
+                    new_hp.config.hp_id, 
+                    new_hp.state_info.state
+                )
+                # Get main strategy state from database (not from buy data state)
+                strategy_state_str = await self._get_strategy_state_from_db(
+                    new_hp.config.hp_id
+                )
+                strategy.state = State(strategy_state_str)
+                logger.info("strategy.state restored from DB for restoration: %s", strategy.state)
+                logger.info("buy data state preserved as: %s", new_hp.state_info.state)
+            else:
+                # Restore strategy execution state from database (for main state)
+                strategy_state_str = await self._get_strategy_state_from_db(
+                    new_hp.config.hp_id
+                )
+                strategy.state = State(strategy_state_str)
+                logger.info("strategy.state restored from DB: %s", strategy.state)
         else:
             # Create new orders for normal setup
             strategy.buy.prepare_orders()

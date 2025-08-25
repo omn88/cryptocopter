@@ -460,7 +460,9 @@ class HpStrategy:
                 except RuntimeError:
                     # Not in an event loop, safe to use asyncio.run
                     all_buy_orders = asyncio.run(
-                        db.get_orders_by_hp_id(self.buy.data.config.hp_id, side="BUY")
+                        db.get_orders_by_position_id(
+                            self.buy.data.config.hp_id
+                        )
                     )
                     total_quantity = sum(
                         order.realized_quantity
@@ -1572,9 +1574,11 @@ class HpStrategy:
 
         await self.buy.handle_order_filled(execution_report=self.execution_report)
 
-        # await self.db.upsert_buy_price_level(data=self.buy.data)
+        await self.db.upsert_buy_price_level(
+            data=self.buy.data, strategy_state=self.state
+        )
 
-        logger.info("Buy price level upserted   ")
+        logger.info("Buy price level upserted")
 
         self.send_buy_position_to_ui()
 
