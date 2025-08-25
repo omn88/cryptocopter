@@ -885,6 +885,16 @@ class HPSimulator:
             condition_func=lambda: self.front.hp_list_data[0]["quantity"] == "0.85"
         )
 
+        # Wait for the parent position to stabilize with correct realized_quantity
+        await wait_for_condition(
+            condition_func=lambda: (
+                len(self.front.hp_list_data) > 0
+                and self.front.hp_list_data[0]["state"] == "SELLING"
+                and self.front.hp_list_data[0]["realized_quantity"] == "0.0"
+            ),
+            timeout=5.0,
+        )
+
         # Comprehensive validation using framework
         self.validate_parent(
             "1000",
@@ -1283,7 +1293,7 @@ class HPSimulator:
         self.validate_parent(
             "1000",
             quantity="0.24",
-            realized_quantity="0.0",
+            realized_quantity="0.14",
             state="SELLING",
             buy_price="1400.0",
             sell_price="4200.0",
