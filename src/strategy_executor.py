@@ -105,10 +105,8 @@ class StrategyExecutor:
         self._websocket_error_suppression_time = 600  # 10 minutes
         self.loop = None
         self.stop_event = threading.Event()
-        logger.debug("Starting StrategyExecutor thread")
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
-        logger.debug("StrategyExecutor thread started")
 
     def start_loop(self):
         """Starts the asyncio loop in a new thread."""
@@ -277,7 +275,6 @@ class StrategyExecutor:
     def _send_hp_event_to_portfolio(self, event_name: EventName, event_data):
         """Send HP events to portfolio for quantity management."""
         if self.portfolio_ui_queue is None:
-            logger.debug("No portfolio UI queue available, skipping HP event")
             return
 
         try:
@@ -426,7 +423,6 @@ class StrategyExecutor:
                         queue=worker_queue,
                     ),
                 )
-                logger.debug("Resubscribed streams for strategy %s", strategy_id)
 
             except Exception as e:
                 logger.error("Failed to resubscribe strategy %s: %s", strategy_id, e)
@@ -656,16 +652,7 @@ class StrategyExecutor:
             )
 
             # --- Patch: recalculate state from orders after restoration ---
-            logger.debug("[Recovery][Buy] Orders for completeness calculation:")
-            for idx, order in enumerate(strategy.buy.orders):
-                logger.debug(
-                    "[Recovery][Buy] Order %d: status=%s, quantity=%s, realized_quantity=%s",
-                    idx,
-                    order.status,
-                    order.quantity,
-                    order.realized_quantity,
-                )
-
+            # Completeness calculation for buy orders
             all_filled = all(
                 order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
             )
@@ -673,35 +660,20 @@ class StrategyExecutor:
                 order.realized_quantity > 0 for order in strategy.buy.orders
             )
 
-            # Detailed completeness calculation logging
+            # Calculate completeness
             total_realized = sum(
                 order.realized_quantity for order in strategy.buy.orders
             )
             total_quantity = sum(order.quantity for order in strategy.buy.orders)
-            logger.debug(
-                "[Recovery][Buy] total_realized_quantity=%s, total_order_quantity=%s",
-                total_realized,
-                total_quantity,
-            )
             if total_quantity > 0:
                 completeness = total_realized / total_quantity
             else:
                 completeness = 0.0
-            logger.debug("[Recovery][Buy] Calculated completeness=%s", completeness)
 
             # Default state logic - for restoration, preserve the strategy state but calculate buy data state
             if is_restoration:
                 # During restoration, preserve the main strategy state correctly mapped by recovery service
                 # But calculate buy data state based on actual order completion status
-                logger.debug(
-                    "[Recovery] Preserving main strategy state: %s for HP %s",
-                    new_hp.state_info.state,
-                    new_hp.config.hp_id,
-                )
-                logger.debug(
-                    "[Recovery] Calculating buy data state based on order status for HP %s",
-                    new_hp.config.hp_id,
-                )
                 # Calculate buy data state based on actual order fills
                 strategy.buy.data.state_info.state = (
                     State.BOUGHT
@@ -724,9 +696,6 @@ class StrategyExecutor:
                 )
 
             # --- Restore sell position state and orders if they exist in DB ---
-            logger.info(
-                "[Recovery] Checking for sell orders for HP %s", new_hp.config.hp_id
-            )
             sell_orders = await self.db.fetch_orders_for_price_level(
                 hp_id=new_hp.config.hp_id, side=PositionSide.SHORT.value
             )
@@ -965,7 +934,6 @@ class StrategyExecutor:
             state_info=strategy.sell.current_position.state_info,
             state=strategy.state,
         )
-        logger.debug("Sell position setup exit")
 
     async def setup_sell_position_with_new_hp(
         self,
@@ -1045,21 +1013,13 @@ class StrategyExecutor:
                 sell_config=strategy.sell.current_position.config,
                 worker_queue=worker_queue,
             )
-            logger.debug("[Recovery] restore_sell_orders() returned: %s", sell_order)
             if sell_order:
                 strategy.sell.current_position.sell_order = sell_order
-            else:
-                logger.debug(
-                    "[Recovery] No sell orders found in DB for HP %s", parent_hp_id
-                )
 
             # --- Restore buy position state and orders if they exist in DB ---
             # Check if there are buy orders for this hp_id
             buy_orders = await self.db.fetch_orders_for_price_level(
                 hp_id=parent_hp_id, side=PositionSide.LONG.value
-            )
-            logger.debug(
-                "[Recovery] fetch_orders_for_price_level(BUY) returned: %s", buy_orders
             )
             if buy_orders:
                 # Use the existing restore_buy_orders logic to populate strategy.buy.orders
@@ -1068,9 +1028,6 @@ class StrategyExecutor:
                 )
                 strategy_state_str = await self._get_strategy_state_from_db(
                     parent_hp_id
-                )
-                logger.debug(
-                    "[Recovery] Strategy state from DB: %s", strategy_state_str
                 )
                 strategy.state = State(strategy_state_str)
 
