@@ -536,6 +536,9 @@ class HPSimulator:
                 second_order_id = order.order_id
                 break
 
+        if second_order_id is None:
+            logger.warning("Second order not found")
+            return strategy
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
