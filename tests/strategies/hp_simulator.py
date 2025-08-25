@@ -890,7 +890,7 @@ class HPSimulator:
             condition_func=lambda: (
                 len(self.front.hp_list_data) > 0
                 and self.front.hp_list_data[0]["state"] == "SELLING"
-                and self.front.hp_list_data[0]["realized_quantity"] == "0.0"
+                and self.front.hp_list_data[0]["realized_quantity"] == "0.42"
             ),
             timeout=5.0,
         )
@@ -899,7 +899,7 @@ class HPSimulator:
         self.validate_parent(
             "1000",
             quantity="0.85",
-            realized_quantity="0.0",
+            realized_quantity="0.42",
             state="SELLING",
             buy_price="1178.82",
             sell_price="4200.0",
@@ -1279,6 +1279,10 @@ class HPSimulator:
         await wait_for_condition(
             condition_func=lambda: strategy.sell.current_position.sell_order.status
             == ORDER_STATUS_PARTIALLY_FILLED
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["realized_quantity"] == "0.14"
         )
 
         await wait_for_condition(
