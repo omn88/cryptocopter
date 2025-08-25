@@ -1658,6 +1658,11 @@ class HPSimulator:
             == realized_quantity
         )
 
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "PARTIALLY_SOLD"
+        )
+
         # Comprehensive validation using framework
         assert len(self.front.hp_list_data) == 3
 
