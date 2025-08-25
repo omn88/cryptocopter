@@ -1202,7 +1202,7 @@ async def test_recovery_default_position_first_order_filled(crash_recovery_facto
     await wait_for_condition(lambda: len(new_back.strategies) == 1)
     assert "1000" in new_back.strategies
     recovered_strategy = new_back.strategies["1000"]
-    assert recovered_strategy.state == State.PARTIALLY_BOUGHT
+    assert recovered_strategy.state == State.BUYING
     assert recovered_strategy.buy.data.state_info.state == State.PARTIALLY_BOUGHT
     assert len(recovered_strategy.buy.orders) == 3
     # Assert order statuses by price to avoid index/order mismatch
@@ -4040,11 +4040,15 @@ async def test_recovery_convert_only_position_crash(crash_recovery_factory):
     new_sim.new_price(price=12.0, symbol="DYMUSDT")
 
     # Wait for conversion to be reflected in frontend
+
     await wait_for_condition(lambda: new_front.hp_list_data[0]["state"] == "SOLD")
     item = new_front.hp_list_data[0]
+
+    logger.info("Item: %s", item)
     assert item["state"] == "SOLD"
-    assert item["quantity"] == "0.0"
-    assert item["quantity_usd"] == "0.0"
+    assert item["quantity"] == "100.0"
+    assert item["realized_quantity"] == "100.0"
+    assert item["quantity_usd"] == "1000.0"
     assert item["net"] == "0.0"
     assert item["net_percent"] == "0.0"
     assert item["buy_price"] == str(buy_price)

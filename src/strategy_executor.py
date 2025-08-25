@@ -774,20 +774,23 @@ class StrategyExecutor:
                     new_hp.config.hp_id,
                 )
 
-            # For restoration mode, get main strategy state from database 
+            # For restoration mode, get main strategy state from database
             # (separate from buy data state which is in new_hp.state_info.state)
             if is_restoration:
                 logger.debug(
-                    "[Recovery] Received HPBuyData state for HP %s: %s", 
-                    new_hp.config.hp_id, 
-                    new_hp.state_info.state
+                    "[Recovery] Received HPBuyData state for HP %s: %s",
+                    new_hp.config.hp_id,
+                    new_hp.state_info.state,
                 )
                 # Get main strategy state from database (not from buy data state)
                 strategy_state_str = await self._get_strategy_state_from_db(
                     new_hp.config.hp_id
                 )
                 strategy.state = State(strategy_state_str)
-                logger.info("strategy.state restored from DB for restoration: %s", strategy.state)
+                logger.info(
+                    "strategy.state restored from DB for restoration: %s",
+                    strategy.state,
+                )
                 logger.info("buy data state preserved as: %s", new_hp.state_info.state)
             else:
                 # Restore strategy execution state from database (for main state)

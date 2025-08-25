@@ -460,9 +460,7 @@ class HpStrategy:
                 except RuntimeError:
                     # Not in an event loop, safe to use asyncio.run
                     all_buy_orders = asyncio.run(
-                        db.get_orders_by_position_id(
-                            self.buy.data.config.hp_id
-                        )
+                        db.get_orders_by_position_id(self.buy.data.config.hp_id)
                     )
                     total_quantity = sum(
                         order.realized_quantity
