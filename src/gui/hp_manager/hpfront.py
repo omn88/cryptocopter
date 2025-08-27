@@ -680,7 +680,6 @@ Side: {side}"""
             else:
                 return "parent"  # Create parent only
 
-        # Default to parent if pattern doesn't match
         return "parent"
 
     def _handle_parent_position(
@@ -936,7 +935,7 @@ Side: {side}"""
 
     def _update_parent_buy_quantities(self, parent: Dict, update: HPUpdate) -> None:
         """Update parent quantities for buy operations."""
-        # Calculate total bought quantity - use total_quantity from strategy if available
+        # Parent should show realized quantity (what has actually been filled/bought)
         if update.total_quantity is not None:
             total_bought = float(update.total_quantity)
             print(
@@ -1147,13 +1146,22 @@ Side: {side}"""
         quantity_usd: str,
     ) -> None:
         """Create regular buy child (e.g., '1000_BUY')."""
-        # Get total quantity for buy child display
+        # Get total quantity for buy child display - use expected_quantity if available
         total_bought_qty_raw = getattr(update, "total_quantity", None)
+        update.total_quantity
         total_bought_qty = (
             float(total_bought_qty_raw)
             if total_bought_qty_raw
             else (float(update.quantity) if update.quantity else 0.0)
         )
+
+        # Get orders total quantity (sum of all buy order quantities)
+        orders_total_qty_raw = getattr(update, "orders_total_quantity", None)
+        orders_total_qty = float(orders_total_qty_raw) if orders_total_qty_raw else 0.0
+
+        # Get expected quantity (total quantity that should be bought based on budget)
+        expected_qty_raw = getattr(update, "expected_quantity", None)
+        expected_qty = float(expected_qty_raw) if expected_qty_raw else total_bought_qty
 
         # Calculate quantity_usd
         buy_child_quantity_usd = total_bought_qty * (update.buy_price or 0.0)
@@ -1171,9 +1179,13 @@ Side: {side}"""
                 if update.buy_price
                 else "0.0"
             ),
-            "quantity": str(update.symbol_info.format_quantity(total_bought_qty)),
+            "quantity": str(
+                update.symbol_info.format_quantity(orders_total_qty)
+            ),  # Use sum of all buy order quantities (total to be bought)
             "realized_quantity": str(
-                update.symbol_info.format_quantity(total_bought_qty)
+                update.symbol_info.format_quantity(
+                    total_bought_qty
+                )  # Use actual progress
             ),
             "quantity_usd": buy_child_quantity_usd_str,
             "current_price": (
@@ -1325,11 +1337,21 @@ Side: {side}"""
             else:
                 total_bought_qty = float(total_bought_qty_raw)
 
+            # Get expected quantity (total quantity that should be bought based on budget)
+            expected_qty_raw = getattr(update, "expected_quantity", None)
+            expected_qty = (
+                float(expected_qty_raw) if expected_qty_raw else total_bought_qty
+            )
+
             buy_child["quantity"] = str(
-                update.symbol_info.format_quantity(total_bought_qty)
+                update.symbol_info.format_quantity(
+                    expected_qty
+                )  # Use expected quantity
             )
             buy_child["realized_quantity"] = str(
-                update.symbol_info.format_quantity(total_bought_qty)
+                update.symbol_info.format_quantity(
+                    total_bought_qty
+                )  # Use actual progress
             )
 
             # Calculate quantity_usd based on total bought quantity

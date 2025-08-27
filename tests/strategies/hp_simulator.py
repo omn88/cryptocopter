@@ -68,7 +68,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -97,7 +97,7 @@ class HPSimulator:
         mode: Mode = Mode.DCA,
         budget: float = 1000.0,
         price_low: float = 1000.0,
-        price_high: float = 1400.0,
+        price_high: float = 1400.0,  # Reverted back to 1400.0
         order_trigger: float = 1.0,
         hp_id: str = "0",
         coin: str = "BTC",
@@ -105,7 +105,7 @@ class HPSimulator:
         hp = HPBuyData(
             HPBuyConfig(
                 hp_id=hp_id,
-                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
                 price_low=price_low,
                 price_high=price_high,
                 order_trigger=order_trigger,
@@ -137,6 +137,22 @@ class HPSimulator:
 
         await wait_for_no_active_buy_positions(self.front)
         await wait_for_idle_buy_positions(self.front)
+
+        self.validate_parent(
+            hp_id="1000",
+            quantity="0.0",
+            realized_quantity="0.0",
+            state="NEW",
+            buy_price="1400.0",  # Reverted back to 1400.0
+            quantity_usd="0.0",
+        )
+
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.0",
+            state="NEW",  # 0.84921 is correct with precision=5 rounding
+        )
 
     async def move_to_position_active_buy(self):
         # Open position and send orders
@@ -192,13 +208,21 @@ class HPSimulator:
             quantity_usd="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.84921)
+        self.validate_child_buy(
+            "1000", quantity="0.84921", realized_quantity="0.0", state="NEW"
+        )
+
     async def simulate_partial_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
+
+        # Get the actual order ID from the first order
+        first_order_id = strategy.buy.orders[0].order_id
 
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=336,
+            order_id=first_order_id,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -230,6 +254,14 @@ class HPSimulator:
             quantity_usd="168.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.84921)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.12",
+            state="PARTIALLY_BOUGHT",
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -237,10 +269,12 @@ class HPSimulator:
     async def simulate_partial_fill_with_sell_price(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Use dynamic order ID from the first order
+        first_order_id = strategy.buy.orders[0].order_id
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=336,
+            order_id=first_order_id,
             last_executed_quantity=0.12,
             last_executed_price=1400,
             cumulative_filled_quantity=0.12,
@@ -277,6 +311,14 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.84921)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.12",
+            state="PARTIALLY_BOUGHT",
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -287,7 +329,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=336,
+            order_id=strategy.buy.orders[0].order_id,  # Use actual order ID
             last_executed_quantity=0.24,
             last_executed_price=1400,
             cumulative_filled_quantity=0.24,
@@ -332,6 +374,14 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.84921)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.24",
+            state="PARTIALLY_BOUGHT",
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -339,10 +389,12 @@ class HPSimulator:
     async def simulate_second_buy_order_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the actual second order ID from the strategy instead of hardcoded value
+        second_order_id = strategy.buy.orders[1].order_id
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -397,6 +449,14 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.85)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.52",
+            state="PARTIALLY_BOUGHT",
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -404,10 +464,12 @@ class HPSimulator:
     async def simulate_third_buy_order_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the actual third order ID from the strategy instead of hardcoded value
+        third_order_id = strategy.buy.orders[2].order_id
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=332,
+            order_id=third_order_id,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -452,6 +514,11 @@ class HPSimulator:
         assert item["net_percent"] == "0.0"
         assert item["state"] == "BOUGHT"
 
+        # Child buy validation - quantity should always be total expected (0.85), all filled
+        self.validate_child_buy(
+            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -459,10 +526,23 @@ class HPSimulator:
     async def simulate_second_buy_order_fill_with_sell_price(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the dynamic order ID for the second order (price=1200)
+        second_order_id = None
+        for order in strategy.buy.orders:
+            if order.price == 1200 and order.status in [
+                ORDER_STATUS_NEW,
+                ORDER_STATUS_PARTIALLY_FILLED,
+            ]:
+                second_order_id = order.order_id
+                break
+
+        if second_order_id is None:
+            logger.warning("Second order not found")
+            return strategy
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -522,7 +602,7 @@ class HPSimulator:
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=332,
+            order_id=strategy.buy.orders[2].order_id,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -574,6 +654,11 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.85)
+        self.validate_child_buy(
+            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -583,10 +668,13 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the second order's dynamic ID
+        second_order_id = strategy.buy.orders[1].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -632,6 +720,14 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.84921)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.52",
+            state="PARTIALLY_BOUGHT",
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -639,10 +735,13 @@ class HPSimulator:
     async def simulate_third_buy_order_fill_with_sell_price_no_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the third order's dynamic ID
+        third_order_id = strategy.buy.orders[2].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=332,
+            order_id=third_order_id,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -687,6 +786,11 @@ class HPSimulator:
             net_percent="0.0",
         )
 
+        # Child buy validation - quantity should always be total expected (0.85)
+        self.validate_child_buy(
+            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
+        )
+
         logger.info("HP List after the update: %s", self.front.hp_list_data)
 
         return strategy
@@ -720,7 +824,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -744,6 +848,11 @@ class HPSimulator:
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
+        )
+
+        # Child buy validation - quantity should always be total expected (0.85)
+        self.validate_child_buy(
+            "1000", quantity="0.84921", realized_quantity="0.85", state="BOUGHT"
         )
 
         await wait_for_condition(
@@ -1142,7 +1251,7 @@ class HPSimulator:
                 sell_price=sell_price,
                 quantity=quantity,
                 end_currency=end_currency,
-                symbol_info=SymbolInfo(symbol=symbol, precision=2, price_precision=2),
+                symbol_info=SymbolInfo(symbol=symbol, precision=5, price_precision=2),
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )
@@ -1218,6 +1327,14 @@ class HPSimulator:
             current_price="0.0",
             net="0.0",
             net_percent="0.0",
+        )
+
+        # Child buy validation - quantity should always be total expected (0.85)
+        self.validate_child_buy(
+            "1000",
+            quantity="0.84921",
+            realized_quantity="0.24",
+            state="PARTIALLY_BOUGHT",
         )
 
         logger.info("HP List after the update: %s", self.front.hp_list_data)
@@ -1353,10 +1470,13 @@ class HPSimulator:
     async def simulate_second_buy_order_partial_fill(self) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the dynamic order ID for the second buy order
+        second_order_id = strategy.buy.orders[1].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_PARTIALLY_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.14,
             last_executed_price=1200,
             cumulative_filled_quantity=0.14,
@@ -1443,10 +1563,13 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the dynamic order ID for the second buy order
+        second_order_id = strategy.buy.orders[1].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1503,10 +1626,13 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get dynamic third order ID
+        third_order_id = strategy.buy.orders[2].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=332,
+            order_id=third_order_id,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1530,6 +1656,11 @@ class HPSimulator:
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
             == realized_quantity
+        )
+
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "PARTIALLY_SOLD"
         )
 
         # Comprehensive validation using framework
@@ -1609,10 +1740,13 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the dynamic second order ID
+        second_order_id = strategy.buy.orders[1].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=131409,
+            order_id=second_order_id,
             last_executed_quantity=0.28,
             last_executed_price=1200,
             cumulative_filled_quantity=0.28,
@@ -1671,10 +1805,13 @@ class HPSimulator:
     ) -> HpStrategy:
         strategy = self.back.strategies["1000"]
 
+        # Get the dynamic third order ID
+        third_order_id = strategy.buy.orders[2].order_id
+
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
             current_order_status=ORDER_STATUS_FILLED,
-            order_id=332,
+            order_id=third_order_id,
             last_executed_quantity=0.33,
             last_executed_price=1000,
             cumulative_filled_quantity=0.33,
@@ -1701,6 +1838,12 @@ class HPSimulator:
         await wait_for_condition(
             condition_func=lambda: self.front.hp_list_data[0]["quantity"]
             == realized_quantity
+        )
+
+        # Wait for final state transition to PARTIALLY_SOLD
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"]
+            == "PARTIALLY_SOLD"
         )
 
         # Comprehensive validation using framework
