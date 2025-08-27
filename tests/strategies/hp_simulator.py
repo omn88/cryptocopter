@@ -770,6 +770,11 @@ class HPSimulator:
             == realized_quantity
         )
 
+        # Wait for state transition to BOUGHT before validation
+        await wait_for_condition(
+            condition_func=lambda: self.front.hp_list_data[0]["state"] == "BOUGHT"
+        )
+
         # Comprehensive validation using framework
         assert len(self.front.hp_list_data) == 3
         self.validate_parent(
