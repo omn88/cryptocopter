@@ -1158,7 +1158,7 @@ async def test_cancel_buy_to_part_sold_part_bought(
     assert item["quantity_usd"] == "504.0"  # Parent shows 0 for USD quantity
     assert item["sell_price"] == "4200.0"
     assert (
-        item["expected_return"] == "672.0"
+        item["expected_return"] == "1092.0"
     )  # Parent shows original sell value, not updated
     assert item["current_price"] == "0.0"
     assert item["net"] == "0.0"

@@ -561,6 +561,7 @@ def assert_default_buy_position_data(
     assert parent_item["coin"] == "BTCUSD"
     assert parent_item["buy_price"] == "1400.0", parent_item["buy_price"]
     assert parent_item["quantity"] == "0.0"
+    assert parent_item["realized_quantity"] == "0.0"
     assert parent_item["quantity_usd"] == "0.0"
     assert parent_item["sell_price"] == "0.0"
     assert parent_item["expected_return"] == "0.0"
@@ -577,7 +578,8 @@ def assert_default_buy_position_data(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.0"
+    assert child_item["quantity"] == "0.84921", child_item["quantity"]
+    assert child_item["realized_quantity"] == "0.0"
     assert child_item["quantity_usd"] == "0.0"
     # Buy child should not have sell-related fields
     assert "sell_price" not in child_item
@@ -659,7 +661,9 @@ async def move_to_buy_position_active(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.0", f"Quantity equals {child_item['quantity']}"
+    assert (
+        child_item["quantity"] == "0.84921"
+    ), f"Quantity equals {child_item['quantity']}"
     assert (
         child_item["quantity_usd"] == "0.0"
     ), f"Quantity equals {child_item['quantity_usd']}"
@@ -727,7 +731,7 @@ async def simulate_partial_fill(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.12"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "168.0"
     # Buy children should not have sell-related fields
     assert "sell_price" not in child_item
@@ -795,7 +799,7 @@ async def simulate_first_buy_order_fill(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.24"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "336.0"
     # Buy children should not have sell-related fields
     assert "sell_price" not in child_item
@@ -859,7 +863,7 @@ async def simulate_second_buy_order_fill(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1292.31", child_item["buy_price"]
-    assert child_item["quantity"] == "0.52"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "672.00", child_item["quantity_usd"]
 
     # Buy children should not have sell-related fields
@@ -939,7 +943,7 @@ async def simulate_third_buy_order_fill(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1178.82"
-    assert child_item["quantity"] == "0.85"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "1002.00"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
@@ -976,7 +980,7 @@ async def simulate_third_buy_order_fill(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1178.82"
-    assert child_item["quantity"] == "0.85"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "1002.00"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
@@ -1040,7 +1044,7 @@ async def simulate_second_buy_order_fill_with_sell_price(
     assert buy_child_item["hp_id"] == "1000_BUY"
     assert buy_child_item["coin"] == "BTCUSDC"
     assert buy_child_item["buy_price"] == "1292.31", buy_child_item["buy_price"]
-    assert buy_child_item["quantity"] == "0.52"
+    assert buy_child_item["quantity"] == "0.84921"
     assert buy_child_item["quantity_usd"] == "672.00"
     # Buy children should not have sell-related fields
     assert "sell_price" not in buy_child_item
@@ -1130,7 +1134,7 @@ async def simulate_third_buy_order_fill_with_sell_price(
     assert buy_child_item["hp_id"] == "1000_BUY"
     assert buy_child_item["coin"] == "BTCUSDC"
     assert buy_child_item["buy_price"] == "1178.82"
-    assert buy_child_item["quantity"] == "0.85"
+    assert buy_child_item["quantity"] == "0.84921"
     assert buy_child_item["quantity_usd"] == "1002.00"
     # Buy children should not have sell-related fields
     assert "sell_price" not in buy_child_item
@@ -1196,7 +1200,7 @@ async def simulate_second_buy_order_fill_after_selling_half_of_first_order(
     assert buy_child["hp_id"] == "1000_BUY"
     assert buy_child["coin"] == "BTCUSDC"
     assert buy_child["buy_price"] == "1292.31", buy_child["buy_price"]
-    assert buy_child["quantity"] == "0.52", buy_child["quantity"]
+    assert buy_child["quantity"] == "0.84921", buy_child["quantity"]
     assert buy_child["quantity_usd"] == "672.00", buy_child["quantity_usd"]
     # Buy children should NEVER have sell fields
     assert "sell_price" not in buy_child
@@ -1282,7 +1286,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1178.82", child_item["buy_price"]
-    assert child_item["quantity"] == "0.85"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "1002.00", child_item["quantity_usd"]
     # Buy children should never have sell fields
     assert "sell_price" not in child_item
@@ -1319,7 +1323,7 @@ async def simulate_third_buy_order_fill_after_selling_half_of_first_order(
     buy_child = next(item for item in hp_list if item.get("hp_id") == "1000_BUY")
     assert buy_child["coin"] == "BTCUSDC"
     assert buy_child["buy_price"] == "1178.82"
-    assert buy_child["quantity"] == "0.85"
+    assert buy_child["quantity"] == "0.84921"
     assert buy_child["quantity_usd"] == "1002.00"
     # Buy children should never have sell fields
     assert "sell_price" not in buy_child
@@ -1387,7 +1391,7 @@ async def simulate_second_buy_order_fill_after_selling_first_order(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1292.31", child_item["buy_price"]
-    assert child_item["quantity"] == "0.52", child_item["quantity"]
+    assert child_item["quantity"] == "0.84921", child_item["quantity"]
     assert child_item["quantity_usd"] == "672.00", child_item["quantity_usd"]
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
@@ -1469,7 +1473,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert parent_item["buy_price"] == "1178.82"
     assert parent_item["quantity"] == "0.85"  # parent shows total bought quantity
     assert parent_item["sell_price"] == "4200.0"
-    assert parent_item["expected_return"] == "672.0"
+    assert parent_item["expected_return"] == "2568.0"
     assert parent_item["current_price"] == "0.0"
     assert parent_item["net"] == "0.0"
     assert parent_item["net_percent"] == "0.0"
@@ -1482,7 +1486,7 @@ async def simulate_third_buy_order_fill_after_selling_first_order(
     assert buy_child["hp_id"] == "1000_BUY"
     assert buy_child["coin"] == "BTCUSDC"
     assert buy_child["buy_price"] == "1178.82"
-    assert buy_child["quantity"] == "0.85"
+    assert buy_child["quantity"] == "0.84921"
     assert buy_child["quantity_usd"] == "1002.00", buy_child["quantity_usd"]
     assert buy_child["state"] == "PARTIALLY_BOUGHT"
     assert buy_child["side"] == "BUY"
@@ -1550,7 +1554,7 @@ async def resend_part_bought_first_order_filled(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.24"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "336.0"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
@@ -1616,7 +1620,7 @@ async def resend_part_bought_first_order_filled_with_sell_price(
     assert buy_child_item["hp_id"] == "1000_BUY"
     assert buy_child_item["coin"] == "BTCUSDC"
     assert buy_child_item["buy_price"] == "1400.0"
-    assert buy_child_item["quantity"] == "0.24"
+    assert buy_child_item["quantity"] == "0.84921"
     assert buy_child_item["quantity_usd"] == "336.0"
     # Buy children should not have sell-related fields
     assert "sell_price" not in buy_child_item
@@ -1677,7 +1681,7 @@ async def simulate_second_buy_order_partial_fill(
     assert buy_child_item["hp_id"] == "1000_BUY"
     assert buy_child_item["coin"] == "BTCUSDC"
     assert buy_child_item["buy_price"] == "1326.32", f"{buy_child_item['buy_price']}"
-    assert buy_child_item["quantity"] == "0.38", f"{buy_child_item['quantity']}"
+    assert buy_child_item["quantity"] == "0.84921", f"{buy_child_item['quantity']}"
     assert (
         buy_child_item["quantity_usd"] == "504.00"
     ), f"{buy_child_item['quantity_usd']}"
@@ -1742,7 +1746,7 @@ async def cancel_partially_bought_position_first_order_filled_partially(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.12"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "168.0"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
@@ -1801,7 +1805,7 @@ async def resend_part_bought_first_order_filled_partially(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.12"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "168.0"
     assert "sell_price" not in child_item
     assert "expected_return" not in child_item
@@ -1862,7 +1866,7 @@ async def cancel_partially_bought_position_first_order_filled(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.24"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "336.0"
     # Buy children should not have sell-related fields
     assert "sell_price" not in child_item
@@ -2792,7 +2796,9 @@ async def reopen_buy_part_bought_part_sold(
     assert buy_child["hp_id"] == "1000_BUY"
     assert buy_child["coin"] == "BTCUSDC"
     assert buy_child["buy_price"] == "1400.0"
-    assert buy_child["quantity"] == "0.24"  # Total bought quantity (new specification)
+    assert (
+        buy_child["quantity"] == "0.84921"
+    )  # Total order quantity (sum of all buy orders)
     assert buy_child["quantity_usd"] == "336.0", buy_child["quantity_usd"]
     # Buy child should not have sell-related fields at all
     assert "sell_price" not in buy_child
@@ -2854,7 +2860,7 @@ async def reopen_buy_part_bought_sold(
     assert child_item["hp_id"] == "1000_BUY"
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.24", child_item["quantity"]
+    assert child_item["quantity"] == "0.84921", child_item["quantity"]
     assert child_item["quantity_usd"] == "336.0", child_item["quantity_usd"]
     assert child_item["current_price"] == "0.0"
     assert child_item["net"] == "0.0"
@@ -2915,7 +2921,7 @@ async def cancel_untouched_buy_position(
     )  # Allow both formats
     assert child_item["coin"] == "BTCUSDC"
     assert child_item["buy_price"] == "1400.0"
-    assert child_item["quantity"] == "0.0"
+    assert child_item["quantity"] == "0.84921"
     assert child_item["quantity_usd"] == "0.0"
     # Buy children should not have sell-related fields
     assert "sell_price" not in child_item

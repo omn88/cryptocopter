@@ -11,7 +11,7 @@ This module provides a SQLite-based database implementation focused on:
 import sqlite3
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager

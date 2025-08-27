@@ -51,7 +51,6 @@ class HPPositionBuy:
         Returns:
             A list of `Order` objects with updated order IDs and statuses.
         """
-        logger.debug("Entered open position")
         self.orders_cancel_price = self.calculate_trigger_cancel_orders_price()
         logger.info(
             "Orders cancel price set to: %s for position: %s",
@@ -344,7 +343,6 @@ class HPPositionBuy:
                     type=ORDER_TYPE_LIMIT,
                     timeInForce=TIME_IN_FORCE_GTC,
                 )
-                logger.debug("Order create response: %s", resp)
             except (
                 BinanceAPIException,
                 BinanceOrderException,

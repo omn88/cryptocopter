@@ -16,6 +16,12 @@ class HPUpdate:
     total_quantity: Optional[float] = (
         None  # Added for total bought quantity (before any sells)
     )
+    expected_quantity: Optional[float] = (
+        None  # Added for total expected quantity based on budget (budget/price_high)
+    )
+    orders_total_quantity: Optional[float] = (
+        None  # Added for sum of all buy order quantities (total to be bought)
+    )
     sell_price: Optional[float] = None
     expected_return: Optional[float] = None
     current_price: Optional[float] = None
