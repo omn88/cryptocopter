@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from unittest.mock import AsyncMock
 from binance.enums import (
     ORDER_STATUS_NEW,

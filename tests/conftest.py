@@ -823,3 +823,53 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
             portfolio_ui_queue.get_nowait()
         except queue.Empty:
             break
+
+
+@pytest.fixture
+async def portfolio_hp_backend_setup(hp_gui: HpFront, portfolio_strategy_executor):
+    """
+    Fixture for testing inventory-based sell flow that requires:
+    1. Portfolio frontend (with inventory)
+    2. HP manager frontend
+    3. Strategy executor backend
+
+    This enables testing the complete flow:
+    inventory sell button → sell modal → HP creation → strategy execution → final state
+    """
+    strategy_executor, portfolio = portfolio_strategy_executor
+
+    # Connect HP manager frontend to the strategy executor backend
+    hp_gui.config_queue = strategy_executor.config_queue
+    strategy_executor.ui_queue = hp_gui.ui_queue
+    hp_gui.db = strategy_executor.db
+    hp_gui.symbols_info = strategy_executor.symbols_info
+
+    # Connect portfolio to HP manager (for sell button functionality)
+    portfolio.hp_manager = hp_gui
+    hp_gui.portfolio = portfolio
+
+    # Debug: Verify queue objects are properly connected
+    logger.info(
+        f"[PORTFOLIO FIXTURE DEBUG] Strategy executor UI queue id: {id(strategy_executor.ui_queue)}"
+    )
+    logger.info(
+        f"[PORTFOLIO FIXTURE DEBUG] HP manager UI queue id: {id(hp_gui.ui_queue)}"
+    )
+    logger.info(
+        f"[PORTFOLIO FIXTURE DEBUG] Queue objects same: {strategy_executor.ui_queue is hp_gui.ui_queue}"
+    )
+    logger.info(
+        f"[PORTFOLIO FIXTURE DEBUG] Portfolio connected to HP manager: {hasattr(portfolio, 'hp_manager')}"
+    )
+    logger.info(
+        f"[PORTFOLIO FIXTURE DEBUG] HP manager connected to portfolio: {hasattr(hp_gui, 'portfolio')}"
+    )
+
+    yield portfolio, hp_gui, strategy_executor
+
+    # Cleanup strategies
+    for strategy in strategy_executor.strategies.values():
+        strategy.stop_event.set()
+        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+
+    # Cleanup is handled in individual fixtures

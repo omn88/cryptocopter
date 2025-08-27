@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Callable, Any
 import logging
 
 from .models import UnifiedPosition, UnifiedHPData, PositionType, PositionState
-from .modal_configurators import BuyHPModal, SellHPModal
+from .modal_configurators import BuyHPModal
 from .models import HPConfiguration
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,6 @@ class HPManager(BoxLayout):  # type: ignore[misc]
 
         # Modal instances
         self.buy_modal: Optional[BuyHPModal] = None
-        self.sell_modal: Optional[SellHPModal] = None
 
     def show_buy_modal(
         self, instance: Any = None, default_coin: Optional[str] = None
@@ -70,34 +69,10 @@ class HPManager(BoxLayout):  # type: ignore[misc]
 
         modal.open()
 
-    def show_sell_modal(
-        self, instance: Any = None, default_coin: Optional[str] = None
-    ) -> None:
-        """Show Sell HP configuration modal."""
-        if not self.inventory_coins:
-            logger.warning("No inventory available for Sell HP")
-            return
-
-        modal = SellHPModal(
-            inventory_coins=self.inventory_coins, callback=self.on_sell_hp_configured
-        )
-
-        # Set default coin if provided and available
-        if default_coin and default_coin in self.inventory_coins:
-            modal.coin_spinner.text = default_coin
-            modal.on_coin_selected(modal.coin_spinner, default_coin)
-
-        modal.open()
-
     def on_buy_hp_configured(self, config: HPConfiguration) -> None:
         """Handle Buy HP configuration completion."""
         if self.create_hp_callback:
             self.create_hp_callback("BUY", config)
-
-    def on_sell_hp_configured(self, config: HPConfiguration) -> None:
-        """Handle Sell HP configuration completion."""
-        if self.create_hp_callback:
-            self.create_hp_callback("SELL", config)
 
     def update_symbols(self, symbols: List[str]) -> None:
         """Update available symbols for Buy HP."""

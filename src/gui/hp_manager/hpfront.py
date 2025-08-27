@@ -151,13 +151,6 @@ class HpFront(BoxLayout):
         else:
             logger.warning("HP manager not available for buy modal")
 
-    def show_sell_modal(self):
-        """Show Sell HP modal - delegates to HP manager."""
-        if hasattr(self, "hp_manager") and self.hp_manager:
-            self.hp_manager.show_sell_modal()
-        else:
-            logger.warning("HP manager not available for sell modal")
-
     def show_cancel_confirmation(self, hp_id: str, symbol: str, side: str) -> None:
         """Show confirmation dialog for canceling HP position."""
 
@@ -272,10 +265,10 @@ Side: {side}"""
         try:
             if hp_type == "BUY":
                 self._create_buy_hp_from_config(config)
-            elif hp_type == "SELL":
-                self._create_sell_hp_from_config(config)
             else:
-                logger.error(f"Unknown HP type: {hp_type}")
+                logger.error(
+                    f"Unsupported HP type: {hp_type}. Only BUY operations are supported from HP list."
+                )
         except Exception as e:
             logger.error(f"Error creating {hp_type} HP: {e}")
 
@@ -299,27 +292,6 @@ Side: {side}"""
         )
         self.config_queue.put_nowait(new_hp)
         logger.info("Buy HP created from unified manager: %s", new_hp)
-
-    def _create_sell_hp_from_config(self, config: HPConfiguration):
-        """Create Sell HP from unified configuration."""
-        if not self.symbols_info.get(config.symbol):
-            logger.error(f"Symbol info not found for {config.symbol}")
-            return
-
-        sell_config = HPSellData(
-            config=HPSellConfig(
-                hp_id=config.hp_id if config.hp_id else str(uuid.uuid4())[:8],
-                coin=config.coin,
-                buy_price=0.0,  # Will be updated from actual data
-                sell_price=config.sell_price or 0.0,
-                quantity=config.quantity or 0.0,
-                end_currency=config.end_currency or "USDC",
-                symbol_info=self.symbols_info[config.symbol],
-            ),
-            state_info=StateInfo(side=PositionSide.SHORT),
-        )
-        self.config_queue.put_nowait(sell_config)
-        logger.info("Sell HP created from unified manager: %s", sell_config.config)
 
     def cancel_hp(self, hp_id: str, hp_type: str):
         """Handle HP cancellation from unified manager."""
