@@ -769,6 +769,8 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
     portfolio.handle_hp_sell_completed = AsyncMock()
     portfolio.handle_hp_buy_filled = AsyncMock()
     portfolio.handle_hp_position_cancelled = AsyncMock()
+    # Add inventory to portfolio so tests can access it
+    portfolio.inventory = mock_inventory
 
     # Compute balances from inventory for compatibility with StrategyExecutor
     inventory_by_coin = defaultdict(float)
@@ -846,24 +848,8 @@ async def portfolio_hp_backend_setup(hp_gui: HpFront, portfolio_strategy_executo
 
     # Connect portfolio to HP manager (for sell button functionality)
     portfolio.hp_manager = hp_gui
-    hp_gui.portfolio = portfolio
-
-    # Debug: Verify queue objects are properly connected
-    logger.info(
-        f"[PORTFOLIO FIXTURE DEBUG] Strategy executor UI queue id: {id(strategy_executor.ui_queue)}"
-    )
-    logger.info(
-        f"[PORTFOLIO FIXTURE DEBUG] HP manager UI queue id: {id(hp_gui.ui_queue)}"
-    )
-    logger.info(
-        f"[PORTFOLIO FIXTURE DEBUG] Queue objects same: {strategy_executor.ui_queue is hp_gui.ui_queue}"
-    )
-    logger.info(
-        f"[PORTFOLIO FIXTURE DEBUG] Portfolio connected to HP manager: {hasattr(portfolio, 'hp_manager')}"
-    )
-    logger.info(
-        f"[PORTFOLIO FIXTURE DEBUG] HP manager connected to portfolio: {hasattr(hp_gui, 'portfolio')}"
-    )
+    # Note: hp_gui does NOT have a direct portfolio reference in real implementation
+    # It only has portfolio_queue for communication
 
     yield portfolio, hp_gui, strategy_executor
 
