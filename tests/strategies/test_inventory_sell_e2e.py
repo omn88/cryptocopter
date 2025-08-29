@@ -37,14 +37,12 @@ async def test_inventory_sell_setup_inventory_items(portfolio_hp_backend_setup):
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
 
     # Verify we have inventory items available (portfolio has the inventory, not strategy executor)
-    assert (
-        len(portfolio.inventory) > 0
-    ), "Should have inventory items for testing"
+    assert len(portfolio.inventory) > 0, "Should have inventory items for testing"
 
     # Verify inventory contains expected items (from mock_inventory fixture)
     inventory_coins = [item.coin for item in portfolio.inventory]
     logger.info(f"Available inventory coins: {inventory_coins}")
-    
+
     # Use actual coins from the mock inventory fixture
     expected_coins = ["BTC", "ETH", "USDC"]  # Based on what we actually have
 
@@ -56,9 +54,7 @@ async def test_inventory_sell_setup_inventory_items(portfolio_hp_backend_setup):
     assert btc_item.available_quantity > 0, "BTC item should have positive quantity"
     assert btc_item.buy_price > 0, "BTC item should have positive buy price"
 
-    logger.info(
-        f"Verified inventory setup with {len(portfolio.inventory)} items"
-    )
+    logger.info(f"Verified inventory setup with {len(portfolio.inventory)} items")
 
 
 async def test_inventory_sell_portfolio_hp_connection(portfolio_hp_backend_setup):
@@ -144,12 +140,6 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
 
-    # Start sell flow
-    await sim.simulate_sell_button_click("BTC")
-
-    # Configure direct sell
-    await sim.configure_direct_sell(sell_price=50000.0, end_currency="USDC")
-
     # Submit configuration
     await sim.submit_sell_configuration()
 
@@ -209,10 +199,10 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     # Complete sell flow from button click to execution
     await sim.simulate_sell_button_click("BTC")
     await sim.configure_direct_sell(sell_price=50000.0, end_currency="USDC")
-    await sim.submit_sell_configuration()
+    generated_hp_id = await sim.submit_sell_configuration()
 
-    # Get created HP ID (implementation dependent)
-    hp_id = "1000"  # This will need to be determined dynamically
+    # Get created HP ID (now dynamically generated)
+    hp_id = generated_hp_id
 
     # Simulate sell order execution
     # This will need order fill simulation similar to buy tests
