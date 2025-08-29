@@ -23,6 +23,7 @@ from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.identifiers import InventoryItem, State
+from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.inventory_simulator import InventorySellSimulator
 from tests.strategies.hp_manager_helpers import wait_for_condition
 
@@ -137,15 +138,80 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     portfolio_hp_backend_setup,
 ):
     """Test configuring direct sell from BTC to USDC."""
-    portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
+    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
+    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
+    hp_sim = HPSimulator(front=hp_front, back=hp_back)
 
-    # Submit configuration
-    await sim.submit_sell_configuration()
+    # Submit configuration and get the generated HP ID
+    hp_id = await sim.submit_sell_configuration("BTC")
 
     # Verify HP sell position was created
-    # This will depend on how HP IDs are generated for inventory sells
-    logger.info("Direct sell configuration test passed")
+    assert hp_id in hp_back.strategies
+    strategy = hp_back.strategies[hp_id]
+    
+    # Verify strategy configuration
+    assert strategy.sell.current_position.config.coin == "BTC"
+    assert strategy.sell.current_position.config.sell_price == 50000.0
+    assert strategy.sell.current_position.config.end_currency == "USDC"
+    assert strategy.sell.current_position.config.quantity == 1.0
+    assert strategy.state.name == "BOUGHT"  # Should start in BOUGHT state for inventory sells
+    
+    # Wait for HP front to process the position and create hp_list entries
+    from tests.strategies.hp_manager_helpers import wait_for_condition
+    await wait_for_condition(
+        condition_func=lambda: len(hp_front.hp_list_data) > 0,
+        timeout=5.0
+    )
+    
+    # Verify HP front data structure - should have parent container
+    hp_list = hp_front.hp_list_data
+    logger.info(f"HP List data: {hp_list}")
+    
+    # Find the parent container for this sell position
+    parent_items = [item for item in hp_list if not item.get("is_child", False)]
+    assert len(parent_items) >= 1, f"Expected at least 1 parent item, got {len(parent_items)}"
+    
+    # Find our specific parent (should match the HP ID)
+    our_parent = None
+    for item in parent_items:
+        if item["hp_id"] == hp_id:
+            our_parent = item
+            break
+    
+    assert our_parent is not None, f"Could not find parent container for HP ID {hp_id}"
+    
+    # Verify parent container properties
+    assert our_parent["coin"] == "BTCUSD"  # Parent shows trading pair symbol
+    assert our_parent["sell_price"] == "50000.0"
+    assert our_parent["buy_price"] == "50000.0"  # From inventory item
+    assert our_parent["state"] == "BOUGHT"
+    assert our_parent["quantity_usd"] == "50000.0"  # quantity * buy_price
+    assert our_parent["side"] == "PARENT"
+    assert our_parent["is_child"] == False
+    assert "children" in our_parent
+    assert "1000_SELL" in our_parent["children"]
+    
+    # Check if there are child items (SELL child should be created)
+    child_items = [item for item in hp_list if item.get("is_child", False)]
+    sell_children = [child for child in child_items if child.get("hp_id", "").endswith("_SELL")]
+    
+    assert len(sell_children) >= 1, f"Expected at least 1 SELL child, got {len(sell_children)}"
+    sell_child = sell_children[0]
+    logger.info(f"Found SELL child: {sell_child}")
+    
+    # Verify SELL child properties
+    assert sell_child["hp_id"] == f"{hp_id}_SELL"
+    assert sell_child["coin"] == "BTCUSDC"  # Child shows the actual trading symbol
+    assert sell_child["sell_price"] == "50000.0"
+    assert sell_child["buy_price"] == "50000.0"
+    assert sell_child["state"] == "NEW"  # Initial state for SELL child
+    assert sell_child["is_child"] == True
+    assert sell_child["side"] == "SELL"
+    assert sell_child["parent_hp_id"] == hp_id
+    assert "action_buttons" in sell_child
+    assert "CANCEL" in sell_child["action_buttons"]
+    
+    logger.info("Direct sell configuration test passed with HP front validation")
 
 
 async def test_inventory_sell_configure_multihop_sell_eth_to_pln(
