@@ -364,7 +364,7 @@ class HpStrategy:
         return max(0.0, total_bought - sold)
 
     def _calculate_from_sell_only(self) -> float:
-        # Used when sell is started independently
+        # Used when sell is started independently (inventory sell)
         # Return the original quantity, not remaining quantity
         return self.sell.current_position.config.quantity
 

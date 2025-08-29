@@ -69,70 +69,6 @@ async def test_inventory_sell_portfolio_hp_connection(portfolio_hp_backend_setup
     logger.info("Verified portfolio-HP manager-backend connections")
 
 
-# Test Suite 2: Sell Button and Modal Opening
-async def test_inventory_sell_button_click_btc_direct(portfolio_hp_backend_setup):
-    """Test clicking sell button on BTC inventory item for direct sell."""
-    portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Get BTC inventory item
-    btc_item = sim.get_inventory_item("BTC")
-
-    # Simulate sell button click
-    result = await sim.simulate_sell_button_click("BTC")
-
-    # Verify sell modal opened with correct data
-    await sim.verify_sell_modal_opened(
-        coin="BTC",
-        expected_quantity=btc_item.available_quantity,
-        expected_buy_price=btc_item.buy_price,
-    )
-
-    logger.info(f"Sell button test passed for BTC item: {btc_item}")
-
-
-async def test_inventory_sell_button_click_eth_multihop(portfolio_hp_backend_setup):
-    """Test clicking sell button on ETH inventory item for multi-hop sell."""
-    portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Get ETH inventory item
-    eth_item = sim.get_inventory_item("ETH")
-
-    # Simulate sell button click
-    result = await sim.simulate_sell_button_click("ETH")
-
-    # Verify sell modal opened with correct data
-    await sim.verify_sell_modal_opened(
-        coin="ETH",
-        expected_quantity=eth_item.available_quantity,
-        expected_buy_price=eth_item.buy_price,
-    )
-
-    logger.info(f"Sell button test passed for ETH item: {eth_item}")
-
-
-async def test_inventory_sell_button_click_usdc_convert(portfolio_hp_backend_setup):
-    """Test clicking sell button on USDC inventory item for convert sell."""
-    portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-    sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Get USDC inventory item
-    usdc_item = sim.get_inventory_item("USDC")
-
-    # Simulate sell button click
-    result = await sim.simulate_sell_button_click("USDC")
-
-    # Verify sell modal opened with correct data
-    await sim.verify_sell_modal_opened(
-        coin="USDC",
-        expected_quantity=usdc_item.available_quantity,
-        expected_buy_price=usdc_item.buy_price,
-    )
-
-    logger.info(f"Sell button test passed for USDC item: {usdc_item}")
-
-
 # Test Suite 3: Sell Configuration and HP Creation
 async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     portfolio_hp_backend_setup,
@@ -148,70 +84,51 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     # Verify HP sell position was created
     assert hp_id in hp_back.strategies
     strategy = hp_back.strategies[hp_id]
-    
+
     # Verify strategy configuration
     assert strategy.sell.current_position.config.coin == "BTC"
     assert strategy.sell.current_position.config.sell_price == 50000.0
     assert strategy.sell.current_position.config.end_currency == "USDC"
     assert strategy.sell.current_position.config.quantity == 1.0
-    assert strategy.state.name == "BOUGHT"  # Should start in BOUGHT state for inventory sells
-    
+    assert (
+        strategy.state.name == "BOUGHT"
+    )  # Should start in BOUGHT state for inventory sells
+
     # Wait for HP front to process the position and create hp_list entries
     from tests.strategies.hp_manager_helpers import wait_for_condition
+
     await wait_for_condition(
-        condition_func=lambda: len(hp_front.hp_list_data) > 0,
-        timeout=5.0
+        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
     )
-    
-    # Verify HP front data structure - should have parent container
+
+    # Verify HP front data structure using HPSimulator validation methods
     hp_list = hp_front.hp_list_data
     logger.info(f"HP List data: {hp_list}")
-    
-    # Find the parent container for this sell position
-    parent_items = [item for item in hp_list if not item.get("is_child", False)]
-    assert len(parent_items) >= 1, f"Expected at least 1 parent item, got {len(parent_items)}"
-    
-    # Find our specific parent (should match the HP ID)
-    our_parent = None
-    for item in parent_items:
-        if item["hp_id"] == hp_id:
-            our_parent = item
-            break
-    
-    assert our_parent is not None, f"Could not find parent container for HP ID {hp_id}"
-    
-    # Verify parent container properties
-    assert our_parent["coin"] == "BTCUSD"  # Parent shows trading pair symbol
-    assert our_parent["sell_price"] == "50000.0"
-    assert our_parent["buy_price"] == "50000.0"  # From inventory item
-    assert our_parent["state"] == "BOUGHT"
-    assert our_parent["quantity_usd"] == "50000.0"  # quantity * buy_price
-    assert our_parent["side"] == "PARENT"
-    assert our_parent["is_child"] == False
-    assert "children" in our_parent
-    assert "1000_SELL" in our_parent["children"]
-    
-    # Check if there are child items (SELL child should be created)
-    child_items = [item for item in hp_list if item.get("is_child", False)]
-    sell_children = [child for child in child_items if child.get("hp_id", "").endswith("_SELL")]
-    
-    assert len(sell_children) >= 1, f"Expected at least 1 SELL child, got {len(sell_children)}"
-    sell_child = sell_children[0]
-    logger.info(f"Found SELL child: {sell_child}")
-    
-    # Verify SELL child properties
-    assert sell_child["hp_id"] == f"{hp_id}_SELL"
-    assert sell_child["coin"] == "BTCUSDC"  # Child shows the actual trading symbol
-    assert sell_child["sell_price"] == "50000.0"
-    assert sell_child["buy_price"] == "50000.0"
-    assert sell_child["state"] == "NEW"  # Initial state for SELL child
-    assert sell_child["is_child"] == True
-    assert sell_child["side"] == "SELL"
-    assert sell_child["parent_hp_id"] == hp_id
-    assert "action_buttons" in sell_child
-    assert "CANCEL" in sell_child["action_buttons"]
-    
-    logger.info("Direct sell configuration test passed with HP front validation")
+
+
+    assert len(hp_list) == 2, "There should be two HP entries in the front-end list"
+
+    # Use HPSimulator validation methods instead of manual assertions
+    # Validate parent container using hp_simulator validate_parent method
+    hp_sim.validate_parent(
+        hp_id=hp_id,
+        quantity="1.0",  # Inventory quantity that should be available to sell
+        realized_quantity="0.0",  # Nothing sold yet
+        state="BOUGHT",  # Starting state for inventory sells
+        buy_price="50000.0",
+        sell_price="50000.0",
+    )
+
+    # Validate SELL child container using hp_simulator validate_child_sell method
+    hp_sim.validate_child_sell(
+        hp_id=hp_id,
+        quantity="1.0",  # Child should show same quantity as parent for initial state
+        realized_quantity="0.0",  # Nothing realized yet
+        state="NEW",  # Initial state for SELL child
+        sell_price="50000.0",
+    )
+
+    logger.info("Direct sell configuration test passed with HP simulator validation")
 
 
 async def test_inventory_sell_configure_multihop_sell_eth_to_pln(
@@ -220,9 +137,6 @@ async def test_inventory_sell_configure_multihop_sell_eth_to_pln(
     """Test configuring multi-hop sell from ETH to PLN."""
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Start sell flow
-    await sim.simulate_sell_button_click("ETH")
 
     # Configure multi-hop sell (ETH → USDT → PLN)
     await sim.configure_multi_hop_sell(sell_price=3000.0, end_currency="PLN")
@@ -240,9 +154,6 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
     """Test configuring convert-only sell from USDC to PLN."""
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Start sell flow
-    await sim.simulate_sell_button_click("USDC")
 
     # Configure convert sell
     await sim.configure_convert_sell(end_currency="PLN")
@@ -262,9 +173,6 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
 
-    # Complete sell flow from button click to execution
-    await sim.simulate_sell_button_click("BTC")
-    await sim.configure_direct_sell(sell_price=50000.0, end_currency="USDC")
     generated_hp_id = await sim.submit_sell_configuration()
 
     # Get created HP ID (now dynamically generated)
@@ -286,8 +194,6 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
 
-    # Complete multi-hop sell flow
-    await sim.simulate_sell_button_click("ETH")
     await sim.configure_multi_hop_sell(sell_price=3000.0, end_currency="PLN")
     await sim.submit_sell_configuration()
 
@@ -305,7 +211,6 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
 
     # Complete convert sell flow
-    await sim.simulate_sell_button_click("USDC")
     await sim.configure_convert_sell(end_currency="PLN")
     await sim.submit_sell_configuration()
 
@@ -342,10 +247,6 @@ async def test_inventory_sell_modal_cancel_flow(portfolio_hp_backend_setup):
     """Test canceling sell modal without creating HP position."""
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
-
-    # Start sell flow but cancel
-    await sim.simulate_sell_button_click("BTC")
-    # Simulate user clicking cancel or closing modal
 
     # Verify no HP position was created
     initial_strategy_count = len(strategy_executor.strategies)

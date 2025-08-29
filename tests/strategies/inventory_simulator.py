@@ -16,7 +16,14 @@ from src.common.symbol_info import SymbolInfo
 from src.gui.hp_manager.hpfront import HpFront
 from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.identifiers import HPSellConfig, HPSellData, InventoryItem, PositionSide, State, StateInfo
+from src.identifiers import (
+    HPSellConfig,
+    HPSellData,
+    InventoryItem,
+    PositionSide,
+    State,
+    StateInfo,
+)
 from tests.strategies.hp_manager_helpers import wait_for_condition
 
 logger = logging.getLogger(__name__)
@@ -58,7 +65,6 @@ class InventorySellSimulator:
         )
         pass
 
-
     async def configure_multi_hop_sell(self, sell_price: float, end_currency: str):
         """Configure multi-hop sell in the modal."""
         # This will simulate user entering multi-hop sell configuration
@@ -81,36 +87,39 @@ class InventorySellSimulator:
 
         # Create a basic sell configuration - hardcode values for now to make test pass
         sell_config = HPSellConfig(
-            hp_id=None,  # Leave empty so setup_sell_position_with_new_hp is called
             coin=item.coin,
             buy_price=item.buy_price,
             sell_price=50000.0,  # From the test configuration
             quantity=item.available_quantity,
             end_currency="USDC",
-            symbol_info=SymbolInfo(symbol=f"{item.coin}USDC", precision=5, price_precision=2),
+            symbol_info=SymbolInfo(
+                symbol=f"{item.coin}USDC", precision=5, price_precision=2
+            ),
         )
-        
+
         sell_data = HPSellData(
             config=sell_config,
             state_info=StateInfo(side=PositionSide.SHORT),
         )
-        
+
         # Submit to strategy executor via config queue
         self.strategy_executor.config_queue.put_nowait(sell_data)
         logger.info(f"Submitted sell configuration: {sell_config}")
-        
+
         await wait_for_condition(
             condition_func=lambda: len(self.strategy_executor.strategies) > 0,
-            timeout=5.0
+            timeout=5.0,
         )
-        
+
         # The HP ID will be dynamically generated, so let's find it
         if self.strategy_executor.strategies:
             generated_hp_id = list(self.strategy_executor.strategies.keys())[0]
             logger.info(f"HP position created with ID: {generated_hp_id}")
             return generated_hp_id
         else:
-            raise RuntimeError("No HP strategy was created after submitting sell configuration")
+            raise RuntimeError(
+                "No HP strategy was created after submitting sell configuration"
+            )
 
     def verify_hp_sell_position_created(self, hp_id: str, coin: str, quantity: float):
         """Verify that HP sell position was created correctly."""
@@ -124,23 +133,33 @@ class InventorySellSimulator:
     async def simulate_sell_order_execution(self, hp_id: str):
         """Simulate the execution of the sell order to complete the sell flow."""
         from binance.enums import ORDER_TYPE_LIMIT, ORDER_STATUS_FILLED
-        from src.identifiers import Event, EventName, ExecutionReport, TickerUpdate, SignalUpdate, Signal
-        
+        from src.identifiers import (
+            Event,
+            EventName,
+            ExecutionReport,
+            TickerUpdate,
+            SignalUpdate,
+            Signal,
+        )
+
         strategy = self.strategy_executor.strategies[hp_id]
-        
+
         # Step 1: First trigger transition from BOUGHT to SELLING using ticker update
         # The sell trigger price should be the sell price or slightly above
         sell_price = strategy.sell.current_position.config.sell_price
-        strategy.ticker_update = TickerUpdate(last_price=sell_price, symbol=strategy.sell.current_position.config.symbol_info.symbol)
-        
+        strategy.ticker_update = TickerUpdate(
+            last_price=sell_price,
+            symbol=strategy.sell.current_position.config.symbol_info.symbol,
+        )
+
         # Process ticker to move from BOUGHT to SELLING
-        await strategy.process_ticker()
+        await strategy.process_ticker() # type: ignore
         logger.info(f"Strategy {hp_id} transitioned to state: {strategy.state}")
-        
+
         # Step 2: Simulate sell order execution
         sell_position = strategy.sell.current_position
         sell_order = sell_position.sell_order
-        
+
         # Create execution report for full fill
         exc_report = ExecutionReport(
             order_type=ORDER_TYPE_LIMIT,
@@ -151,34 +170,37 @@ class InventorySellSimulator:
             cumulative_filled_quantity=sell_order.quantity,
             price=sell_order.price,
         )
-        
+
         # Send execution report to strategy worker
         strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
         logger.info(f"Sent execution report for HP {hp_id}: {exc_report}")
-        
-        # Step 3: Process the execution report 
-        await strategy.process_order()
-        
+
+        # Step 3: Process the execution report
+        await strategy.process_order()  # type: ignore
+
         # Step 4: Wait for order status to be filled
         await wait_for_condition(
-            condition_func=lambda: strategy.sell.current_position.sell_order.status == ORDER_STATUS_FILLED
+            condition_func=lambda: strategy.sell.current_position.sell_order.status
+            == ORDER_STATUS_FILLED
         )
         logger.info(f"Order status confirmed as FILLED for HP {hp_id}")
-        
+
         # Step 5: Check if there's a signal to process and handle it
         if strategy.worker_queue.qsize() > 0:
             event = strategy.worker_queue.get_nowait()
-            if event.name == EventName.SIGNAL and isinstance(event.content, SignalUpdate):
+            if event.name == EventName.SIGNAL and isinstance(
+                event.content, SignalUpdate
+            ):
                 if event.content.signal == Signal.HP_ALL_ORDERS_FILLED:
                     strategy.signal_update = event.content
-                    await strategy.process_signal()
+                    await strategy.process_signal()  # type: ignore
                     logger.info(f"Processed HP_ALL_ORDERS_FILLED signal for HP {hp_id}")
 
     async def verify_sell_execution_complete(self, hp_id: str, expected_state: State):
         """Verify that sell execution completed with expected state."""
         # First simulate the sell order execution
         await self.simulate_sell_order_execution(hp_id)
-        
+
         # Then wait for the expected state
         await wait_for_condition(
             condition_func=lambda: self.strategy_executor.strategies[hp_id].state

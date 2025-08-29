@@ -878,12 +878,21 @@ Side: {side}"""
                 if parent_hp_id == update.hp_id:
                     original_quantity_usd = str(update.quantity_usd)
 
+            # For sell-only positions (like inventory sells), initialize with the sell quantity
+            initial_quantity = "0.0"
+            if hasattr(update, "quantity") and update.quantity is not None:
+                initial_quantity = (
+                    str(update.symbol_info.format_quantity(float(update.quantity)))
+                    if update.symbol_info
+                    else str(update.quantity)
+                )
+
             hp_map[parent_hp_id] = {
                 "hp_id": parent_hp_id,
                 "coin": f"{update.coin}USD",
                 "state": update.state.value,
                 "buy_price": "0.0",
-                "quantity": "0.0",  # Total realized buy quantity
+                "quantity": initial_quantity,  # Use quantity from update for sell positions
                 "realized_quantity": "0.0",  # Total realized sell quantity
                 "quantity_usd": original_quantity_usd,
                 "sell_price": "0.0",
