@@ -2522,6 +2522,78 @@ class HPSimulator:
                 child["net_percent"] == net_percent
             ), f"Multihop child net_percent: expected {net_percent}, got {child['net_percent']}"
 
+    def validate_convert_child(
+        self,
+        hp_id,
+        quantity,
+        realized_quantity,
+        state,
+        sell_price=None,
+        buy_price=None,
+        quantity_usd=None,
+        current_price=None,
+        net=None,
+        net_percent=None,
+    ):
+        """
+        Comprehensive validation for convert child positions (e.g., 1000_CONVERT).
+        Convert children use _CONVERT suffix and represent direct conversion positions.
+        """
+        hp_list_data = self.front.hp_list_data
+        convert_child_id = f"{hp_id}_CONVERT"
+        convert_child = next(
+            (item for item in hp_list_data if item["hp_id"] == convert_child_id), None
+        )
+        assert (
+            convert_child is not None
+        ), f"Convert child with hp_id {convert_child_id} not found"
+
+        # Core attributes - always validated
+        assert (
+            convert_child["quantity"] == quantity
+        ), f"Convert child quantity: expected {quantity}, got {convert_child['quantity']}"
+        assert (
+            convert_child["realized_quantity"] == realized_quantity
+        ), f"Convert child realized_quantity: expected {realized_quantity}, got {convert_child['realized_quantity']}"
+        assert (
+            convert_child["state"] == state
+        ), f"Convert child state: expected {state}, got {convert_child['state']}"
+        assert (
+            convert_child["side"] == "SELL"
+        ), f"Convert child side: expected SELL, got {convert_child['side']}"
+        assert (
+            convert_child["is_child"] == True
+        ), f"Convert child is_child: expected True, got {convert_child['is_child']}"
+        assert (
+            convert_child["parent_hp_id"] == hp_id
+        ), f"Convert child parent_hp_id: expected {hp_id}, got {convert_child['parent_hp_id']}"
+
+        # Optional attributes - only validated if provided
+        if sell_price is not None:
+            assert (
+                convert_child["sell_price"] == sell_price
+            ), f"Convert child sell_price: expected {sell_price}, got {convert_child['sell_price']}"
+        if buy_price is not None:
+            assert (
+                convert_child["buy_price"] == buy_price
+            ), f"Convert child buy_price: expected {buy_price}, got {convert_child['buy_price']}"
+        if quantity_usd is not None:
+            assert (
+                convert_child["quantity_usd"] == quantity_usd
+            ), f"Convert child quantity_usd: expected {quantity_usd}, got {convert_child['quantity_usd']}"
+        if current_price is not None:
+            assert (
+                convert_child["current_price"] == current_price
+            ), f"Convert child current_price: expected {current_price}, got {convert_child['current_price']}"
+        if net is not None:
+            assert (
+                convert_child["net"] == net
+            ), f"Convert child net: expected {net}, got {convert_child['net']}"
+        if net_percent is not None:
+            assert (
+                convert_child["net_percent"] == net_percent
+            ), f"Convert child net_percent: expected {net_percent}, got {convert_child['net_percent']}"
+
     def validate_buy_orders(self, strategy, expected_order_data):
         """
         Comprehensive validation for buy orders in the strategy.

@@ -908,11 +908,27 @@ class StrategyExecutor:
                 (config.sell_price - buy_price) * config.quantity
             )
         quantity_usd = config.symbol_info.adjust_price(config.quantity * buy_price)
+
+        # Determine the correct HP ID for UI display
+        # For convert sells, use _CONVERT suffix; for regular sells, use _SELL suffix
+        hp_id = config.hp_id
+        if config.hp_id in self.strategies:
+            strategy = self.strategies[config.hp_id]
+            if (
+                hasattr(strategy, "sell")
+                and hasattr(strategy.sell, "current_position")
+                and hasattr(strategy.sell.current_position, "sell_type")
+                and strategy.sell.current_position.sell_type == SellType.CONVERT
+            ):
+                hp_id = f"{config.hp_id}_CONVERT"
+            elif not config.is_child:
+                hp_id = f"{config.hp_id}_SELL"
+
         self.ui_queue.put_nowait(
             HPGuiDataSell(
                 data=HPSellData(config=config, state_info=state_info),
                 hp_update=HPUpdate(
-                    hp_id=config.hp_id,
+                    hp_id=hp_id,
                     buy_price=buy_price,
                     sell_price=config.sell_price,
                     coin=config.coin,
