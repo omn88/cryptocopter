@@ -211,21 +211,48 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     logger.info("Multihop sell configuration test passed with HP simulator validation")
 
 
-# async def test_inventory_sell_configure_convert_only_usdc_to_pln(
-#     portfolio_hp_backend_setup,
-# ):
-#     """Test configuring convert-only sell from USDC to PLN."""
-#     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
-#     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
+async def test_inventory_sell_configure_convert_only_usdc_to_pln(
+    portfolio_hp_backend_setup,
+):
+    """Test configuring convert-only sell from USDC to PLN."""
+    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
+    simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
+    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
 
-#     # Configure convert sell
-#     await sim.configure_convert_sell(end_currency="PLN")
+    # Start with configuration phase - submit convert sell for DYM to PLN
+    hp_id = await simulator.submit_sell_configuration(
+        coin="DYM", end_currency="PLN", sell_price=1.4
+    )
 
-#     # Submit configuration
-#     await sim.submit_sell_configuration()
+    # Verify HP sell position was created in initial state
+    assert hp_id in hp_back.strategies
+    strategy = hp_back.strategies[hp_id]
 
-#     # Verify convert HP sell position was created
-#     logger.info("Convert sell configuration test passed")
+    await wait_for_condition(
+        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
+    )
+
+    # Debug: Print actual HP frontend data to understand the structure
+    logger.info(f"HP frontend data: {hp_front.hp_list_data}")
+
+    # Validate initial state - parent + sell child (convert creates parent + 1000_SELL child)
+    hp_simulator.validate_parent(
+        hp_id=hp_id,
+        quantity="200.0",
+        realized_quantity="0.0",
+        state="BOUGHT",
+        buy_price="1.2",
+        sell_price="1.4",
+    )
+
+    # For convert positions, there's a child with hp_id = parent_id + "_SELL"
+    hp_simulator.validate_child_sell(
+        hp_id=hp_id,
+        quantity="200.0",
+        realized_quantity="0.0",
+        state="NEW",
+        sell_price="1.4",
+    )
 
 
 # Test Suite 4: Sell Execution and State Validation
@@ -292,9 +319,6 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     await wait_for_condition(
         condition_func=lambda: strategy.state == State.SOLD, timeout=10.0
     )
-
-    # Give time for HP frontend updates to be processed
-    import asyncio
 
     await asyncio.sleep(0.1)
 
@@ -411,9 +435,6 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         logger.info(f"Current strategy state: {strategy.state}")
         # Continue anyway to test final validation
 
-    # Give time for processing
-    import asyncio
-
     await asyncio.sleep(0.1)
 
     # Try to validate first hop with error handling
@@ -456,9 +477,6 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         # Debug: check what positions exist
         logger.info(f"Available sell positions: {len(strategy.sell.sell_positions)}")
         # Continue to see if we can still reach SOLD state
-
-    # Give a moment for second hop processing
-    import asyncio
 
     await asyncio.sleep(0.1)
 
@@ -532,9 +550,6 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
             logger.warning(
                 "Strategy not in expected state, but continuing to validation"
             )
-
-    # Give time for HP frontend updates to be processed
-    import asyncio
 
     await asyncio.sleep(0.1)
 
@@ -633,9 +648,6 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         sell_price="1.4",
     )
 
-    # Mock convert quote/accept methods on the client for execution
-    from unittest.mock import AsyncMock
-
     convert_quote_result = {
         "quoteId": "mock-quote-id",
         "fromAsset": "DYM",
@@ -660,9 +672,6 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     await wait_for_condition(
         condition_func=lambda: strategy.state == State.SOLD, timeout=5.0
     )
-
-    # Give time for HP frontend updates to be processed
-    import asyncio
 
     await asyncio.sleep(0.1)
 
