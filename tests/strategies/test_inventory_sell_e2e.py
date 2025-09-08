@@ -131,7 +131,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
 ):
     """
     Test configuring a multihop sell from AXL to PLN.
-    This should trigger multihop strategy: AXL → USDC → PLN
+    This should trigger multihop strategy: AXL → BTC → PLN
     """
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
     simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
@@ -142,25 +142,69 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         coin="AXL", end_currency="PLN", sell_price=1.5
     )
 
-    # The HP should create 2 positions for multihop strategy:
-    # Based on the logs, it chose: AXL → BTC → PLN
-    # With IDs: 1000 (master), 1000a (AXL→BTC child), 1000b (BTC→PLN parent)
+    # Verify HP sell position was created
+    assert hp_id in hp_back.strategies
+    strategy = hp_back.strategies[hp_id]
 
-    # Validate parent container was created (for BTC → PLN) - it should be 1000b
-    hp_simulator.validate_parent(
-        "1000",
-        "0.0",  # Initial quantity should be 0
-        "0.0",  # Initial realized quantity
-        "WAITING_CHILD",  # Expected state for parent waiting for child
+    # Verify strategy configuration
+    assert strategy.sell.current_position.config.coin == "AXL"
+    assert (
+        strategy.sell.current_position.config.sell_price == 0.00000469
+    )  # First hop price
+    assert (
+        strategy.sell.current_position.config.end_currency == "USDC"
+    )  # First hop end currency
+    assert strategy.sell.current_position.config.quantity == 100.0
+    assert (
+        strategy.state.name == "BOUGHT"
+    )  # Should start in BOUGHT state for inventory sells
+
+    await wait_for_condition(
+        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
     )
 
-    # Validate child sell position was created (for AXL → BTC) - it should be 1000a
-    hp_simulator.validate_child_sell(
-        "AXL",
-        "2.5e-06",  # Buy price (from logs)
-        "4.69e-06",  # Sell price (from logs)
-        "100.0",  # Quantity
-        "BTC",  # End currency
+    # Verify HP front data structure using HPSimulator validation methods
+    hp_list = hp_front.hp_list_data
+    logger.info(f"HP List data: {hp_list}")
+
+    # For multihop, we should have 3 HP entries: parent + 2 children
+    expected_count = 3  # 1 parent + 2 multihop children
+    assert (
+        len(hp_list) == expected_count
+    ), f"There should be {expected_count} HP entries in the front-end list for multihop"
+
+    # Validate parent container (1000) using hp_simulator validate_parent method
+    hp_simulator.validate_parent(
+        hp_id=hp_id,
+        quantity="100.0",  # AXL inventory quantity that should be available to sell
+        realized_quantity="0.0",  # Nothing sold yet
+        state="BOUGHT",  # Starting state for inventory sells
+        buy_price="0.8",  # AXL buy price from inventory
+        sell_price="1.5",  # Target sell price for AXL to PLN
+    )
+
+    # Validate first multihop child (1000a): AXL → BTC using hp_simulator validate_multihop_child method
+    hp_simulator.validate_multihop_child(
+        child_hp_id="1000a",
+        quantity="100.0",  # Child should show same quantity as parent for initial state
+        realized_quantity="0.0",  # Nothing realized yet
+        state="NEW",  # Initial state for first multihop child
+        parent_hp_id="1000",  # Parent HP ID
+        coin="AXL",  # Source coin for first hop
+        sell_price="0.00000469",  # AXL to BTC sell price using full number notation
+        buy_price="0.0000025",  # AXL buy price using full number notation
+    )
+
+    # Validate second multihop child (1000b): BTC → PLN using hp_simulator validate_multihop_child method
+    hp_simulator.validate_multihop_child(
+        child_hp_id="1000b",
+        quantity="0.00047",  # BTC quantity from first hop using full number notation
+        realized_quantity="0.0",  # Nothing realized yet
+        state="NEW",  # Initial state for second multihop child (shows as NEW in frontend, WAITING_CHILD in backend)
+        parent_hp_id="1000",  # Parent HP ID
+        coin="BTC",  # Source coin for second hop
+        sell_price="320000.0",  # BTC to PLN sell price using full number notation
+        buy_price="320000.0",  # BTC buy price using full number notation
     )
 
     logger.info("Multihop sell configuration test passed with HP simulator validation")
