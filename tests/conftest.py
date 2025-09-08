@@ -653,6 +653,17 @@ def mock_inventory():
             notes="Initial ETH position",
         ),
         InventoryItem(
+            id="axl_lot",
+            coin="AXL",
+            buy_price=0.8,
+            quantity=100.0,
+            available_quantity=100.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial AXL position for multihop testing",
+        ),
+        InventoryItem(
             id="usdc_lot",
             coin="USDC",
             buy_price=1.0,
@@ -795,6 +806,9 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
     price_resolver = UsdPriceResolver(
         client=mock_async_client, symbols_info=symbols_info
     )
+    # Set the required prices for multihop tests
+    price_resolver.latest_prices["BTCPLN"] = 320000.0
+    price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,

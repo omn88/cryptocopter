@@ -79,21 +79,26 @@ class InventorySellSimulator:
         logger.info(f"TODO: Configure convert sell to {end_currency}")
         pass
 
-    async def submit_sell_configuration(self, coin: str):
+    async def submit_sell_configuration(
+        self,
+        coin: str,
+        sell_price: float,
+        end_currency: str = "USDC",
+    ):
         """Submit the sell configuration to create HP sell position."""
         # This will simulate clicking "Create HP" or similar button in modal
 
         item = self.get_inventory_item(coin=coin)
 
-        # Create a basic sell configuration - hardcode values for now to make test pass
+        # Create sell configuration
         sell_config = HPSellConfig(
             coin=item.coin,
             buy_price=item.buy_price,
-            sell_price=50000.0,  # From the test configuration
+            sell_price=sell_price,
             quantity=item.available_quantity,
-            end_currency="USDC",
+            end_currency=end_currency,
             symbol_info=SymbolInfo(
-                symbol=f"{item.coin}USDC", precision=5, price_precision=2
+                symbol=f"{item.coin}{end_currency}", precision=5, price_precision=2
             ),
         )
 
@@ -102,8 +107,8 @@ class InventorySellSimulator:
             state_info=StateInfo(side=PositionSide.SHORT),
         )
 
-        # Submit to strategy executor via config queue
-        self.strategy_executor.config_queue.put_nowait(sell_data)
+        # Submit to HP manager via config queue
+        self.hp_manager.config_queue.put_nowait(sell_data)
         logger.info(f"Submitted sell configuration: {sell_config}")
 
         await wait_for_condition(
@@ -153,7 +158,7 @@ class InventorySellSimulator:
         )
 
         # Process ticker to move from BOUGHT to SELLING
-        await strategy.process_ticker() # type: ignore
+        await strategy.process_ticker()  # type: ignore
         logger.info(f"Strategy {hp_id} transitioned to state: {strategy.state}")
 
         # Step 2: Simulate sell order execution
