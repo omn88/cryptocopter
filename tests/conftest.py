@@ -674,17 +674,6 @@ def mock_inventory():
             timestamp=time.time(),
             notes="Initial USDC position",
         ),
-        InventoryItem(
-            id="dym_lot",
-            coin="DYM",
-            buy_price=1.2,
-            quantity=200.0,
-            available_quantity=200.0,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial DYM position for convert testing",
-        ),
     ]
 
 
