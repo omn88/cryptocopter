@@ -833,6 +833,7 @@ class TradingDatabase:
                 buy_price=config.buy_price,
                 sell_price=config.sell_price,
                 end_currency=config.end_currency,
+                parent_position_id=config.parent_hp_id,  # Map parent_hp_id to parent_position_id
                 trade_type=(
                     TradeType.DIRECT
                     if data.sell_type == SellType.DIRECT

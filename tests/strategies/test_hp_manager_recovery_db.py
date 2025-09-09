@@ -3102,6 +3102,9 @@ async def test_recovery_buy_fully_partially_sold_position(crash_recovery_factory
     recovered_strategy = new_back.strategies["1000"]
     assert all(o.status == ORDER_STATUS_FILLED for o in recovered_strategy.buy.orders)
     assert recovered_strategy.buy.data.state_info.state == State.BOUGHT
+
+    # Wait for state transition to PARTIALLY_SOLD to complete after recovery
+    await wait_for_condition(lambda: recovered_strategy.state == State.PARTIALLY_SOLD)
     assert recovered_strategy.state == State.PARTIALLY_SOLD
 
     await recovery_helper.assert_application_db_state_match(hp_id="1000")

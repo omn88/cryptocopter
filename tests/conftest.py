@@ -653,6 +653,17 @@ def mock_inventory():
             notes="Initial ETH position",
         ),
         InventoryItem(
+            id="axl_lot",
+            coin="AXL",
+            buy_price=0.8,
+            quantity=1000.0,
+            available_quantity=1000.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial AXL position for multihop testing",
+        ),
+        InventoryItem(
             id="usdc_lot",
             coin="USDC",
             buy_price=1.0,
@@ -663,9 +674,21 @@ def mock_inventory():
             timestamp=time.time(),
             notes="Initial USDC position",
         ),
+        InventoryItem(
+            id="dym_lot",
+            coin="DYM",
+            buy_price=1.2,
+            quantity=200.0,
+            available_quantity=200.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="Initial DYM position for convert testing",
+        ),
     ]
 
 
+# TO BE REPLACED WITH mock_inventory ABOVE - kept for reference
 @pytest.fixture
 def test_inventory():
     """Test inventory with multiple BTC lots for FIFO testing."""
@@ -769,6 +792,8 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
     portfolio.handle_hp_sell_completed = AsyncMock()
     portfolio.handle_hp_buy_filled = AsyncMock()
     portfolio.handle_hp_position_cancelled = AsyncMock()
+    # Add inventory to portfolio so tests can access it
+    portfolio.inventory = mock_inventory
 
     # Compute balances from inventory for compatibility with StrategyExecutor
     inventory_by_coin = defaultdict(float)
@@ -793,6 +818,9 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
     price_resolver = UsdPriceResolver(
         client=mock_async_client, symbols_info=symbols_info
     )
+    # Set the required prices for multihop tests
+    price_resolver.latest_prices["BTCPLN"] = 320000.0
+    price_resolver.latest_prices["BTCUSDC"] = 100000.0
 
     executor = StrategyExecutor(
         db=test_db,
@@ -823,3 +851,45 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
             portfolio_ui_queue.get_nowait()
         except queue.Empty:
             break
+
+
+@pytest.fixture
+async def portfolio_hp_backend_setup(
+    hp_gui: HpFront,
+    portfolio_ui: PortfolioUI,
+    strategy_executor_fixture: StrategyExecutor,
+):
+    """
+    Fixture for testing inventory-based sell flow that requires:
+    1. Portfolio frontend (with inventory) - REAL PortfolioUI with inventory management
+    2. HP manager frontend
+    3. Strategy executor backend
+
+    This enables testing the complete flow:
+    inventory sell button → sell modal → HP creation → strategy execution → final state
+
+    Note: Uses real PortfolioUI instead of mock for actual inventory locking/unlocking functionality
+    """
+    # Connect HP manager frontend to the strategy executor backend
+    hp_gui.config_queue = strategy_executor_fixture.config_queue
+    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
+    hp_gui.db = strategy_executor_fixture.db
+    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+
+    # Connect portfolio to HP manager (for sell button functionality)
+    portfolio_ui.hp_manager = hp_gui
+
+    # CRITICAL: Connect strategy executor to real portfolio for HP event processing
+    strategy_executor_fixture.portfolio_ui_queue = portfolio_ui.ui_queue
+
+    # Note: hp_gui does NOT have a direct portfolio reference in real implementation
+    # It only has portfolio_queue for communication
+
+    yield portfolio_ui, hp_gui, strategy_executor_fixture
+
+    # Cleanup strategies
+    for strategy in strategy_executor_fixture.strategies.values():
+        strategy.stop_event.set()
+        await wait_for_condition(condition_func=lambda: not strategy.worker_active)
+
+    # Cleanup is handled in individual fixtures

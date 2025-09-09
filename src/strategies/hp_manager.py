@@ -364,7 +364,7 @@ class HpStrategy:
         return max(0.0, total_bought - sold)
 
     def _calculate_from_sell_only(self) -> float:
-        # Used when sell is started independently
+        # Used when sell is started independently (inventory sell)
         # Return the original quantity, not remaining quantity
         return self.sell.current_position.config.quantity
 
@@ -1005,6 +1005,10 @@ class HpStrategy:
                 end_currency=to_asset,  # Use the actual to_asset from convert
                 end_currency_received=end_currency_received,
             )
+            logger.info(
+                "Sending HP sell position completed from CONVERT POSITION: %s",
+                hp_sell_completed,
+            )
             self._send_portfolio_event(
                 EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
             )
@@ -1294,11 +1298,8 @@ class HpStrategy:
             quantity_sold=self.sell.current_position.sell_order.realized_quantity,
             buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
             sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-            end_currency="USDC",  # Usually selling to USDC
+            end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
             end_currency_received=end_currency_received,
-        )
-        self._send_portfolio_event(
-            EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
         )
 
         await self.db.upsert_sell_price_level(
@@ -1306,6 +1307,26 @@ class HpStrategy:
         )
         self.send_sell_position_to_ui()
         if len(self.sell.sell_positions) == 1:
+            # Check if this is a convert operation - if so, completion event was already sent
+            is_convert_operation = (
+                self.sell.current_position.config.symbol_info.is_convert_only
+            )
+            if is_convert_operation:
+                logger.info(
+                    "Skipping duplicate completion event for convert operation: %s",
+                    self.sell.current_position.config.hp_id,
+                )
+            else:
+                # For direct sell (single position), send completion event instead of HPClose
+                logger.info(
+                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL (direct): %s",
+                    hp_sell_completed,
+                )
+                self._send_portfolio_event(
+                    EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                )
+
+            # Also send HPClose to complete the position lifecycle
             self.config_queue.put_nowait(
                 HPClose(
                     config=self.sell.current_position.config,
@@ -1337,12 +1358,34 @@ class HpStrategy:
             self.ui_queue.put_nowait(data)
             logger.info("Send HPGuiDataSell to UI: %s", data)
 
-            self.config_queue.put_nowait(
-                HPClose(
-                    config=self.sell.current_position.config,
-                    state_info=self.sell.current_position.state_info,
-                )
+            # For successful multihop completion, send HPSellPositionCompleted but NOT HPClose
+            # HPClose would trigger cancellation logic instead of completion
+            logger.info(
+                "Sending HP sell position completed from CLOSE FILLED POSITION SELL: %s",
+                hp_sell_completed,
             )
+            self._send_portfolio_event(
+                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+            )
+
+            # Also send completion event for parent position (original multihop position)
+            parent_hp_sell_completed = HPSellPositionCompleted(
+                hp_id=self.sell.original_position.config.hp_id,
+                coin=self.sell.original_position.config.coin,
+                quantity_sold=self.sell.original_position.config.quantity,
+                buy_price=self.sell.original_position.config.buy_price,
+                sell_price=self.sell.original_position.config.sell_price,
+                end_currency=self.sell.original_position.config.end_currency,
+                end_currency_received=end_currency_received,  # Use same end_currency_received as child
+            )
+            logger.info(
+                "Sending HP sell position completed for PARENT multihop position: %s",
+                parent_hp_sell_completed,
+            )
+            self._send_portfolio_event(
+                EventName.HP_SELL_POSITION_COMPLETED, parent_hp_sell_completed
+            )
+
         if (
             len(self.sell.sell_positions) == 2
             and self.sell.current_position is self.sell.sell_positions[0]
@@ -1509,8 +1552,12 @@ class HpStrategy:
             quantity_sold=self.sell.current_position.sell_order.realized_quantity,
             buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
             sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-            end_currency="USDC",  # Usually selling to USDC
+            end_currency=self.sell.current_position.config.end_currency,  # Use actual end_currency from config
             end_currency_received=end_currency_received,
+        )
+        logger.info(
+            "Sending HP sell position completed from SOLD POSITION WHICH IS PART BOUGHT: %s",
+            hp_sell_completed,
         )
         self._send_portfolio_event(
             EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
@@ -1663,24 +1710,6 @@ class HpStrategy:
             self.sell.current_position.state_info.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
-
-            # Send HP sell position completed event to portfolio
-            end_currency_received = (
-                self.sell.current_position.sell_order.realized_quantity
-                * self.sell.current_position.config.sell_price
-            )
-            hp_sell_completed = HPSellPositionCompleted(
-                hp_id=self.sell.current_position.config.hp_id,
-                coin=self.sell.current_position.config.coin,
-                quantity_sold=self.sell.current_position.sell_order.realized_quantity,
-                buy_price=self.sell.current_position.config.buy_price,  # Add missing buy price
-                sell_price=self.sell.current_position.config.sell_price,  # Add missing sell price
-                end_currency="USDC",  # Usually selling to USDC
-                end_currency_received=end_currency_received,
-            )
-            self._send_portfolio_event(
-                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
-            )
 
             signal = Signal.HP_ALL_ORDERS_FILLED
             logger.info("All SELL orders filled, sending: %s", signal)
