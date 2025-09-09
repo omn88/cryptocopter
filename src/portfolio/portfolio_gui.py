@@ -347,9 +347,22 @@ class PortfolioUI(BoxLayout):
             logger.warning(f"No lots found for {symbol} or parent coin not found")
             return
 
-        # Find the specific lot with the HP ID (now just hp_{hp_id})
+        # Extract parent HP ID for multihop and convert operations
+        # Multihop: "1000a" or "1000b" -> "1000"
+        # Convert: "1000_SELL" -> "1000"
+        parent_hp_id = hp_id
+        if hp_id.endswith(("a", "b")):  # Multihop operations
+            parent_hp_id = hp_id[:-1]
+            logger.info(
+                f"Multihop operation detected: {hp_id} -> parent {parent_hp_id}"
+            )
+        elif hp_id.endswith("_SELL"):  # Convert operations
+            parent_hp_id = hp_id[:-5]  # Remove "_SELL"
+            logger.info(f"Convert operation detected: {hp_id} -> parent {parent_hp_id}")
+
+        # Find the specific lot with the parent HP ID
         lot_to_update = None
-        lot_id_to_find = f"hp_{hp_id}"
+        lot_id_to_find = f"hp_{parent_hp_id}"
 
         for lot in parent_coin["lots"]:
             lot_id = getattr(lot, "id", "") if hasattr(lot, "id") else lot.get("id", "")
@@ -359,7 +372,7 @@ class PortfolioUI(BoxLayout):
 
         if not lot_to_update:
             logger.warning(
-                f"Could not find lot with ID {lot_id_to_find} for HP {hp_id}"
+                f"Could not find lot with ID {lot_id_to_find} for HP {hp_id} (parent: {parent_hp_id})"
             )
             # Fallback to FIFO if we can't find the specific lot
             await self._update_lots_after_sell(symbol, quantity_sold)

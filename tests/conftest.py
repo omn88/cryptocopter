@@ -853,33 +853,41 @@ def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
 
 
 @pytest.fixture
-async def portfolio_hp_backend_setup(hp_gui: HpFront, portfolio_strategy_executor):
+async def portfolio_hp_backend_setup(
+    hp_gui: HpFront,
+    portfolio_ui: PortfolioUI,
+    strategy_executor_fixture: StrategyExecutor,
+):
     """
     Fixture for testing inventory-based sell flow that requires:
-    1. Portfolio frontend (with inventory)
+    1. Portfolio frontend (with inventory) - REAL PortfolioUI with inventory management
     2. HP manager frontend
     3. Strategy executor backend
 
     This enables testing the complete flow:
     inventory sell button → sell modal → HP creation → strategy execution → final state
-    """
-    strategy_executor, portfolio = portfolio_strategy_executor
 
+    Note: Uses real PortfolioUI instead of mock for actual inventory locking/unlocking functionality
+    """
     # Connect HP manager frontend to the strategy executor backend
-    hp_gui.config_queue = strategy_executor.config_queue
-    strategy_executor.ui_queue = hp_gui.ui_queue
-    hp_gui.db = strategy_executor.db
-    hp_gui.symbols_info = strategy_executor.symbols_info
+    hp_gui.config_queue = strategy_executor_fixture.config_queue
+    strategy_executor_fixture.ui_queue = hp_gui.ui_queue
+    hp_gui.db = strategy_executor_fixture.db
+    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
 
     # Connect portfolio to HP manager (for sell button functionality)
-    portfolio.hp_manager = hp_gui
+    portfolio_ui.hp_manager = hp_gui
+
+    # CRITICAL: Connect strategy executor to real portfolio for HP event processing
+    strategy_executor_fixture.portfolio_ui_queue = portfolio_ui.ui_queue
+
     # Note: hp_gui does NOT have a direct portfolio reference in real implementation
     # It only has portfolio_queue for communication
 
-    yield portfolio, hp_gui, strategy_executor
+    yield portfolio_ui, hp_gui, strategy_executor_fixture
 
     # Cleanup strategies
-    for strategy in strategy_executor.strategies.values():
+    for strategy in strategy_executor_fixture.strategies.values():
         strategy.stop_event.set()
         await wait_for_condition(condition_func=lambda: not strategy.worker_active)
 

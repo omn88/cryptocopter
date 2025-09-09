@@ -251,3 +251,54 @@ class InventorySellSimulator:
         ), "Strategy executor should use HP manager UI queue"
 
         logger.info("Verified all portfolio-HP manager-backend connections")
+
+    async def validate_inventory_quantities(
+        self, coin, expected_total, expected_available, expected_locked, description=""
+    ):
+        """Validate inventory quantities for a specific coin."""
+        # Process any pending events first to ensure inventory is up to date
+        if hasattr(self.portfolio, "process_test_events"):
+            await self.portfolio.process_test_events()
+
+        coin_items = [item for item in self.portfolio.inventory if item.coin == coin]
+
+        if not coin_items:
+            if (
+                expected_total == 0.0
+                and expected_available == 0.0
+                and expected_locked == 0.0
+            ):
+                logger.info(
+                    f"✓ Inventory validation {description}: No {coin} items as expected"
+                )
+                return
+            else:
+                raise AssertionError(
+                    f"Expected {coin} inventory items but none found. {description}"
+                )
+
+        actual_total = sum(item.quantity for item in coin_items)
+        actual_available = sum(item.available_quantity for item in coin_items)
+        actual_locked = sum(item.locked_quantity for item in coin_items)
+
+        # Round to avoid floating point precision issues
+        actual_total = round(actual_total, 8)
+        actual_available = round(actual_available, 8)
+        actual_locked = round(actual_locked, 8)
+        expected_total = round(expected_total, 8)
+        expected_available = round(expected_available, 8)
+        expected_locked = round(expected_locked, 8)
+
+        assert (
+            actual_total == expected_total
+        ), f"{description}: Expected {coin} total={expected_total}, got {actual_total}"
+        assert (
+            actual_available == expected_available
+        ), f"{description}: Expected {coin} available={expected_available}, got {actual_available}"
+        assert (
+            actual_locked == expected_locked
+        ), f"{description}: Expected {coin} locked={expected_locked}, got {actual_locked}"
+
+        logger.info(
+            f"✓ Inventory validation {description}: {coin} total={actual_total}, available={actual_available}, locked={actual_locked}"
+        )
