@@ -15,7 +15,6 @@ This module is separate from test_hp_manager_e2e.py as it tests a different doma
 - test_inventory_sell_e2e.py: Tests selling existing inventory items through portfolio
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from binance.enums import ORDER_STATUS_FILLED, ORDER_TYPE_LIMIT
@@ -46,7 +45,13 @@ async def test_inventory_sell_setup_inventory_items(portfolio_hp_backend_setup):
     logger.info(f"Available inventory coins: {inventory_coins}")
 
     # Use actual coins from the mock inventory fixture
-    expected_coins = ["BTC", "ETH", "AXL", "USDC"]  # Based on what we actually have
+    expected_coins = [
+        "BTC",
+        "ETH",
+        "AXL",
+        "USDC",
+        "DYM",
+    ]  # Based on what we actually have
 
     for coin in expected_coins:
         assert coin in inventory_coins, f"Inventory should contain {coin}"
@@ -364,6 +369,11 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
     simulator = InventorySellSimulator(portfolio, hp_front, hp_back)
     hp_simulator = HPSimulator(front=hp_front, back=hp_back)
 
+    assert isinstance(hp_front, HpFront), "hp_front should be an instance of HpFront"
+    assert isinstance(
+        hp_back, StrategyExecutor
+    ), "hp_back should be a strategy executor instance"
+
     # Start with configuration phase - submit multihop sell for AXL to PLN
     hp_id = await simulator.submit_sell_configuration(
         coin="AXL", end_currency="PLN", sell_price=1.5
@@ -423,62 +433,30 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
     )
     strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
 
-    # Wait for first hop selling state or continue to sold state
-    try:
-        await wait_for_condition(
-            condition_func=lambda: strategy.state in [State.SELLING, State.SOLD],
-            timeout=5.0,
-        )
-        logger.info(f"Strategy reached state: {strategy.state}")
-    except Exception as e:
-        logger.warning(f"State transition failed: {e}")
-        logger.info(f"Current strategy state: {strategy.state}")
-        # Continue anyway to test final validation
-
-    await asyncio.sleep(0.1)
+    await wait_for_condition(
+        condition_func=lambda: strategy.sell.current_position.sell_order.status
+        == ORDER_STATUS_FILLED
+    )
+    logger.info(f"Strategy reached state: {strategy.state}")
 
     # Try to validate first hop with error handling
-    try:
-        hp_simulator.validate_multihop_child(
-            child_hp_id="1000a",
-            quantity="100.0",
-            realized_quantity="0.0",
-            state="SELLING",
-            parent_hp_id="1000",
-            coin="AXL",
-            sell_price="0.00000469",
-            buy_price="0.0000025",
-        )
-        logger.info("First hop validation passed")
-    except Exception as e:
-        logger.warning(f"First hop validation failed: {e}")
+    hp_simulator.validate_multihop_child(
+        child_hp_id="1000a",
+        quantity="100.0",
+        realized_quantity="0.0",
+        state="SELLING",
+        parent_hp_id="1000",
+        coin="AXL",
+        sell_price="0.00000469",
+        buy_price="0.0000025",
+    )
+    logger.info("First hop validation passed")
 
-    # Only send ExecutionReport if we haven't already done so
-    if strategy.sell.current_position.sell_order.status != ORDER_STATUS_FILLED:
-        first_hop_order = strategy.sell.current_position.sell_order
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=first_hop_order.order_id,
-            last_executed_quantity=100.0,
-            last_executed_price=0.00000469,
-            cumulative_filled_quantity=100.0,
-            price=0.00000469,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-    # Wait for second hop to be activated
-    try:
-        await wait_for_condition(
-            condition_func=lambda: len(strategy.sell.sell_positions) > 1, timeout=5.0
-        )
-    except Exception as e:
-        logger.warning(f"Second hop creation failed: {e}")
-        # Debug: check what positions exist
-        logger.info(f"Available sell positions: {len(strategy.sell.sell_positions)}")
-        # Continue to see if we can still reach SOLD state
-
-    await asyncio.sleep(0.1)
+    await wait_for_condition(
+        condition_func=lambda: strategy.sell.current_position
+        is strategy.sell.sell_positions[1],
+        timeout=5.0,
+    )
 
     # Try to validate first hop completed, second hop starting (if second hop exists)
     try:
@@ -511,96 +489,58 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
     except Exception as e:
         logger.warning(f"Second hop validation failed: {e}")
 
-    # Continue with second hop execution if it exists
-    if len(strategy.sell.sell_positions) > 1:
-        # Execute second hop - BTC to PLN
-        # Trigger price for second hop
-        hp_simulator.new_price(price=320000.0, symbol="BTCPLN")
+    hp_simulator.new_price(price=320000.0, symbol="BTCPLN")
 
-        # Simulate second hop order fill - BTC sold for PLN
-        second_hop_order = strategy.sell.sell_positions[1].sell_order
-        exc_report = ExecutionReport(
-            order_type=ORDER_TYPE_LIMIT,
-            current_order_status=ORDER_STATUS_FILLED,
-            order_id=second_hop_order.order_id,
-            last_executed_quantity=0.00047,
-            last_executed_price=320000.0,
-            cumulative_filled_quantity=0.00047,
-            price=320000.0,
-        )
-        strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-    else:
-        logger.warning("Second hop position not found, continuing to final validation")
+    # Simulate second hop order fill - BTC sold for PLN
+    second_hop_order = strategy.sell.sell_positions[1].sell_order
+    exc_report = ExecutionReport(
+        order_type=ORDER_TYPE_LIMIT,
+        current_order_status=ORDER_STATUS_FILLED,
+        order_id=second_hop_order.order_id,
+        last_executed_quantity=0.00047,
+        last_executed_price=320000.0,
+        cumulative_filled_quantity=0.00047,
+        price=320000.0,
+    )
+    strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
 
-    # Wait for complete sold state with debugging
-    try:
-        await wait_for_condition(
-            condition_func=lambda: strategy.state == State.SOLD, timeout=5.0
-        )
-        logger.info("Successfully reached SOLD state")
-    except Exception as e:
-        logger.warning(f"Failed to reach SOLD state: {e}")
-        logger.info(f"Current strategy state: {strategy.state}")
-        logger.info(f"Number of sell positions: {len(strategy.sell.sell_positions)}")
-        # Check if we can verify completion through backend directly
-        if strategy.state in [State.SELLING, State.SOLD]:
-            logger.info("Strategy is in acceptable final state, continuing")
-        else:
-            # Still try to continue to final validation
-            logger.warning(
-                "Strategy not in expected state, but continuing to validation"
-            )
+    await wait_for_condition(
+        condition_func=lambda: strategy.state == State.SOLD, timeout=5.0
+    )
+    logger.info("Successfully reached SOLD state")
 
-    await asyncio.sleep(0.1)
+    # Validate final sold state for all positions
+    hp_simulator.validate_parent(
+        hp_id=hp_id,
+        quantity="100.0",
+        realized_quantity="100.0",
+        state="SOLD",
+        buy_price="0.8",
+        sell_price="1.5",
+    )
 
-    # Try HP simulator validation - if it fails, we'll use backend validation
-    try:
-        # Validate final sold state for all positions
-        hp_simulator.validate_parent(
-            hp_id=hp_id,
-            quantity="100.0",
-            realized_quantity="100.0",
-            state="SOLD",
-            buy_price="0.8",
-            sell_price="1.5",
-        )
+    hp_simulator.validate_multihop_child(
+        child_hp_id="1000a",
+        quantity="100.0",
+        realized_quantity="100.0",
+        state="SOLD",
+        parent_hp_id="1000",
+        coin="AXL",
+        sell_price="0.00000469",
+        buy_price="0.0000025",
+    )
 
-        hp_simulator.validate_multihop_child(
-            child_hp_id="1000a",
-            quantity="100.0",
-            realized_quantity="100.0",
-            state="SOLD",
-            parent_hp_id="1000",
-            coin="AXL",
-            sell_price="0.00000469",
-            buy_price="0.0000025",
-        )
-
-        hp_simulator.validate_multihop_child(
-            child_hp_id="1000b",
-            quantity="0.00047",
-            realized_quantity="0.00047",
-            state="SOLD",
-            parent_hp_id="1000",
-            coin="BTC",
-            sell_price="320000.0",
-            buy_price="320000.0",
-        )
-        logger.info("HP simulator validation passed")
-    except Exception as e:
-        logger.warning(f"HP simulator validation failed: {e}")
-        # Validate backend state directly - similar to convert test
-        if strategy.state in [State.SELLING, State.SOLD]:
-            logger.info("Test passed with backend validation only")
-        else:
-            # Still check if the strategy reached an acceptable state
-            logger.warning(f"Strategy in unexpected state: {strategy.state}")
-            # For multihop, we'll accept SELLING as a successful partial completion
-            if strategy.state == State.SELLING:
-                logger.info("Multihop partially completed - first hop in selling state")
-            # Try direct backend check for completion
-            assert hp_id in hp_back.strategies, "Strategy should exist in backend"
-            logger.info("Backend strategy validation passed")
+    hp_simulator.validate_multihop_child(
+        child_hp_id="1000b",
+        quantity="0.00047",
+        realized_quantity="0.00047",
+        state="SOLD",
+        parent_hp_id="1000",
+        coin="BTC",
+        sell_price="320000.0",
+        buy_price="320000.0",
+    )
+    logger.info("HP simulator validation passed")
 
     logger.info("Multi-hop sell execution test passed")
 
