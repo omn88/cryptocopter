@@ -63,6 +63,9 @@ class PortfolioUI(BoxLayout):
         self.db = db
         self.test_mode = test_mode  # Add test_mode parameter
         self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
+        self._hp_currency_processed: set[str] = (
+            set()
+        )  # Track HP IDs that have already added currency
         self.hp_manager: Optional[HpFront] = (
             None  # Reference to HP manager for sell functionality
         )
@@ -1094,12 +1097,14 @@ class PortfolioUI(BoxLayout):
         # Determine if we should add received currency:
         # 1. Always skip intermediate multihop steps (IDs ending with "a")
         # 2. Add currency for final multihop steps (IDs ending with "b", "c", etc. but not "a")
-        # 3. For pure digit IDs (like "1000"), this could be either:
-        #    - Direct sell: should add currency (no children exist)
-        #    - Multihop parent: should not add currency (children will handle it)
+        # 3. Add currency for direct sell children (IDs ending with "_SELL")
+        # 4. For pure digit IDs (like "1000"), this could be either:
+        #    - Direct sell parent: should not add currency (child "1000_SELL" will handle it)
+        #    - Multihop parent: should not add currency (children "1000a", "1000b" will handle it)
+        #    - Convert operation: should add currency (no children, direct conversion)
         #
-        # For now, let's use a simple heuristic: if the coin and end_currency form a direct
-        # trading pair that doesn't require multihop, treat it as a direct sell.
+        # To distinguish convert operations from parent positions, we check if this is the only
+        # completion event we expect to receive for this HP ID (no children will send events).
 
         is_intermediate_multihop = event.hp_id.endswith("a")
         is_final_multihop_child = (
@@ -1107,6 +1112,7 @@ class PortfolioUI(BoxLayout):
             and not event.hp_id.isdigit()
             and not is_intermediate_multihop
         )
+        is_direct_sell_child = event.hp_id.endswith("_SELL")
         is_pure_digit_id = event.hp_id.isdigit()
 
         # Common direct trading pairs that don't need multihop
@@ -1121,25 +1127,48 @@ class PortfolioUI(BoxLayout):
         }
         is_likely_direct_sell = (event.coin, event.end_currency) in direct_pairs
 
-        should_add_currency = False
-        if is_final_multihop_child:
-            # Definitely a final multihop child (e.g., "1000b")
-            should_add_currency = True
-            logger.info(f"Adding currency for final multihop child {event.hp_id}")
-        elif is_pure_digit_id and is_likely_direct_sell:
-            # Likely a direct sell that doesn't need multihop
-            should_add_currency = True
-            logger.info(f"Adding currency for direct sell position {event.hp_id}")
-        elif is_intermediate_multihop:
+        # Determine the root HP ID for tracking (extract parent HP ID for child operations)
+        root_hp_id = event.hp_id
+        if is_final_multihop_child or is_direct_sell_child:
+            # For multihop children like "1000b" -> "1000", direct sell children like "1000_SELL" -> "1000"
+            if is_final_multihop_child:
+                root_hp_id = event.hp_id[:-1]  # Remove last character "b", "c", etc.
+            elif is_direct_sell_child:
+                root_hp_id = event.hp_id[:-5]  # Remove "_SELL" suffix
+
+        # Check if we've already processed currency for this root HP operation
+        if root_hp_id in self._hp_currency_processed:
             logger.info(
-                f"Skipping currency addition for intermediate multihop step {event.hp_id}"
+                f"Currency already processed for HP operation {root_hp_id}, skipping duplicate {event.hp_id}"
             )
-        elif is_pure_digit_id:
-            logger.info(
-                f"Skipping currency addition for multihop parent position {event.hp_id} - child will handle it"
-            )
+            should_add_currency = False
+        else:
+            should_add_currency = False
+            if is_final_multihop_child:
+                # Definitely a final multihop child (e.g., "1000b")
+                should_add_currency = True
+                logger.info(f"Adding currency for final multihop child {event.hp_id}")
+            elif is_direct_sell_child:
+                # Direct sell child (e.g., "1000_SELL")
+                should_add_currency = True
+                logger.info(f"Adding currency for direct sell child {event.hp_id}")
+            elif is_pure_digit_id and is_likely_direct_sell:
+                # For direct sells with pure digit IDs, we add currency since there's only one completion event
+                should_add_currency = True
+                logger.info(f"Adding currency for direct sell {event.hp_id}")
+            elif is_pure_digit_id:
+                # For pure digit IDs that are NOT direct trading pairs, this is likely a convert operation
+                # Convert operations use a single HP ID and should receive the currency directly
+                should_add_currency = True
+                logger.info(f"Adding currency for convert operation {event.hp_id}")
+            elif is_intermediate_multihop:
+                logger.info(
+                    f"Skipping currency addition for intermediate multihop step {event.hp_id}"
+                )
 
         if should_add_currency:
+            # Mark this root HP operation as processed to avoid duplicates
+            self._hp_currency_processed.add(root_hp_id)
             await self._add_received_currency(
                 event.end_currency, event.end_currency_received
             )

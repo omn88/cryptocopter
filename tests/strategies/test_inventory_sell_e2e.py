@@ -506,9 +506,9 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
     )
 
-    # Validate inventory after convert configuration - DYM should be present
+    # Validate inventory after convert configuration - DYM should be locked for selling
     await simulator.validate_inventory_quantities(
-        "DYM", 200.0, 200.0, 0.0, "After convert configuration (DYM present)"
+        "DYM", 200.0, 0.0, 200.0, "After convert configuration (DYM locked)"
     )
 
     # Debug: Print actual HP frontend data to understand the structure
@@ -573,8 +573,8 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         0.0,
         "After convert completion (DYM should be removed)",
     )
-    # PLN should receive original 1000 + converted amount (200 * 1.4 = 280)
-    pln_expected = 1000.0 + 280.0  # Original + converted amount
+    # PLN should receive converted amount (200 * 1.4 = 280) - no initial PLN in mock inventory
+    pln_expected = 280.0  # Only converted amount
     await simulator.validate_inventory_quantities(
         "PLN",
         pln_expected,

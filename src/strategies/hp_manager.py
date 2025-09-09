@@ -1307,14 +1307,24 @@ class HpStrategy:
         )
         self.send_sell_position_to_ui()
         if len(self.sell.sell_positions) == 1:
-            # For direct sell (single position), send completion event instead of HPClose
-            logger.info(
-                "Sending HP sell position completed from CLOSE FILLED POSITION SELL (direct): %s",
-                hp_sell_completed,
+            # Check if this is a convert operation - if so, completion event was already sent
+            is_convert_operation = (
+                self.sell.current_position.config.symbol_info.is_convert_only
             )
-            self._send_portfolio_event(
-                EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
-            )
+            if is_convert_operation:
+                logger.info(
+                    "Skipping duplicate completion event for convert operation: %s",
+                    self.sell.current_position.config.hp_id,
+                )
+            else:
+                # For direct sell (single position), send completion event instead of HPClose
+                logger.info(
+                    "Sending HP sell position completed from CLOSE FILLED POSITION SELL (direct): %s",
+                    hp_sell_completed,
+                )
+                self._send_portfolio_event(
+                    EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                )
 
             # Also send HPClose to complete the position lifecycle
             self.config_queue.put_nowait(
