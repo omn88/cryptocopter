@@ -538,28 +538,51 @@ class StrategyExecutor:
         strategy = self.strategies.get(close_data.config.hp_id)
 
         if strategy:
-            # Send HP position cancelled event to portfolio before closing
-            # to unlock any locked quantities
+            # Check if this is a successful completion vs an actual cancellation
+            is_successful_completion = (
+                hasattr(close_data, "hp_update")
+                and close_data.hp_update.state == State.SOLD
+                and close_data.hp_update.completeness >= 1.0
+            )
+
             try:
                 if (
                     hasattr(strategy, "sell")
                     and strategy.sell.current_position.sell_order.quantity > 0
                 ):
-                    # This is a sell position cancellation - unlock the locked quantities
-                    hp_cancelled = HPPositionCancelled(
-                        hp_id=close_data.config.hp_id,
-                        coin=close_data.config.coin,
-                        quantity=strategy.sell.current_position.sell_order.quantity,
-                        position_type="SELL",
-                    )
-                    strategy._send_portfolio_event(
-                        EventName.HP_POSITION_CANCELLED, hp_cancelled
-                    )
-                    logger.info(
-                        f"Sent manual HP cancellation event for sell position: {close_data.config.hp_id}"
-                    )
+                    if is_successful_completion:
+                        # This is a successful sell completion - remove consumed quantities
+                        hp_completed = HPSellPositionCompleted(
+                            hp_id=close_data.config.hp_id,
+                            coin=close_data.config.coin,
+                            quantity_sold=close_data.config.quantity,
+                            buy_price=close_data.config.buy_price,
+                            sell_price=close_data.config.sell_price,
+                            end_currency=close_data.config.end_currency,
+                            end_currency_received=0.0,  # Parent position doesn't receive currency directly
+                        )
+                        strategy._send_portfolio_event(
+                            EventName.HP_SELL_POSITION_COMPLETED, hp_completed
+                        )
+                        logger.info(
+                            f"Sent HP sell completion event for parent position: {close_data.config.hp_id}"
+                        )
+                    else:
+                        # This is a sell position cancellation - unlock the locked quantities
+                        hp_cancelled = HPPositionCancelled(
+                            hp_id=close_data.config.hp_id,
+                            coin=close_data.config.coin,
+                            quantity=strategy.sell.current_position.sell_order.quantity,
+                            position_type="SELL",
+                        )
+                        strategy._send_portfolio_event(
+                            EventName.HP_POSITION_CANCELLED, hp_cancelled
+                        )
+                        logger.info(
+                            f"Sent manual HP cancellation event for sell position: {close_data.config.hp_id}"
+                        )
                 elif hasattr(strategy, "buy") and strategy.buy.orders:
-                    # This is a buy position cancellation
+                    # This is a buy position cancellation (buy positions don't have successful completion via close_position)
                     total_quantity = sum(
                         order.quantity for order in strategy.buy.orders
                     )
@@ -577,7 +600,7 @@ class StrategyExecutor:
                     )
             except Exception as e:
                 logger.error(
-                    f"Failed to send HP cancellation event for {close_data.config.hp_id}: {e}"
+                    f"Failed to send HP event for {close_data.config.hp_id}: {e}"
                 )
 
             strategy.stop_event.set()
@@ -1388,17 +1411,17 @@ class StrategyExecutor:
                         quantity_sold=sell.current_position.sell_order.realized_quantity,
                         buy_price=sell.current_position.config.buy_price,  # Add missing buy price
                         sell_price=sell.current_position.config.sell_price,  # Add missing sell price
-                        end_currency="USDC",  # Usually selling to USDC
+                        end_currency=sell.current_position.config.end_currency,  # Use actual end_currency from config
                         end_currency_received=end_currency_received,
+                    )
+                    logger.info(
+                        "Sending HP sell position completed event as part of REMOVE RECORD: %s",
+                        hp_sell_completed,
                     )
                     self._send_hp_event_to_portfolio(
                         EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
                     )
 
-                # if sell.current_position.sell_order.status == ORDER_STATUS_CANCELED:
-                #     self.db.upsert_order(
-                #         order=sell.current_position.sell_order, hp_id=hp_id, side=side
-                #     )
             sell.current_position.config.sell_price = 0.0
             if sell.current_position.config.is_child:
                 sell.original_position.config.sell_price = 0.0

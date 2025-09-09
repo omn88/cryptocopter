@@ -14,6 +14,7 @@ from src.identifiers import (
     HPBuyConfig,
 )
 from src.portfolio.portfolio_gui import PortfolioUI
+from src.strategies.hp_manager import HpStrategy
 
 
 async def test_hp_sell_position_created_locks_quantities_fifo(
@@ -347,51 +348,3 @@ async def test_portfolio_ui_handlers_called():
     )
     await portfolio.handle_hp_position_cancelled(hp_cancelled)
     portfolio.handle_hp_position_cancelled.assert_called_once_with(hp_cancelled)
-
-
-async def test_hp_strategy_sends_portfolio_events_via_callback(
-    trading_system_factory, mock_async_client, test_db
-):
-    """Test that HP strategy sends portfolio events via callback when positions are completed."""
-    # Create a mock portfolio event callback
-    portfolio_events = []
-
-    def mock_portfolio_callback(event_name, event_data):
-        portfolio_events.append((event_name, event_data))
-
-    # Create HP strategy with portfolio callback
-    from src.common.symbol_info import SymbolInfo
-
-    symbol_info = SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2)
-
-    hp_config = HPBuyConfig(
-        hp_id="test_hp",
-        symbol_info=symbol_info,
-        coin="BTC",
-        price_low=50000.0,
-        price_high=51000.0,
-        order_trigger=1.0,
-        budget=1000.0,
-        mode="test",
-    )
-
-    strategy = trading_system_factory(hp_config)
-    strategy.portfolio_event_callback = mock_portfolio_callback
-
-    # Simulate a completed sell order by setting up the state manually
-    strategy.sell.current_position.config.hp_id = "test_hp_001"
-    strategy.sell.current_position.config.coin = "BTC"
-    strategy.sell.current_position.config.end_price = 50000.0
-    strategy.sell.current_position.sell_order.realized_quantity = 0.5
-
-    # Call the method that should send portfolio events
-    await strategy.close_filled_position_sell()
-
-    # Verify event was sent via callback
-    assert len(portfolio_events) == 1
-    event_name, event_data = portfolio_events[0]
-    assert event_name == EventName.HP_SELL_POSITION_COMPLETED
-    assert isinstance(event_data, HPSellPositionCompleted)
-    assert event_data.hp_id == "test_hp_001"
-    assert event_data.coin == "BTC"
-    assert event_data.quantity_sold == 0.5

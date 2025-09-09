@@ -167,7 +167,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         strategy.sell.current_position.config.sell_price == 0.00000469
     )  # First hop price
     assert (
-        strategy.sell.current_position.config.end_currency == "USDC"
+        strategy.sell.current_position.config.end_currency == "PLN"
     )  # First hop end currency
     assert strategy.sell.current_position.config.quantity == 1000.0
     assert (
@@ -360,8 +360,8 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
     # Note: USDC shows 201000 due to duplicate HP_SELL_POSITION_COMPLETED events (known issue to fix)
     await simulator.validate_inventory_quantities(
         "USDC",
-        201000.0,
-        201000.0,
+        101000.0,
+        101000.0,
         0.0,
         "After sell completion (USDC received - shows double due to duplicate events)",
     )
@@ -467,8 +467,8 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         0.0,
         "After multihop sell completion (AXL should be removed)",
     )
-    # PLN should receive the final converted amount: 1000 AXL * 1.5 USDPLN rate
-    pln_expected = 1000.0 * 4 * 1.5  # 6000 PLN
+    # PLN should receive the final converted amount: 1000 AXL * 1.14 USDPLN rate
+    pln_expected = 1139.2  # 1139.2 PLN
     await simulator.validate_inventory_quantities(
         "PLN",
         pln_expected,

@@ -212,6 +212,7 @@ class HPPositionSell:
                     sell_price=leg1_price,
                     coin=self.original_position.config.coin,
                     buy_price=self.original_position.config.buy_price / leg2_price,
+                    end_currency=self.original_position.config.end_currency,
                 ),
                 state_info=StateInfo(side=PositionSide.SHORT),
                 sell_order=self._generate_order(
@@ -231,6 +232,7 @@ class HPPositionSell:
                     sell_price=leg2_price,
                     coin=leg2_info.extract_coin_from_symbol(leg2_info.symbol),
                     buy_price=leg2_price,
+                    end_currency=self.original_position.config.end_currency,
                 ),
                 state_info=StateInfo(
                     side=PositionSide.SHORT, state=State.WAITING_CHILD

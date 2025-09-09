@@ -6,14 +6,14 @@ from collections import defaultdict
 import logging
 import queue
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 from kivy.properties import ListProperty, ObjectProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-
+from src.gui.hp_manager.hpfront import HpFront
 from src.identifiers import (
     AccountPosition,
     Event,
@@ -63,10 +63,10 @@ class PortfolioUI(BoxLayout):
         self.db = db
         self.test_mode = test_mode  # Add test_mode parameter
         self._last_refresh_time = 0.0  # Track last refresh time to throttle updates
-        self.hp_manager = None  # Reference to HP manager for sell functionality
-        self.app = None  # Reference to the main app for tab switching
-        # Note: Portfolio initialization is now handled by PortfolioManager backend
-        # The GUI will receive inventory data via EventName.PORTFOLIO_INVENTORY events
+        self.hp_manager: Optional[HpFront] = (
+            None  # Reference to HP manager for sell functionality
+        )
+        self.app = None
 
     def initialize(self):
         """Initialize the PortfolioUI and start UI queue processing."""
@@ -838,8 +838,6 @@ class PortfolioUI(BoxLayout):
         """Process a single UI event."""
         assert isinstance(data, Event)
 
-        # DEBUG: Log all incoming events
-
         if data.name == EventName.PORTFOLIO_INVENTORY:
             logger.debug(
                 f"[PORTFOLIO GUI DEBUG] Received PORTFOLIO_INVENTORY event with content type: {type(data.content)}"
@@ -861,26 +859,6 @@ class PortfolioUI(BoxLayout):
             assert isinstance(data.content, PriceUpdates)
             # Update saldo in USD and BTC
             await self.update_coin_prices(data.content)
-        if data.name == EventName.PORTFOLIO_INVENTORY:
-            # Inventory event: update UI with new inventory (all available)
-            logger.debug(
-                f"[PORTFOLIO GUI DEBUG] Second PORTFOLIO_INVENTORY handler - content type: {type(data.content)}"
-            )
-            if isinstance(data.content, List):
-                logger.debug(
-                    f"[PORTFOLIO GUI DEBUG] Calling set_inventory with {len(data.content)} items"
-                )
-                self.set_inventory(data.content)
-                if not self.test_mode:
-                    logger.debug(
-                        "[PORTFOLIO GUI DEBUG] Calling refresh_from_data() on coin_list"
-                    )
-                    self.ids.coin_list.refresh_from_data()
-                    logger.debug("[PORTFOLIO GUI DEBUG] refresh_from_data() completed")
-            else:
-                logger.warning(
-                    f"PORTFOLIO_INVENTORY event received with unexpected content type: {type(data.content)}"
-                )
 
         # Handle HP Manager events for quantity management
         if data.name == EventName.HP_SELL_POSITION_CREATED:
@@ -1113,10 +1091,58 @@ class PortfolioUI(BoxLayout):
             event.hp_id, event.coin, event.quantity_sold
         )
 
-        # Add received end currency (USDC) to portfolio
-        await self._add_received_currency(
-            event.end_currency, event.end_currency_received
+        # Determine if we should add received currency:
+        # 1. Always skip intermediate multihop steps (IDs ending with "a")
+        # 2. Add currency for final multihop steps (IDs ending with "b", "c", etc. but not "a")
+        # 3. For pure digit IDs (like "1000"), this could be either:
+        #    - Direct sell: should add currency (no children exist)
+        #    - Multihop parent: should not add currency (children will handle it)
+        #
+        # For now, let's use a simple heuristic: if the coin and end_currency form a direct
+        # trading pair that doesn't require multihop, treat it as a direct sell.
+
+        is_intermediate_multihop = event.hp_id.endswith("a")
+        is_final_multihop_child = (
+            len(event.hp_id) > 4
+            and not event.hp_id.isdigit()
+            and not is_intermediate_multihop
         )
+        is_pure_digit_id = event.hp_id.isdigit()
+
+        # Common direct trading pairs that don't need multihop
+        direct_pairs = {
+            ("BTC", "USDC"),
+            ("BTC", "USDT"),
+            ("ETH", "USDC"),
+            ("ETH", "USDT"),
+            ("BNB", "USDC"),
+            ("BNB", "USDT"),
+            ("USDC", "USDT"),
+        }
+        is_likely_direct_sell = (event.coin, event.end_currency) in direct_pairs
+
+        should_add_currency = False
+        if is_final_multihop_child:
+            # Definitely a final multihop child (e.g., "1000b")
+            should_add_currency = True
+            logger.info(f"Adding currency for final multihop child {event.hp_id}")
+        elif is_pure_digit_id and is_likely_direct_sell:
+            # Likely a direct sell that doesn't need multihop
+            should_add_currency = True
+            logger.info(f"Adding currency for direct sell position {event.hp_id}")
+        elif is_intermediate_multihop:
+            logger.info(
+                f"Skipping currency addition for intermediate multihop step {event.hp_id}"
+            )
+        elif is_pure_digit_id:
+            logger.info(
+                f"Skipping currency addition for multihop parent position {event.hp_id} - child will handle it"
+            )
+
+        if should_add_currency:
+            await self._add_received_currency(
+                event.end_currency, event.end_currency_received
+            )
 
         # Refresh UI (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
@@ -1394,6 +1420,7 @@ class PortfolioUI(BoxLayout):
     async def _add_received_currency(self, currency: str, amount: float):
         """Add received currency (like USDC) to portfolio."""
         # Find existing currency in coin_list_data
+        logger.info("Adding received currency to portfolio")
         existing_currency = None
         for coin_data in self.coin_list_data:
             if (
