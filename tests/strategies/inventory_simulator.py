@@ -257,8 +257,9 @@ class InventorySellSimulator:
     ):
         """Validate inventory quantities for a specific coin."""
         # Process any pending events first to ensure inventory is up to date
-        if hasattr(self.portfolio, "process_test_events"):
-            await self.portfolio.process_test_events()
+        await self.portfolio.process_test_events()
+
+        logger.info("Inventory: %s", self.portfolio.inventory)
 
         coin_items = [item for item in self.portfolio.inventory if item.coin == coin]
 

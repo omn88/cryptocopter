@@ -688,6 +688,7 @@ def mock_inventory():
     ]
 
 
+# TO BE REPLACED WITH mock_inventory ABOVE - kept for reference
 @pytest.fixture
 def test_inventory():
     """Test inventory with multiple BTC lots for FIFO testing."""

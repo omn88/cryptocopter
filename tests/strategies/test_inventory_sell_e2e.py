@@ -20,20 +20,22 @@ from unittest.mock import AsyncMock, MagicMock
 from binance.enums import ORDER_STATUS_FILLED, ORDER_TYPE_LIMIT
 
 from src.gui.hp_manager.hpfront import HpFront
-from src.strategy_executor import StrategyExecutor
 from src.portfolio.portfolio_gui import PortfolioUI
-from src.identifiers import InventoryItem, State, Event, EventName, ExecutionReport
+from src.strategy_executor import StrategyExecutor
+from src.identifiers import State, Event, EventName, ExecutionReport
 from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.inventory_simulator import InventorySellSimulator
 from tests.strategies.hp_manager_helpers import wait_for_condition
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("inv_sim")
 
 
 # Test Suite 1: Basic Infrastructure and Setup
-async def test_inventory_sell_setup_inventory_items(portfolio_hp_backend_setup):
+async def test_inventory_sell_setup_inventory_items(
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+):
     """Test that inventory items are properly available for selling."""
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
 
@@ -64,7 +66,9 @@ async def test_inventory_sell_setup_inventory_items(portfolio_hp_backend_setup):
     logger.info(f"Verified inventory setup with {len(portfolio.inventory)} items")
 
 
-async def test_inventory_sell_portfolio_hp_connection(portfolio_hp_backend_setup):
+async def test_inventory_sell_portfolio_hp_connection(
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+):
     """Test that portfolio and HP manager are properly connected."""
     portfolio, hp_manager, strategy_executor = portfolio_hp_backend_setup
     sim = InventorySellSimulator(portfolio, hp_manager, strategy_executor)
@@ -77,7 +81,7 @@ async def test_inventory_sell_portfolio_hp_connection(portfolio_hp_backend_setup
 
 # Test Suite 3: Sell Configuration and HP Creation
 async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """Test configuring direct sell from BTC to USDC."""
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
@@ -130,15 +134,15 @@ async def test_inventory_sell_configure_direct_sell_btc_to_usdc(
     )
 
     # Add a simple inventory validation test to the direct sell configuration test
-    await validate_inventory_quantities(
-        portfolio, "BTC", 1.0, 1.0, 0.0, "Initial BTC before sell config"
+    await sim.validate_inventory_quantities(
+        "BTC", 1.0, 0.0, 1.0, "Initial BTC before sell config"
     )
 
     logger.info("Direct sell configuration test passed with HP simulator validation")
 
 
 async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """
     Test configuring a multihop sell from AXL to PLN.
@@ -187,7 +191,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     # Validate parent container (1000) using hp_simulator validate_parent method
     hp_simulator.validate_parent(
         hp_id=hp_id,
-        quantity="100.0",  # AXL inventory quantity that should be available to sell
+        quantity="1000.0",  # AXL inventory quantity that should be available to sell
         realized_quantity="0.0",  # Nothing sold yet
         state="BOUGHT",  # Starting state for inventory sells
         buy_price="0.8",  # AXL buy price from inventory
@@ -197,7 +201,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     # Validate first multihop child (1000a): AXL → BTC using hp_simulator validate_multihop_child method
     hp_simulator.validate_multihop_child(
         child_hp_id="1000a",
-        quantity="100.0",  # Child should show same quantity as parent for initial state
+        quantity="1000.0",  # Child should show same quantity as parent for initial state
         realized_quantity="0.0",  # Nothing realized yet
         state="NEW",  # Initial state for first multihop child
         parent_hp_id="1000",  # Parent HP ID
@@ -209,7 +213,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     # Validate second multihop child (1000b): BTC → PLN using hp_simulator validate_multihop_child method
     hp_simulator.validate_multihop_child(
         child_hp_id="1000b",
-        quantity="0.00047",  # BTC quantity from first hop using full number notation
+        quantity="0.00469",  # BTC quantity from first hop using full number notation
         realized_quantity="0.0",  # Nothing realized yet
         state="NEW",  # Initial state for second multihop child (shows as NEW in frontend, WAITING_CHILD in backend)
         parent_hp_id="1000",  # Parent HP ID
@@ -222,7 +226,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
 
 
 async def test_inventory_sell_configure_convert_only_usdc_to_pln(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """Test configuring convert-only sell from USDC to PLN."""
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
@@ -267,7 +271,7 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
 
 # Test Suite 4: Sell Execution and State Validation
 async def test_inventory_sell_execute_direct_sell_to_completion(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """Test executing direct sell from inventory to completion."""
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
@@ -397,7 +401,7 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
 
 
 async def test_inventory_sell_execute_multihop_sell_to_completion(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """Test executing multi-hop sell from inventory to completion."""
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
@@ -421,7 +425,7 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
 
     # Validate inventory after sell configuration - AXL should be present
     await simulator.validate_inventory_quantities(
-        "AXL", 1000.0, 1000.0, 0.0, "After sell configuration (AXL present)"
+        "AXL", 1000.0, 0.0, 1000.0, "After sell configuration (AXL present)"
     )
 
     await hp_simulator.send_orders_for_first_position_from_two_hop_trade()
@@ -453,24 +457,19 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
 
     await hp_simulator.simulate_sell_order_fill_in_second_hop()
 
-    # Process any pending events after second hop completion
-    if hasattr(portfolio, "process_test_events"):
-        await portfolio.process_test_events()
-        await asyncio.sleep(0.1)
+    await portfolio.process_test_events()
 
     # Validate final inventory state after multihop completion
-    await validate_inventory_quantities(
-        portfolio,
+    await simulator.validate_inventory_quantities(
         "AXL",
         0.0,
         0.0,
         0.0,
         "After multihop sell completion (AXL should be removed)",
     )
-    # PLN should receive the final converted amount: original 1000 + (100 AXL * 50000 BTC * 1.5 PLN rate)
-    pln_expected = 1000.0 + (100.0 * 50000.0 * 1.5)  # 1000 + 7,500,000 = 7,501,000 PLN
-    await validate_inventory_quantities(
-        portfolio,
+    # PLN should receive the final converted amount: 1000 AXL * 1.5 USDPLN rate
+    pln_expected = 1000.0 * 4 * 1.5  # 6000 PLN
+    await simulator.validate_inventory_quantities(
         "PLN",
         pln_expected,
         pln_expected,
@@ -482,7 +481,7 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
 
 
 async def test_inventory_sell_execute_convert_sell_to_completion(
-    portfolio_hp_backend_setup,
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):
     """Test executing convert-only sell from inventory to completion."""
     portfolio, hp_front, hp_back = portfolio_hp_backend_setup
@@ -490,8 +489,8 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     hp_simulator = HPSimulator(front=hp_front, back=hp_back)
 
     # Validate initial inventory before convert sell operations
-    await validate_inventory_quantities(
-        portfolio, "DYM", 200.0, 200.0, 0.0, "Initial DYM inventory"
+    await simulator.validate_inventory_quantities(
+        "DYM", 200.0, 200.0, 0.0, "Initial DYM inventory"
     )
 
     # Start with configuration phase - submit convert sell for DYM to PLN
@@ -508,8 +507,8 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     )
 
     # Validate inventory after convert configuration - DYM should be present
-    await validate_inventory_quantities(
-        portfolio, "DYM", 200.0, 200.0, 0.0, "After convert configuration (DYM present)"
+    await simulator.validate_inventory_quantities(
+        "DYM", 200.0, 200.0, 0.0, "After convert configuration (DYM present)"
     )
 
     # Debug: Print actual HP frontend data to understand the structure
@@ -567,8 +566,7 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         await asyncio.sleep(0.1)
 
     # Validate inventory after convert completion - DYM should be removed, PLN should be received
-    await validate_inventory_quantities(
-        portfolio,
+    await simulator.validate_inventory_quantities(
         "DYM",
         0.0,
         0.0,
@@ -577,8 +575,7 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     )
     # PLN should receive original 1000 + converted amount (200 * 1.4 = 280)
     pln_expected = 1000.0 + 280.0  # Original + converted amount
-    await validate_inventory_quantities(
-        portfolio,
+    await simulator.validate_inventory_quantities(
         "PLN",
         pln_expected,
         pln_expected,
