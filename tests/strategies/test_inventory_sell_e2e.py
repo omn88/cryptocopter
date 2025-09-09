@@ -160,7 +160,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
     assert (
         strategy.sell.current_position.config.end_currency == "USDC"
     )  # First hop end currency
-    assert strategy.sell.current_position.config.quantity == 100.0
+    assert strategy.sell.current_position.config.quantity == 1000.0
     assert (
         strategy.state.name == "BOUGHT"
     )  # Should start in BOUGHT state for inventory sells
@@ -376,173 +376,16 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
 
     # Start with configuration phase - submit multihop sell for AXL to PLN
     hp_id = await simulator.submit_sell_configuration(
-        coin="AXL", end_currency="PLN", sell_price=1.5
+        coin="AXL", end_currency="PLN", sell_price=1.14
     )
 
-    # Verify HP sell position was created in initial state
-    assert hp_id in hp_back.strategies
-    strategy = hp_back.strategies[hp_id]
+    await hp_simulator.send_orders_for_first_position_from_two_hop_trade()
 
-    await wait_for_condition(
-        condition_func=lambda: len(hp_front.hp_list_data) > 0, timeout=5.0
-    )
+    await hp_simulator.simulate_sell_order_fill_in_first_hop()
 
-    # Validate initial state - parent + 2 multihop children
-    hp_simulator.validate_parent(
-        hp_id=hp_id,
-        quantity="100.0",
-        realized_quantity="0.0",
-        state="BOUGHT",
-        buy_price="0.8",
-        sell_price="1.5",
-    )
+    await hp_simulator.open_second_sell_position_from_two_hop_trade()
 
-    hp_simulator.validate_multihop_child(
-        child_hp_id="1000a",
-        quantity="100.0",
-        realized_quantity="0.0",
-        state="NEW",
-        parent_hp_id="1000",
-        coin="AXL",
-        sell_price="0.00000469",
-        buy_price="0.0000025",
-    )
-
-    hp_simulator.validate_multihop_child(
-        child_hp_id="1000b",
-        quantity="0.00047",
-        realized_quantity="0.0",
-        state="NEW",
-        parent_hp_id="1000",
-        coin="BTC",
-        sell_price="320000.0",
-        buy_price="320000.0",
-    )
-
-    # Execute first hop - AXL to BTC
-    # For multihop, go straight to ExecutionReport simulation like convert test
-    first_hop_order = strategy.sell.current_position.sell_order
-    exc_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,
-        order_id=first_hop_order.order_id,
-        last_executed_quantity=100.0,
-        last_executed_price=0.00000469,
-        cumulative_filled_quantity=100.0,
-        price=0.00000469,
-    )
-    strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-    await wait_for_condition(
-        condition_func=lambda: strategy.sell.current_position.sell_order.status
-        == ORDER_STATUS_FILLED
-    )
-    logger.info(f"Strategy reached state: {strategy.state}")
-
-    # Try to validate first hop with error handling
-    hp_simulator.validate_multihop_child(
-        child_hp_id="1000a",
-        quantity="100.0",
-        realized_quantity="0.0",
-        state="SELLING",
-        parent_hp_id="1000",
-        coin="AXL",
-        sell_price="0.00000469",
-        buy_price="0.0000025",
-    )
-    logger.info("First hop validation passed")
-
-    await wait_for_condition(
-        condition_func=lambda: strategy.sell.current_position
-        is strategy.sell.sell_positions[1],
-        timeout=5.0,
-    )
-
-    # Try to validate first hop completed, second hop starting (if second hop exists)
-    try:
-        hp_simulator.validate_multihop_child(
-            child_hp_id="1000a",
-            quantity="100.0",
-            realized_quantity="100.0",
-            state="SOLD",
-            parent_hp_id="1000",
-            coin="AXL",
-            sell_price="0.00000469",
-            buy_price="0.0000025",
-        )
-        logger.info("First hop validation passed")
-    except Exception as e:
-        logger.warning(f"First hop validation failed: {e}")
-
-    try:
-        hp_simulator.validate_multihop_child(
-            child_hp_id="1000b",
-            quantity="0.00047",
-            realized_quantity="0.0",
-            state="SELLING",
-            parent_hp_id="1000",
-            coin="BTC",
-            sell_price="320000.0",
-            buy_price="320000.0",
-        )
-        logger.info("Second hop validation passed")
-    except Exception as e:
-        logger.warning(f"Second hop validation failed: {e}")
-
-    hp_simulator.new_price(price=320000.0, symbol="BTCPLN")
-
-    # Simulate second hop order fill - BTC sold for PLN
-    second_hop_order = strategy.sell.sell_positions[1].sell_order
-    exc_report = ExecutionReport(
-        order_type=ORDER_TYPE_LIMIT,
-        current_order_status=ORDER_STATUS_FILLED,
-        order_id=second_hop_order.order_id,
-        last_executed_quantity=0.00047,
-        last_executed_price=320000.0,
-        cumulative_filled_quantity=0.00047,
-        price=320000.0,
-    )
-    strategy.worker_queue.put_nowait(Event(EventName.EXECUTION_REPORT, exc_report))
-
-    await wait_for_condition(
-        condition_func=lambda: strategy.state == State.SOLD, timeout=5.0
-    )
-    logger.info("Successfully reached SOLD state")
-
-    # Validate final sold state for all positions
-    hp_simulator.validate_parent(
-        hp_id=hp_id,
-        quantity="100.0",
-        realized_quantity="100.0",
-        state="SOLD",
-        buy_price="0.8",
-        sell_price="1.5",
-    )
-
-    hp_simulator.validate_multihop_child(
-        child_hp_id="1000a",
-        quantity="100.0",
-        realized_quantity="100.0",
-        state="SOLD",
-        parent_hp_id="1000",
-        coin="AXL",
-        sell_price="0.00000469",
-        buy_price="0.0000025",
-    )
-
-    hp_simulator.validate_multihop_child(
-        child_hp_id="1000b",
-        quantity="0.00047",
-        realized_quantity="0.00047",
-        state="SOLD",
-        parent_hp_id="1000",
-        coin="BTC",
-        sell_price="320000.0",
-        buy_price="320000.0",
-    )
-    logger.info("HP simulator validation passed")
-
-    logger.info("Multi-hop sell execution test passed")
+    await hp_simulator.simulate_sell_order_fill_in_second_hop()
 
 
 async def test_inventory_sell_execute_convert_sell_to_completion(
