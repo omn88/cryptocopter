@@ -1932,9 +1932,10 @@ Enter sell price to create sell order:"""
         row.add_widget(self._create_column_label(hp_data.get("hp_id", ""), 0.1))
         row.add_widget(self._create_column_label(hp_data.get("coin", ""), 0.08))
         row.add_widget(self._create_column_label(hp_data.get("quantity", "0.0"), 0.12))
-        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.1))
+        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.09))
+        row.add_widget(self._create_column_label(hp_data.get("sell_price", "—"), 0.09))
         row.add_widget(
-            self._create_column_label(hp_data.get("current_price", "0.0"), 0.1)
+            self._create_column_label(hp_data.get("current_price", "0.0"), 0.09)
         )
 
         # Progress column (show completeness percentage or state info)
@@ -1955,9 +1956,9 @@ Enter sell price to create sell order:"""
                 progress_value = 0.0
 
         progress_text = f"{progress_value:.1f}%"
-        row.add_widget(self._create_column_label(progress_text, 0.08))
+        row.add_widget(self._create_column_label(progress_text, 0.07))
 
-        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.1))
+        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.09))
         row.add_widget(self._create_column_label(hp_data.get("state", ""), 0.1))
 
         # Action buttons

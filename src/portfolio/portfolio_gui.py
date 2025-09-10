@@ -84,15 +84,24 @@ class PortfolioUI(BoxLayout):
 
     def sell_lot_button(self, lot_symbol, available_quantity, buy_price):
         """Handle sell button for individual lot (child row)."""
-        if not self.hp_manager or not self.app:
-            logger.error(
-                "HP Manager or App reference not set. Cannot navigate to sell tab."
+        # Check if HP Manager is available before proceeding
+        if not self.hp_manager:
+            logger.warning("HP Manager not available - sell functionality disabled")
+            error_popup = Popup(
+                title="HP Manager Required",
+                content=Label(
+                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
+                ),
+                size_hint=(0.5, 0.3),
+                auto_dismiss=True,
             )
+            error_popup.open()
             return
 
         # Extract the parent symbol from the lot display
         # Find the parent coin this lot belongs to by matching buy price and available quantity
         parent_symbol = None
+        parent_coin = None
         for coin in self.coin_list_data:
             if not coin.get("is_lot_row", False) and coin.get("lots"):
                 # Check if this coin has a lot with matching buy price
@@ -100,36 +109,42 @@ class PortfolioUI(BoxLayout):
                     if hasattr(lot, "buy_price"):
                         if str(lot.buy_price) == str(buy_price):
                             parent_symbol = coin["symbol"]
+                            parent_coin = coin
                             break
                 if parent_symbol:
                     break
 
-        if not parent_symbol:
+        if not parent_symbol or not parent_coin:
             logger.error("Could not find parent symbol for lot")
             return
 
-        # Switch to HP Manager tab
-        hp_tab = self.app.strategies.get("HPManager")
-        if hp_tab:
-            self.app.root.switch_to(hp_tab)
+        # Create a modified parent coin data for this specific lot
+        lot_data = {
+            "symbol": parent_symbol,
+            "available_qty": str(available_quantity),  # Use lot's available quantity
+            "quantity": str(available_quantity),  # Use lot's quantity
+            "weighted_avg_buy_price": float(buy_price),  # Use lot's buy price
+        }
 
-            # Use empty HP ID - the HP Manager will generate a new one automatically
-            # Call HP manager's sell function with lot data (available quantity, not total)
-            self.hp_manager.sell_hp_button(
-                "", parent_symbol, available_quantity, buy_price
-            )
-            logger.info(
-                f"Navigated to HP Manager sell tab for lot: {parent_symbol} available_qty:{available_quantity} price:{buy_price}"
-            )
-        else:
-            logger.error("HP Manager tab not found")
+        # Show sell dialog for this specific lot with prefilled quantity
+        self.open_sell_quantity_popup(
+            parent_symbol, lot_data, prefill_quantity=float(available_quantity)
+        )
 
     def sell_parent_button(self, symbol):
         """Handle sell button for parent coin (allows partial or full sell)."""
-        if not self.hp_manager or not self.app:
-            logger.error(
-                "HP Manager or App reference not set. Cannot navigate to sell tab."
+        # Check if HP Manager is available before proceeding
+        if not self.hp_manager:
+            logger.warning("HP Manager not available - sell functionality disabled")
+            error_popup = Popup(
+                title="HP Manager Required",
+                content=Label(
+                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
+                ),
+                size_hint=(0.5, 0.3),
+                auto_dismiss=True,
             )
+            error_popup.open()
             return
 
         # Find the parent coin data
@@ -143,23 +158,285 @@ class PortfolioUI(BoxLayout):
             logger.error(f"Could not find parent coin data for {symbol}")
             return
 
-        # Switch to HP Manager tab
-        hp_tab = self.app.strategies.get("HPManager")
-        if hp_tab:
-            self.app.root.switch_to(hp_tab)
+        # Show sell dialog to let user choose quantity
+        self.open_sell_quantity_popup(symbol, parent_coin)
 
-            # For parent sells, use the weighted average buy price and available quantity
-            available_qty = parent_coin.get("available_qty", "0")
-            avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
+    def open_sell_quantity_popup(self, symbol, parent_coin, prefill_quantity=None):
+        """Open a popup dialog to choose sell quantity and price."""
+        available_qty = float(parent_coin.get("available_qty", "0"))
+        total_qty = float(parent_coin.get("quantity", "0"))
+        avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
 
-            # Use empty HP ID - the HP Manager will generate a new one automatically
-            # Call HP manager's sell function with parent data
-            self.hp_manager.sell_hp_button("", symbol, available_qty, avg_buy_price)
-            logger.info(
-                f"Navigated to HP Manager sell tab for parent: {symbol} qty:{available_qty} avg_price:{avg_buy_price}"
+        # If this is a child lot, use prefill_quantity, otherwise show all available
+        is_child_lot = prefill_quantity is not None
+        display_qty = prefill_quantity if is_child_lot else available_qty
+
+        layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
+
+        # Information labels
+        lot_type = "Lot" if is_child_lot else "Position"
+        info_label = Label(
+            text=f"Sell {symbol} {lot_type}",
+            size_hint_y=None,
+            height=40,
+            font_size="18sp",
+        )
+
+        if is_child_lot:
+            # For child lots, show lot-specific information
+            total_info_label = Label(
+                text=f"Lot Quantity: {display_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+            )
+
+            available_info_label = Label(
+                text=f"Available to Sell: {display_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+                color=[0, 1, 0, 1],  # Green color for available quantity
             )
         else:
-            logger.error("HP Manager tab not found")
+            # For parent positions, show total holdings
+            total_info_label = Label(
+                text=f"Total Holdings: {total_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+            )
+
+            available_info_label = Label(
+                text=f"Available to Sell: {available_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+                color=[0, 1, 0, 1],  # Green color for available quantity
+            )
+
+        price_info_label = Label(
+            text=f"Buy Price: ${avg_buy_price:.4f}",
+            size_hint_y=None,
+            height=30,
+            font_size="14sp",
+        )
+
+        # Quantity input
+        quantity_input = TextInput(
+            hint_text=f"Quantity to sell (max: {display_qty:.8f})",
+            multiline=False,
+            input_filter="float",
+            size_hint_y=None,
+            height=40,
+            text=(
+                f"{display_qty:.8f}".rstrip("0").rstrip(".") if is_child_lot else ""
+            ),  # Prefill for child lots
+        )
+
+        # Sell price input
+        price_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=40, spacing=10
+        )
+        price_label = Label(text="Sell Price:", size_hint_x=0.3)
+        price_input = TextInput(
+            hint_text="Enter sell price",
+            multiline=False,
+            input_filter="float",
+            size_hint_x=0.7,
+        )
+        price_layout.add_widget(price_label)
+        price_layout.add_widget(price_input)
+
+        # Expected return calculation
+        return_label = Label(
+            text="Expected return will be calculated...",
+            size_hint_y=None,
+            height=30,
+            font_size="14sp",
+            color=[0.8, 0.8, 0.8, 1],
+        )
+
+        # Update expected return when price changes
+        def update_expected_return(instance, text):
+            try:
+                if not quantity_input.text or not text:
+                    return_label.text = "Expected return will be calculated..."
+                    return
+
+                sell_price = float(text)
+                quantity_float = float(quantity_input.text)
+
+                if sell_price > 0 and avg_buy_price > 0 and quantity_float > 0:
+                    profit = (sell_price - avg_buy_price) * quantity_float
+                    profit_percent = ((sell_price / avg_buy_price) - 1) * 100
+                    return_label.text = (
+                        f"Expected return: {profit:.2f} USDC ({profit_percent:.2f}%)"
+                    )
+                else:
+                    return_label.text = "Expected return will be calculated..."
+            except ValueError:
+                return_label.text = "Invalid price or quantity entered"
+
+        # Update expected return when quantity changes too
+        def update_return_on_quantity_change(instance, text):
+            update_expected_return(price_input, price_input.text)
+
+        price_input.bind(text=update_expected_return)
+        quantity_input.bind(text=update_return_on_quantity_change)
+
+        # Quick percentage buttons for quantity
+        button_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+        quick_25_btn = Button(text="25%", size_hint_x=0.25)
+        quick_50_btn = Button(text="50%", size_hint_x=0.25)
+        quick_75_btn = Button(text="75%", size_hint_x=0.25)
+        quick_100_btn = Button(text="100%", size_hint_x=0.25)
+
+        # Action buttons
+        action_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+        cancel_btn = Button(text="Cancel", size_hint_x=0.5)
+        sell_btn = Button(
+            text="CREATE SELL ORDER",
+            size_hint_x=0.5,
+            background_color=[0.2, 0.8, 0.2, 1],
+        )
+
+        def set_percentage(percentage):
+            def callback(instance):
+                qty_to_set = display_qty * (percentage / 100.0)
+                quantity_input.text = f"{qty_to_set:.8f}".rstrip("0").rstrip(".")
+                # Trigger return calculation update
+                update_expected_return(price_input, price_input.text)
+
+            return callback
+
+        def sell_callback(instance):
+            try:
+                sell_quantity = (
+                    float(quantity_input.text.strip())
+                    if quantity_input.text.strip()
+                    else 0
+                )
+                sell_price = (
+                    float(price_input.text.strip()) if price_input.text.strip() else 0
+                )
+
+                # Use display_qty as the maximum allowed (either lot quantity or available quantity)
+                max_allowed = display_qty
+
+                if sell_quantity <= 0:
+                    logger.error("Sell quantity must be greater than 0")
+                    return
+                if sell_quantity > max_allowed:
+                    logger.error(
+                        f"Cannot sell {sell_quantity} - only {max_allowed} available"
+                    )
+                    return
+                if sell_price <= 0:
+                    logger.error("Sell price must be greater than 0")
+                    return
+
+                # Create the sell order directly without switching tabs or opening another popup
+                if not self.hp_manager:
+                    logger.error(
+                        "HP Manager is not available. Cannot create sell orders."
+                    )
+                    # Show user-friendly error popup
+                    error_popup = Popup(
+                        title="Error",
+                        content=Label(
+                            text="HP Manager is not available.\nCannot create sell orders at this time."
+                        ),
+                        size_hint=(0.4, 0.3),
+                        auto_dismiss=True,
+                    )
+                    error_popup.open()
+                    return
+
+                popup.dismiss()  # Close our popup first
+
+                # Call the HP manager's confirmation method directly
+                hp_id = ""  # Empty HP ID for new position
+
+                # Create a dummy popup object since _confirm_sell_hp expects one
+                class DummyPopup:
+                    def dismiss(self):
+                        pass  # Do nothing - our popup is already dismissed
+
+                dummy_popup = DummyPopup()
+
+                try:
+                    self.hp_manager._confirm_sell_hp(
+                        dummy_popup,
+                        hp_id,
+                        symbol,
+                        str(sell_quantity),
+                        str(avg_buy_price),
+                        str(sell_price),
+                    )
+                    logger.info(
+                        f"Successfully created sell order for {symbol}: qty={sell_quantity} @ {sell_price}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create sell order: {e}")
+                    # Show user-friendly error popup
+                    error_popup = Popup(
+                        title="Sell Order Failed",
+                        content=Label(text=f"Failed to create sell order:\n{str(e)}"),
+                        size_hint=(0.5, 0.4),
+                        auto_dismiss=True,
+                    )
+                    error_popup.open()
+
+            except ValueError:
+                logger.error("Invalid quantity or price entered")
+
+        def cancel_callback(instance):
+            popup.dismiss()
+            # Stay on portfolio tab - don't switch to HP Manager
+
+        # Bind button callbacks
+        quick_25_btn.bind(on_release=set_percentage(25))
+        quick_50_btn.bind(on_release=set_percentage(50))
+        quick_75_btn.bind(on_release=set_percentage(75))
+        quick_100_btn.bind(on_release=set_percentage(100))
+        sell_btn.bind(on_release=sell_callback)
+        cancel_btn.bind(on_release=cancel_callback)
+
+        # Build layout
+        layout.add_widget(info_label)
+        layout.add_widget(total_info_label)
+        layout.add_widget(available_info_label)
+        layout.add_widget(price_info_label)
+        layout.add_widget(Label(text="", size_hint_y=None, height=10))  # Spacer
+
+        layout.add_widget(quantity_input)
+
+        button_layout.add_widget(quick_25_btn)
+        button_layout.add_widget(quick_50_btn)
+        button_layout.add_widget(quick_75_btn)
+        button_layout.add_widget(quick_100_btn)
+        layout.add_widget(button_layout)
+
+        layout.add_widget(Label(text="", size_hint_y=None, height=10))  # Spacer
+        layout.add_widget(price_layout)
+        layout.add_widget(return_label)
+
+        action_layout.add_widget(cancel_btn)
+        action_layout.add_widget(sell_btn)
+        layout.add_widget(action_layout)
+
+        popup = Popup(
+            title=f"Sell {symbol}",
+            content=layout,
+            size_hint=(0.6, 0.8),
+            auto_dismiss=False,
+        )
+        popup.open()
 
     async def update_inventory_after_sell(
         self, symbol: str, quantity_sold: float, sell_from_lots: bool = True
