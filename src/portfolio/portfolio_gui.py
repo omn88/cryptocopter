@@ -608,7 +608,27 @@ class PortfolioUI(BoxLayout):
                     logger.error("Failed to parse inventory row: %s error: %s", row, e)
 
             if inventory_items:
+                logger.info("Loaded inventory items from CSV:")
+                for item in inventory_items:
+                    logger.info(f"  - {item.coin}: {item.quantity} @ {item.buy_price}")
+
                 self.set_inventory(inventory_items)
+
+                # CRITICAL FIX: Save CSV inventory to database for persistence
+                logger.info("Saving CSV inventory to database for future recovery...")
+                try:
+                    for item in inventory_items:
+                        await self.db.insert_inventory_item(item)
+                    logger.info(
+                        f"Successfully saved {len(inventory_items)} inventory items to database"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save CSV inventory to database: {e}")
+                    # Don't fail the load, but warn about recovery issues
+                    logger.warning(
+                        "Inventory will need to be reloaded from CSV after restart"
+                    )
+
                 # Only refresh if not in test mode to avoid Kivy widget access
                 if not self.test_mode:
                     self.ids.coin_list.refresh_from_data()
