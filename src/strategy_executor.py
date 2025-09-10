@@ -1196,12 +1196,24 @@ class StrategyExecutor:
             "Entering remove record, id: %s to system: %s", hp_id, self.strategies
         )
 
-        if hp_id not in self.strategies:
-            logger.info("HP %s NOT in running strategies", hp_id)
+        # Extract base HP ID using first 4 digits (universal approach for all HP ID patterns)
+        base_hp_id = hp_id[:4] if len(hp_id) >= 4 else hp_id
+        if base_hp_id != hp_id:
+            logger.info(
+                f"Child position detected. Using base HP ID: {base_hp_id} (from {hp_id})"
+            )
+
+        if base_hp_id not in self.strategies:
+            logger.info("HP %s (base: %s) NOT in running strategies", hp_id, base_hp_id)
             return
 
-        strategy: HpStrategy = self.strategies[hp_id]
-        logger.info("Found strategy with hp id: %s, side to remove: %s", hp_id, side)
+        strategy: HpStrategy = self.strategies[base_hp_id]
+        logger.info(
+            "Found strategy with base hp id: %s, original id: %s, side to remove: %s",
+            base_hp_id,
+            hp_id,
+            side,
+        )
         buy = strategy.buy
         sell = strategy.sell
 
@@ -1346,6 +1358,17 @@ class StrategyExecutor:
             return
 
         if side == PositionSide.SHORT:
+            logger.info(
+                f"Processing SHORT side cancellation for {hp_id}. Strategy state: {strategy.state}"
+            )
+            logger.info(
+                f"Sell state: {sell.current_position.state_info.state if sell.current_position else 'No sell position'}"
+            )
+
+            # Initialize variables for all sell cancellation types
+            sell_rlzd_qty = 0.0
+            sell_order_qty = 0.0
+
             if strategy.state == State.SELLING:
                 sell_rlzd_qty = (
                     strategy.sell.current_position.sell_order.realized_quantity
@@ -1366,61 +1389,110 @@ class StrategyExecutor:
                     logger.info(
                         f"Sent manual HP sell cancellation event for position: {hp_id}"
                     )
+            elif (
+                sell.current_position
+                and sell.current_position.state_info.state == State.NEW
+            ):
+                # Handle sell positions that are in NEW state (just created, not actively selling yet)
+                logger.info(f"Cancelling NEW sell position: {hp_id}")
+                sell_order_qty = sell.current_position.sell_order.quantity
 
-                fully_bought = all(
-                    order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+                # Send HP sell position cancelled event to portfolio
+                hp_cancelled = HPPositionCancelled(
+                    hp_id=hp_id,
+                    coin=sell.current_position.config.coin,
+                    quantity=sell_order_qty,
+                    position_type="SELL",
                 )
-                await sell.cancel_remaining_order()
-                strategy.state = (
-                    State.PARTIALLY_BOUGHT
-                    if not fully_bought
+                self._send_hp_event_to_portfolio(
+                    EventName.HP_POSITION_CANCELLED, hp_cancelled
+                )
+                logger.info(
+                    f"Sent manual HP sell cancellation event for NEW position: {hp_id}"
+                )
+
+                # Close the sell position
+                sell.current_position.state_info.state = State.CLOSED
+                sell.current_position.state_info.ui_state = UiState.CLOSED
+
+                # Update database
+                await self.db.upsert_sell_price_level(
+                    data=sell.current_position, strategy_state=State.CLOSED
+                )
+
+                # Send UI update
+                self.send_sell_position_to_ui(
+                    config=sell.current_position.config,
+                    state_info=sell.current_position.state_info,
+                    state=sell.current_position.state_info.state,
+                )
+
+                logger.info(f"Successfully cancelled NEW sell position: {hp_id}")
+                return
+            else:
+                logger.warning(
+                    f"Sell position {hp_id} is in unexpected state. Strategy state: {strategy.state}"
+                )
+                logger.warning(
+                    f"Sell position state: {sell.current_position.state_info.state if sell.current_position else 'None'}"
+                )
+                return
+
+            # Common logic for all sell cancellation types (SELLING state)
+            fully_bought = all(
+                order.status == ORDER_STATUS_FILLED for order in strategy.buy.orders
+            )
+            await sell.cancel_remaining_order()
+            strategy.state = (
+                State.PARTIALLY_BOUGHT
+                if not fully_bought
+                else (
+                    State.BOUGHT
+                    if fully_bought and not sell_rlzd_qty
                     else (
-                        State.BOUGHT
-                        if fully_bought and not sell_rlzd_qty
+                        State.PARTIALLY_SOLD
+                        if (
+                            fully_bought
+                            and sell_order_qty
+                            and sell_rlzd_qty != sell_order_qty
+                        )
                         else (
-                            State.PARTIALLY_SOLD
+                            State.PART_SOLD_PART_BOUGHT
                             if (
-                                fully_bought
+                                not fully_bought
                                 and sell_order_qty
                                 and sell_rlzd_qty != sell_order_qty
                             )
-                            else (
-                                State.PART_SOLD_PART_BOUGHT
-                                if (
-                                    not fully_bought
-                                    and sell_order_qty
-                                    and sell_rlzd_qty != sell_order_qty
-                                )
-                                else State.SOLD
-                            )
+                            else State.SOLD
                         )
                     )
                 )
+            )
 
-                # Send HP sell position completed event to portfolio when fully sold
-                if strategy.state == State.SOLD:
-                    # Calculate the end currency received (typically USDC for the amount received)
-                    end_currency_received = (
-                        sell.current_position.sell_order.realized_quantity
-                        * sell.current_position.config.sell_price
-                    )
+            # Send HP sell position completed event to portfolio when fully sold
+            if strategy.state == State.SOLD:
+                # Calculate the end currency received (typically USDC for the amount received)
+                end_currency_received = (
+                    sell.current_position.sell_order.realized_quantity
+                    * sell.current_position.config.sell_price
+                )
 
-                    hp_sell_completed = HPSellPositionCompleted(
-                        hp_id=hp_id,
-                        coin=sell.current_position.config.coin,
-                        quantity_sold=sell.current_position.sell_order.realized_quantity,
-                        buy_price=sell.current_position.config.buy_price,  # Add missing buy price
-                        sell_price=sell.current_position.config.sell_price,  # Add missing sell price
-                        end_currency=sell.current_position.config.end_currency,  # Use actual end_currency from config
-                        end_currency_received=end_currency_received,
-                    )
-                    logger.info(
-                        "Sending HP sell position completed event as part of REMOVE RECORD: %s",
-                        hp_sell_completed,
-                    )
-                    self._send_hp_event_to_portfolio(
-                        EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
-                    )
+                hp_sell_completed = HPSellPositionCompleted(
+                    hp_id=hp_id,
+                    coin=sell.current_position.config.coin,
+                    quantity_sold=sell.current_position.sell_order.realized_quantity,
+                    buy_price=sell.current_position.config.buy_price,  # Add missing buy price
+                    sell_price=sell.current_position.config.sell_price,  # Add missing sell price
+                    end_currency=sell.current_position.config.end_currency,  # Use actual end_currency from config
+                    end_currency_received=end_currency_received,
+                )
+                logger.info(
+                    "Sending HP sell position completed event as part of REMOVE RECORD: %s",
+                    hp_sell_completed,
+                )
+                self._send_hp_event_to_portfolio(
+                    EventName.HP_SELL_POSITION_COMPLETED, hp_sell_completed
+                )
 
             sell.current_position.config.sell_price = 0.0
             if sell.current_position.config.is_child:
