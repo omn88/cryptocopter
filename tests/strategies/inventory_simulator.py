@@ -303,3 +303,28 @@ class InventorySellSimulator:
         logger.info(
             f"✓ Inventory validation {description}: {coin} total={actual_total}, available={actual_available}, locked={actual_locked}"
         )
+
+    def get_inventory_quantity(self, coin: str) -> float:
+        """Get total inventory quantity for a coin."""
+        coin_items = [item for item in self.portfolio.inventory if item.coin == coin]
+        if not coin_items:
+            return 0.0
+        return sum(item.quantity for item in coin_items)
+
+    def get_available_quantity(self, coin: str) -> float:
+        """Get available inventory quantity for a coin."""
+        coin_items = [item for item in self.portfolio.inventory if item.coin == coin]
+        if not coin_items:
+            return 0.0
+        return sum(item.available_quantity for item in coin_items)
+
+    def get_locked_quantity(self, coin: str) -> float:
+        """Get locked inventory quantity for a coin."""
+        coin_items = [item for item in self.portfolio.inventory if item.coin == coin]
+        if not coin_items:
+            return 0.0
+        return sum(item.locked_quantity for item in coin_items)
+
+    def get_total_quantity(self, coin: str) -> float:
+        """Get total inventory quantity for a coin (alias for get_inventory_quantity)."""
+        return self.get_inventory_quantity(coin)
