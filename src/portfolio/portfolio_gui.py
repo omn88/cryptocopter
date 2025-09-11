@@ -1518,6 +1518,17 @@ class PortfolioUI(BoxLayout):
                     lot.available_quantity -= can_lock
                     lot.locked_quantity += can_lock
 
+                    # CRITICAL FIX: Persist locked quantities to database
+                    try:
+                        await self.db.update_inventory_item(lot)
+                        logger.debug(
+                            f"Persisted lock state to database for lot {lot.id}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to persist locked quantity to database: {e}"
+                        )
+
                 remaining_to_lock -= can_lock
                 logger.debug(
                     f"Locked {can_lock} from lot at price {getattr(lot, 'buy_price', 'unknown')}"
@@ -1712,6 +1723,17 @@ class PortfolioUI(BoxLayout):
                 if hasattr(lot, "locked_quantity"):  # InventoryItem object
                     lot.locked_quantity -= can_unlock
                     lot.available_quantity += can_unlock
+
+                    # CRITICAL FIX: Persist unlocked quantities to database
+                    try:
+                        await self.db.update_inventory_item(lot)
+                        logger.debug(
+                            f"Persisted unlock state to database for lot {lot.id}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to persist unlocked quantity to database: {e}"
+                        )
 
                 remaining_to_unlock -= can_unlock
                 logger.debug(

@@ -701,7 +701,6 @@ async def test_sell_direct_cancel_inventory(
     logger.info("Direct sell cancellation test passed")
 
 
-
 async def test_sell_multihop_cancel_inventory(
     portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
 ):

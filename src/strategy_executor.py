@@ -1175,17 +1175,26 @@ class StrategyExecutor:
                     )
 
         # Send HP sell position created event to portfolio for quantity locking
-        if not is_restoration:  # Only send for new positions, not restored ones
-            hp_sell_created = HPSellPositionCreated(
-                hp_id=parent_hp_id,
-                coin=config.coin,
-                quantity=config.quantity,
-                buy_price=config.buy_price,  # Use buy price from config
-                sell_price=config.sell_price,  # Use sell price from config
-                end_currency=config.end_currency,  # Use end currency from config
+        # CRITICAL FIX: Send event for both new positions AND restored ones to ensure quantities are locked
+        hp_sell_created = HPSellPositionCreated(
+            hp_id=parent_hp_id,
+            coin=config.coin,
+            quantity=config.quantity,
+            buy_price=config.buy_price,  # Use buy price from config
+            sell_price=config.sell_price,  # Use sell price from config
+            end_currency=config.end_currency,  # Use end currency from config
+        )
+        self._send_hp_event_to_portfolio(
+            EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+        )
+
+        if is_restoration:
+            logger.info(
+                f"Sent HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} to lock {config.quantity} {config.coin}"
             )
-            self._send_hp_event_to_portfolio(
-                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+        else:
+            logger.info(
+                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
             )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
