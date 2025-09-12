@@ -8,6 +8,7 @@ from src.identifiers import (
     EventName,
     HPSellPositionCreated,
     HPSellPositionCompleted,
+    HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
     HPPositionCancelled,
 )
@@ -160,9 +161,23 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     assert btc_locked == 0.5  # 0.5 should be locked
     assert btc_available == 1.1  # 1.6 - 0.5 locked
 
-    # ===== STEP 5: PARTIAL SELL =====
-    # Simulate partial sell: 0.3 BTC sold at $55,000
-    hp_sell_partial = HPSellPositionCompleted(
+    # ===== STEP 5: PARTIAL SELL (FILL + COMPLETION FOR FIRST SLICE) =====
+    # Simulate partial sell fill: 0.3 BTC filled at $55,000 (inventory reduced immediately)
+    hp_sell_partial_fill = HPSellPositionPartiallyFilled(
+        hp_id=hp_id,
+        coin="BTC",
+        filled_quantity=0.3,
+        total_filled=0.3,
+    )
+
+    await portfolio_ui.handle_hp_sell_partially_filled(hp_sell_partial_fill)
+
+    # Verify partial fill results - total quantity reduced, inventory updated
+    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
+    assert btc_balance == 1.3  # 1.6 - 0.3 sold = 1.3
+
+    # Now send completion event for this first sell slice to credit proceeds
+    hp_sell_partial_completion = HPSellPositionCompleted(
         hp_id=hp_id,
         coin="BTC",
         quantity_sold=0.3,
@@ -171,20 +186,15 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         end_currency="USDC",
         end_currency_received=16500.0,  # 0.3 * 55000
     )
+    await portfolio_ui.handle_hp_sell_completed(hp_sell_partial_completion)
 
-    await portfolio_ui.handle_hp_sell_completed(hp_sell_partial)
-
-    # Verify partial sell results - total quantity reduced, inventory updated
-    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
-    assert btc_balance == 1.3  # 1.6 - 0.3 sold = 1.3
-
-    # Verify USDC received (original 1000 + 16500 from sale)
+    # Verify USDC received after completion of first slice
     usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
     assert usdc_balance == 17500.0  # 1000 + 16500
 
     # Verify inventory still exists but with reduced quantity
     total_btc_inventory = get_inventory_balance(portfolio_ui, "BTC")
-    assert total_btc_inventory == 1.3  # Updated total after sale
+    assert total_btc_inventory == 1.3  # Updated total after fill
 
     # Find the HP inventory item specifically (should have reduced quantity after partial sell)
     hp_inventory_item = None
@@ -215,8 +225,23 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
     assert btc_balance == 1.3  # Total unchanged
 
-    # ===== STEP 7: COMPLETE FINAL SELL =====
-    # Sell remaining 0.2 BTC
+    # ===== STEP 7: FINAL SELL FILL + COMPLETION =====
+    # Emit fill event for remaining 0.2 BTC (inventory reduction)
+    hp_sell_final_fill = HPSellPositionPartiallyFilled(
+        hp_id=f"{hp_id}_final",
+        coin="BTC",
+        filled_quantity=0.2,
+        total_filled=0.2,
+    )
+    await portfolio_ui.handle_hp_sell_partially_filled(hp_sell_final_fill)
+
+    # Inventory should now be reduced before completion
+    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
+    assert btc_balance == pytest.approx(1.1)
+    usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
+    assert usdc_balance == 17500.0  # Unchanged since first slice completion
+
+    # Now send completion event to credit proceeds
     hp_sell_final = HPSellPositionCompleted(
         hp_id=f"{hp_id}_final",
         coin="BTC",
@@ -226,7 +251,6 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         end_currency="USDC",
         end_currency_received=11200.0,  # 0.2 * 56000
     )
-
     await portfolio_ui.handle_hp_sell_completed(hp_sell_final)
 
     # ===== FINAL VERIFICATION =====
@@ -236,12 +260,11 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         1.1
     )  # 1.3 - 0.2 sold = 1.1 (with float precision)
 
-    # Verify total USDC received (original 1000 + 16500 + 11200)
+    # Verify total USDC received (original 1000 + 16500 + 11200) added now at final completion
     usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
-    assert usdc_balance == 28700.0  # 1000 + 16500 + 11200
+    assert usdc_balance == 28700.0  # 1000 + (0.3*55000) + (0.2*56000)
 
     logger.info("Test completed successfully!")
-
 
 
 # async def test_hp_partial_buy_to_full_inventory_management(portfolio_ui):

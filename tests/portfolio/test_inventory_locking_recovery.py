@@ -1,230 +1,203 @@
-# """Test inventory locking persistence and recovery."""
-# import pytest
-# import logging
-# from unittest.mock import AsyncMock, MagicMock
+"""Test inventory locking persistence and crash recovery."""
 
-# from src.identifiers import HPSellPositionCreated, EventName, InventoryItem, Order, State
-# from src.portfolio.portfolio_gui import PortfolioUI
+import pytest
+import logging
+from unittest.mock import AsyncMock, MagicMock
 
-
-# logger = logging.getLogger(__name__)
-
-
-# async def test_lock_quantities_persists_to_database(portfolio_gui_setup):
-#     """Test that locking quantities persists changes to database."""
-#     portfolio_ui, mock_db = portfolio_gui_setup
-
-#     # Setup mock inventory with multiple lots for BTC
-#     inventory_items = [
-#         InventoryItem(
-#             id="btc_lot1",
-#             coin="BTC",
-#             buy_price=30000.0,
-#             quantity=0.5,
-#             available_quantity=0.5,
-#             locked_quantity=0.0,
-#         ),
-#         InventoryItem(
-#             id="btc_lot2",
-#             coin="BTC",
-#             buy_price=35000.0,
-#             quantity=0.3,
-#             available_quantity=0.3,
-#             locked_quantity=0.0,
-#         ),
-#     ]
-
-#     # Set inventory in portfolio UI
-#     portfolio_ui.set_inventory(inventory_items)
-
-#     # Create HP sell position event to lock quantities
-#     hp_sell_event = HPSellPositionCreated(
-#         hp_id="1001",
-#         coin="BTC",
-#         quantity=0.6,  # Lock 0.6 BTC (should lock all of lot1 and 0.1 from lot2)
-#         buy_price=30000.0,
-#         sell_price=60000.0,
-#         end_currency="USDC"
-#     )
-
-#     # Handle the event (this should lock quantities and persist to DB)
-#     await portfolio_ui.handle_hp_sell_created(hp_sell_event)
-
-#     # Verify database update was called for each lot that was locked
-#     assert mock_db.update_inventory_item.call_count >= 1, "Database should be updated when quantities are locked"
-
-#     # Verify the lots have correct locked/available quantities
-#     btc_lots = None
-#     for coin_data in portfolio_ui.coin_list_data:
-#         if coin_data.get("symbol") == "BTC":
-#             btc_lots = coin_data.get("lots", [])
-#             break
-
-#     assert btc_lots is not None, "BTC lots should exist"
-#     assert len(btc_lots) == 2, "Should have 2 BTC lots"
-
-#     # Sort by buy price to match FIFO order
-#     btc_lots.sort(key=lambda lot: getattr(lot, 'buy_price', 0))
-
-#     # First lot (30000): should be fully locked (0.5 BTC)
-#     lot1 = btc_lots[0]
-#     assert lot1.available_quantity == 0.0, "First lot should be fully locked"
-#     assert lot1.locked_quantity == 0.5, "First lot should have 0.5 locked"
-
-#     # Second lot (35000): should have 0.1 locked, 0.2 available
-#     lot2 = btc_lots[1]
-#     assert lot2.available_quantity == 0.2, "Second lot should have 0.2 available"
-#     assert lot2.locked_quantity == 0.1, "Second lot should have 0.1 locked"
+from src.identifiers import (
+    HPSellPositionCreated,
+    EventName,
+    InventoryItem,
+    Order,
+    State,
+)
+from src.portfolio.portfolio_gui import PortfolioUI
 
 
-# @pytest.mark.asyncio
-# async def test_unlock_quantities_persists_to_database(portfolio_gui_setup):
-#     """Test that unlocking quantities persists changes to database."""
-#     portfolio_ui, mock_db = portfolio_gui_setup
-
-#     # Setup mock inventory with pre-locked quantities
-#     inventory_items = [
-#         InventoryItem(
-#             id="btc_lot1",
-#             coin="BTC",
-#             buy_price=30000.0,
-#             quantity=0.5,
-#             available_quantity=0.0,  # Fully locked
-#             locked_quantity=0.5,
-#         ),
-#         InventoryItem(
-#             id="btc_lot2",
-#             coin="BTC",
-#             buy_price=35000.0,
-#             quantity=0.3,
-#             available_quantity=0.2,  # Partially locked
-#             locked_quantity=0.1,
-#         ),
-#     ]
-
-#     # Set inventory in portfolio UI
-#     portfolio_ui.set_inventory(inventory_items)
-
-#     # Unlock some quantities
-#     await portfolio_ui._unlock_quantities_fifo("BTC", 0.3)  # Unlock 0.3 BTC
-
-#     # Verify database update was called for each lot that was unlocked
-#     assert mock_db.update_inventory_item.call_count >= 1, "Database should be updated when quantities are unlocked"
-
-#     # Verify the lots have correct locked/available quantities after unlock
-#     btc_lots = None
-#     for coin_data in portfolio_ui.coin_list_data:
-#         if coin_data.get("symbol") == "BTC":
-#             btc_lots = coin_data.get("lots", [])
-#             break
-
-#     assert btc_lots is not None, "BTC lots should exist"
-
-#     # Sort by buy price to match FIFO order
-#     btc_lots.sort(key=lambda lot: getattr(lot, 'buy_price', 0))
-
-#     # First lot (30000): should be partially unlocked (0.3 unlocked, 0.2 still locked)
-#     lot1 = btc_lots[0]
-#     assert lot1.available_quantity == 0.3, "First lot should have 0.3 available after unlock"
-#     assert lot1.locked_quantity == 0.2, "First lot should have 0.2 still locked"
-
-#     # Second lot (35000): should remain unchanged (0.2 available, 0.1 locked)
-#     lot2 = btc_lots[1]
-#     assert lot2.available_quantity == 0.2, "Second lot should remain unchanged"
-#     assert lot2.locked_quantity == 0.1, "Second lot should remain unchanged"
+logger = logging.getLogger(__name__)
 
 
-# @pytest.mark.asyncio
-# async def test_recovery_sends_lock_event_for_active_positions(mock_strategy_executor):
-#     """Test that crash recovery sends HPSellPositionCreated events for restored positions."""
+@pytest.mark.asyncio
+async def test_comprehensive_portfolio_crash_recovery(portfolio_crash_recovery_factory):
+    """
+    Test comprehensive crash recovery for portfolio inventory locking system.
 
-#     # This test validates that the fix in strategy_executor.py works:
-#     # The event should be sent for both new AND restored positions
+    This test verifies:
+    1. Portfolio + HP + Backend setup works correctly
+    2. Inventory locking persists to database
+    3. System crash simulation
+    4. Recovery setup restores inventory locking state
+    5. Full system continues to work after recovery
+    """
+    create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
 
-#     # Create mock sell position data for recovery
-#     from src.identifiers import HPSellConfig, StateInfo, PositionSide, UiState
-#     from src.portfolio.portfolio import SymbolInfo
+    # === Phase 1: Original setup and operations ===
+    logger.info("Phase 1: Creating original setup")
 
-#     mock_config = HPSellConfig(
-#         hp_id="1001",
-#         coin="BTC",
-#         quantity=0.5,
-#         buy_price=30000.0,
-#         sell_price=60000.0,
-#         end_currency="USDC",
-#         symbol_info=SymbolInfo(
-#             symbol="BTCUSDC",
-#             min_notional=5.0,
-#             lot_size=0.00001,
-#             min_qty=0.00001,
-#             max_qty=900.0,
-#             price_filter=0.01,
-#             precision=5,
-#             price_precision=2,
-#             is_convert_only=False,
-#         )
-#     )
+    portfolio_ui_orig, hp_frontend_orig, backend_orig = create_portfolio_hp_setup(
+        "original"
+    )
 
-#     mock_state_info = StateInfo(
-#         state=State.NEW,
-#         open_time="2025-09-11 13:32:39",
-#         close_time="",
-#         side=PositionSide.SHORT,
-#         completeness=0.0,
-#         ui_state=UiState.NEW
-#     )
+    # Create sell events that will lock inventory
+    btc_sell_event = HPSellPositionCreated(
+        hp_id="1001",
+        coin="BTC",
+        quantity=0.6,  # Should lock 0.6 BTC from multiple lots
+        buy_price=45000.0,
+        sell_price=90000.0,
+        end_currency="USDC",
+    )
 
-#     # Mock the _send_hp_event_to_portfolio method to capture events
-#     sent_events = []
-#     def capture_event(event_name, event_data):
-#         sent_events.append((event_name, event_data))
+    eth_sell_event = HPSellPositionCreated(
+        hp_id="1002",
+        coin="ETH",
+        quantity=1.5,  # Should lock 1.5 ETH
+        buy_price=2800.0,
+        sell_price=5600.0,
+        end_currency="USDC",
+    )
 
-#     mock_strategy_executor._send_hp_event_to_portfolio = capture_event
+    # Handle events to lock inventory and save to database
+    await portfolio_ui_orig.handle_hp_sell_created(btc_sell_event)
+    await portfolio_ui_orig.handle_hp_sell_created(eth_sell_event)
 
-#     # Simulate restoring a sell position (is_restoration=True)
-#     await mock_strategy_executor.setup_sell_position_with_new_hp(
-#         strategy_data=MagicMock(config=mock_config, state_info=mock_state_info),
-#         sell_strategy=MagicMock(),
-#         is_restoration=True
-#     )
+    # Verify original locking worked
+    btc_locked_orig = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_orig.inventory
+        if getattr(item, "coin", "") == "BTC"
+    )
+    eth_locked_orig = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_orig.inventory
+        if getattr(item, "coin", "") == "ETH"
+    )
 
-#     # Verify that HP_SELL_POSITION_CREATED event was sent even during restoration
-#     assert len(sent_events) >= 1, "Should send HP_SELL_POSITION_CREATED event during restoration"
+    assert btc_locked_orig >= 0.6, f"BTC should be locked (got {btc_locked_orig})"
+    assert eth_locked_orig >= 1.5, f"ETH should be locked (got {eth_locked_orig})"
 
-#     event_name, event_data = sent_events[0]
-#     assert event_name == EventName.HP_SELL_POSITION_CREATED, "Should send HP_SELL_POSITION_CREATED event"
-#     assert isinstance(event_data, HPSellPositionCreated), "Event data should be HPSellPositionCreated"
-#     assert event_data.hp_id == "1001", "Event should have correct HP ID"
-#     assert event_data.coin == "BTC", "Event should have correct coin"
-#     assert event_data.quantity == 0.5, "Event should have correct quantity"
+    logger.info(
+        f"Phase 1 complete: BTC locked={btc_locked_orig}, ETH locked={eth_locked_orig}"
+    )
+
+    # === Phase 2: Simulate system crash ===
+    logger.info("Phase 2: Simulating complete system crash")
+    await simulate_crash(portfolio_ui_orig, hp_frontend_orig, backend_orig)
+    logger.info("System crash completed")
+
+    # === Phase 3: Recovery setup ===
+    logger.info("Phase 3: Creating recovery setup")
+    portfolio_ui_recovered, hp_frontend_recovered, backend_recovered = (
+        create_portfolio_hp_setup("recovered")
+    )
+
+    # Verify inventory locking persisted through crash
+    btc_locked_recovered = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_recovered.inventory
+        if getattr(item, "coin", "") == "BTC"
+    )
+    eth_locked_recovered = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_recovered.inventory
+        if getattr(item, "coin", "") == "ETH"
+    )
+
+    # The database should have preserved the locked state
+    assert (
+        btc_locked_recovered >= 0.6
+    ), f"BTC locking should survive crash (got {btc_locked_recovered})"
+    assert (
+        eth_locked_recovered >= 1.5
+    ), f"ETH locking should survive crash (got {eth_locked_recovered})"
+
+    logger.info(f"✓ Crash recovery successful!")
+    logger.info(f"  BTC: {btc_locked_orig} → {btc_locked_recovered}")
+    logger.info(f"  ETH: {eth_locked_orig} → {eth_locked_recovered}")
+
+    # === Phase 4: Verify recovered system works ===
+    logger.info("Phase 4: Testing recovered system functionality")
+
+    # Create another sell event to test the recovered system
+    dym_sell_event = HPSellPositionCreated(
+        hp_id="1003",
+        coin="DYM",
+        quantity=50.0,  # Lock some DYM
+        buy_price=1.0,
+        sell_price=2.0,
+        end_currency="USDC",
+    )
+
+    await portfolio_ui_recovered.handle_hp_sell_created(dym_sell_event)
+
+    # Verify new locking works on recovered system
+    dym_locked_recovered = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_recovered.inventory
+        if getattr(item, "coin", "") == "DYM"
+    )
+
+    assert (
+        dym_locked_recovered >= 50.0
+    ), f"Recovered system should be able to lock DYM (got {dym_locked_recovered})"
+
+    logger.info("✓ Comprehensive crash recovery test completed successfully!")
 
 
-# @pytest.fixture
-# def portfolio_gui_setup():
-#     """Setup PortfolioUI with mocked database for testing."""
-#     # Create mock database
-#     mock_db = AsyncMock()
+@pytest.mark.asyncio
+async def test_selective_component_crash_recovery(portfolio_crash_recovery_factory):
+    """
+    Example test showing selective crash recovery - crash only specific components.
 
-#     # Create PortfolioUI instance with test mode enabled
-#     portfolio_ui = PortfolioUI(test_mode=True)
-#     portfolio_ui.db = mock_db
-#     portfolio_ui.coin_list_data = []
+    This demonstrates the flexibility of the portfolio_crash_recovery_factory:
+    - Can crash individual components (portfolio only, HP only, backend only)
+    - Can test partial system failures and recovery
+    - Useful for testing different failure scenarios
+    """
+    create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
 
-#     return portfolio_ui, mock_db
+    logger.info("Creating setup for selective crash testing")
+    portfolio_ui, hp_frontend, backend = create_portfolio_hp_setup("selective_test")
 
+    # Create a sell position to establish some state
+    sell_event = HPSellPositionCreated(
+        hp_id="2001",
+        coin="AXL",
+        quantity=100.0,
+        buy_price=0.6,
+        sell_price=1.2,
+        end_currency="USDC",
+    )
 
-# @pytest.fixture
-# def mock_strategy_executor():
-#     """Create a mock StrategyExecutor for testing."""
-#     from src.strategy_executor import StrategyExecutor
+    await portfolio_ui.handle_hp_sell_created(sell_event)
 
-#     # Create real instance but with mocked dependencies
-#     executor = StrategyExecutor(test_mode=True)
-#     executor.client = AsyncMock()
-#     executor.db = AsyncMock()
-#     executor.strategies = {}
+    # Verify initial state
+    axl_locked_initial = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui.inventory
+        if getattr(item, "coin", "") == "AXL"
+    )
 
-#     # Mock internal methods that we don't want to actually execute
-#     executor._initialize_strategy = AsyncMock()
+    assert (
+        axl_locked_initial >= 100.0
+    ), f"AXL should be locked initially (got {axl_locked_initial})"
 
-#     return executor
+    # Test 1: Crash only the portfolio component
+    logger.info("Testing portfolio-only crash")
+    await simulate_crash(portfolio_ui)  # Only crash portfolio
+
+    # Test 2: Create new portfolio (simulating portfolio app restart)
+    portfolio_ui_new, _, _ = create_portfolio_hp_setup("portfolio_recovered")
+
+    # Verify portfolio state survived (HP and backend still running)
+    axl_locked_recovered = sum(
+        getattr(item, "locked_quantity", 0)
+        for item in portfolio_ui_new.inventory
+        if getattr(item, "coin", "") == "AXL"
+    )
+
+    assert (
+        axl_locked_recovered >= 100.0
+    ), f"AXL locking should survive portfolio crash (got {axl_locked_recovered})"
+
+    logger.info("✓ Selective component crash recovery test completed successfully!")

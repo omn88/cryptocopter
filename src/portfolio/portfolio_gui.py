@@ -22,7 +22,9 @@ from src.identifiers import (
     PriceUpdates,
     HPSellPositionCreated,
     HPSellPositionCompleted,
+    HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
+    HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
@@ -1164,12 +1166,18 @@ class PortfolioUI(BoxLayout):
         if data.name == EventName.HP_SELL_POSITION_CREATED:
             assert isinstance(data.content, HPSellPositionCreated)
             await self.handle_hp_sell_created(data.content)
+        if data.name == EventName.HP_SELL_POSITION_PARTIALLY_FILLED:
+            assert isinstance(data.content, HPSellPositionPartiallyFilled)
+            await self.handle_hp_sell_partially_filled(data.content)
         if data.name == EventName.HP_SELL_POSITION_COMPLETED:
             assert isinstance(data.content, HPSellPositionCompleted)
             await self.handle_hp_sell_completed(data.content)
         if data.name == EventName.HP_BUY_POSITION_FILLED:
             assert isinstance(data.content, HPBuyPositionFilled)
             await self.handle_hp_buy_filled(data.content)
+        if data.name == EventName.HP_BUY_POSITION_PARTIALLY_FILLED:
+            assert isinstance(data.content, HPBuyPositionPartiallyFilled)
+            await self.handle_hp_buy_partially_filled(data.content)
         if data.name == EventName.HP_POSITION_CANCELLED:
             assert isinstance(data.content, HPPositionCancelled)
             await self.handle_hp_position_cancelled(data.content)
@@ -1380,16 +1388,47 @@ class PortfolioUI(BoxLayout):
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
 
+    async def handle_hp_sell_partially_filled(
+        self, event: HPSellPositionPartiallyFilled
+    ):
+        """Handle HP sell partial fill - reduce inventory quantities immediately for development tracking."""
+        logger.info(
+            f"HP Sell Partially Filled: {event.hp_id} - {event.coin} filled:{event.filled_quantity} (total filled:{event.total_filled})"
+        )
+
+        # Reduce inventory by the filled quantity using HP-specific lot reduction
+        await self._update_lots_after_hp_sell(
+            event.hp_id, event.coin, event.filled_quantity
+        )
+
+        # Refresh UI to show updated quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def handle_hp_buy_partially_filled(self, event: HPBuyPositionPartiallyFilled):
+        """Handle HP buy partial fill - add inventory quantities immediately for development tracking."""
+        logger.info(
+            f"HP Buy Partially Filled: {event.hp_id} - {event.coin} filled:{event.filled_quantity} (total filled:{event.total_filled})"
+        )
+
+        # Add inventory by the filled quantity using HP-specific lot addition
+        await self._add_inventory_after_hp_buy_fill(
+            event.hp_id, event.coin, event.filled_quantity, event.buy_price
+        )
+
+        # Refresh UI to show updated quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
     async def handle_hp_sell_completed(self, event: HPSellPositionCompleted):
-        """Handle HP sell completion - remove the specific HP inventory item and add received currency."""
+        """Handle HP sell completion - add received currency."""
         logger.info(
             f"HP Sell Completed: {event.hp_id} - Sold {event.quantity_sold} {event.coin}, Received {event.end_currency_received} {event.end_currency}"
         )
 
-        # Use HP-specific lot removal to remove the exact HP inventory item
-        await self._update_lots_after_hp_sell(
-            event.hp_id, event.coin, event.quantity_sold
-        )
+        # Note: Inventory reduction is now handled by fill events, not completion events
 
         # Determine if we should add received currency:
         # 1. Always skip intermediate multihop steps (IDs ending with "a")
@@ -1474,6 +1513,92 @@ class PortfolioUI(BoxLayout):
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
+
+    async def _add_inventory_after_hp_buy_fill(
+        self, hp_id: str, coin: str, filled_quantity: float, buy_price: float
+    ):
+        """Add inventory for partial buy fills - creates/updates HP inventory item incrementally."""
+        logger.info(
+            f"Adding inventory for HP buy fill: HP {hp_id} - {filled_quantity} {coin} at ${buy_price}"
+        )
+
+        # Create one inventory item per HP ID (not per price)
+        inventory_id = f"hp_{hp_id}"
+
+        # Check if inventory item with this HP ID already exists
+        existing_item = None
+        for item in self.inventory:
+            if item.id == inventory_id:
+                existing_item = item
+                break
+
+        if existing_item:
+            # Update existing item - accumulate quantity and calculate weighted average price
+            total_value = (existing_item.quantity * existing_item.buy_price) + (
+                filled_quantity * buy_price
+            )
+            total_quantity = existing_item.quantity + filled_quantity
+            weighted_avg_price = total_value / total_quantity
+
+            existing_item.quantity = total_quantity
+            existing_item.available_quantity += filled_quantity
+            existing_item.buy_price = weighted_avg_price
+
+            logger.info(
+                f"Updated existing HP item {inventory_id}: new qty={existing_item.quantity}, weighted avg price=${weighted_avg_price:.2f}"
+            )
+            new_lot = existing_item
+        else:
+            # Create new inventory item for this HP ID
+            new_lot = InventoryItem(
+                id=inventory_id,
+                coin=coin,
+                buy_price=buy_price,
+                quantity=filled_quantity,
+                available_quantity=filled_quantity,
+                locked_quantity=0.0,
+                source="HP_BUY",
+                timestamp=time.time(),
+                notes=f"HP buy position {hp_id}",
+            )
+
+            # Add to main inventory list
+            self.inventory.append(new_lot)
+            logger.info(
+                f"Created new HP item {inventory_id}: qty={filled_quantity}, price=${buy_price}"
+            )
+
+        # Find existing parent coin or create new one
+        parent_coin = None
+        for coin_data in self.coin_list_data:
+            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
+                parent_coin = coin_data
+                break
+
+        if parent_coin:
+            # Update parent coin quantities
+            current_qty = float(parent_coin.get("quantity", 0))
+            current_available = float(parent_coin.get("available_qty", 0))
+
+            parent_coin["quantity"] = str(current_qty + filled_quantity)
+            parent_coin["available_qty"] = str(current_available + filled_quantity)
+
+            # Ensure the lot is in the parent's lots list
+            if new_lot not in parent_coin["lots"]:
+                parent_coin["lots"].append(new_lot)
+        else:
+            # Create new coin entry
+            new_coin = {
+                "symbol": coin,
+                "quantity": str(filled_quantity),
+                "available_qty": str(filled_quantity),
+                "locked_qty": "0.0",
+                "lots": [new_lot],
+                "is_lot_row": False,
+                "show_lots": True,
+            }
+            self.coin_list_data.append(new_coin)
+            logger.info(f"Created new parent coin entry for {coin}")
 
     async def _lock_quantities_fifo(self, coin: str, quantity_to_lock: float):
         """Lock quantities using FIFO (lowest buy price first)."""

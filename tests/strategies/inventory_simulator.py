@@ -137,18 +137,52 @@ class InventorySellSimulator:
         coin: str,
         sell_price: float,
         end_currency: str = "USDC",
+        quantity: Optional[float] = None,
     ):
         """Submit the sell configuration to create HP sell position."""
         # This will simulate clicking "Create HP" or similar button in modal
 
         item = self.get_inventory_item(coin=coin)
 
+        # Use specified quantity or default to all available
+        sell_quantity = quantity if quantity is not None else item.available_quantity
+
+        # Validate that we have enough available quantity
+        if sell_quantity > item.available_quantity:
+            raise ValueError(
+                f"Cannot sell {sell_quantity} {coin}, only {item.available_quantity} available"
+            )
+
+        # For partial sells, calculate weighted average buy price for the quantity being sold
+        if quantity is not None and quantity < item.quantity:
+            # Get individual lots and calculate FIFO weighted average
+            lots = self.get_coin_lots(coin)
+            lots_sorted = sorted(lots, key=lambda lot: lot.buy_price)
+
+            remaining_to_sell = sell_quantity
+            total_cost = 0.0
+
+            for lot in lots_sorted:
+                if remaining_to_sell <= 0:
+                    break
+
+                lot_quantity_to_use = min(remaining_to_sell, lot.available_quantity)
+                total_cost += lot_quantity_to_use * lot.buy_price
+                remaining_to_sell -= lot_quantity_to_use
+
+            weighted_avg_buy_price = (
+                total_cost / sell_quantity if sell_quantity > 0 else item.buy_price
+            )
+        else:
+            # Use aggregated buy price for full sell
+            weighted_avg_buy_price = item.buy_price
+
         # Create sell configuration
         sell_config = HPSellConfig(
             coin=item.coin,
-            buy_price=item.buy_price,
+            buy_price=weighted_avg_buy_price,
             sell_price=sell_price,
-            quantity=item.available_quantity,
+            quantity=sell_quantity,
             end_currency=end_currency,
             symbol_info=self.strategy_executor.symbols_info[f"{coin}USDT"],
         )

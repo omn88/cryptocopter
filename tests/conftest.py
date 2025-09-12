@@ -890,4 +890,317 @@ async def portfolio_hp_backend_setup(
         strategy.stop_event.set()
         await wait_for_condition(condition_func=lambda: not strategy.worker_active)
 
-    # Cleanup is handled in individual fixtures
+
+@pytest.fixture
+async def portfolio_crash_recovery_factory(
+    test_db: TradingDatabase, mock_async_client, mock_inventory
+):
+    """
+    Dedicated factory fixture for portfolio crash recovery testing.
+
+    Based on portfolio_hp_backend_setup but designed specifically for crash recovery scenarios.
+    Provides methods to create setups and simulate crashes for comprehensive testing.
+
+    Usage Example:
+        create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
+
+        # Create original setup
+        portfolio1, hp1, backend1 = create_portfolio_hp_setup("original")
+
+        # Perform operations that modify database state
+        await portfolio1.handle_hp_sell_created(sell_event)
+
+        # Simulate crash
+        await simulate_crash(portfolio1, hp1, backend1)  # All components
+        # Or selective crash: await simulate_crash(portfolio1)  # Just portfolio
+
+        # Create recovery setup (uses same database)
+        portfolio2, hp2, backend2 = create_portfolio_hp_setup("recovered")
+
+        # Verify state was preserved in database
+        assert portfolio2.some_state == expected_value
+
+    Returns:
+        tuple: (create_portfolio_hp_setup, simulate_crash)
+    """
+
+    created_instances = []  # Track all created instances for cleanup
+
+    def create_portfolio_hp_setup(instance_name=""):
+        """
+        Create a complete portfolio + HP + backend setup for crash recovery testing.
+
+        Args:
+            instance_name (str): Optional name suffix for the instance
+
+        Returns:
+            tuple: (portfolio_ui, hp_frontend, strategy_backend)
+
+        This setup replicates portfolio_hp_backend_setup but allows multiple instances
+        with the same database for crash recovery testing.
+        """
+        logger.info(f"Creating portfolio crash recovery setup: {instance_name}")
+
+        # Create queues for communication
+        ui_queue = queue.Queue()
+        config_queue = queue.Queue()
+        portfolio_ui_queue = queue.Queue()
+
+        # Define symbols info
+        symbols_info = {
+            "BTCUSDC": SymbolInfo(
+                symbol="BTCUSDC",
+                min_notional=10.0,
+                lot_size=0.00001,
+                min_qty=0.00001,
+                max_qty=9000.0,
+                price_filter=0.01,
+                precision=5,
+                price_precision=2,
+            ),
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
+            "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
+            "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
+            "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
+            "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
+            "USDCUSDT": SymbolInfo(symbol="USDCUSDT", precision=2, price_precision=4),
+        }
+
+        # Create price resolver
+        price_resolver = UsdPriceResolver(
+            client=mock_async_client, symbols_info=symbols_info
+        )
+        price_resolver.latest_prices["BTCPLN"] = 320000.0
+        price_resolver.latest_prices["BTCUSDC"] = 100000.0
+
+        # Create Portfolio UI with real database persistence
+        portfolio_ui = PortfolioUI(
+            ui_queue=portfolio_ui_queue,
+            symbols_info=symbols_info,
+            db=test_db,  # Always use same database for persistence across crashes
+            test_mode=True,
+        )
+        portfolio_ui.set_inventory(mock_inventory)
+        logger.info(f"Created PortfolioUI for {instance_name}")
+
+        # Create Strategy Executor backend
+        mock_broker = MagicMock(spec=BrokerSpot)
+        strategy_executor = StrategyExecutor(
+            db=test_db,  # Always use same database
+            broker=mock_broker,
+            ui_queue=ui_queue,
+            symbols_info=symbols_info,
+            inventory=mock_inventory,
+            price_resolver=price_resolver,
+            test_mode=True,
+        )
+        strategy_executor.client = mock_async_client
+        logger.info(f"Created StrategyExecutor for {instance_name}")
+
+        # Create HP Frontend with proper Kivy mocking
+        with patch("kivy.base.EventLoop.ensure_window"):
+            hp_frontend = HpFront(
+                client=mock_async_client,
+                strategy_id=f"test_strategy_{instance_name}",
+                config_queue=config_queue,
+                db=test_db,  # Always use same database
+                ui_queue=ui_queue,
+                symbols_info=symbols_info,
+                test_mode=True,
+                price_resolver=price_resolver,
+                portfolio_queue=portfolio_ui_queue,
+            )
+            hp_frontend.initialize()
+            logger.info(f"Created HpFront for {instance_name}")
+
+        # Connect all components (same as portfolio_hp_backend_setup)
+        # HP frontend <-> Strategy backend connection
+        hp_frontend.config_queue = strategy_executor.config_queue
+        strategy_executor.ui_queue = hp_frontend.ui_queue
+        hp_frontend.db = strategy_executor.db
+        hp_frontend.symbols_info = strategy_executor.symbols_info
+
+        # Portfolio <-> HP connection for sell operations
+        portfolio_ui.hp_manager = hp_frontend
+
+        # CRITICAL: Connect strategy executor to portfolio for HP event processing
+        strategy_executor.portfolio_ui_queue = portfolio_ui.ui_queue
+
+        logger.info(
+            f"All components connected for crash recovery setup: {instance_name}"
+        )
+
+        # Track for cleanup
+        created_instances.extend([portfolio_ui, hp_frontend, strategy_executor])
+
+        return portfolio_ui, hp_frontend, strategy_executor
+
+    async def simulate_crash(*components):
+        """
+        Simulate application crash for portfolio + HP + backend system.
+
+        Args:
+            *components: Components to crash. Expected order: (portfolio_ui, hp_frontend, strategy_backend)
+        """
+        logger.info(f"Simulating crash for {len(components)} components")
+
+        for i, component in enumerate(components):
+            component_type = "unknown"
+
+            # Identify and crash each component type
+            if hasattr(component, "strategies") and hasattr(component, "config_queue"):
+                # This is a StrategyExecutor backend
+                component_type = "StrategyExecutor"
+                logger.info(f"Crashing {component_type}")
+
+                # Cancel strategy worker tasks without graceful shutdown
+                for strategy in component.strategies.values():
+                    if hasattr(strategy, "worker_active"):
+                        strategy.worker_active = False
+                    if (
+                        hasattr(strategy, "worker_task")
+                        and strategy.worker_task
+                        and not strategy.worker_task.done()
+                    ):
+                        strategy.worker_task.cancel()
+
+            elif hasattr(component, "ui_queue") and (
+                hasattr(component, "refresh_task") or hasattr(component, "strategy_id")
+            ):
+                # This is an HpFront frontend
+                component_type = "HpFront"
+                logger.info(f"Crashing {component_type}")
+
+                # Cancel frontend tasks
+                tasks_to_cancel = []
+                if (
+                    hasattr(component, "queue_task")
+                    and component.queue_task
+                    and not component.queue_task.done()
+                ):
+                    try:
+                        component.queue_task.cancel()
+                        tasks_to_cancel.append(component.queue_task)
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel queue_task: {e}")
+
+                if (
+                    hasattr(component, "refresh_task")
+                    and component.refresh_task
+                    and not component.refresh_task.done()
+                ):
+                    try:
+                        component.refresh_task.cancel()
+                        tasks_to_cancel.append(component.refresh_task)
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel refresh_task: {e}")
+
+                # Wait for tasks to finish
+                if tasks_to_cancel:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                            timeout=1.0,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("Frontend tasks didn't complete within timeout")
+
+            elif hasattr(component, "coin_list_data") and hasattr(component, "db"):
+                # This is a PortfolioUI
+                component_type = "PortfolioUI"
+                logger.info(f"Crashing {component_type}")
+
+                # Portfolio UI crash - just break any ongoing operations
+                # The database state remains intact (this is key for recovery)
+                if hasattr(component, "_current_operation"):
+                    component._current_operation = None
+
+            else:
+                logger.warning(
+                    f"Unknown component type at index {i}: {type(component)}"
+                )
+
+        logger.info(
+            "Crash simulation completed - database state preserved for recovery"
+        )
+
+    # Return the factory methods
+    yield create_portfolio_hp_setup, simulate_crash
+
+    # Cleanup all created instances
+    logger.info(
+        f"Cleaning up {len(created_instances)} portfolio crash recovery instances"
+    )
+
+    # Group instances for proper cleanup
+    portfolios = []
+    hp_frontends = []
+    strategy_executors = []
+
+    for instance in created_instances:
+        if hasattr(instance, "strategies") and hasattr(instance, "config_queue"):
+            strategy_executors.append(instance)
+        elif hasattr(instance, "ui_queue") and (
+            hasattr(instance, "refresh_task") or hasattr(instance, "strategy_id")
+        ):
+            hp_frontends.append(instance)
+        elif hasattr(instance, "coin_list_data") and hasattr(instance, "db"):
+            portfolios.append(instance)
+
+    # Cancel HP frontend tasks
+    frontend_tasks = []
+    for hp_frontend in hp_frontends:
+        if (
+            hasattr(hp_frontend, "refresh_task")
+            and hp_frontend.refresh_task
+            and not hp_frontend.refresh_task.done()
+        ):
+            hp_frontend.refresh_task.cancel()
+            frontend_tasks.append(hp_frontend.refresh_task)
+        if (
+            hasattr(hp_frontend, "queue_task")
+            and hp_frontend.queue_task
+            and not hp_frontend.queue_task.done()
+        ):
+            hp_frontend.queue_task.cancel()
+            frontend_tasks.append(hp_frontend.queue_task)
+        if hasattr(hp_frontend, "stop_event"):
+            hp_frontend.stop_event.set()
+
+    # Wait for frontend tasks
+    if frontend_tasks:
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*frontend_tasks, return_exceptions=True), timeout=1.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Some frontend tasks didn't complete within timeout during cleanup"
+            )
+
+    # Stop strategy executors
+    for executor in strategy_executors:
+        if hasattr(executor, "stop_event"):
+            executor.stop_event.set()
+        for strategy in executor.strategies.values():
+            if hasattr(strategy, "stop_event"):
+                strategy.stop_event.set()
+            if (
+                hasattr(strategy, "worker_task")
+                and strategy.worker_task
+                and not strategy.worker_task.done()
+            ):
+                strategy.worker_task.cancel()
+        if (
+            hasattr(executor, "thread")
+            and executor.thread
+            and executor.thread.is_alive()
+        ):
+            executor.thread.join(timeout=1.0)
+
+    # Portfolio UIs don't need special cleanup
+    logger.info(
+        f"Cleanup completed for {len(portfolios)} portfolios, "
+        f"{len(hp_frontends)} frontends, {len(strategy_executors)} executors"
+    )
