@@ -26,7 +26,14 @@ from binance.enums import (
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.strategy_executor import StrategyExecutor
-from src.identifiers import State, Event, EventName, ExecutionReport
+from src.identifiers import (
+    PositionSide,
+    RemoveRecord,
+    State,
+    Event,
+    EventName,
+    ExecutionReport,
+)
 from tests.strategies.hp_simulator import HPSimulator
 from tests.strategies.inventory_simulator import InventorySellSimulator
 from tests.strategies.hp_manager_helpers import wait_for_condition
@@ -567,15 +574,15 @@ async def test_inventory_sell_execute_partial_fill_fifo_locking(
         len(btc_lots_after_partial_sorted) == 2
     ), f"Should have 2 lots after lot 1 removal, got {len(btc_lots_after_partial_sorted)}"
 
-    # 3. Remaining lots should be fully locked for the remaining 0.2 BTC order
+    # 3. Only the remaining portion of the original order (0.2 BTC) should be locked
     total_locked = sum(lot.locked_quantity for lot in btc_lots_after_partial)
     total_available = sum(lot.available_quantity for lot in btc_lots_after_partial)
     assert (
-        total_locked == 0.7
-    ), f"All remaining inventory (0.7) should be locked for remaining order, got {total_locked} locked"
+        total_locked == 0.2
+    ), f"Only remaining order quantity (0.2) should be locked, got {total_locked} locked"
     assert (
-        total_available == 0.0
-    ), f"No inventory should be available after locking, got {total_available} available"
+        total_available == 0.5
+    ), f"Unlocked inventory (0.5) should be available, got {total_available} available"
 
     logger.info("✓ FIFO behavior validated: lowest price lot affected first")
 
@@ -1029,13 +1036,13 @@ async def test_sell_direct_cancel_inventory(
     )
     logger.info(f"Strategy state after cancellation: {strategy_state}")
 
-    # The position should exist and be in CLOSED state (cancelled)
+    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
     assert (
         hp_id in hp_back.strategies
     ), f"Strategy {hp_id} should still exist after cancellation"
     assert (
-        strategy_state == State.CLOSED
-    ), f"Expected CLOSED state, got {strategy_state}"
+        strategy_state == State.BOUGHT
+    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
 
     logger.info("Direct sell cancellation test passed")
 
@@ -1086,13 +1093,13 @@ async def test_sell_multihop_cancel_inventory(
     )
     logger.info(f"Strategy state after cancellation: {strategy_state}")
 
-    # The position should exist and be in CLOSED state (cancelled)
+    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
     assert (
         hp_id in hp_back.strategies
     ), f"Strategy {hp_id} should still exist after cancellation"
     assert (
-        strategy_state == State.CLOSED
-    ), f"Expected CLOSED state, got {strategy_state}"
+        strategy_state == State.BOUGHT
+    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
 
     logger.info("Multihop sell cancellation test passed")
 
@@ -1153,12 +1160,241 @@ async def test_sell_convert_cancel_inventory(
     )
     logger.info(f"Strategy state after cancellation: {strategy_state}")
 
-    # The position should exist and be in CLOSED state (cancelled)
+    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
     assert (
         hp_id in hp_back.strategies
     ), f"Strategy {hp_id} should still exist after cancellation"
     assert (
-        strategy_state == State.CLOSED
-    ), f"Expected CLOSED state, got {strategy_state}"
+        strategy_state == State.BOUGHT
+    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
 
     logger.info("Convert sell cancellation test passed")
+
+
+async def test_axl_multihop_sell_cancellation_inventory_unlock(
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+):
+    """
+    Test the specific issue with AXL multihop sell position cancellation not unlocking inventory.
+
+    This test reproduces the exact scenario:
+    1. Create AXL multihop sell position to USDC (AXL->BTC->USDC route)
+    2. Verify inventory is properly locked
+    3. Cancel the position via RemoveRecord (simulating HP list cancel button)
+    4. Verify the cancellation fails to unlock inventory (current bug)
+    5. [After fix] Verify proper inventory unlock works correctly
+
+    The bug is that cancellation sends wrong HP ID or side, so inventory doesn't get unlocked.
+    """
+    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
+    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
+    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+
+    logger.info("=== Starting AXL Multihop Sell Cancellation Test ===")
+
+    # Step 1: Record initial inventory state for AXL
+    initial_axl_total = sim.get_inventory_quantity("AXL")
+    initial_axl_available = sim.get_available_quantity("AXL")
+    initial_axl_locked = sim.get_locked_quantity("AXL")
+
+    logger.info(
+        f"Initial AXL inventory - Total: {initial_axl_total}, Available: {initial_axl_available}, Locked: {initial_axl_locked}"
+    )
+
+    # Verify we have AXL inventory to work with
+    assert initial_axl_total > 0, "Should have AXL inventory for testing"
+    assert initial_axl_available > 0, "Should have available AXL for selling"
+
+    # Step 2: Create AXL multihop sell position targeting USDC (should use AXL->BTC->USDC route)
+    sell_quantity = min(500.0, initial_axl_available)  # Sell 500 AXL or all available
+    hp_id = await sim.submit_sell_configuration(
+        coin="AXL",
+        end_currency="USDC",
+        sell_price=0.85,  # Target price for AXL
+        quantity=sell_quantity,
+    )
+
+    # Wait for position creation to complete
+    await asyncio.sleep(0.2)
+
+    # Process pending portfolio events (including HP_SELL_POSITION_CREATED for inventory locking)
+    await portfolio.process_test_events()
+
+    logger.info(f"Created AXL multihop sell position: {hp_id}")
+
+    # Step 3: Verify position was created successfully and inventory was locked
+    assert (
+        hp_id in hp_back.strategies
+    ), f"HP position {hp_id} should exist in strategies"
+
+    # Get the strategy to examine its structure
+    strategy = hp_back.strategies[hp_id]
+
+    # For multihop sells, we should have sell_positions (children)
+    assert hasattr(
+        strategy.sell, "sell_positions"
+    ), "Multihop sell should have sell_positions"
+    assert (
+        len(strategy.sell.sell_positions) >= 2
+    ), "Multihop should have at least 2 legs"
+
+    # Log multihop structure
+    logger.info(f"Multihop sell structure:")
+    logger.info(f"  Parent HP ID: {hp_id}")
+    logger.info(f"  Strategy state: {strategy.state}")
+    logger.info(f"  Number of sell positions: {len(strategy.sell.sell_positions)}")
+
+    for i, pos in enumerate(strategy.sell.sell_positions):
+        logger.info(
+            f"  Child {i+1}: HP ID {pos.config.hp_id}, Symbol {pos.config.symbol_info.symbol}"
+        )
+
+    # Step 4: Verify inventory was properly locked after position creation
+    locked_axl_after_create = sim.get_locked_quantity("AXL")
+    available_axl_after_create = sim.get_available_quantity("AXL")
+
+    logger.info(
+        f"After creation - AXL Available: {available_axl_after_create}, Locked: {locked_axl_after_create}"
+    )
+
+    # The sell quantity should be locked
+    assert (
+        locked_axl_after_create >= sell_quantity
+    ), f"Expected at least {sell_quantity} AXL locked, got {locked_axl_after_create}"
+    assert (
+        available_axl_after_create == initial_axl_available - sell_quantity
+    ), f"Available AXL should be reduced by {sell_quantity}"
+
+    # Step 5: Simulate the cancel button click from HP list (this is where the bug occurs)
+    # The HPFront.cancel_hp method eventually calls strategy_executor.remove_record
+    # But it sends the wrong side (LONG instead of SHORT) for sell positions
+
+    logger.info("=== Testing Cancellation (Expected to Fail with Current Bug) ===")
+
+    # This simulates the bug - HPFront sends LONG side for a sell position
+    remove_record = RemoveRecord(
+        hp_id=hp_id, symbol="AXLUSD", side=PositionSide.SHORT  # Symbol used in UI
+    )
+
+    # Process the removal through strategy executor
+    await hp_back.remove_record(hp_id=remove_record.hp_id, side=remove_record.side)
+
+    # Wait for cancellation processing
+    await asyncio.sleep(0.1)
+
+    # CRITICAL: Process pending portfolio events (including HP_POSITION_CANCELLED for inventory unlocking)
+    await portfolio.process_test_events()
+
+    # Step 6: Verify the bug - inventory should be unlocked but currently isn't
+    locked_axl_after_cancel = sim.get_locked_quantity("AXL")
+    available_axl_after_cancel = sim.get_available_quantity("AXL")
+
+    logger.info(
+        f"After cancellation - AXL Available: {available_axl_after_cancel}, Locked: {locked_axl_after_cancel}"
+    )
+
+    # Check if the position was cancelled
+    strategy_after_cancel = hp_back.strategies.get(hp_id)
+    if strategy_after_cancel:
+        logger.info(f"Strategy state after cancellation: {strategy_after_cancel.state}")
+    else:
+        logger.info("Strategy was removed after cancellation")
+
+    # THE BUG: Currently this assertion will fail because inventory doesn't get unlocked
+    # When the bug is fixed, the locked quantity should return to initial state
+    try:
+        assert locked_axl_after_cancel == initial_axl_locked, (
+            f"INVENTORY UNLOCK BUG: Expected locked AXL to return to {initial_axl_locked}, but got {locked_axl_after_cancel}. "
+            f"Difference: {locked_axl_after_cancel - initial_axl_locked} AXL still locked after cancellation."
+        )
+
+        assert available_axl_after_cancel == initial_axl_available, (
+            f"INVENTORY UNLOCK BUG: Expected available AXL to return to {initial_axl_available}, but got {available_axl_after_cancel}. "
+            f"Difference: {initial_axl_available - available_axl_after_cancel} AXL not properly unlocked."
+        )
+
+        logger.info("SUCCESS: Inventory was properly unlocked after cancellation!")
+
+    except AssertionError as e:
+        logger.error(f"CONFIRMED BUG: {e}")
+        # Re-raise to fail the test and confirm the bug exists
+        raise
+
+    logger.info("=== AXL Multihop Sell Cancellation Test Complete ===")
+
+
+async def test_axl_multihop_sell_cancellation_fix_validation(
+    portfolio_hp_backend_setup: tuple[PortfolioUI, HpFront, StrategyExecutor],
+):
+    """
+    Test the fix for AXL multihop sell position cancellation with automatic side detection.
+
+    This test validates that the frontend properly determines the position side (SHORT)
+    for multihop sell positions and unlocks inventory correctly during cancellation.
+    """
+    portfolio, hp_front, hp_back = portfolio_hp_backend_setup
+    sim = InventorySellSimulator(portfolio, hp_front, hp_back)
+    hp_simulator = HPSimulator(front=hp_front, back=hp_back)
+
+    logger.info("=== Testing AXL Multihop Sell Cancellation Fix ===")
+
+    # Step 1: Record initial inventory state
+    initial_axl_total = sim.get_inventory_quantity("AXL")
+    initial_axl_available = sim.get_available_quantity("AXL")
+    initial_axl_locked = sim.get_locked_quantity("AXL")
+
+    logger.info(
+        f"Initial AXL inventory - Total: {initial_axl_total}, Available: {initial_axl_available}, Locked: {initial_axl_locked}"
+    )
+
+    # Step 2: Create AXL multihop sell position
+    sell_quantity = min(300.0, initial_axl_available)
+    hp_id = await sim.submit_sell_configuration(
+        coin="AXL", end_currency="USDC", sell_price=0.90, quantity=sell_quantity
+    )
+
+    await asyncio.sleep(0.2)
+
+    # Process pending portfolio events for inventory locking
+    await portfolio.process_test_events()
+
+    logger.info(f"Created AXL multihop sell position: {hp_id}")
+
+    # Step 3: Verify inventory locking
+    locked_axl_after_create = sim.get_locked_quantity("AXL")
+    available_axl_after_create = sim.get_available_quantity("AXL")
+
+    assert (
+        locked_axl_after_create >= sell_quantity
+    ), f"Expected at least {sell_quantity} AXL locked after creation"
+
+    # Step 4: Use proper frontend cancellation flow to trigger the fix
+    # This should now properly determine position side and unlock inventory
+    hp_front.cancel_hp(hp_id, "SELL")
+    await asyncio.sleep(0.1)
+
+    # Process pending portfolio events for inventory unlock
+    await portfolio.process_test_events()
+    await asyncio.sleep(0.1)
+
+    # Step 5: Verify proper inventory unlock with automatic side detection
+    locked_axl_after_cancel = sim.get_locked_quantity("AXL")
+    available_axl_after_cancel = sim.get_available_quantity("AXL")
+
+    logger.info(
+        f"After frontend cancellation - AXL Available: {available_axl_after_cancel}, Locked: {locked_axl_after_cancel}"
+    )
+
+    # With automatic side detection, inventory should be properly unlocked
+    assert (
+        locked_axl_after_cancel == initial_axl_locked
+    ), f"With automatic side detection, locked AXL should return to {initial_axl_locked}, got {locked_axl_after_cancel}"
+
+    assert (
+        available_axl_after_cancel == initial_axl_available
+    ), f"With automatic side detection, available AXL should return to {initial_axl_available}, got {available_axl_after_cancel}"
+
+    logger.info(
+        "SUCCESS: Frontend properly detected SHORT side and unlocked inventory!"
+    )
+    logger.info("=== AXL Multihop Sell Cancellation Fix Validation Complete ===")

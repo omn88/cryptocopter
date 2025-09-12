@@ -77,7 +77,13 @@ class PortfolioUI(BoxLayout):
         """Initialize the PortfolioUI and start UI queue processing."""
         if not self.test_mode:
             self.queue_task = asyncio.create_task(self.update_ui())
-            logger.debug("[PORTFOLIO GUI DEBUG] Started UI queue processing task")
+            logger.info(
+                "[PORTFOLIO PRODUCTION] Started UI queue processing task in production mode"
+            )
+        else:
+            logger.info(
+                "[PORTFOLIO PRODUCTION] Skipped UI queue task - running in test mode"
+            )
 
     def set_hp_manager_reference(self, hp_manager, app):
         """Set reference to HP manager and main app for sell functionality."""
@@ -1115,14 +1121,20 @@ class PortfolioUI(BoxLayout):
         return f"{pnl_percentage:+.2f}%"
 
     async def update_ui(self) -> None:
-        logger.info("Ready to receive portfolio UI updates.")
+        logger.info("[PORTFOLIO PRODUCTION] Ready to receive portfolio UI updates.")
         while not self.test_mode:  # Exit loop immediately in test mode
             try:
                 data = self.ui_queue.get_nowait()
-                # logger.info("Received data: %s", data)
+                logger.info(f"[PORTFOLIO PRODUCTION] Received event: {data.name.value}")
                 # Process the data and update the UI
                 await self._process_ui_event(data)
+                logger.info(
+                    f"[PORTFOLIO PRODUCTION] Processed event: {data.name.value}"
+                )
             except queue.Empty:
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"[PORTFOLIO PRODUCTION] Error processing event: {e}")
                 await asyncio.sleep(0.1)
 
     async def process_test_events(self) -> None:
@@ -1785,12 +1797,22 @@ class PortfolioUI(BoxLayout):
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
         """Handle HP position cancellation - unlock quantities that were locked."""
         logger.info(
-            f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+            f"[PORTFOLIO CANCELLATION] HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+        )
+        logger.info(f"[PORTFOLIO CANCELLATION] Test mode: {self.test_mode}")
+        logger.info(
+            f"[PORTFOLIO CANCELLATION] Before unlock - {event.coin} locked quantity check..."
         )
 
         if event.position_type == "SELL":
             # Unlock quantities that were locked for this sell position
+            logger.info(
+                f"[PORTFOLIO CANCELLATION] Processing SELL cancellation for {event.coin}"
+            )
             await self._unlock_quantities_fifo(event.coin, event.quantity)
+            logger.info(
+                f"[PORTFOLIO CANCELLATION] Completed unlock operation for {event.coin}"
+            )
         elif event.position_type == "BUY":
             # For buy positions, we typically don't lock quantities in inventory,
             # but we may need to adjust cash balances if buy orders were placed

@@ -275,14 +275,25 @@ class StrategyExecutor:
     def _send_hp_event_to_portfolio(self, event_name: EventName, event_data):
         """Send HP events to portfolio for quantity management."""
         if self.portfolio_ui_queue is None:
+            logger.warning(
+                "[STRATEGY EXECUTOR] Portfolio UI queue is None - cannot send HP event"
+            )
             return
 
         try:
             event = Event(name=event_name, content=event_data)
             self.portfolio_ui_queue.put_nowait(event)
-            logger.info(f"Sent HP event to portfolio: {event_name.value}")
+            logger.info(
+                f"[STRATEGY EXECUTOR] Sent HP event to portfolio: {event_name.value}"
+            )
+            if event_name == EventName.HP_POSITION_CANCELLED:
+                logger.info(
+                    f"[STRATEGY EXECUTOR] Cancellation event details: {event_data}"
+                )
         except Exception as e:
-            logger.error(f"Failed to send HP event to portfolio: {e}")
+            logger.error(
+                f"[STRATEGY EXECUTOR] Failed to send HP event to portfolio: {e}"
+            )
 
     async def _handle_websocket_error(self, error_msg):
         """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""

@@ -890,16 +890,8 @@ class HpStrategy:
 
         await self.sell.open_position()
 
-        # Send HP sell position created event to portfolio for quantity locking
-        hp_sell_created = HPSellPositionCreated(
-            hp_id=self.sell.current_position.config.hp_id,
-            coin=self.sell.current_position.config.coin,
-            quantity=self.sell.current_position.sell_order.quantity,
-            buy_price=self.sell.current_position.config.buy_price,
-            sell_price=self.sell.current_position.config.sell_price,
-            end_currency=self.sell.current_position.config.end_currency,
-        )
-        self._send_portfolio_event(EventName.HP_SELL_POSITION_CREATED, hp_sell_created)
+        # NOTE: Don't send HP_SELL_POSITION_CREATED here - already sent during position initialization
+        # to avoid double inventory locking
 
         self.state = State.SELLING
         self.sell.current_position.state_info.get_completeness(
