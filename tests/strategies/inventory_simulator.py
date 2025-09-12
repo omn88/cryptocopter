@@ -9,6 +9,7 @@ This simulator provides methods to test the complete inventory sell flow:
 5. Validating final states
 """
 
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -43,17 +44,69 @@ class InventorySellSimulator:
         self.strategy_executor = strategy_executor
 
     def get_inventory_item(self, coin: str) -> InventoryItem:
-        """Get inventory item for a specific coin from portfolio inventory."""
+        """
+        Get aggregated inventory item for a specific coin from portfolio inventory.
+
+        With enhanced mock inventory (multiple lots per coin), this method aggregates
+        all lots of the same coin into a single virtual inventory item for testing purposes.
+        This maintains backward compatibility with existing tests that expect single items per coin.
+        """
         # Portfolio has the inventory, not strategy executor
         inventory = self.portfolio.inventory
-        for item in inventory:
-            if item.coin == coin:
-                return item
-        raise ValueError(f"No inventory item found for coin: {coin}")
+        coin_items = [item for item in inventory if item.coin == coin]
+
+        if not coin_items:
+            raise ValueError(f"No inventory items found for coin: {coin}")
+
+        if len(coin_items) == 1:
+            # Single lot - return as-is
+            return coin_items[0]
+
+        # Multiple lots - aggregate them into a single virtual item
+        # Use FIFO (lowest buy price) for the representative buy price
+        coin_items.sort(key=lambda item: item.buy_price)
+
+        total_quantity = sum(item.quantity for item in coin_items)
+        total_available = sum(item.available_quantity for item in coin_items)
+        total_locked = sum(item.locked_quantity for item in coin_items)
+
+        # Calculate weighted average buy price
+        total_value = sum(item.quantity * item.buy_price for item in coin_items)
+        weighted_avg_price = total_value / total_quantity if total_quantity > 0 else 0
+
+        # Create aggregated virtual inventory item
+        aggregated_item = InventoryItem(
+            id=f"{coin.lower()}_aggregated",
+            coin=coin,
+            buy_price=weighted_avg_price,
+            quantity=total_quantity,
+            available_quantity=total_available,
+            locked_quantity=total_locked,
+            source="AGGREGATED",
+            timestamp=coin_items[0].timestamp,  # Use first item's timestamp
+            notes=f"Aggregated from {len(coin_items)} lots",
+        )
+
+        return aggregated_item
 
     def get_all_inventory_items(self) -> List[InventoryItem]:
         """Get all inventory items from portfolio."""
         return self.portfolio.inventory
+
+    def get_coin_lots(self, coin: str) -> List[InventoryItem]:
+        """Get all individual lots for a specific coin."""
+        inventory = self.portfolio.inventory
+        return [item for item in inventory if item.coin == coin]
+
+    def get_total_coin_quantity(self, coin: str) -> float:
+        """Get total quantity across all lots for a coin."""
+        coin_lots = self.get_coin_lots(coin)
+        return sum(lot.quantity for lot in coin_lots)
+
+    def get_available_coin_quantity(self, coin: str) -> float:
+        """Get total available quantity across all lots for a coin."""
+        coin_lots = self.get_coin_lots(coin)
+        return sum(lot.available_quantity for lot in coin_lots)
 
     async def verify_sell_modal_opened(
         self, coin: str, expected_quantity: float, expected_buy_price: float
@@ -289,6 +342,12 @@ class InventorySellSimulator:
         expected_total = round(expected_total, 8)
         expected_available = round(expected_available, 8)
         expected_locked = round(expected_locked, 8)
+
+        logger.info(
+            "actual_available=%s, expected_available=%s",
+            actual_available,
+            expected_available,
+        )
 
         assert (
             actual_total == expected_total

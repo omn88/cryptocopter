@@ -42,10 +42,10 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     hp_id = "hp_lifecycle_001"
 
-    # Debug: Check initial state from mock_inventory (should be 5 items)
+    # Debug: Check initial state from mock_inventory (should be 15 items)
     logger.info("Initial inventory: %s", len(portfolio_ui.inventory))
 
-    assert len(portfolio_ui.inventory) == 5  # 5 original
+    assert len(portfolio_ui.inventory) == 15  # 15 original
     logger.info("Initial coin_list_data: %s", len(portfolio_ui.coin_list_data))
 
     # ===== STEP 1: FIRST BUY AT SAME PRICE AS EXISTING BTC =====
@@ -66,7 +66,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         "After first HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
     )
 
-    assert len(portfolio_ui.inventory) == 6  # 5 original + 1 new HP buy
+    assert len(portfolio_ui.inventory) == 16  # 15 original + 1 new HP buy
 
     # Find the HP inventory item (it should have the HP ID)
     hp_inventory_item = None
@@ -106,8 +106,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         len(portfolio_ui.coin_list_data),
     )
 
-    # Should have 5 inventory items (original 5 + 1 HP item for hp_lifecycle_001 with aggregated quantities)
-    assert len(portfolio_ui.inventory) == 6
+    # Should have 15 inventory items (original 15 + 1 HP item for hp_lifecycle_001 with aggregated quantities)
+    assert len(portfolio_ui.inventory) == 16
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 = 1.5)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
@@ -130,8 +130,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         "After third HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
     )
 
-    # Should have 7 inventory items (original 5 + 1 for hp_lifecycle_001 + 1 for hp_lifecycle_001_additional)
-    assert len(portfolio_ui.inventory) == 7
+    # Should have 17 inventory items (original 15 + 1 for hp_lifecycle_001 + 1 for hp_lifecycle_001_additional)
+    assert len(portfolio_ui.inventory) == 17
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 + 0.1 = 1.6)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")

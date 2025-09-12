@@ -194,7 +194,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         quantity="1000.0",  # AXL inventory quantity that should be available to sell
         realized_quantity="0.0",  # Nothing sold yet
         state="BOUGHT",  # Starting state for inventory sells
-        buy_price="0.8",  # AXL buy price from inventory
+        buy_price="0.74",  # AXL buy price from inventory
         sell_price="1.5",  # Target sell price for AXL to PLN
     )
 
@@ -207,7 +207,7 @@ async def test_inventory_sell_configure_multihop_sell_axl_to_pln(
         parent_hp_id="1000",  # Parent HP ID
         coin="AXL",  # Source coin for first hop
         sell_price="0.00000469",  # AXL to BTC sell price using full number notation
-        buy_price="0.0000025",  # AXL buy price using full number notation
+        buy_price="0.00000231",  # AXL buy price using full number notation
     )
 
     # Validate second multihop child (1000b): BTC → PLN using hp_simulator validate_multihop_child method
@@ -255,7 +255,7 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
         quantity="200.0",
         realized_quantity="0.0",
         state="BOUGHT",
-        buy_price="1.2",
+        buy_price="1.12",
         sell_price="1.4",
     )
 
@@ -423,6 +423,8 @@ async def test_inventory_sell_execute_multihop_sell_to_completion(
         coin="AXL", end_currency="PLN", sell_price=1.14
     )
 
+    await wait_for_condition(condition_func=lambda: len(hp_front.hp_list_data) > 0)
+
     # Validate inventory after sell configuration - AXL should be present
     await simulator.validate_inventory_quantities(
         "AXL", 1000.0, 0.0, 1000.0, "After sell configuration (AXL present)"
@@ -520,7 +522,7 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         quantity="200.0",
         realized_quantity="0.0",
         state="BOUGHT",
-        buy_price="1.2",
+        buy_price="1.12",
         sell_price="1.4",
     )
 

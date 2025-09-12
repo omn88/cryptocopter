@@ -628,62 +628,187 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
 
 @pytest.fixture
 def mock_inventory():
-    """Mock inventory for testing - replaces mock_balances."""
+    """
+    Mock inventory for testing with proper parent-child lot structure.
+
+    Each coin has multiple lots (children) to properly test:
+    - FIFO locking/unlocking behavior
+    - Portfolio GUI parent-child display
+    - Inventory management across lots
+    - Crash recovery with multiple lots
+
+    Structure: 15 total lots across 5 coins (3 lots per coin)
+    """
     return [
+        # BTC: 3 lots with different buy prices for FIFO testing
         InventoryItem(
-            id="btc_lot",
+            id="btc_lot1",
             coin="BTC",
-            buy_price=50000.0,
-            quantity=1.0,
-            available_quantity=1.0,
+            buy_price=45000.0,  # Lowest price - should be locked first
+            quantity=0.3,
+            available_quantity=0.3,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial BTC position",
+            timestamp=time.time() - 86400,  # 1 day ago
+            notes="BTC Lot 1 - Early purchase",
         ),
         InventoryItem(
-            id="eth_lot",
+            id="btc_lot2",
+            coin="BTC",
+            buy_price=50000.0,  # Middle price
+            quantity=0.4,
+            available_quantity=0.4,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,  # 12 hours ago
+            notes="BTC Lot 2 - Mid purchase",
+        ),
+        InventoryItem(
+            id="btc_lot3",
+            coin="BTC",
+            buy_price=55000.0,  # Highest price - should be locked last
+            quantity=0.3,
+            available_quantity=0.3,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),  # Recent purchase
+            notes="BTC Lot 3 - Recent purchase",
+        ),
+        # ETH: 3 lots with different buy prices
+        InventoryItem(
+            id="eth_lot1",
             coin="ETH",
-            buy_price=3000.0,
-            quantity=5.0,
-            available_quantity=5.0,
+            buy_price=2800.0,  # Lowest ETH price
+            quantity=2.0,
+            available_quantity=2.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="ETH Lot 1 - Early purchase",
+        ),
+        InventoryItem(
+            id="eth_lot2",
+            coin="ETH",
+            buy_price=3200.0,  # Middle ETH price
+            quantity=2.5,
+            available_quantity=2.5,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="ETH Lot 2 - Mid purchase",
+        ),
+        InventoryItem(
+            id="eth_lot3",
+            coin="ETH",
+            buy_price=3600.0,  # Highest ETH price
+            quantity=0.5,
+            available_quantity=0.5,
             locked_quantity=0.0,
             source="EXCHANGE",
             timestamp=time.time(),
-            notes="Initial ETH position",
+            notes="ETH Lot 3 - Recent purchase",
         ),
+        # AXL: 3 lots for multihop testing
         InventoryItem(
-            id="axl_lot",
+            id="axl_lot1",
             coin="AXL",
-            buy_price=0.8,
-            quantity=1000.0,
-            available_quantity=1000.0,
+            buy_price=0.6,  # Lowest AXL price
+            quantity=500.0,
+            available_quantity=500.0,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial AXL position for multihop testing",
+            timestamp=time.time() - 86400,
+            notes="AXL Lot 1 - For multihop testing",
         ),
         InventoryItem(
-            id="usdc_lot",
-            coin="USDC",
-            buy_price=1.0,
-            quantity=1000.0,
-            available_quantity=1000.0,
+            id="axl_lot2",
+            coin="AXL",
+            buy_price=0.8,  # Middle AXL price
+            quantity=300.0,
+            available_quantity=300.0,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial USDC position",
+            timestamp=time.time() - 43200,
+            notes="AXL Lot 2 - For multihop testing",
         ),
         InventoryItem(
-            id="dym_lot",
-            coin="DYM",
-            buy_price=1.2,
+            id="axl_lot3",
+            coin="AXL",
+            buy_price=1.0,  # Highest AXL price
             quantity=200.0,
             available_quantity=200.0,
             locked_quantity=0.0,
             source="EXCHANGE",
             timestamp=time.time(),
-            notes="Initial DYM position for convert testing",
+            notes="AXL Lot 3 - For multihop testing",
+        ),
+        # USDC: 3 lots (stable coin, same price)
+        InventoryItem(
+            id="usdc_lot1",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=400.0,
+            available_quantity=400.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="USDC Lot 1 - Stable coin",
+        ),
+        InventoryItem(
+            id="usdc_lot2",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=400.0,
+            available_quantity=400.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="USDC Lot 2 - Stable coin",
+        ),
+        InventoryItem(
+            id="usdc_lot3",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=200.0,
+            available_quantity=200.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="USDC Lot 3 - Stable coin",
+        ),
+        # DYM: 3 lots for convert testing
+        InventoryItem(
+            id="dym_lot1",
+            coin="DYM",
+            buy_price=1.0,  # Lowest DYM price
+            quantity=100.0,
+            available_quantity=100.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="DYM Lot 1 - For convert testing",
+        ),
+        InventoryItem(
+            id="dym_lot2",
+            coin="DYM",
+            buy_price=1.2,  # Middle DYM price
+            quantity=75.0,
+            available_quantity=75.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="DYM Lot 2 - For convert testing",
+        ),
+        InventoryItem(
+            id="dym_lot3",
+            coin="DYM",
+            buy_price=1.4,  # Highest DYM price
+            quantity=25.0,
+            available_quantity=25.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="DYM Lot 3 - For convert testing",
         ),
     ]
 
