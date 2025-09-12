@@ -541,7 +541,6 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
 
     def _create_strategy(hp_config: HPBuyConfig) -> HpStrategy:
         """Create an HpStrategy with the given config."""
-        from src.strategies.hp_manager import HpStrategy
 
         # Generate HP ID from existing strategies (empty list for tests)
         hp_id = generate_hp_id(hp_list=[])
@@ -848,80 +847,6 @@ def portfolio_ui(test_db, mock_inventory):
     while not ui_queue.empty():
         try:
             ui_queue.get_nowait()
-        except queue.Empty:
-            break
-
-
-@pytest.fixture
-def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
-    """Create strategy executor with portfolio UI queue for testing HP-Portfolio communication."""
-    ui_queue = queue.Queue()
-    portfolio_ui_queue = queue.Queue()
-
-    # Create mock portfolio UI that doesn't touch Kivy widgets
-    portfolio = MagicMock(spec=PortfolioUI)
-    portfolio.ui_queue = portfolio_ui_queue
-    portfolio.handle_hp_sell_created = AsyncMock()
-    portfolio.handle_hp_sell_completed = AsyncMock()
-    portfolio.handle_hp_buy_filled = AsyncMock()
-    portfolio.handle_hp_position_cancelled = AsyncMock()
-    # Add inventory to portfolio so tests can access it
-    portfolio.inventory = mock_inventory
-
-    # Compute balances from inventory for compatibility with StrategyExecutor
-    inventory_by_coin = defaultdict(float)
-    for item in mock_inventory:
-        inventory_by_coin[item.coin] += item.available_quantity
-
-    # Create strategy executor with portfolio queue
-    symbols_info = {
-        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-        "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-        "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
-        "USDCUSDT": SymbolInfo(
-            symbol="USDCUSDT", precision=2, price_precision=4
-        ),  # Add USDC symbol
-    }
-
-    mock_broker = MagicMock(spec=BrokerSpot)
-    price_resolver = UsdPriceResolver(
-        client=mock_async_client, symbols_info=symbols_info
-    )
-    # Set the required prices for multihop tests
-    price_resolver.latest_prices["BTCPLN"] = 320000.0
-    price_resolver.latest_prices["BTCUSDC"] = 100000.0
-
-    executor = StrategyExecutor(
-        db=test_db,
-        broker=mock_broker,
-        ui_queue=ui_queue,
-        symbols_info=symbols_info,
-        inventory=mock_inventory,
-        test_mode=True,
-        price_resolver=price_resolver,
-        portfolio_ui_queue=portfolio_ui_queue,
-    )
-    executor.client = mock_async_client
-
-    yield executor, portfolio
-
-    # Cleanup: Stop the executor properly
-    executor.stop()
-
-    # Clear any remaining items in queues
-    while not ui_queue.empty():
-        try:
-            ui_queue.get_nowait()
-        except queue.Empty:
-            break
-
-    while not portfolio_ui_queue.empty():
-        try:
-            portfolio_ui_queue.get_nowait()
         except queue.Empty:
             break
 
