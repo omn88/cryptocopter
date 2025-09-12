@@ -348,10 +348,12 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
 
     # Wait for complete execution to SOLD state
     await wait_for_condition(
-        condition_func=lambda: strategy.state == State.SOLD, timeout=10.0
+        condition_func=lambda: strategy.state == State.SOLD
     )
 
     await portfolio.process_test_events()
+
+    await asyncio.sleep(0.42)
 
     # Validate inventory after sell completion - BTC should be removed, USDC should be added
     await simulator.validate_inventory_quantities(
@@ -363,7 +365,7 @@ async def test_inventory_sell_execute_direct_sell_to_completion(
         101000.0,
         101000.0,
         0.0,
-        "After sell completion (USDC received - shows double due to duplicate events)",
+        "After sell completion (USDC received)",
     )
 
     # Debug: Log HP frontend data to understand what's available

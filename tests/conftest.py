@@ -813,58 +813,6 @@ def mock_inventory():
     ]
 
 
-# TO BE REPLACED WITH mock_inventory ABOVE - kept for reference
-@pytest.fixture
-def test_inventory():
-    """Test inventory with multiple BTC lots for FIFO testing."""
-    return [
-        InventoryItem(
-            id="btc_lot_1",
-            coin="BTC",
-            buy_price=46000.0,  # Lowest price - should be locked first in FIFO
-            quantity=0.5,
-            available_quantity=0.5,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time() - 1000,  # Oldest
-            notes="First BTC lot",
-        ),
-        InventoryItem(
-            id="btc_lot_2",
-            coin="BTC",
-            buy_price=47000.0,  # Middle price
-            quantity=0.3,
-            available_quantity=0.3,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time() - 500,  # Middle
-            notes="Second BTC lot",
-        ),
-        InventoryItem(
-            id="btc_lot_3",
-            coin="BTC",
-            buy_price=48000.0,  # Highest price - should be locked last
-            quantity=0.2,
-            available_quantity=0.2,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time(),  # Newest
-            notes="Third BTC lot",
-        ),
-        InventoryItem(
-            id="usdc_lot",
-            coin="USDC",
-            buy_price=1.0,
-            quantity=1000.0,
-            available_quantity=1000.0,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time(),
-            notes="USDC position",
-        ),
-    ]
-
-
 @pytest.fixture
 def portfolio_ui(test_db, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
