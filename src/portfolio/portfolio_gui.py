@@ -862,141 +862,6 @@ class PortfolioUI(BoxLayout):
         if not self.test_mode:
             self.ids.coin_list.refresh_from_data()
 
-    async def _try_load_inventory_csv(self) -> bool:
-        """Try to load inventory from CSV file. Returns True if successful, False otherwise."""
-        filename = "inventory.csv"
-        if not os.path.exists(filename):
-            logger.info("No inventory.csv file found in current directory.")
-            return False
-
-        try:
-            with open(filename, "r") as f:
-                reader = csv.DictReader(f)
-                parsed = [row for row in reader]
-
-            inventory_items = []
-            for row in parsed:
-                try:
-                    item = InventoryItem(
-                        id=str(uuid.uuid4()),
-                        coin=row["coin"],
-                        buy_price=float(row["buy_price"]),
-                        quantity=float(row["quantity"]),
-                        available_quantity=float(row["quantity"]),
-                        locked_quantity=0.0,
-                        source="CSV_IMPORT",
-                        timestamp=time.time(),
-                        notes="Imported from CSV",
-                    )
-                    inventory_items.append(item)
-                except Exception as e:
-                    logger.error("Failed to parse inventory row: %s error: %s", row, e)
-
-            if inventory_items:
-                logger.info("Loaded inventory items from CSV:")
-                for item in inventory_items:
-                    logger.info(f"  - {item.coin}: {item.quantity} @ {item.buy_price}")
-
-                self.set_inventory(inventory_items)
-
-                # CRITICAL FIX: Save CSV inventory to database for persistence
-                logger.info("Saving CSV inventory to database for future recovery...")
-                try:
-                    for item in inventory_items:
-                        await self.db.insert_inventory_item(item)
-                    logger.info(
-                        f"Successfully saved {len(inventory_items)} inventory items to database"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to save CSV inventory to database: {e}")
-                    # Don't fail the load, but warn about recovery issues
-                    logger.warning(
-                        "Inventory will need to be reloaded from CSV after restart"
-                    )
-
-                # Only refresh if not in test mode to avoid Kivy widget access
-                if not self.test_mode:
-                    self.ids.coin_list.refresh_from_data()
-                logger.info(
-                    f"Successfully loaded {len(inventory_items)} items from {filename}"
-                )
-                return True
-            else:
-                logger.warning("No valid inventory items found in CSV file.")
-                return False
-
-        except Exception as e:
-            logger.error("Failed to load inventory CSV: %s", e)
-            return False
-
-    def open_virtual_position_popup(self):
-        layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
-        symbol_input = TextInput(hint_text="Symbol", multiline=False)
-        quantity_input = TextInput(
-            hint_text="Quantity", multiline=False, input_filter="float"
-        )
-        wallet_input = TextInput(hint_text="Wallet name (optional)", multiline=False)
-        add_btn = Button(text="Add", size_hint_y=None, height=40)
-
-        def add_manual_position_callback(instance):
-            symbol = symbol_input.text.strip().upper()
-            quantity = quantity_input.text.strip()
-            wallet = wallet_input.text.strip()
-            if symbol and quantity:
-                # Add manual position to UI (quantity only, does not affect available)
-                self.coin_list_data.append(
-                    {
-                        "symbol": symbol,
-                        "buy_price": "—",  # Manual positions don't have individual buy prices
-                        "quantity": quantity,
-                        "available_qty": "0",  # Manual positions do not affect available
-                        "locked_qty": "0",
-                        "price_usd": "0.00",
-                        "total_usd": "0.00",
-                        "pnl": "—",  # No buy price for manual positions
-                        "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
-                        "weighted_avg_buy_price": 0.0,  # No buy price for manual positions
-                        "lots": [],
-                        "expanded": False,
-                        "has_lots": False,
-                        "portfolio_manager": self,  # Add reference to portfolio manager
-                    }
-                )
-                if not self.test_mode:
-                    self.ids.coin_list.refresh_from_data()
-                popup.dismiss()
-
-        add_btn.bind(on_release=add_manual_position_callback)
-
-        layout.add_widget(
-            Label(text="Add Manual Position", size_hint_y=None, height=30)
-        )
-        layout.add_widget(symbol_input)
-        layout.add_widget(quantity_input)
-        layout.add_widget(wallet_input)
-        layout.add_widget(add_btn)
-
-        popup = Popup(
-            title="Add Manual Position",
-            content=layout,
-            size_hint=(0.5, 0.5),
-            auto_dismiss=True,
-        )
-        popup.open()
-
-    def remove_manual_position(self, symbol, is_manual=True):
-        """Remove a manually added position from the UI."""
-        idx_to_remove = None
-        for idx, coin in enumerate(self.coin_list_data):
-            # Identify manual positions by checking if they don't have lots (indicating they weren't loaded from inventory)
-            if coin["symbol"] == symbol and not coin.get("lots", []):
-                idx_to_remove = idx
-                break
-        if idx_to_remove is not None:
-            self.coin_list_data.pop(idx_to_remove)
-            if not self.test_mode:
-                self.ids.coin_list.refresh_from_data()
-
     def set_inventory(self, inventory: List[InventoryItem]):
         """Update the coin list data from the inventory, with all resources available."""
 
@@ -1121,16 +986,11 @@ class PortfolioUI(BoxLayout):
         return f"{pnl_percentage:+.2f}%"
 
     async def update_ui(self) -> None:
-        logger.info("[PORTFOLIO PRODUCTION] Ready to receive portfolio UI updates.")
         while not self.test_mode:  # Exit loop immediately in test mode
             try:
                 data = self.ui_queue.get_nowait()
-                logger.info(f"[PORTFOLIO PRODUCTION] Received event: {data.name.value}")
                 # Process the data and update the UI
                 await self._process_ui_event(data)
-                logger.info(
-                    f"[PORTFOLIO PRODUCTION] Processed event: {data.name.value}"
-                )
             except queue.Empty:
                 await asyncio.sleep(0.1)
             except Exception as e:
@@ -1328,52 +1188,6 @@ class PortfolioUI(BoxLayout):
             if current_time - self._last_refresh_time > 1.0:  # Max 1 refresh per second
                 self.ids.coin_list.refresh_from_data()
                 self._last_refresh_time = current_time
-
-    def update_coin_list(self, account_position: AccountPosition) -> None:
-        """Update the coin list based on AccountPosition updates."""
-        logger.info("Updating coin list based on AccountPosition updates.")
-
-        for balance in account_position.balances:
-            symbol = balance.coin
-            total_balance = balance.free + balance.locked
-
-            # Check if the coin exists in the current coin list (only parent coins)
-            found = False
-            for coin in self.coin_list_data:
-                if not coin.get("is_lot_row", False) and coin["symbol"] == symbol:
-                    coin["quantity"] = str(round(total_balance, 2))
-                    coin["available_qty"] = str(balance.free)
-                    coin["locked_qty"] = str(balance.locked)
-                    found = True
-                    logger.info(f"Updated {symbol} quantity to {total_balance}")
-                    break
-
-            # If the coin is not in the current coin list, add it
-            if not found:
-                logger.info(f"Adding new symbol {symbol} to the coin list.")
-
-                coin_data = {
-                    "symbol": symbol,
-                    "buy_price": "—",  # Exchange balances don't have buy price history
-                    "quantity": str(total_balance),
-                    "available_qty": str(balance.free),
-                    "locked_qty": str(balance.locked),
-                    "price_usd": "0.00",
-                    "total_usd": "0.00",
-                    "pnl": "—",  # No buy price available for exchange balances
-                    "pnl_color": [1, 1, 1, 1],  # Default white color (RGBA)
-                    "weighted_avg_buy_price": 0.0,  # No buy price for exchange balances
-                    "lots": [],
-                    "expanded": False,
-                    "has_lots": False,
-                    "portfolio_manager": self,  # Add reference to portfolio manager
-                }
-                self.coin_list_data.append(coin_data)
-
-        # Don't sort here - let update_coin_prices handle sorting to maintain structure
-        # Just refresh the UI (skip in test mode to avoid Kivy widget access)
-        if not self.test_mode:
-            self.ids.coin_list.refresh_from_data()
 
     async def handle_hp_sell_created(self, event: HPSellPositionCreated):
         """Handle HP sell position creation - lock quantities using FIFO from lowest buy price."""
