@@ -4,6 +4,7 @@ import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
+from copy import deepcopy
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.enums import (
@@ -490,6 +491,7 @@ class StrategyExecutor:
                 return strategy
 
             # Priority 5: Converting
+            # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol_info = self.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)
@@ -524,6 +526,7 @@ class StrategyExecutor:
                             return strategy
 
             # Priority 4: Converting
+            # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol_info = self.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)

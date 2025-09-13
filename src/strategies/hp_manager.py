@@ -603,9 +603,12 @@ class HpStrategy:
         # Set specific child ID for sell operations
         parent_id = str(self.sell.current_position.config.hp_id)
         # For two-hop trades (child positions), keep the original ID (e.g., 1000a)
+        # For convert operations, append _CONVERT suffix (e.g., 1000_CONVERT)
         # For regular trades, append _SELL suffix (e.g., 1000_SELL)
         if self.sell.current_position.config.is_child:
             hp_update.hp_id = parent_id
+        elif self.sell.current_position.sell_type == SellType.CONVERT:
+            hp_update.hp_id = f"{parent_id}_CONVERT"
         else:
             hp_update.hp_id = f"{parent_id}_SELL"
 

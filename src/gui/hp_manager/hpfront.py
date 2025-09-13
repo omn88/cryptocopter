@@ -334,7 +334,9 @@ Side: {side}"""
         """Get symbol from HP ID by searching HP list data."""
         for hp_data in self.hp_list_data:
             if hp_data.get("hp_id") == hp_id:
-                return hp_data.get("symbol", hp_data.get("coin"))
+                coin = hp_data.get("coin")
+                logger.debug(f"Found HP {hp_id}: coin='{coin}'")
+                return coin
         return None
 
     def _get_position_side_from_hp_id(self, hp_id: str) -> Optional[PositionSide]:
@@ -342,72 +344,66 @@ Side: {side}"""
         logger.debug(f"Looking for position side for HP {hp_id}")
 
         # Look for the HP in hp_list_data
-        if hasattr(self, "hp_list_data") and self.hp_list_data:
-            logger.debug(f"HP list data available with {len(self.hp_list_data)} items")
-            for hp_data in self.hp_list_data:
-                if hp_data.get("hp_id") == hp_id:
-                    logger.debug(f"Found HP data for {hp_id}: {hp_data}")
+        for hp_data in self.hp_list_data:
+            if hp_data.get("hp_id") == hp_id:
+                logger.debug(f"Found HP data for {hp_id}: {hp_data}")
 
-                    # Check if this HP has multihop children (e.g., 1000a, 1000b) - these are SELL positions
-                    children = hp_data.get("children", [])
-                    has_multihop_children = any(
-                        isinstance(child, str)
-                        and len(child) > 1
-                        and child[:-1].isdigit()
-                        and child[-1].isalpha()
-                        for child in children
-                    )
-                    if has_multihop_children:
-                        logger.debug(
-                            f"HP {hp_id} has multihop children {children}, inferring SHORT position"
-                        )
-                        return PositionSide.SHORT
-
-                    # Check if this HP has explicit sell children
-                    has_sell_child = any(
-                        (isinstance(child, str) and child.endswith("_SELL"))
-                        or (
-                            isinstance(child, dict)
-                            and (
-                                child.get("hp_id", "").endswith("_SELL")
-                                or child.get("side") == "SELL"
-                                or "SELL" in child.get("state", "")
-                            )
-                        )
-                        for child in children
-                    )
-                    if has_sell_child:
-                        logger.debug(
-                            f"HP {hp_id} has sell children, inferring SHORT position"
-                        )
-                        return PositionSide.SHORT
-
-                    # Check the state to infer position side
-                    state = hp_data.get("state", "")
-                    if "SELL" in state or state in [
-                        "SELLING",
-                        "SOLD",
-                        "SOLD_PART_BOUGHT",
-                    ]:
-                        logger.debug(f"Inferred SHORT position from state: {state}")
-                        return PositionSide.SHORT
-
-                    # Check if HP ID indicates multihop (e.g., "1000a", "1000b")
-                    if len(hp_id) > 1 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
-                        logger.debug(
-                            f"HP {hp_id} appears to be multihop, inferring SHORT position"
-                        )
-                        return PositionSide.SHORT
-
-                    # Default to LONG for buy positions
+                # Check if this HP has multihop children (e.g., 1000a, 1000b) - these are SELL positions
+                children = hp_data.get("children", [])
+                has_multihop_children = any(
+                    isinstance(child, str)
+                    and len(child) > 1
+                    and child[:-1].isdigit()
+                    and child[-1].isalpha()
+                    for child in children
+                )
+                if has_multihop_children:
                     logger.debug(
-                        f"HP {hp_id} appears to be BUY position, inferring LONG"
+                        f"HP {hp_id} has multihop children {children}, inferring SHORT position"
                     )
-                    return PositionSide.LONG
+                    return PositionSide.SHORT
 
-            logger.debug(f"HP {hp_id} not found in hp_list_data")
-        else:
-            logger.debug(f"hp_list_data not available or empty")
+                # Check if this HP has explicit sell children
+                has_sell_child = any(
+                    (isinstance(child, str) and child.endswith("_SELL"))
+                    or (
+                        isinstance(child, dict)
+                        and (
+                            child.get("hp_id", "").endswith("_SELL")
+                            or child.get("side") == "SELL"
+                            or "SELL" in child.get("state", "")
+                        )
+                    )
+                    for child in children
+                )
+                if has_sell_child:
+                    logger.debug(
+                        f"HP {hp_id} has sell children, inferring SHORT position"
+                    )
+                    return PositionSide.SHORT
+
+                # Check the state to infer position side
+                state = hp_data.get("state", "")
+                if "SELL" in state or state in [
+                    "SELLING",
+                    "SOLD",
+                    "SOLD_PART_BOUGHT",
+                ]:
+                    logger.debug(f"Inferred SHORT position from state: {state}")
+                    return PositionSide.SHORT
+
+                # Check if HP ID indicates multihop (e.g., "1000a", "1000b")
+                if len(hp_id) > 1 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
+                    logger.debug(
+                        f"HP {hp_id} appears to be multihop, inferring SHORT position"
+                    )
+                    return PositionSide.SHORT
+
+                # Default to LONG for buy positions
+                logger.debug(f"HP {hp_id} appears to be BUY position, inferring LONG")
+                return PositionSide.LONG
+
+        logger.debug(f"HP {hp_id} not found in hp_list_data")
 
         return None
 
@@ -1427,6 +1423,7 @@ Side: {side}"""
         # Update parent with convert sell data
         parent["sell_price"] = convert_sell_child["sell_price"]
         parent["expected_return"] = convert_sell_child["expected_return"]
+        parent["realized_quantity"] = convert_sell_child["realized_quantity"]
         parent["state"] = update.state.value
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
@@ -1623,9 +1620,7 @@ Enter sell price to create sell order:"""
                 f"Creating sell order for HP {hp_id}: {quantity} {coin_symbol} at {sell_price}"
             )
 
-            # Create proper sell configuration and send to config queue
             if symbol not in self.symbols_info:
-                # Fallback for USD coins: try USDT version (e.g., AXLUSDC -> AXLUSDT)
                 fallback_symbol = f"{coin_symbol}USDT"
                 if fallback_symbol in self.symbols_info:
                     logger.info(
@@ -1941,6 +1936,8 @@ Enter sell price to create sell order:"""
         # Check if we have the KV layout elements
         if not hasattr(self, "ids") or not hasattr(self.ids, "hp_list_container"):
             logger.warning("HP list container not available, skipping update")
+            # In test environments, the KV container may not be available
+            # but we should still allow the data to be processed
             return
 
         # Clear existing rows
