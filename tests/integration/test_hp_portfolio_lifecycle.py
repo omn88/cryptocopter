@@ -8,6 +8,7 @@ from src.identifiers import (
     EventName,
     HPSellPositionCreated,
     HPSellPositionCompleted,
+    HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
     HPPositionCancelled,
 )
@@ -42,10 +43,10 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
 
     hp_id = "hp_lifecycle_001"
 
-    # Debug: Check initial state from mock_inventory (should be 5 items)
+    # Debug: Check initial state from mock_inventory (should be 15 items)
     logger.info("Initial inventory: %s", len(portfolio_ui.inventory))
 
-    assert len(portfolio_ui.inventory) == 5  # 5 original
+    assert len(portfolio_ui.inventory) == 15  # 15 original
     logger.info("Initial coin_list_data: %s", len(portfolio_ui.coin_list_data))
 
     # ===== STEP 1: FIRST BUY AT SAME PRICE AS EXISTING BTC =====
@@ -66,7 +67,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         "After first HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
     )
 
-    assert len(portfolio_ui.inventory) == 6  # 5 original + 1 new HP buy
+    assert len(portfolio_ui.inventory) == 16  # 15 original + 1 new HP buy
 
     # Find the HP inventory item (it should have the HP ID)
     hp_inventory_item = None
@@ -106,8 +107,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         len(portfolio_ui.coin_list_data),
     )
 
-    # Should have 5 inventory items (original 5 + 1 HP item for hp_lifecycle_001 with aggregated quantities)
-    assert len(portfolio_ui.inventory) == 6
+    # Should have 15 inventory items (original 15 + 1 HP item for hp_lifecycle_001 with aggregated quantities)
+    assert len(portfolio_ui.inventory) == 16
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 = 1.5)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
@@ -130,8 +131,8 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         "After third HP buy - coin_list_data: %s", len(portfolio_ui.coin_list_data)
     )
 
-    # Should have 7 inventory items (original 5 + 1 for hp_lifecycle_001 + 1 for hp_lifecycle_001_additional)
-    assert len(portfolio_ui.inventory) == 7
+    # Should have 17 inventory items (original 15 + 1 for hp_lifecycle_001 + 1 for hp_lifecycle_001_additional)
+    assert len(portfolio_ui.inventory) == 17
 
     # Verify BTC balance updated (original 1.0 + 0.3 + 0.2 + 0.1 = 1.6)
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
@@ -160,9 +161,23 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     assert btc_locked == 0.5  # 0.5 should be locked
     assert btc_available == 1.1  # 1.6 - 0.5 locked
 
-    # ===== STEP 5: PARTIAL SELL =====
-    # Simulate partial sell: 0.3 BTC sold at $55,000
-    hp_sell_partial = HPSellPositionCompleted(
+    # ===== STEP 5: PARTIAL SELL (FILL + COMPLETION FOR FIRST SLICE) =====
+    # Simulate partial sell fill: 0.3 BTC filled at $55,000 (inventory reduced immediately)
+    hp_sell_partial_fill = HPSellPositionPartiallyFilled(
+        hp_id=hp_id,
+        coin="BTC",
+        filled_quantity=0.3,
+        total_filled=0.3,
+    )
+
+    await portfolio_ui.handle_hp_sell_partially_filled(hp_sell_partial_fill)
+
+    # Verify partial fill results - total quantity reduced, inventory updated
+    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
+    assert btc_balance == 1.3  # 1.6 - 0.3 sold = 1.3
+
+    # Now send completion event for this first sell slice to credit proceeds
+    hp_sell_partial_completion = HPSellPositionCompleted(
         hp_id=hp_id,
         coin="BTC",
         quantity_sold=0.3,
@@ -171,20 +186,15 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         end_currency="USDC",
         end_currency_received=16500.0,  # 0.3 * 55000
     )
+    await portfolio_ui.handle_hp_sell_completed(hp_sell_partial_completion)
 
-    await portfolio_ui.handle_hp_sell_completed(hp_sell_partial)
-
-    # Verify partial sell results - total quantity reduced, inventory updated
-    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
-    assert btc_balance == 1.3  # 1.6 - 0.3 sold = 1.3
-
-    # Verify USDC received (original 1000 + 16500 from sale)
+    # Verify USDC received after completion of first slice
     usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
     assert usdc_balance == 17500.0  # 1000 + 16500
 
     # Verify inventory still exists but with reduced quantity
     total_btc_inventory = get_inventory_balance(portfolio_ui, "BTC")
-    assert total_btc_inventory == 1.3  # Updated total after sale
+    assert total_btc_inventory == 1.3  # Updated total after fill
 
     # Find the HP inventory item specifically (should have reduced quantity after partial sell)
     hp_inventory_item = None
@@ -215,8 +225,23 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
     btc_balance = get_inventory_balance(portfolio_ui, "BTC")
     assert btc_balance == 1.3  # Total unchanged
 
-    # ===== STEP 7: COMPLETE FINAL SELL =====
-    # Sell remaining 0.2 BTC
+    # ===== STEP 7: FINAL SELL FILL + COMPLETION =====
+    # Emit fill event for remaining 0.2 BTC (inventory reduction)
+    hp_sell_final_fill = HPSellPositionPartiallyFilled(
+        hp_id=f"{hp_id}_final",
+        coin="BTC",
+        filled_quantity=0.2,
+        total_filled=0.2,
+    )
+    await portfolio_ui.handle_hp_sell_partially_filled(hp_sell_final_fill)
+
+    # Inventory should now be reduced before completion
+    btc_balance = get_inventory_balance(portfolio_ui, "BTC")
+    assert btc_balance == pytest.approx(1.1)
+    usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
+    assert usdc_balance == 17500.0  # Unchanged since first slice completion
+
+    # Now send completion event to credit proceeds
     hp_sell_final = HPSellPositionCompleted(
         hp_id=f"{hp_id}_final",
         coin="BTC",
@@ -226,7 +251,6 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         end_currency="USDC",
         end_currency_received=11200.0,  # 0.2 * 56000
     )
-
     await portfolio_ui.handle_hp_sell_completed(hp_sell_final)
 
     # ===== FINAL VERIFICATION =====
@@ -236,82 +260,11 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         1.1
     )  # 1.3 - 0.2 sold = 1.1 (with float precision)
 
-    # Verify total USDC received (original 1000 + 16500 + 11200)
+    # Verify total USDC received (original 1000 + 16500 + 11200) added now at final completion
     usdc_balance = get_inventory_balance(portfolio_ui, "USDC")
-    assert usdc_balance == 28700.0  # 1000 + 16500 + 11200
+    assert usdc_balance == 28700.0  # 1000 + (0.3*55000) + (0.2*56000)
 
     logger.info("Test completed successfully!")
-
-
-# async def test_hp_position_completion_triggers_portfolio_refresh(portfolio_ui):
-#     """Test that HP position completion triggers portfolio UI refresh to remove sold items."""
-
-#     # Don't initialize from sources that might load CSV - set up manually
-#     # await portfolio_ui.init_portfolio_source(balances={})
-
-#     # Set up truly empty balances manually (override fixture)
-#     portfolio_ui.balances = {}
-#     portfolio_ui.inventory = []
-#     portfolio_ui.coin_list_data = []
-#     portfolio_ui.create_coin_list({})
-
-#     # Add BTC via buy position
-#     hp_buy = HPBuyPositionFilled(
-#         hp_id="refresh_test_001",
-#         coin="BTC",
-#         quantity_bought=1.0,
-#         buy_price=50000.0,
-#         total_cost=50000.0,
-#     )
-
-#     await portfolio_ui._process_ui_event(
-#         Event(name=EventName.HP_BUY_POSITION_FILLED, content=hp_buy)
-#     )
-
-#     # Verify item exists
-#     assert len(portfolio_ui.inventory) == 1
-
-#     # Create and complete sell position (sell all)
-#     hp_sell_created = HPSellPositionCreated(
-#         hp_id="refresh_test_001",
-#         coin="BTC",
-#         quantity=1.0,
-#         buy_price=50000.0,
-#         sell_price=55000.0,
-#         end_currency="USDC",
-#     )
-
-#     await portfolio_ui.handle_hp_sell_created(hp_sell_created)
-
-#     # Complete the sell
-#     hp_sell_completed = HPSellPositionCompleted(
-#         hp_id="refresh_test_001",
-#         coin="BTC",
-#         quantity_sold=1.0,
-#         buy_price=50000.0,
-#         sell_price=55000.0,
-#         end_currency="USDC",
-#         end_currency_received=55000.0,
-#     )
-
-#     await portfolio_ui.handle_hp_sell_completed(hp_sell_completed)
-
-#     # Verify portfolio was properly refreshed - should have no BTC inventory left
-#     btc_inventory_items = [
-#         item for item in portfolio_ui.inventory if item.coin == "BTC"
-#     ]
-#     total_btc_quantity = sum(item.quantity for item in btc_inventory_items)
-#     assert total_btc_quantity == 0.0
-
-#     # Verify inventory item was removed
-#     btc_inventory_items = [
-#         item for item in portfolio_ui.inventory if item.coin == "BTC"
-#     ]
-#     assert len(btc_inventory_items) == 0
-
-#     # Verify USDC was added
-#     usdc_balance = portfolio_ui.balances.get("USDC")
-#     assert usdc_balance.total == 55000.0
 
 
 # async def test_hp_partial_buy_to_full_inventory_management(portfolio_ui):

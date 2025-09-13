@@ -49,6 +49,16 @@ class HPBuyPositionCreated:
 
 
 @dataclass
+class HPSellPositionPartiallyFilled:
+    """Event data for when an HP sell position is partially filled (reduces inventory incrementally)."""
+
+    hp_id: str
+    coin: str
+    filled_quantity: float
+    total_filled: float
+
+
+@dataclass
 class HPSellPositionCompleted:
     """Event data for when an HP sell position is completed (removes inventory, adds end currency)."""
 
@@ -70,6 +80,18 @@ class HPBuyPositionFilled:
     quantity_bought: float
     buy_price: float
     total_cost: float
+
+
+@dataclass
+class HPBuyPositionPartiallyFilled:
+    """Event data for when an HP buy position is partially filled (adds inventory incrementally)."""
+
+    hp_id: str
+    coin: str
+    filled_quantity: float
+    total_filled: float
+    buy_price: float
+    partial_cost: float
 
 
 @dataclass
@@ -122,9 +144,11 @@ class EventName(Enum):
     PORTFOLIO_INVENTORY = "PortfolioInventory"
     # HP Manager → Portfolio Events
     HP_SELL_POSITION_CREATED = "HP_SELL_POSITION_CREATED"
+    HP_SELL_POSITION_PARTIALLY_FILLED = "HP_SELL_POSITION_PARTIALLY_FILLED"
     HP_SELL_POSITION_COMPLETED = "HP_SELL_POSITION_COMPLETED"
     HP_BUY_POSITION_CREATED = "HP_BUY_POSITION_CREATED"
     HP_BUY_POSITION_FILLED = "HP_BUY_POSITION_FILLED"
+    HP_BUY_POSITION_PARTIALLY_FILLED = "HP_BUY_POSITION_PARTIALLY_FILLED"
     HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
 
 

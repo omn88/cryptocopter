@@ -220,6 +220,19 @@ Side: {side}"""
         self.config_queue.put_nowait(record)
         logger.info("Remove record added to the queue. %s", record)
 
+        # For multihop positions (sell positions with children), immediately mark parent as CLOSED
+        # This ensures the HP gets removed from display after cancellation
+        if side == "SHORT" and hasattr(self, "hp_list") and self.hp_list:
+            for hp_item in self.hp_list:
+                if hp_item.get("hp_id") == hp_id and hp_item.get("children"):
+                    logger.info(
+                        f"Marking multihop parent {hp_id} as CLOSED after cancellation"
+                    )
+                    hp_item["state"] = "CLOSED"
+                    # Trigger UI refresh to remove the closed item
+                    self.auto_remove_closed_sold_states()
+                    break
+
     def trigger_remove_record(
         self,
         hp_id: str,
@@ -296,16 +309,18 @@ Side: {side}"""
     def cancel_hp(self, hp_id: str, hp_type: str):
         """Handle HP cancellation from unified manager."""
         try:
-            if hp_type.upper() == "BUY":
-                side = PositionSide.LONG
-                symbol = self._get_symbol_from_hp_id(hp_id)
-            else:  # SELL
-                side = PositionSide.SHORT
-                symbol = self._get_symbol_from_hp_id(hp_id)
+            # Get actual position side from HP data instead of relying on hp_type parameter
+            side = self._get_position_side_from_hp_id(hp_id)
+            symbol = self._get_symbol_from_hp_id(hp_id)
 
-            if symbol:
-                self.trigger_remove_record(hp_id, symbol, side.value)
-            else:
+            if side and symbol:
+                logger.info(f"Cancelling HP {hp_id} with actual side: {side.value}")
+                # Convert PositionSide to the string format expected by trigger_remove_record
+                side_str = "SHORT" if side == PositionSide.SHORT else "LONG"
+                self.trigger_remove_record(hp_id, symbol, side_str)
+            elif not side:
+                logger.error(f"Could not determine position side for HP ID: {hp_id}")
+            elif not symbol:
                 logger.error(f"Could not find symbol for HP ID: {hp_id}")
         except Exception as e:
             logger.error(f"Error cancelling HP {hp_id}: {e}")
@@ -321,6 +336,123 @@ Side: {side}"""
             if hp_data.get("hp_id") == hp_id:
                 return hp_data.get("symbol", hp_data.get("coin"))
         return None
+
+    def _get_position_side_from_hp_id(self, hp_id: str) -> Optional[PositionSide]:
+        """Get the position side for a given HP ID by analyzing HP data structure"""
+        logger.debug(f"Looking for position side for HP {hp_id}")
+
+        # Look for the HP in hp_list_data
+        if hasattr(self, "hp_list_data") and self.hp_list_data:
+            logger.debug(f"HP list data available with {len(self.hp_list_data)} items")
+            for hp_data in self.hp_list_data:
+                if hp_data.get("hp_id") == hp_id:
+                    logger.debug(f"Found HP data for {hp_id}: {hp_data}")
+
+                    # Check if this HP has multihop children (e.g., 1000a, 1000b) - these are SELL positions
+                    children = hp_data.get("children", [])
+                    has_multihop_children = any(
+                        isinstance(child, str)
+                        and len(child) > 1
+                        and child[:-1].isdigit()
+                        and child[-1].isalpha()
+                        for child in children
+                    )
+                    if has_multihop_children:
+                        logger.debug(
+                            f"HP {hp_id} has multihop children {children}, inferring SHORT position"
+                        )
+                        return PositionSide.SHORT
+
+                    # Check if this HP has explicit sell children
+                    has_sell_child = any(
+                        (isinstance(child, str) and child.endswith("_SELL"))
+                        or (
+                            isinstance(child, dict)
+                            and (
+                                child.get("hp_id", "").endswith("_SELL")
+                                or child.get("side") == "SELL"
+                                or "SELL" in child.get("state", "")
+                            )
+                        )
+                        for child in children
+                    )
+                    if has_sell_child:
+                        logger.debug(
+                            f"HP {hp_id} has sell children, inferring SHORT position"
+                        )
+                        return PositionSide.SHORT
+
+                    # Check the state to infer position side
+                    state = hp_data.get("state", "")
+                    if "SELL" in state or state in [
+                        "SELLING",
+                        "SOLD",
+                        "SOLD_PART_BOUGHT",
+                    ]:
+                        logger.debug(f"Inferred SHORT position from state: {state}")
+                        return PositionSide.SHORT
+
+                    # Check if HP ID indicates multihop (e.g., "1000a", "1000b")
+                    if len(hp_id) > 1 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
+                        logger.debug(
+                            f"HP {hp_id} appears to be multihop, inferring SHORT position"
+                        )
+                        return PositionSide.SHORT
+
+                    # Default to LONG for buy positions
+                    logger.debug(
+                        f"HP {hp_id} appears to be BUY position, inferring LONG"
+                    )
+                    return PositionSide.LONG
+
+            logger.debug(f"HP {hp_id} not found in hp_list_data")
+        else:
+            logger.debug(f"hp_list_data not available or empty")
+
+        return None
+
+    def _check_and_close_parent_if_all_children_closed(
+        self, update: HPUpdate, hp_map: Dict[str, Dict]
+    ) -> None:
+        """Check if this closed HP is a multihop child, and if all its siblings are closed, close the parent."""
+        hp_id = update.hp_id
+
+        # Check if this is a multihop child (e.g., "1000a", "1000b")
+        if len(hp_id) > 1 and hp_id[-1].isalpha() and hp_id[:-1].isdigit():
+            parent_hp_id = hp_id[:-1]  # Extract parent ID (e.g., "1000")
+            logger.info(f"Child {hp_id} got CLOSED, checking parent {parent_hp_id}")
+
+            if parent_hp_id in hp_map:
+                parent = hp_map[parent_hp_id]
+                children = parent.get("children", [])
+                logger.info(f"Parent {parent_hp_id} has children: {children}")
+
+                # Check if all children are in CLOSED or SOLD state
+                all_children_closed = True
+                children_states = []
+                for child_id in children:
+                    if isinstance(child_id, str) and child_id in hp_map:
+                        child_state = hp_map[child_id].get("state", "")
+                        children_states.append(f"{child_id}:{child_state}")
+                        if child_state not in ["CLOSED", "SOLD"]:
+                            all_children_closed = False
+
+                logger.info(
+                    f"Children states: {children_states}, all_closed: {all_children_closed}"
+                )
+
+                # If all children are closed, mark the parent as closed
+                if all_children_closed and children:  # Ensure there are children
+                    logger.info(
+                        f"All children of parent {parent_hp_id} are CLOSED/SOLD, marking parent as CLOSED"
+                    )
+                    parent["state"] = "CLOSED"
+                    # Trigger another filter update since the parent state changed
+                    self.auto_remove_closed_sold_states()
+                else:
+                    logger.info(
+                        f"Not all children closed yet for parent {parent_hp_id}"
+                    )
 
     def _get_buy_child_state(self, update: HPUpdate) -> str:
         """Get appropriate state for buy child based on actual buy operation state.
@@ -542,6 +674,8 @@ Side: {side}"""
         # Check if the HP position moved to CLOSED or SOLD state and auto-remove from filter if needed
         if update.state.value in ["CLOSED", "SOLD"]:
             self.auto_remove_closed_sold_states()
+            # Check if this is a multihop child that got closed, and if all siblings are closed, close the parent
+            self._check_and_close_parent_if_all_children_closed(update, hp_map)
 
         # Calculate parent quantity_usd as total invested amount from all buy children
         # This happens at the very end to ensure all containers have been updated first
@@ -1547,8 +1681,18 @@ Enter sell price to create sell order:"""
 
             # Create proper sell configuration and send to config queue
             if symbol not in self.symbols_info:
-                logger.error(f"Symbol info not found for {symbol}")
-                return
+                # Fallback for USD coins: try USDT version (e.g., AXLUSDC -> AXLUSDT)
+                fallback_symbol = f"{coin_symbol}USDT"
+                if fallback_symbol in self.symbols_info:
+                    logger.info(
+                        f"Using fallback symbol {fallback_symbol} instead of {symbol}"
+                    )
+                    symbol = fallback_symbol
+                else:
+                    logger.error(
+                        f"Symbol info not found for {symbol} or fallback {fallback_symbol}"
+                    )
+                    return
 
             sell_config = HPSellData(
                 config=HPSellConfig(
@@ -1681,7 +1825,7 @@ Enter sell price to create sell order:"""
             self.show_cancel_confirmation(hp_id, symbol, side_value)
 
     def _cancel_parent_hp(self, hp_id: str, symbol: str) -> None:
-        """Cancel parent HP - first cancel sell child (if exists), then buy child"""
+        """Cancel parent HP - determine actual position side instead of assuming BUY"""
         has_sell_child = self._has_sell_child(hp_id)
 
         if has_sell_child:
@@ -1689,8 +1833,20 @@ Enter sell price to create sell order:"""
             self._cancel_sell_child(hp_id, symbol)
             # Note: After sell child is cancelled, user can click cancel again to cancel buy
         else:
-            # No sell child, proceed with buy cancellation
-            self.show_cancel_confirmation(hp_id, symbol, "LONG")
+            # No sell child, determine the actual position side from HP data
+            actual_side = self._get_position_side_from_hp_id(hp_id)
+            if actual_side:
+                side_str = "SHORT" if actual_side == PositionSide.SHORT else "LONG"
+                logger.info(
+                    f"Cancelling parent HP {hp_id} with determined side: {side_str}"
+                )
+                self.show_cancel_confirmation(hp_id, symbol, side_str)
+            else:
+                # Fallback to LONG if we can't determine the side
+                logger.warning(
+                    f"Could not determine side for HP {hp_id}, defaulting to LONG"
+                )
+                self.show_cancel_confirmation(hp_id, symbol, "LONG")
 
     def _cancel_buy_child(self, base_hp_id: str, symbol: str, side_value: str) -> None:
         """Cancel buy child - same as parent cancel for buy position"""
@@ -1932,9 +2088,10 @@ Enter sell price to create sell order:"""
         row.add_widget(self._create_column_label(hp_data.get("hp_id", ""), 0.1))
         row.add_widget(self._create_column_label(hp_data.get("coin", ""), 0.08))
         row.add_widget(self._create_column_label(hp_data.get("quantity", "0.0"), 0.12))
-        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.1))
+        row.add_widget(self._create_column_label(hp_data.get("buy_price", "0.0"), 0.09))
+        row.add_widget(self._create_column_label(hp_data.get("sell_price", "—"), 0.09))
         row.add_widget(
-            self._create_column_label(hp_data.get("current_price", "0.0"), 0.1)
+            self._create_column_label(hp_data.get("current_price", "0.0"), 0.09)
         )
 
         # Progress column (show completeness percentage or state info)
@@ -1955,9 +2112,9 @@ Enter sell price to create sell order:"""
                 progress_value = 0.0
 
         progress_text = f"{progress_value:.1f}%"
-        row.add_widget(self._create_column_label(progress_text, 0.08))
+        row.add_widget(self._create_column_label(progress_text, 0.07))
 
-        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.1))
+        row.add_widget(self._create_column_label(hp_data.get("net", "0.0"), 0.09))
         row.add_widget(self._create_column_label(hp_data.get("state", ""), 0.1))
 
         # Action buttons

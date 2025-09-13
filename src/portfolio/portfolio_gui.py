@@ -22,7 +22,9 @@ from src.identifiers import (
     PriceUpdates,
     HPSellPositionCreated,
     HPSellPositionCompleted,
+    HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
+    HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
@@ -75,7 +77,13 @@ class PortfolioUI(BoxLayout):
         """Initialize the PortfolioUI and start UI queue processing."""
         if not self.test_mode:
             self.queue_task = asyncio.create_task(self.update_ui())
-            logger.debug("[PORTFOLIO GUI DEBUG] Started UI queue processing task")
+            logger.info(
+                "[PORTFOLIO PRODUCTION] Started UI queue processing task in production mode"
+            )
+        else:
+            logger.info(
+                "[PORTFOLIO PRODUCTION] Skipped UI queue task - running in test mode"
+            )
 
     def set_hp_manager_reference(self, hp_manager, app):
         """Set reference to HP manager and main app for sell functionality."""
@@ -84,15 +92,24 @@ class PortfolioUI(BoxLayout):
 
     def sell_lot_button(self, lot_symbol, available_quantity, buy_price):
         """Handle sell button for individual lot (child row)."""
-        if not self.hp_manager or not self.app:
-            logger.error(
-                "HP Manager or App reference not set. Cannot navigate to sell tab."
+        # Check if HP Manager is available before proceeding
+        if not self.hp_manager:
+            logger.warning("HP Manager not available - sell functionality disabled")
+            error_popup = Popup(
+                title="HP Manager Required",
+                content=Label(
+                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
+                ),
+                size_hint=(0.5, 0.3),
+                auto_dismiss=True,
             )
+            error_popup.open()
             return
 
         # Extract the parent symbol from the lot display
         # Find the parent coin this lot belongs to by matching buy price and available quantity
         parent_symbol = None
+        parent_coin = None
         for coin in self.coin_list_data:
             if not coin.get("is_lot_row", False) and coin.get("lots"):
                 # Check if this coin has a lot with matching buy price
@@ -100,36 +117,42 @@ class PortfolioUI(BoxLayout):
                     if hasattr(lot, "buy_price"):
                         if str(lot.buy_price) == str(buy_price):
                             parent_symbol = coin["symbol"]
+                            parent_coin = coin
                             break
                 if parent_symbol:
                     break
 
-        if not parent_symbol:
+        if not parent_symbol or not parent_coin:
             logger.error("Could not find parent symbol for lot")
             return
 
-        # Switch to HP Manager tab
-        hp_tab = self.app.strategies.get("HPManager")
-        if hp_tab:
-            self.app.root.switch_to(hp_tab)
+        # Create a modified parent coin data for this specific lot
+        lot_data = {
+            "symbol": parent_symbol,
+            "available_qty": str(available_quantity),  # Use lot's available quantity
+            "quantity": str(available_quantity),  # Use lot's quantity
+            "weighted_avg_buy_price": float(buy_price),  # Use lot's buy price
+        }
 
-            # Use empty HP ID - the HP Manager will generate a new one automatically
-            # Call HP manager's sell function with lot data (available quantity, not total)
-            self.hp_manager.sell_hp_button(
-                "", parent_symbol, available_quantity, buy_price
-            )
-            logger.info(
-                f"Navigated to HP Manager sell tab for lot: {parent_symbol} available_qty:{available_quantity} price:{buy_price}"
-            )
-        else:
-            logger.error("HP Manager tab not found")
+        # Show sell dialog for this specific lot with prefilled quantity
+        self.open_sell_quantity_popup(
+            parent_symbol, lot_data, prefill_quantity=float(available_quantity)
+        )
 
     def sell_parent_button(self, symbol):
         """Handle sell button for parent coin (allows partial or full sell)."""
-        if not self.hp_manager or not self.app:
-            logger.error(
-                "HP Manager or App reference not set. Cannot navigate to sell tab."
+        # Check if HP Manager is available before proceeding
+        if not self.hp_manager:
+            logger.warning("HP Manager not available - sell functionality disabled")
+            error_popup = Popup(
+                title="HP Manager Required",
+                content=Label(
+                    text="HP Manager is not available.\nSell functionality requires HP Manager to be active."
+                ),
+                size_hint=(0.5, 0.3),
+                auto_dismiss=True,
             )
+            error_popup.open()
             return
 
         # Find the parent coin data
@@ -143,23 +166,285 @@ class PortfolioUI(BoxLayout):
             logger.error(f"Could not find parent coin data for {symbol}")
             return
 
-        # Switch to HP Manager tab
-        hp_tab = self.app.strategies.get("HPManager")
-        if hp_tab:
-            self.app.root.switch_to(hp_tab)
+        # Show sell dialog to let user choose quantity
+        self.open_sell_quantity_popup(symbol, parent_coin)
 
-            # For parent sells, use the weighted average buy price and available quantity
-            available_qty = parent_coin.get("available_qty", "0")
-            avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
+    def open_sell_quantity_popup(self, symbol, parent_coin, prefill_quantity=None):
+        """Open a popup dialog to choose sell quantity and price."""
+        available_qty = float(parent_coin.get("available_qty", "0"))
+        total_qty = float(parent_coin.get("quantity", "0"))
+        avg_buy_price = parent_coin.get("weighted_avg_buy_price", 0.0)
 
-            # Use empty HP ID - the HP Manager will generate a new one automatically
-            # Call HP manager's sell function with parent data
-            self.hp_manager.sell_hp_button("", symbol, available_qty, avg_buy_price)
-            logger.info(
-                f"Navigated to HP Manager sell tab for parent: {symbol} qty:{available_qty} avg_price:{avg_buy_price}"
+        # If this is a child lot, use prefill_quantity, otherwise show all available
+        is_child_lot = prefill_quantity is not None
+        display_qty = prefill_quantity if is_child_lot else available_qty
+
+        layout = BoxLayout(orientation="vertical", spacing=10, padding=20)
+
+        # Information labels
+        lot_type = "Lot" if is_child_lot else "Position"
+        info_label = Label(
+            text=f"Sell {symbol} {lot_type}",
+            size_hint_y=None,
+            height=40,
+            font_size="18sp",
+        )
+
+        if is_child_lot:
+            # For child lots, show lot-specific information
+            total_info_label = Label(
+                text=f"Lot Quantity: {display_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+            )
+
+            available_info_label = Label(
+                text=f"Available to Sell: {display_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+                color=[0, 1, 0, 1],  # Green color for available quantity
             )
         else:
-            logger.error("HP Manager tab not found")
+            # For parent positions, show total holdings
+            total_info_label = Label(
+                text=f"Total Holdings: {total_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+            )
+
+            available_info_label = Label(
+                text=f"Available to Sell: {available_qty:.8f} {symbol}",
+                size_hint_y=None,
+                height=30,
+                font_size="14sp",
+                color=[0, 1, 0, 1],  # Green color for available quantity
+            )
+
+        price_info_label = Label(
+            text=f"Buy Price: ${avg_buy_price:.4f}",
+            size_hint_y=None,
+            height=30,
+            font_size="14sp",
+        )
+
+        # Quantity input
+        quantity_input = TextInput(
+            hint_text=f"Quantity to sell (max: {display_qty:.8f})",
+            multiline=False,
+            input_filter="float",
+            size_hint_y=None,
+            height=40,
+            text=(
+                f"{display_qty:.8f}".rstrip("0").rstrip(".") if is_child_lot else ""
+            ),  # Prefill for child lots
+        )
+
+        # Sell price input
+        price_layout = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=40, spacing=10
+        )
+        price_label = Label(text="Sell Price:", size_hint_x=0.3)
+        price_input = TextInput(
+            hint_text="Enter sell price",
+            multiline=False,
+            input_filter="float",
+            size_hint_x=0.7,
+        )
+        price_layout.add_widget(price_label)
+        price_layout.add_widget(price_input)
+
+        # Expected return calculation
+        return_label = Label(
+            text="Expected return will be calculated...",
+            size_hint_y=None,
+            height=30,
+            font_size="14sp",
+            color=[0.8, 0.8, 0.8, 1],
+        )
+
+        # Update expected return when price changes
+        def update_expected_return(instance, text):
+            try:
+                if not quantity_input.text or not text:
+                    return_label.text = "Expected return will be calculated..."
+                    return
+
+                sell_price = float(text)
+                quantity_float = float(quantity_input.text)
+
+                if sell_price > 0 and avg_buy_price > 0 and quantity_float > 0:
+                    profit = (sell_price - avg_buy_price) * quantity_float
+                    profit_percent = ((sell_price / avg_buy_price) - 1) * 100
+                    return_label.text = (
+                        f"Expected return: {profit:.2f} USDC ({profit_percent:.2f}%)"
+                    )
+                else:
+                    return_label.text = "Expected return will be calculated..."
+            except ValueError:
+                return_label.text = "Invalid price or quantity entered"
+
+        # Update expected return when quantity changes too
+        def update_return_on_quantity_change(instance, text):
+            update_expected_return(price_input, price_input.text)
+
+        price_input.bind(text=update_expected_return)
+        quantity_input.bind(text=update_return_on_quantity_change)
+
+        # Quick percentage buttons for quantity
+        button_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+        quick_25_btn = Button(text="25%", size_hint_x=0.25)
+        quick_50_btn = Button(text="50%", size_hint_x=0.25)
+        quick_75_btn = Button(text="75%", size_hint_x=0.25)
+        quick_100_btn = Button(text="100%", size_hint_x=0.25)
+
+        # Action buttons
+        action_layout = BoxLayout(
+            orientation="horizontal", spacing=10, size_hint_y=None, height=50
+        )
+        cancel_btn = Button(text="Cancel", size_hint_x=0.5)
+        sell_btn = Button(
+            text="CREATE SELL ORDER",
+            size_hint_x=0.5,
+            background_color=[0.2, 0.8, 0.2, 1],
+        )
+
+        def set_percentage(percentage):
+            def callback(instance):
+                qty_to_set = display_qty * (percentage / 100.0)
+                quantity_input.text = f"{qty_to_set:.8f}".rstrip("0").rstrip(".")
+                # Trigger return calculation update
+                update_expected_return(price_input, price_input.text)
+
+            return callback
+
+        def sell_callback(instance):
+            try:
+                sell_quantity = (
+                    float(quantity_input.text.strip())
+                    if quantity_input.text.strip()
+                    else 0
+                )
+                sell_price = (
+                    float(price_input.text.strip()) if price_input.text.strip() else 0
+                )
+
+                # Use display_qty as the maximum allowed (either lot quantity or available quantity)
+                max_allowed = display_qty
+
+                if sell_quantity <= 0:
+                    logger.error("Sell quantity must be greater than 0")
+                    return
+                if sell_quantity > max_allowed:
+                    logger.error(
+                        f"Cannot sell {sell_quantity} - only {max_allowed} available"
+                    )
+                    return
+                if sell_price <= 0:
+                    logger.error("Sell price must be greater than 0")
+                    return
+
+                # Create the sell order directly without switching tabs or opening another popup
+                if not self.hp_manager:
+                    logger.error(
+                        "HP Manager is not available. Cannot create sell orders."
+                    )
+                    # Show user-friendly error popup
+                    error_popup = Popup(
+                        title="Error",
+                        content=Label(
+                            text="HP Manager is not available.\nCannot create sell orders at this time."
+                        ),
+                        size_hint=(0.4, 0.3),
+                        auto_dismiss=True,
+                    )
+                    error_popup.open()
+                    return
+
+                popup.dismiss()  # Close our popup first
+
+                # Call the HP manager's confirmation method directly
+                hp_id = ""  # Empty HP ID for new position
+
+                # Create a dummy popup object since _confirm_sell_hp expects one
+                class DummyPopup:
+                    def dismiss(self):
+                        pass  # Do nothing - our popup is already dismissed
+
+                dummy_popup = DummyPopup()
+
+                try:
+                    self.hp_manager._confirm_sell_hp(
+                        dummy_popup,
+                        hp_id,
+                        symbol,
+                        str(sell_quantity),
+                        str(avg_buy_price),
+                        str(sell_price),
+                    )
+                    logger.info(
+                        f"Successfully created sell order for {symbol}: qty={sell_quantity} @ {sell_price}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create sell order: {e}")
+                    # Show user-friendly error popup
+                    error_popup = Popup(
+                        title="Sell Order Failed",
+                        content=Label(text=f"Failed to create sell order:\n{str(e)}"),
+                        size_hint=(0.5, 0.4),
+                        auto_dismiss=True,
+                    )
+                    error_popup.open()
+
+            except ValueError:
+                logger.error("Invalid quantity or price entered")
+
+        def cancel_callback(instance):
+            popup.dismiss()
+            # Stay on portfolio tab - don't switch to HP Manager
+
+        # Bind button callbacks
+        quick_25_btn.bind(on_release=set_percentage(25))
+        quick_50_btn.bind(on_release=set_percentage(50))
+        quick_75_btn.bind(on_release=set_percentage(75))
+        quick_100_btn.bind(on_release=set_percentage(100))
+        sell_btn.bind(on_release=sell_callback)
+        cancel_btn.bind(on_release=cancel_callback)
+
+        # Build layout
+        layout.add_widget(info_label)
+        layout.add_widget(total_info_label)
+        layout.add_widget(available_info_label)
+        layout.add_widget(price_info_label)
+        layout.add_widget(Label(text="", size_hint_y=None, height=10))  # Spacer
+
+        layout.add_widget(quantity_input)
+
+        button_layout.add_widget(quick_25_btn)
+        button_layout.add_widget(quick_50_btn)
+        button_layout.add_widget(quick_75_btn)
+        button_layout.add_widget(quick_100_btn)
+        layout.add_widget(button_layout)
+
+        layout.add_widget(Label(text="", size_hint_y=None, height=10))  # Spacer
+        layout.add_widget(price_layout)
+        layout.add_widget(return_label)
+
+        action_layout.add_widget(cancel_btn)
+        action_layout.add_widget(sell_btn)
+        layout.add_widget(action_layout)
+
+        popup = Popup(
+            title=f"Sell {symbol}",
+            content=layout,
+            size_hint=(0.6, 0.8),
+            auto_dismiss=False,
+        )
+        popup.open()
 
     async def update_inventory_after_sell(
         self, symbol: str, quantity_sold: float, sell_from_lots: bool = True
@@ -608,7 +893,27 @@ class PortfolioUI(BoxLayout):
                     logger.error("Failed to parse inventory row: %s error: %s", row, e)
 
             if inventory_items:
+                logger.info("Loaded inventory items from CSV:")
+                for item in inventory_items:
+                    logger.info(f"  - {item.coin}: {item.quantity} @ {item.buy_price}")
+
                 self.set_inventory(inventory_items)
+
+                # CRITICAL FIX: Save CSV inventory to database for persistence
+                logger.info("Saving CSV inventory to database for future recovery...")
+                try:
+                    for item in inventory_items:
+                        await self.db.insert_inventory_item(item)
+                    logger.info(
+                        f"Successfully saved {len(inventory_items)} inventory items to database"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save CSV inventory to database: {e}")
+                    # Don't fail the load, but warn about recovery issues
+                    logger.warning(
+                        "Inventory will need to be reloaded from CSV after restart"
+                    )
+
                 # Only refresh if not in test mode to avoid Kivy widget access
                 if not self.test_mode:
                     self.ids.coin_list.refresh_from_data()
@@ -816,14 +1121,20 @@ class PortfolioUI(BoxLayout):
         return f"{pnl_percentage:+.2f}%"
 
     async def update_ui(self) -> None:
-        logger.info("Ready to receive portfolio UI updates.")
+        logger.info("[PORTFOLIO PRODUCTION] Ready to receive portfolio UI updates.")
         while not self.test_mode:  # Exit loop immediately in test mode
             try:
                 data = self.ui_queue.get_nowait()
-                # logger.info("Received data: %s", data)
+                logger.info(f"[PORTFOLIO PRODUCTION] Received event: {data.name.value}")
                 # Process the data and update the UI
                 await self._process_ui_event(data)
+                logger.info(
+                    f"[PORTFOLIO PRODUCTION] Processed event: {data.name.value}"
+                )
             except queue.Empty:
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"[PORTFOLIO PRODUCTION] Error processing event: {e}")
                 await asyncio.sleep(0.1)
 
     async def process_test_events(self) -> None:
@@ -867,12 +1178,18 @@ class PortfolioUI(BoxLayout):
         if data.name == EventName.HP_SELL_POSITION_CREATED:
             assert isinstance(data.content, HPSellPositionCreated)
             await self.handle_hp_sell_created(data.content)
+        if data.name == EventName.HP_SELL_POSITION_PARTIALLY_FILLED:
+            assert isinstance(data.content, HPSellPositionPartiallyFilled)
+            await self.handle_hp_sell_partially_filled(data.content)
         if data.name == EventName.HP_SELL_POSITION_COMPLETED:
             assert isinstance(data.content, HPSellPositionCompleted)
             await self.handle_hp_sell_completed(data.content)
         if data.name == EventName.HP_BUY_POSITION_FILLED:
             assert isinstance(data.content, HPBuyPositionFilled)
             await self.handle_hp_buy_filled(data.content)
+        if data.name == EventName.HP_BUY_POSITION_PARTIALLY_FILLED:
+            assert isinstance(data.content, HPBuyPositionPartiallyFilled)
+            await self.handle_hp_buy_partially_filled(data.content)
         if data.name == EventName.HP_POSITION_CANCELLED:
             assert isinstance(data.content, HPPositionCancelled)
             await self.handle_hp_position_cancelled(data.content)
@@ -1083,16 +1400,47 @@ class PortfolioUI(BoxLayout):
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
 
+    async def handle_hp_sell_partially_filled(
+        self, event: HPSellPositionPartiallyFilled
+    ):
+        """Handle HP sell partial fill - reduce inventory quantities immediately for development tracking."""
+        logger.info(
+            f"HP Sell Partially Filled: {event.hp_id} - {event.coin} filled:{event.filled_quantity} (total filled:{event.total_filled})"
+        )
+
+        # Reduce inventory by the filled quantity using HP-specific lot reduction
+        await self._update_lots_after_hp_sell(
+            event.hp_id, event.coin, event.filled_quantity
+        )
+
+        # Refresh UI to show updated quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def handle_hp_buy_partially_filled(self, event: HPBuyPositionPartiallyFilled):
+        """Handle HP buy partial fill - add inventory quantities immediately for development tracking."""
+        logger.info(
+            f"HP Buy Partially Filled: {event.hp_id} - {event.coin} filled:{event.filled_quantity} (total filled:{event.total_filled})"
+        )
+
+        # Add inventory by the filled quantity using HP-specific lot addition
+        await self._add_inventory_after_hp_buy_fill(
+            event.hp_id, event.coin, event.filled_quantity, event.buy_price
+        )
+
+        # Refresh UI to show updated quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
     async def handle_hp_sell_completed(self, event: HPSellPositionCompleted):
-        """Handle HP sell completion - remove the specific HP inventory item and add received currency."""
+        """Handle HP sell completion - add received currency."""
         logger.info(
             f"HP Sell Completed: {event.hp_id} - Sold {event.quantity_sold} {event.coin}, Received {event.end_currency_received} {event.end_currency}"
         )
 
-        # Use HP-specific lot removal to remove the exact HP inventory item
-        await self._update_lots_after_hp_sell(
-            event.hp_id, event.coin, event.quantity_sold
-        )
+        # Note: Inventory reduction is now handled by fill events, not completion events
 
         # Determine if we should add received currency:
         # 1. Always skip intermediate multihop steps (IDs ending with "a")
@@ -1178,6 +1526,92 @@ class PortfolioUI(BoxLayout):
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
 
+    async def _add_inventory_after_hp_buy_fill(
+        self, hp_id: str, coin: str, filled_quantity: float, buy_price: float
+    ):
+        """Add inventory for partial buy fills - creates/updates HP inventory item incrementally."""
+        logger.info(
+            f"Adding inventory for HP buy fill: HP {hp_id} - {filled_quantity} {coin} at ${buy_price}"
+        )
+
+        # Create one inventory item per HP ID (not per price)
+        inventory_id = f"hp_{hp_id}"
+
+        # Check if inventory item with this HP ID already exists
+        existing_item = None
+        for item in self.inventory:
+            if item.id == inventory_id:
+                existing_item = item
+                break
+
+        if existing_item:
+            # Update existing item - accumulate quantity and calculate weighted average price
+            total_value = (existing_item.quantity * existing_item.buy_price) + (
+                filled_quantity * buy_price
+            )
+            total_quantity = existing_item.quantity + filled_quantity
+            weighted_avg_price = total_value / total_quantity
+
+            existing_item.quantity = total_quantity
+            existing_item.available_quantity += filled_quantity
+            existing_item.buy_price = weighted_avg_price
+
+            logger.info(
+                f"Updated existing HP item {inventory_id}: new qty={existing_item.quantity}, weighted avg price=${weighted_avg_price:.2f}"
+            )
+            new_lot = existing_item
+        else:
+            # Create new inventory item for this HP ID
+            new_lot = InventoryItem(
+                id=inventory_id,
+                coin=coin,
+                buy_price=buy_price,
+                quantity=filled_quantity,
+                available_quantity=filled_quantity,
+                locked_quantity=0.0,
+                source="HP_BUY",
+                timestamp=time.time(),
+                notes=f"HP buy position {hp_id}",
+            )
+
+            # Add to main inventory list
+            self.inventory.append(new_lot)
+            logger.info(
+                f"Created new HP item {inventory_id}: qty={filled_quantity}, price=${buy_price}"
+            )
+
+        # Find existing parent coin or create new one
+        parent_coin = None
+        for coin_data in self.coin_list_data:
+            if not coin_data.get("is_lot_row", False) and coin_data["symbol"] == coin:
+                parent_coin = coin_data
+                break
+
+        if parent_coin:
+            # Update parent coin quantities
+            current_qty = float(parent_coin.get("quantity", 0))
+            current_available = float(parent_coin.get("available_qty", 0))
+
+            parent_coin["quantity"] = str(current_qty + filled_quantity)
+            parent_coin["available_qty"] = str(current_available + filled_quantity)
+
+            # Ensure the lot is in the parent's lots list
+            if new_lot not in parent_coin["lots"]:
+                parent_coin["lots"].append(new_lot)
+        else:
+            # Create new coin entry
+            new_coin = {
+                "symbol": coin,
+                "quantity": str(filled_quantity),
+                "available_qty": str(filled_quantity),
+                "locked_qty": "0.0",
+                "lots": [new_lot],
+                "is_lot_row": False,
+                "show_lots": True,
+            }
+            self.coin_list_data.append(new_coin)
+            logger.info(f"Created new parent coin entry for {coin}")
+
     async def _lock_quantities_fifo(self, coin: str, quantity_to_lock: float):
         """Lock quantities using FIFO (lowest buy price first)."""
         # Find the parent coin
@@ -1220,6 +1654,17 @@ class PortfolioUI(BoxLayout):
                 if hasattr(lot, "available_quantity"):  # InventoryItem object
                     lot.available_quantity -= can_lock
                     lot.locked_quantity += can_lock
+
+                    # CRITICAL FIX: Persist locked quantities to database
+                    try:
+                        await self.db.update_inventory_item(lot)
+                        logger.debug(
+                            f"Persisted lock state to database for lot {lot.id}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to persist locked quantity to database: {e}"
+                        )
 
                 remaining_to_lock -= can_lock
                 logger.debug(
@@ -1352,12 +1797,22 @@ class PortfolioUI(BoxLayout):
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
         """Handle HP position cancellation - unlock quantities that were locked."""
         logger.info(
-            f"HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+            f"[PORTFOLIO CANCELLATION] HP Position Cancelled: {event.hp_id} - {event.position_type} {event.quantity} {event.coin}"
+        )
+        logger.info(f"[PORTFOLIO CANCELLATION] Test mode: {self.test_mode}")
+        logger.info(
+            f"[PORTFOLIO CANCELLATION] Before unlock - {event.coin} locked quantity check..."
         )
 
         if event.position_type == "SELL":
             # Unlock quantities that were locked for this sell position
+            logger.info(
+                f"[PORTFOLIO CANCELLATION] Processing SELL cancellation for {event.coin}"
+            )
             await self._unlock_quantities_fifo(event.coin, event.quantity)
+            logger.info(
+                f"[PORTFOLIO CANCELLATION] Completed unlock operation for {event.coin}"
+            )
         elif event.position_type == "BUY":
             # For buy positions, we typically don't lock quantities in inventory,
             # but we may need to adjust cash balances if buy orders were placed
@@ -1415,6 +1870,17 @@ class PortfolioUI(BoxLayout):
                 if hasattr(lot, "locked_quantity"):  # InventoryItem object
                     lot.locked_quantity -= can_unlock
                     lot.available_quantity += can_unlock
+
+                    # CRITICAL FIX: Persist unlocked quantities to database
+                    try:
+                        await self.db.update_inventory_item(lot)
+                        logger.debug(
+                            f"Persisted unlock state to database for lot {lot.id}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to persist unlocked quantity to database: {e}"
+                        )
 
                 remaining_to_unlock -= can_unlock
                 logger.debug(

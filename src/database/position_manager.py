@@ -240,7 +240,7 @@ class PositionManager:
                 )
 
                 await self.database.save_position(parent_position)
-                logger.info(f"✅ Created parent position {parent_hp_id}")
+                logger.info(f"Created parent position {parent_hp_id}")
 
         except Exception as e:
             logger.error(f"Failed to ensure parent position exists: {e}")

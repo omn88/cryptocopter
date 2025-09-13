@@ -22,10 +22,12 @@ from src.identifiers import (
     HPBuyConfig,
     HPBuyData,
     HPBuyPositionFilled,
+    HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
     HPSellConfig,
     HPSellData,
     HPSellPositionCreated,
+    HPSellPositionPartiallyFilled,
     SellPosition,
     SellType,
     Signal,
@@ -888,16 +890,8 @@ class HpStrategy:
 
         await self.sell.open_position()
 
-        # Send HP sell position created event to portfolio for quantity locking
-        hp_sell_created = HPSellPositionCreated(
-            hp_id=self.sell.current_position.config.hp_id,
-            coin=self.sell.current_position.config.coin,
-            quantity=self.sell.current_position.sell_order.quantity,
-            buy_price=self.sell.current_position.config.buy_price,
-            sell_price=self.sell.current_position.config.sell_price,
-            end_currency=self.sell.current_position.config.end_currency,
-        )
-        self._send_portfolio_event(EventName.HP_SELL_POSITION_CREATED, hp_sell_created)
+        # NOTE: Don't send HP_SELL_POSITION_CREATED here - already sent during position initialization
+        # to avoid double inventory locking
 
         self.state = State.SELLING
         self.sell.current_position.state_info.get_completeness(
@@ -993,6 +987,26 @@ class HpStrategy:
             self.state = State.SOLD
             self.sell.current_position.state_info.ui_state = UiState.CLOSED
             self.sell.current_position.state_info.completeness = 1.0
+
+            # Emit a partial fill event (treat full convert as a single fill) so portfolio can
+            # reduce inventory immediately under the new "fills mutate inventory" rule.
+            if self.portfolio_event_callback:
+                try:
+                    self.portfolio_event_callback(
+                        EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
+                        HPSellPositionPartiallyFilled(
+                            hp_id=self.sell.current_position.config.hp_id,
+                            coin=self.sell.current_position.config.coin,
+                            filled_quantity=float(quantity),
+                            total_filled=float(quantity),
+                        ),
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Failed sending convert partial fill event for %s: %s",
+                        self.sell.current_position.config.hp_id,
+                        e,
+                    )
 
             # Send HP sell position completed event to portfolio
             end_currency_received = quoted_amount  # Already calculated from convert API
@@ -1638,6 +1652,21 @@ class HpStrategy:
             data=self.buy.data, strategy_state=self.state
         )
 
+        # Send fill event to portfolio for inventory updates
+        if self.portfolio_event_callback:
+            self.portfolio_event_callback(
+                EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
+                HPBuyPositionPartiallyFilled(
+                    hp_id=self.buy.data.config.hp_id,
+                    coin=self.buy.data.config.symbol_info.symbol,
+                    filled_quantity=self.execution_report.last_executed_quantity,
+                    total_filled=self.execution_report.cumulative_filled_quantity,
+                    buy_price=self.execution_report.price,
+                    partial_cost=self.execution_report.last_executed_quantity
+                    * self.execution_report.price,
+                ),
+            )
+
         self.send_buy_position_to_ui()
 
         if all(order.status == ORDER_STATUS_FILLED for order in self.buy.orders):
@@ -1674,6 +1703,21 @@ class HpStrategy:
 
         await self.db.upsert_buy_price_level(data=self.buy.data)
 
+        # Send partial fill event to portfolio for inventory updates
+        if self.portfolio_event_callback:
+            self.portfolio_event_callback(
+                EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
+                HPBuyPositionPartiallyFilled(
+                    hp_id=self.buy.data.config.hp_id,
+                    coin=self.buy.data.config.symbol_info.symbol,
+                    filled_quantity=self.execution_report.last_executed_quantity,
+                    total_filled=self.execution_report.cumulative_filled_quantity,
+                    buy_price=self.execution_report.price,
+                    partial_cost=self.execution_report.last_executed_quantity
+                    * self.execution_report.price,
+                ),
+            )
+
         self.send_buy_position_to_ui()
 
     def conditions_for_order_filled_sell(self, *args, **kwargs) -> bool:
@@ -1703,6 +1747,18 @@ class HpStrategy:
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
+
+        # Send fill event to portfolio for inventory updates
+        if self.portfolio_event_callback:
+            self.portfolio_event_callback(
+                EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
+                HPSellPositionPartiallyFilled(
+                    hp_id=self.sell.current_position.config.hp_id,
+                    coin=self.sell.current_position.config.coin,
+                    filled_quantity=self.execution_report.last_executed_quantity,
+                    total_filled=self.execution_report.cumulative_filled_quantity,
+                ),
+            )
 
         self.send_sell_position_to_ui()
 
@@ -1745,6 +1801,19 @@ class HpStrategy:
         await self.db.upsert_sell_price_level(
             data=self.sell.current_position, strategy_state=self.state
         )
+
+        # Send partial fill event to portfolio for inventory updates
+        if self.portfolio_event_callback:
+            self.portfolio_event_callback(
+                EventName.HP_SELL_POSITION_PARTIALLY_FILLED,
+                HPSellPositionPartiallyFilled(
+                    hp_id=self.sell.current_position.config.hp_id,
+                    coin=self.sell.current_position.config.coin,
+                    filled_quantity=self.execution_report.last_executed_quantity,
+                    total_filled=self.execution_report.cumulative_filled_quantity,
+                ),
+            )
+
         self.send_sell_position_to_ui()
 
     def conditions_for_new_order_confirmation(self, *args, **kwargs) -> bool:

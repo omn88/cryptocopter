@@ -541,7 +541,6 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
 
     def _create_strategy(hp_config: HPBuyConfig) -> HpStrategy:
         """Create an HpStrategy with the given config."""
-        from src.strategies.hp_manager import HpStrategy
 
         # Generate HP ID from existing strategies (empty list for tests)
         hp_id = generate_hp_id(hp_list=[])
@@ -628,114 +627,187 @@ def trading_system_factory(mock_async_client, test_db, strategy_executor_fixture
 
 @pytest.fixture
 def mock_inventory():
-    """Mock inventory for testing - replaces mock_balances."""
+    """
+    Mock inventory for testing with proper parent-child lot structure.
+
+    Each coin has multiple lots (children) to properly test:
+    - FIFO locking/unlocking behavior
+    - Portfolio GUI parent-child display
+    - Inventory management across lots
+    - Crash recovery with multiple lots
+
+    Structure: 15 total lots across 5 coins (3 lots per coin)
+    """
     return [
+        # BTC: 3 lots with different buy prices for FIFO testing
         InventoryItem(
-            id="btc_lot",
+            id="btc_lot1",
             coin="BTC",
-            buy_price=50000.0,
-            quantity=1.0,
-            available_quantity=1.0,
+            buy_price=45000.0,  # Lowest price - should be locked first
+            quantity=0.3,
+            available_quantity=0.3,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial BTC position",
+            timestamp=time.time() - 86400,  # 1 day ago
+            notes="BTC Lot 1 - Early purchase",
         ),
         InventoryItem(
-            id="eth_lot",
+            id="btc_lot2",
+            coin="BTC",
+            buy_price=50000.0,  # Middle price
+            quantity=0.4,
+            available_quantity=0.4,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,  # 12 hours ago
+            notes="BTC Lot 2 - Mid purchase",
+        ),
+        InventoryItem(
+            id="btc_lot3",
+            coin="BTC",
+            buy_price=55000.0,  # Highest price - should be locked last
+            quantity=0.3,
+            available_quantity=0.3,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),  # Recent purchase
+            notes="BTC Lot 3 - Recent purchase",
+        ),
+        # ETH: 3 lots with different buy prices
+        InventoryItem(
+            id="eth_lot1",
             coin="ETH",
-            buy_price=3000.0,
-            quantity=5.0,
-            available_quantity=5.0,
+            buy_price=2800.0,  # Lowest ETH price
+            quantity=2.0,
+            available_quantity=2.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="ETH Lot 1 - Early purchase",
+        ),
+        InventoryItem(
+            id="eth_lot2",
+            coin="ETH",
+            buy_price=3200.0,  # Middle ETH price
+            quantity=2.5,
+            available_quantity=2.5,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="ETH Lot 2 - Mid purchase",
+        ),
+        InventoryItem(
+            id="eth_lot3",
+            coin="ETH",
+            buy_price=3600.0,  # Highest ETH price
+            quantity=0.5,
+            available_quantity=0.5,
             locked_quantity=0.0,
             source="EXCHANGE",
             timestamp=time.time(),
-            notes="Initial ETH position",
+            notes="ETH Lot 3 - Recent purchase",
         ),
+        # AXL: 3 lots for multihop testing
         InventoryItem(
-            id="axl_lot",
+            id="axl_lot1",
             coin="AXL",
-            buy_price=0.8,
-            quantity=1000.0,
-            available_quantity=1000.0,
+            buy_price=0.6,  # Lowest AXL price
+            quantity=500.0,
+            available_quantity=500.0,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial AXL position for multihop testing",
+            timestamp=time.time() - 86400,
+            notes="AXL Lot 1 - For multihop testing",
         ),
         InventoryItem(
-            id="usdc_lot",
-            coin="USDC",
-            buy_price=1.0,
-            quantity=1000.0,
-            available_quantity=1000.0,
+            id="axl_lot2",
+            coin="AXL",
+            buy_price=0.8,  # Middle AXL price
+            quantity=300.0,
+            available_quantity=300.0,
             locked_quantity=0.0,
             source="EXCHANGE",
-            timestamp=time.time(),
-            notes="Initial USDC position",
+            timestamp=time.time() - 43200,
+            notes="AXL Lot 2 - For multihop testing",
         ),
         InventoryItem(
-            id="dym_lot",
-            coin="DYM",
-            buy_price=1.2,
+            id="axl_lot3",
+            coin="AXL",
+            buy_price=1.0,  # Highest AXL price
             quantity=200.0,
             available_quantity=200.0,
             locked_quantity=0.0,
             source="EXCHANGE",
             timestamp=time.time(),
-            notes="Initial DYM position for convert testing",
+            notes="AXL Lot 3 - For multihop testing",
         ),
-    ]
-
-
-# TO BE REPLACED WITH mock_inventory ABOVE - kept for reference
-@pytest.fixture
-def test_inventory():
-    """Test inventory with multiple BTC lots for FIFO testing."""
-    return [
+        # USDC: 3 lots (stable coin, same price)
         InventoryItem(
-            id="btc_lot_1",
-            coin="BTC",
-            buy_price=46000.0,  # Lowest price - should be locked first in FIFO
-            quantity=0.5,
-            available_quantity=0.5,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time() - 1000,  # Oldest
-            notes="First BTC lot",
-        ),
-        InventoryItem(
-            id="btc_lot_2",
-            coin="BTC",
-            buy_price=47000.0,  # Middle price
-            quantity=0.3,
-            available_quantity=0.3,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time() - 500,  # Middle
-            notes="Second BTC lot",
-        ),
-        InventoryItem(
-            id="btc_lot_3",
-            coin="BTC",
-            buy_price=48000.0,  # Highest price - should be locked last
-            quantity=0.2,
-            available_quantity=0.2,
-            locked_quantity=0.0,
-            source="EXCHANGE",
-            timestamp=time.time(),  # Newest
-            notes="Third BTC lot",
-        ),
-        InventoryItem(
-            id="usdc_lot",
+            id="usdc_lot1",
             coin="USDC",
             buy_price=1.0,
-            quantity=1000.0,
-            available_quantity=1000.0,
+            quantity=400.0,
+            available_quantity=400.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="USDC Lot 1 - Stable coin",
+        ),
+        InventoryItem(
+            id="usdc_lot2",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=400.0,
+            available_quantity=400.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="USDC Lot 2 - Stable coin",
+        ),
+        InventoryItem(
+            id="usdc_lot3",
+            coin="USDC",
+            buy_price=1.0,
+            quantity=200.0,
+            available_quantity=200.0,
             locked_quantity=0.0,
             source="EXCHANGE",
             timestamp=time.time(),
-            notes="USDC position",
+            notes="USDC Lot 3 - Stable coin",
+        ),
+        # DYM: 3 lots for convert testing
+        InventoryItem(
+            id="dym_lot1",
+            coin="DYM",
+            buy_price=1.0,  # Lowest DYM price
+            quantity=100.0,
+            available_quantity=100.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 86400,
+            notes="DYM Lot 1 - For convert testing",
+        ),
+        InventoryItem(
+            id="dym_lot2",
+            coin="DYM",
+            buy_price=1.2,  # Middle DYM price
+            quantity=75.0,
+            available_quantity=75.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time() - 43200,
+            notes="DYM Lot 2 - For convert testing",
+        ),
+        InventoryItem(
+            id="dym_lot3",
+            coin="DYM",
+            buy_price=1.4,  # Highest DYM price
+            quantity=25.0,
+            available_quantity=25.0,
+            locked_quantity=0.0,
+            source="EXCHANGE",
+            timestamp=time.time(),
+            notes="DYM Lot 3 - For convert testing",
         ),
     ]
 
@@ -780,80 +852,6 @@ def portfolio_ui(test_db, mock_inventory):
 
 
 @pytest.fixture
-def portfolio_strategy_executor(test_db, mock_async_client, mock_inventory):
-    """Create strategy executor with portfolio UI queue for testing HP-Portfolio communication."""
-    ui_queue = queue.Queue()
-    portfolio_ui_queue = queue.Queue()
-
-    # Create mock portfolio UI that doesn't touch Kivy widgets
-    portfolio = MagicMock(spec=PortfolioUI)
-    portfolio.ui_queue = portfolio_ui_queue
-    portfolio.handle_hp_sell_created = AsyncMock()
-    portfolio.handle_hp_sell_completed = AsyncMock()
-    portfolio.handle_hp_buy_filled = AsyncMock()
-    portfolio.handle_hp_position_cancelled = AsyncMock()
-    # Add inventory to portfolio so tests can access it
-    portfolio.inventory = mock_inventory
-
-    # Compute balances from inventory for compatibility with StrategyExecutor
-    inventory_by_coin = defaultdict(float)
-    for item in mock_inventory:
-        inventory_by_coin[item.coin] += item.available_quantity
-
-    # Create strategy executor with portfolio queue
-    symbols_info = {
-        "BTCUSDC": SymbolInfo(symbol="BTCUSDC", precision=5, price_precision=2),
-        "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
-        "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
-        "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
-        "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
-        "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
-        "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
-        "USDCUSDT": SymbolInfo(
-            symbol="USDCUSDT", precision=2, price_precision=4
-        ),  # Add USDC symbol
-    }
-
-    mock_broker = MagicMock(spec=BrokerSpot)
-    price_resolver = UsdPriceResolver(
-        client=mock_async_client, symbols_info=symbols_info
-    )
-    # Set the required prices for multihop tests
-    price_resolver.latest_prices["BTCPLN"] = 320000.0
-    price_resolver.latest_prices["BTCUSDC"] = 100000.0
-
-    executor = StrategyExecutor(
-        db=test_db,
-        broker=mock_broker,
-        ui_queue=ui_queue,
-        symbols_info=symbols_info,
-        inventory=mock_inventory,
-        test_mode=True,
-        price_resolver=price_resolver,
-        portfolio_ui_queue=portfolio_ui_queue,
-    )
-    executor.client = mock_async_client
-
-    yield executor, portfolio
-
-    # Cleanup: Stop the executor properly
-    executor.stop()
-
-    # Clear any remaining items in queues
-    while not ui_queue.empty():
-        try:
-            ui_queue.get_nowait()
-        except queue.Empty:
-            break
-
-    while not portfolio_ui_queue.empty():
-        try:
-            portfolio_ui_queue.get_nowait()
-        except queue.Empty:
-            break
-
-
-@pytest.fixture
 async def portfolio_hp_backend_setup(
     hp_gui: HpFront,
     portfolio_ui: PortfolioUI,
@@ -892,4 +890,317 @@ async def portfolio_hp_backend_setup(
         strategy.stop_event.set()
         await wait_for_condition(condition_func=lambda: not strategy.worker_active)
 
-    # Cleanup is handled in individual fixtures
+
+@pytest.fixture
+async def portfolio_crash_recovery_factory(
+    test_db: TradingDatabase, mock_async_client, mock_inventory
+):
+    """
+    Dedicated factory fixture for portfolio crash recovery testing.
+
+    Based on portfolio_hp_backend_setup but designed specifically for crash recovery scenarios.
+    Provides methods to create setups and simulate crashes for comprehensive testing.
+
+    Usage Example:
+        create_portfolio_hp_setup, simulate_crash = portfolio_crash_recovery_factory
+
+        # Create original setup
+        portfolio1, hp1, backend1 = create_portfolio_hp_setup("original")
+
+        # Perform operations that modify database state
+        await portfolio1.handle_hp_sell_created(sell_event)
+
+        # Simulate crash
+        await simulate_crash(portfolio1, hp1, backend1)  # All components
+        # Or selective crash: await simulate_crash(portfolio1)  # Just portfolio
+
+        # Create recovery setup (uses same database)
+        portfolio2, hp2, backend2 = create_portfolio_hp_setup("recovered")
+
+        # Verify state was preserved in database
+        assert portfolio2.some_state == expected_value
+
+    Returns:
+        tuple: (create_portfolio_hp_setup, simulate_crash)
+    """
+
+    created_instances = []  # Track all created instances for cleanup
+
+    def create_portfolio_hp_setup(instance_name=""):
+        """
+        Create a complete portfolio + HP + backend setup for crash recovery testing.
+
+        Args:
+            instance_name (str): Optional name suffix for the instance
+
+        Returns:
+            tuple: (portfolio_ui, hp_frontend, strategy_backend)
+
+        This setup replicates portfolio_hp_backend_setup but allows multiple instances
+        with the same database for crash recovery testing.
+        """
+        logger.info(f"Creating portfolio crash recovery setup: {instance_name}")
+
+        # Create queues for communication
+        ui_queue = queue.Queue()
+        config_queue = queue.Queue()
+        portfolio_ui_queue = queue.Queue()
+
+        # Define symbols info
+        symbols_info = {
+            "BTCUSDC": SymbolInfo(
+                symbol="BTCUSDC",
+                min_notional=10.0,
+                lot_size=0.00001,
+                min_qty=0.00001,
+                max_qty=9000.0,
+                price_filter=0.01,
+                precision=5,
+                price_precision=2,
+            ),
+            "BTCUSDT": SymbolInfo(symbol="BTCUSDT", precision=5, price_precision=2),
+            "ETHUSDT": SymbolInfo(symbol="ETHUSDT", precision=5, price_precision=2),
+            "AXLUSDT": SymbolInfo(symbol="AXLUSDT", precision=5, price_precision=4),
+            "AXLBTC": SymbolInfo(symbol="AXLBTC", precision=5, price_precision=8),
+            "BTCPLN": SymbolInfo(symbol="BTCPLN", precision=5, price_precision=2),
+            "DYMUSDT": SymbolInfo(symbol="DYMUSDT", precision=5, price_precision=4),
+            "USDCUSDT": SymbolInfo(symbol="USDCUSDT", precision=2, price_precision=4),
+        }
+
+        # Create price resolver
+        price_resolver = UsdPriceResolver(
+            client=mock_async_client, symbols_info=symbols_info
+        )
+        price_resolver.latest_prices["BTCPLN"] = 320000.0
+        price_resolver.latest_prices["BTCUSDC"] = 100000.0
+
+        # Create Portfolio UI with real database persistence
+        portfolio_ui = PortfolioUI(
+            ui_queue=portfolio_ui_queue,
+            symbols_info=symbols_info,
+            db=test_db,  # Always use same database for persistence across crashes
+            test_mode=True,
+        )
+        portfolio_ui.set_inventory(mock_inventory)
+        logger.info(f"Created PortfolioUI for {instance_name}")
+
+        # Create Strategy Executor backend
+        mock_broker = MagicMock(spec=BrokerSpot)
+        strategy_executor = StrategyExecutor(
+            db=test_db,  # Always use same database
+            broker=mock_broker,
+            ui_queue=ui_queue,
+            symbols_info=symbols_info,
+            inventory=mock_inventory,
+            price_resolver=price_resolver,
+            test_mode=True,
+        )
+        strategy_executor.client = mock_async_client
+        logger.info(f"Created StrategyExecutor for {instance_name}")
+
+        # Create HP Frontend with proper Kivy mocking
+        with patch("kivy.base.EventLoop.ensure_window"):
+            hp_frontend = HpFront(
+                client=mock_async_client,
+                strategy_id=f"test_strategy_{instance_name}",
+                config_queue=config_queue,
+                db=test_db,  # Always use same database
+                ui_queue=ui_queue,
+                symbols_info=symbols_info,
+                test_mode=True,
+                price_resolver=price_resolver,
+                portfolio_queue=portfolio_ui_queue,
+            )
+            hp_frontend.initialize()
+            logger.info(f"Created HpFront for {instance_name}")
+
+        # Connect all components (same as portfolio_hp_backend_setup)
+        # HP frontend <-> Strategy backend connection
+        hp_frontend.config_queue = strategy_executor.config_queue
+        strategy_executor.ui_queue = hp_frontend.ui_queue
+        hp_frontend.db = strategy_executor.db
+        hp_frontend.symbols_info = strategy_executor.symbols_info
+
+        # Portfolio <-> HP connection for sell operations
+        portfolio_ui.hp_manager = hp_frontend
+
+        # CRITICAL: Connect strategy executor to portfolio for HP event processing
+        strategy_executor.portfolio_ui_queue = portfolio_ui.ui_queue
+
+        logger.info(
+            f"All components connected for crash recovery setup: {instance_name}"
+        )
+
+        # Track for cleanup
+        created_instances.extend([portfolio_ui, hp_frontend, strategy_executor])
+
+        return portfolio_ui, hp_frontend, strategy_executor
+
+    async def simulate_crash(*components):
+        """
+        Simulate application crash for portfolio + HP + backend system.
+
+        Args:
+            *components: Components to crash. Expected order: (portfolio_ui, hp_frontend, strategy_backend)
+        """
+        logger.info(f"Simulating crash for {len(components)} components")
+
+        for i, component in enumerate(components):
+            component_type = "unknown"
+
+            # Identify and crash each component type
+            if hasattr(component, "strategies") and hasattr(component, "config_queue"):
+                # This is a StrategyExecutor backend
+                component_type = "StrategyExecutor"
+                logger.info(f"Crashing {component_type}")
+
+                # Cancel strategy worker tasks without graceful shutdown
+                for strategy in component.strategies.values():
+                    if hasattr(strategy, "worker_active"):
+                        strategy.worker_active = False
+                    if (
+                        hasattr(strategy, "worker_task")
+                        and strategy.worker_task
+                        and not strategy.worker_task.done()
+                    ):
+                        strategy.worker_task.cancel()
+
+            elif hasattr(component, "ui_queue") and (
+                hasattr(component, "refresh_task") or hasattr(component, "strategy_id")
+            ):
+                # This is an HpFront frontend
+                component_type = "HpFront"
+                logger.info(f"Crashing {component_type}")
+
+                # Cancel frontend tasks
+                tasks_to_cancel = []
+                if (
+                    hasattr(component, "queue_task")
+                    and component.queue_task
+                    and not component.queue_task.done()
+                ):
+                    try:
+                        component.queue_task.cancel()
+                        tasks_to_cancel.append(component.queue_task)
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel queue_task: {e}")
+
+                if (
+                    hasattr(component, "refresh_task")
+                    and component.refresh_task
+                    and not component.refresh_task.done()
+                ):
+                    try:
+                        component.refresh_task.cancel()
+                        tasks_to_cancel.append(component.refresh_task)
+                    except Exception as e:
+                        logger.warning(f"Failed to cancel refresh_task: {e}")
+
+                # Wait for tasks to finish
+                if tasks_to_cancel:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                            timeout=1.0,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("Frontend tasks didn't complete within timeout")
+
+            elif hasattr(component, "coin_list_data") and hasattr(component, "db"):
+                # This is a PortfolioUI
+                component_type = "PortfolioUI"
+                logger.info(f"Crashing {component_type}")
+
+                # Portfolio UI crash - just break any ongoing operations
+                # The database state remains intact (this is key for recovery)
+                if hasattr(component, "_current_operation"):
+                    component._current_operation = None
+
+            else:
+                logger.warning(
+                    f"Unknown component type at index {i}: {type(component)}"
+                )
+
+        logger.info(
+            "Crash simulation completed - database state preserved for recovery"
+        )
+
+    # Return the factory methods
+    yield create_portfolio_hp_setup, simulate_crash
+
+    # Cleanup all created instances
+    logger.info(
+        f"Cleaning up {len(created_instances)} portfolio crash recovery instances"
+    )
+
+    # Group instances for proper cleanup
+    portfolios = []
+    hp_frontends = []
+    strategy_executors = []
+
+    for instance in created_instances:
+        if hasattr(instance, "strategies") and hasattr(instance, "config_queue"):
+            strategy_executors.append(instance)
+        elif hasattr(instance, "ui_queue") and (
+            hasattr(instance, "refresh_task") or hasattr(instance, "strategy_id")
+        ):
+            hp_frontends.append(instance)
+        elif hasattr(instance, "coin_list_data") and hasattr(instance, "db"):
+            portfolios.append(instance)
+
+    # Cancel HP frontend tasks
+    frontend_tasks = []
+    for hp_frontend in hp_frontends:
+        if (
+            hasattr(hp_frontend, "refresh_task")
+            and hp_frontend.refresh_task
+            and not hp_frontend.refresh_task.done()
+        ):
+            hp_frontend.refresh_task.cancel()
+            frontend_tasks.append(hp_frontend.refresh_task)
+        if (
+            hasattr(hp_frontend, "queue_task")
+            and hp_frontend.queue_task
+            and not hp_frontend.queue_task.done()
+        ):
+            hp_frontend.queue_task.cancel()
+            frontend_tasks.append(hp_frontend.queue_task)
+        if hasattr(hp_frontend, "stop_event"):
+            hp_frontend.stop_event.set()
+
+    # Wait for frontend tasks
+    if frontend_tasks:
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*frontend_tasks, return_exceptions=True), timeout=1.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Some frontend tasks didn't complete within timeout during cleanup"
+            )
+
+    # Stop strategy executors
+    for executor in strategy_executors:
+        if hasattr(executor, "stop_event"):
+            executor.stop_event.set()
+        for strategy in executor.strategies.values():
+            if hasattr(strategy, "stop_event"):
+                strategy.stop_event.set()
+            if (
+                hasattr(strategy, "worker_task")
+                and strategy.worker_task
+                and not strategy.worker_task.done()
+            ):
+                strategy.worker_task.cancel()
+        if (
+            hasattr(executor, "thread")
+            and executor.thread
+            and executor.thread.is_alive()
+        ):
+            executor.thread.join(timeout=1.0)
+
+    # Portfolio UIs don't need special cleanup
+    logger.info(
+        f"Cleanup completed for {len(portfolios)} portfolios, "
+        f"{len(hp_frontends)} frontends, {len(strategy_executors)} executors"
+    )

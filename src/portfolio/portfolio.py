@@ -6,7 +6,7 @@ import os
 import queue
 import threading
 import time
-from typing import DefaultDict, Dict, List, Optional
+from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
 from src.common.symbol_info import SymbolInfo
@@ -163,6 +163,21 @@ class PortfolioManager:
                 logger.info(
                     f"Successfully loaded {len(inventory_items)} items from {filename}"
                 )
+
+                # CRITICAL FIX: Save CSV inventory to database for persistence
+                logger.info("Saving CSV inventory to database for future recovery...")
+                try:
+                    for item in inventory_items:
+                        await self.db.insert_inventory_item(item)
+                    logger.info(
+                        f"Successfully saved {len(inventory_items)} inventory items to database"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save CSV inventory to database: {e}")
+                    # Don't fail the load, but warn about recovery issues
+                    logger.warning(
+                        "Inventory will need to be reloaded from CSV after restart"
+                    )
 
                 # DEBUG: Add comprehensive debugging for inventory structure
                 logger.debug(
