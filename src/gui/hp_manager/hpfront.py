@@ -1429,62 +1429,6 @@ Side: {side}"""
         parent["expected_return"] = convert_sell_child["expected_return"]
         parent["state"] = update.state.value
 
-    def _update_existing_buy_child_for_sell(
-        self, buy_child: Dict, update: HPUpdate
-    ) -> None:
-        """Update existing buy child when sell operation occurs."""
-        # Preserve the existing buy child state - DO NOT update it based on sell operations
-        # Buy child state should only be updated by buy operations, not sell operations
-        # Store the current state to preserve it
-        preserved_state = buy_child.get("state", "UNKNOWN")
-
-        if update.quantity is not None:
-            # Calculate total bought quantity
-            total_bought_qty_raw = getattr(update, "total_quantity", None)
-            if total_bought_qty_raw is None:
-                sell_total_qty = 0.0
-                if (
-                    hasattr(update, "sell_completeness")
-                    and update.sell_completeness is not None
-                ):
-                    sell_total_qty = update.sell_completeness * update.quantity
-                total_bought_qty = update.quantity + sell_total_qty
-            else:
-                total_bought_qty = float(total_bought_qty_raw)
-
-            # Get expected quantity (total quantity that should be bought based on budget)
-            expected_qty_raw = getattr(update, "expected_quantity", None)
-            expected_qty = (
-                float(expected_qty_raw) if expected_qty_raw else total_bought_qty
-            )
-
-            buy_child["quantity"] = str(
-                update.symbol_info.format_quantity(
-                    expected_qty
-                )  # Use expected quantity
-            )
-            buy_child["realized_quantity"] = str(
-                update.symbol_info.format_quantity(
-                    total_bought_qty
-                )  # Use actual progress
-            )
-
-            # Calculate quantity_usd based on total bought quantity
-            buy_price = float(buy_child.get("buy_price", 0))
-            quantity_usd_value = total_bought_qty * buy_price
-            buy_child["quantity_usd"] = (
-                str(update.symbol_info.format_price(quantity_usd_value))
-                if update.symbol_info
-                else f"{quantity_usd_value:.2f}"
-            )
-
-        # Remove sell-related fields from buy child
-        buy_child.pop("sell_price", None)
-        buy_child.pop("expected_return", None)
-
-        # Restore the preserved buy child state to prevent cross-contamination from sell operations
-        buy_child["state"] = preserved_state
-
     def _process_all_tickers(self, tickers: AllTickers) -> None:
         # Update HP list data with current prices
         for strategy in self.hp_list_data:
@@ -1867,9 +1811,6 @@ Enter sell price to create sell order:"""
             self.show_cancel_confirmation(f"{base_hp_id}_SELL", symbol, "SHORT")
         # If realized quantity > 0, button should be disabled, so this shouldn't be called
 
-    def _record_exists(self, records: List[Dict], hp_id: str) -> bool:
-        return any(record["hp_id"] == hp_id for record in records)
-
     def toggle_hp_expansion(self, hp_id: str):
         """Toggle the expansion state of a parent HP position"""
         logger.info(f"[EXPANSION] Toggling expansion for HP {hp_id}")
@@ -2181,53 +2122,6 @@ Enter sell price to create sell order:"""
         )
         label.bind(size=label.setter("text_size"))
         return label
-
-    def auto_load_inventory_csv(self):
-        """Automatically load inventory from 'inventory.csv' if it exists in current directory."""
-        import os
-
-        filename = "inventory.csv"
-        if not os.path.exists(filename):
-            logger.info(
-                "No inventory.csv file found in current directory. Skipping auto-load."
-            )
-            return
-
-        try:
-            with open(filename, "r") as f:
-                reader = csv.DictReader(f)
-                parsed = [row for row in reader]
-
-            inventory_items = []
-            for row in parsed:
-                try:
-                    item = InventoryItem(
-                        id=str(uuid.uuid4()),
-                        coin=row["coin"],
-                        buy_price=float(row["buy_price"]),
-                        quantity=float(row["quantity"]),
-                        available_quantity=float(row["quantity"]),
-                        locked_quantity=0.0,
-                        source="CSV_AUTO_LOAD",
-                        timestamp=time.time(),
-                        notes="Auto-loaded from CSV",
-                    )
-                    inventory_items.append(item)
-                except Exception as e:
-                    logger.error("Failed to parse inventory row: %s error: %s", row, e)
-
-            self.portfolio_queue.put_nowait(
-                Event(name=EventName.PORTFOLIO_INVENTORY, content=inventory_items)
-            )
-            logger.info("Auto-loaded inventory from %s", filename)
-        except Exception as e:
-            logger.error("Failed to auto-load inventory CSV: %s", e)
-
-    def update_hp_state_filter(self, selected_states):
-        """Update the HP state filter and refresh the list"""
-        self.hp_state_filter = selected_states
-        self._update_hp_list_view()
-        logger.info("HP state filter updated to: %s", selected_states)
 
     def on_hp_state_filter_change(self, filter_text):
         """Handle HP state filter dropdown selection"""

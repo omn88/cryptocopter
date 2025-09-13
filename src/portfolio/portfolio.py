@@ -64,6 +64,102 @@ class PortfolioManager:
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
+    def start_loop(self) -> None:
+        """Starts the asyncio loop in a new thread."""
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_until_complete(self.run())
+
+    async def run(self) -> None:
+        """Main portfolio manager loop."""
+        logger.info("PortfolioManager is running.")
+
+        self.client = BinanceClient(
+            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
+        )
+
+        # Initialize portfolio inventory before starting the main loop
+        await self.init_portfolio_source()
+
+        # DEBUG: Validate inventory before sending to UI
+        logger.debug(
+            f"[PORTFOLIO DEBUG] About to send inventory to UI: {len(self.inventory)} items"
+        )
+        if hasattr(self, "inventory") and self.inventory:
+            logger.debug(
+                f"[PORTFOLIO DEBUG] Inventory exists with {len(self.inventory)} items"
+            )
+            for i, item in enumerate(self.inventory[:3]):  # Log first 3 items
+                logger.debug(
+                    f"[PORTFOLIO DEBUG] UI Send Item {i}: {item.coin} qty={item.quantity} price={item.buy_price}"
+                )
+        else:
+            logger.warning(
+                "[PORTFOLIO DEBUG] No inventory to send to UI - inventory is empty or None"
+            )
+
+        # Send initial inventory to UI
+        ui_event = Event(
+            name=EventName.PORTFOLIO_INVENTORY,
+            content=self.inventory,
+        )
+
+        self.ui_queue.put_nowait(ui_event)
+        logger.info(
+            f"[PORTFOLIO DEBUG] Successfully sent portfolio inventory to UI queue: {len(self.inventory)} items"
+        )
+
+        # Subscribe to user and price updates for portfolio management
+        self.broker.subscribe(
+            system_id="PORTFOLIO",
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.USER,
+                symbol="ALL",  # Subscribing to all symbols for user account positions
+                target=SubscriptionTarget.PORTFOLIO,
+                queue=self.worker_queue,
+            ),
+        )
+        self.broker.subscribe(
+            system_id="PORTFOLIO",
+            subscription_info=SubscriptionInfo(
+                data_type=SubscriptionType.PRICE,
+                symbol="ALL",  # Subscribing to all symbols for price updates
+                target=SubscriptionTarget.PORTFOLIO,
+                queue=self.worker_queue,
+            ),
+        )
+
+        while not self.stop_event.is_set():
+            try:
+                event = self.worker_queue.get_nowait()
+                # logger.info("Portfolio go new event: %s", event)
+                if event.name == EventName.ACCOUNT_POSITION:
+                    await self.handle_account_position(event.content)
+                elif event.name == EventName.ALL_TICKERS:
+                    await self.handle_tickers(event.content)
+                elif event.name == EventName.PORTFOLIO_INVENTORY:
+                    await self.update_inventory(event.content)
+            except queue.Empty:
+                await asyncio.sleep(0.1)  # Sleep briefly to prevent busy waiting
+                continue
+
+        logger.info("PortfolioManager loop exiting.")
+
+    def stop(self) -> None:
+        """Gracefully stop the PortfolioManager."""
+        logger.info("Stopping PortfolioManager...")
+
+        # Set the stop event to notify the loop to exit
+        self.stop_event.set()
+
+        # Unsubscribe from the broker feeds
+        self.broker.unsubscribe("PORTFOLIO")
+
+        # Wait for the thread to finish
+        if self.thread.is_alive():
+            self.thread.join()
+
+        logger.info("PortfolioManager stopped.")
+
     async def init_portfolio_source(self) -> None:
         """Initialize portfolio from data sources in priority order: 1) Database, 2) CSV file."""
         try:
@@ -97,11 +193,6 @@ class PortfolioManager:
                 logger.info("Database empty, checking for inventory.csv file.")
                 if await self._try_load_inventory_csv():
                     logger.info("Portfolio loaded from inventory.csv file.")
-
-                    # DEBUG: Final validation after CSV load
-                    assert hasattr(
-                        self, "inventory"
-                    ), "self.inventory should exist after CSV load"
                     assert (
                         len(self.inventory) > 0
                     ), f"CSV inventory should not be empty but got {len(self.inventory)} items"
@@ -233,102 +324,6 @@ class PortfolioManager:
         except Exception as e:
             logger.error("Failed to load inventory CSV: %s", e)
             return False
-
-    def start_loop(self) -> None:
-        """Starts the asyncio loop in a new thread."""
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.run())
-
-    async def run(self) -> None:
-        """Main portfolio manager loop."""
-        logger.info("PortfolioManager is running.")
-
-        self.client = BinanceClient(
-            api_key=config_env("API_KEY"), api_secret=config_env("API_SECRET")
-        )
-
-        # Initialize portfolio inventory before starting the main loop
-        await self.init_portfolio_source()
-
-        # DEBUG: Validate inventory before sending to UI
-        logger.debug(
-            f"[PORTFOLIO DEBUG] About to send inventory to UI: {len(self.inventory)} items"
-        )
-        if hasattr(self, "inventory") and self.inventory:
-            logger.debug(
-                f"[PORTFOLIO DEBUG] Inventory exists with {len(self.inventory)} items"
-            )
-            for i, item in enumerate(self.inventory[:3]):  # Log first 3 items
-                logger.debug(
-                    f"[PORTFOLIO DEBUG] UI Send Item {i}: {item.coin} qty={item.quantity} price={item.buy_price}"
-                )
-        else:
-            logger.warning(
-                "[PORTFOLIO DEBUG] No inventory to send to UI - inventory is empty or None"
-            )
-
-        # Send initial inventory to UI
-        ui_event = Event(
-            name=EventName.PORTFOLIO_INVENTORY,
-            content=self.inventory,
-        )
-
-        self.ui_queue.put_nowait(ui_event)
-        logger.info(
-            f"[PORTFOLIO DEBUG] Successfully sent portfolio inventory to UI queue: {len(self.inventory)} items"
-        )
-
-        # Subscribe to user and price updates for portfolio management
-        self.broker.subscribe(
-            system_id="PORTFOLIO",
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.USER,
-                symbol="ALL",  # Subscribing to all symbols for user account positions
-                target=SubscriptionTarget.PORTFOLIO,
-                queue=self.worker_queue,
-            ),
-        )
-        self.broker.subscribe(
-            system_id="PORTFOLIO",
-            subscription_info=SubscriptionInfo(
-                data_type=SubscriptionType.PRICE,
-                symbol="ALL",  # Subscribing to all symbols for price updates
-                target=SubscriptionTarget.PORTFOLIO,
-                queue=self.worker_queue,
-            ),
-        )
-
-        while not self.stop_event.is_set():
-            try:
-                event = self.worker_queue.get_nowait()
-                # logger.info("Portfolio go new event: %s", event)
-                if event.name == EventName.ACCOUNT_POSITION:
-                    await self.handle_account_position(event.content)
-                elif event.name == EventName.ALL_TICKERS:
-                    await self.handle_tickers(event.content)
-                elif event.name == EventName.PORTFOLIO_INVENTORY:
-                    await self.update_inventory(event.content)
-            except queue.Empty:
-                await asyncio.sleep(0.1)  # Sleep briefly to prevent busy waiting
-                continue
-
-        logger.info("PortfolioManager loop exiting.")
-
-    def stop(self) -> None:
-        """Gracefully stop the PortfolioManager."""
-        logger.info("Stopping PortfolioManager...")
-
-        # Set the stop event to notify the loop to exit
-        self.stop_event.set()
-
-        # Unsubscribe from the broker feeds
-        self.broker.unsubscribe("PORTFOLIO")
-
-        # Wait for the thread to finish
-        if self.thread.is_alive():
-            self.thread.join()
-
-        logger.info("PortfolioManager stopped.")
 
     async def handle_account_position(self, account_position: AccountPosition) -> None:
         """Handle account position updates (forward to UI only - inventory is managed separately)."""
