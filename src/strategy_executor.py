@@ -1019,7 +1019,14 @@ class StrategyExecutor:
             parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
             strategy_data.config.hp_id = parent_hp_id
         else:
-            parent_hp_id = strategy_data.config.hp_id
+            # For restored positions, extract parent ID for strategy registration
+            full_hp_id = strategy_data.config.hp_id
+            if "_CONVERT" in full_hp_id:
+                parent_hp_id = full_hp_id.split("_CONVERT")[0]
+            elif "_SELL" in full_hp_id:
+                parent_hp_id = full_hp_id.split("_SELL")[0]
+            else:
+                parent_hp_id = full_hp_id
         logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )

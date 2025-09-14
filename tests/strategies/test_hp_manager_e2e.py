@@ -1734,9 +1734,14 @@ async def test_default_convert_position(frontend_backend_setup):
         quantity=quantity,
     )
 
+    logger.info("Waiting for frontend to reflect the convert-only position...")
+
     # Wait for frontend to reflect the convert-only position
     await wait_for_condition(condition_func=lambda: front.hp_list_data)
     item = front.hp_list_data[0]
+
+    logger.info("HP List after adding convert-only position: %s", front.hp_list_data)
+
     # Find the convert-only item
     assert item["buy_price"] == str(buy_price), f"buy price: {item['buy_price']}"
     assert item["quantity"] == str(quantity), f"quantity: {item['quantity']}"

@@ -913,13 +913,19 @@ Side: {side}"""
         # Extract parent ID
         parent_hp_id = hp_id.split("_CONVERT")[0]
 
+        logger.info("Handling convert position for HP ID: %s", hp_id)
+
         # Ensure parent container exists
         self._ensure_parent_container(hp_map, update, parent_hp_id)
+
+        logger.info("Parent container ensured for convert position: %s", parent_hp_id)
 
         # Convert positions create a single sell row (like regular sell but without prior buy)
         self._create_convert_sell_child(
             hp_map, update, hp_id, parent_hp_id, quantity_usd
         )
+
+        logger.info("Convert sell child created for HP ID: %s", hp_id)
 
     def _handle_regular_parent_position(
         self,
@@ -1421,6 +1427,8 @@ Side: {side}"""
             parent["children"].append(hp_id)
 
         # Update parent with convert sell data
+        parent["buy_price"] = convert_sell_child["buy_price"]
+        parent["quantity_usd"] = convert_sell_child["quantity_usd"]
         parent["sell_price"] = convert_sell_child["sell_price"]
         parent["expected_return"] = convert_sell_child["expected_return"]
         parent["realized_quantity"] = convert_sell_child["realized_quantity"]
