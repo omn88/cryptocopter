@@ -490,9 +490,29 @@ class HpStrategy:
                 hasattr(self.sell.current_position, "sell_order")
                 and self.sell.current_position.sell_order
             ):
-                sell_realized_quantity = (
-                    self.sell.current_position.sell_order.realized_quantity
-                )
+                # For convert positions, handle realized_quantity based on state
+                if (
+                    hasattr(self.sell.current_position, "sell_type")
+                    and self.sell.current_position.sell_type == SellType.CONVERT
+                ):
+                    # For convert positions, check if the position is completed (SOLD state)
+                    if (
+                        hasattr(self.sell.current_position, "state_info")
+                        and self.sell.current_position.state_info.state == State.SOLD
+                    ):
+                        # After completion, show the actual realized quantity
+                        sell_realized_quantity = (
+                            self.sell.current_position.sell_order.realized_quantity
+                        )
+                    else:
+                        # During initialization and processing, use 0.0 as parent realized_quantity
+                        # since it represents what has been actually sold, not the inventory quantity
+                        sell_realized_quantity = 0.0
+                else:
+                    # For regular positions, use the actual realized quantity
+                    sell_realized_quantity = (
+                        self.sell.current_position.sell_order.realized_quantity
+                    )
 
         # Calculate expected quantity from budget and price configuration
         # For DCA mode, this is the total across all orders

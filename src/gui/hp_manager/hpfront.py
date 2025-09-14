@@ -363,13 +363,17 @@ Side: {side}"""
                     )
                     return PositionSide.SHORT
 
-                # Check if this HP has explicit sell children
+                # Check if this HP has explicit sell children (including convert)
                 has_sell_child = any(
-                    (isinstance(child, str) and child.endswith("_SELL"))
+                    (
+                        isinstance(child, str)
+                        and (child.endswith("_SELL") or child.endswith("_CONVERT"))
+                    )
                     or (
                         isinstance(child, dict)
                         and (
                             child.get("hp_id", "").endswith("_SELL")
+                            or child.get("hp_id", "").endswith("_CONVERT")
                             or child.get("side") == "SELL"
                             or "SELL" in child.get("state", "")
                         )
@@ -378,7 +382,7 @@ Side: {side}"""
                 )
                 if has_sell_child:
                     logger.debug(
-                        f"HP {hp_id} has sell children, inferring SHORT position"
+                        f"HP {hp_id} has sell/convert children {children}, inferring SHORT position"
                     )
                     return PositionSide.SHORT
 
@@ -1431,7 +1435,13 @@ Side: {side}"""
         parent["quantity_usd"] = convert_sell_child["quantity_usd"]
         parent["sell_price"] = convert_sell_child["sell_price"]
         parent["expected_return"] = convert_sell_child["expected_return"]
-        parent["realized_quantity"] = convert_sell_child["realized_quantity"]
+
+        # For convert positions, handle realized_quantity based on state
+        if update.state.value == State.SOLD.value:
+            # After completion, parent should show the actual realized quantity
+            parent["realized_quantity"] = convert_sell_child["realized_quantity"]
+        # else: During initialization and processing, keep parent realized_quantity as is (0.0)
+
         parent["state"] = update.state.value
 
     def _process_all_tickers(self, tickers: AllTickers) -> None:
