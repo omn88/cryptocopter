@@ -722,7 +722,8 @@ class HpStrategy:
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
         logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
-        self.balance -= self.get_remaining_quantity_buy()
+        budget_amount = self.get_remaining_quantity_buy()
+        self.balance -= budget_amount
 
         self.buy.prepare_orders()
         self.buy.orders = await self.buy.open_position()
@@ -749,6 +750,21 @@ class HpStrategy:
         await self.db.upsert_buy_price_level(
             data=self.buy.data, strategy_state=self.state
         )
+
+        # Send portfolio event to lock budget in inventory
+        from src.identifiers import HPBuyOrdersPlaced
+
+        hp_orders_placed = HPBuyOrdersPlaced(
+            hp_id=str(self.buy.data.config.hp_id),
+            coin=self.buy.data.config.coin,
+            budget_amount=budget_amount,
+            end_currency="USDC",  # Default to USDC for budget locking
+        )
+        self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
+        logger.info(
+            f"Sent HP buy orders placed event to lock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+        )
+
         self.send_buy_position_to_ui()
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
@@ -774,18 +790,22 @@ class HpStrategy:
     async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
         logger.info("Cancelling %s", self.buy.data.state_info.side.value)
         logger.info("Orders: %s", self.buy.orders)
-        self.balance += self.get_remaining_quantity_buy()
+        budget_amount = self.get_remaining_quantity_buy()
+        self.balance += budget_amount
         await self.buy.cancel_position()
 
         # Send HP position cancelled event to portfolio (for buy cancellations)
-        total_quantity = sum(order.quantity for order in self.buy.orders)
+        # For buy orders, we need to unlock the budget amount (USDC), not the coin quantity
         hp_cancelled = HPPositionCancelled(
             hp_id=self.buy.data.config.hp_id,
-            coin=self.buy.data.config.coin,
-            quantity=total_quantity,
+            coin="USDC",  # The currency being unlocked (budget currency)
+            quantity=budget_amount,  # Amount of USDC budget to unlock
             position_type="BUY",
         )
         self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
+        logger.info(
+            f"Sent HP buy cancellation event to unlock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+        )
 
         self.buy.data.state_info.state = State.NEW
 

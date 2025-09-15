@@ -597,21 +597,28 @@ class StrategyExecutor:
                         )
                 elif hasattr(strategy, "buy") and strategy.buy.orders:
                     # This is a buy position cancellation (buy positions don't have successful completion via close_position)
-                    total_quantity = sum(
-                        order.quantity for order in strategy.buy.orders
-                    )
-                    hp_cancelled = HPPositionCancelled(
-                        hp_id=close_data.config.hp_id,
-                        coin=close_data.config.coin,
-                        quantity=total_quantity,
-                        position_type="BUY",
-                    )
-                    strategy._send_portfolio_event(
-                        EventName.HP_POSITION_CANCELLED, hp_cancelled
-                    )
-                    logger.info(
-                        f"Sent manual HP cancellation event for buy position: {close_data.config.hp_id}"
-                    )
+                    # Only unlock budget if orders were actually sent to exchange (state != NEW)
+                    from src.identifiers import State
+
+                    if strategy.state != State.NEW:
+                        # For buy positions, we need to unlock the USDC budget amount, not the coin quantity
+                        budget_amount = strategy.get_remaining_quantity_buy()
+                        hp_cancelled = HPPositionCancelled(
+                            hp_id=close_data.config.hp_id,
+                            coin="USDC",  # The currency being unlocked (budget currency)
+                            quantity=budget_amount,  # Amount of USDC budget to unlock
+                            position_type="BUY",
+                        )
+                        strategy._send_portfolio_event(
+                            EventName.HP_POSITION_CANCELLED, hp_cancelled
+                        )
+                        logger.info(
+                            f"Sent manual HP cancellation event for buy position: {close_data.config.hp_id} - budget unlocked"
+                        )
+                    else:
+                        logger.info(
+                            f"Skipped budget unlock for buy position {close_data.config.hp_id} - orders never sent to exchange"
+                        )
             except Exception as e:
                 logger.error(
                     f"Failed to send HP event for {close_data.config.hp_id}: {e}"
@@ -1254,19 +1261,24 @@ class StrategyExecutor:
             logger.info("Entered trading system removal!")
 
             # Send HP buy position cancelled event to portfolio before closing
-            if buy.orders:
-                total_quantity = sum(order.quantity for order in buy.orders)
+            if buy.orders and strategy.state != State.NEW:
+                # Only unlock budget if orders were actually sent to exchange (state != NEW)
+                budget_amount = strategy.get_remaining_quantity_buy()
                 hp_cancelled = HPPositionCancelled(
                     hp_id=hp_id,
-                    coin=buy.data.config.coin,
-                    quantity=total_quantity,
+                    coin="USDC",  # The currency being unlocked (budget currency)
+                    quantity=budget_amount,  # Amount of USDC budget to unlock
                     position_type="BUY",
                 )
                 self._send_hp_event_to_portfolio(
                     EventName.HP_POSITION_CANCELLED, hp_cancelled
                 )
                 logger.info(
-                    f"Sent manual HP buy cancellation event for position: {hp_id}"
+                    f"Sent manual HP buy cancellation event for position: {hp_id} - budget unlocked"
+                )
+            elif buy.orders:
+                logger.info(
+                    f"Skipped budget unlock for buy position {hp_id} - orders never sent to exchange"
                 )
 
             self.broker.unsubscribe(system_id=hp_id)
@@ -1306,16 +1318,13 @@ class StrategyExecutor:
         ):
             if strategy.state == State.BUYING:
                 # Send HP buy position cancelled event to portfolio for unfilled orders
-                unfilled_quantity = sum(
-                    order.quantity - order.realized_quantity
-                    for order in buy.orders
-                    if order.status != ORDER_STATUS_FILLED
-                )
-                if unfilled_quantity > 0:
+                # For partial buy cancellations, we need to unlock the remaining USDC budget
+                budget_amount = strategy.get_remaining_quantity_buy()
+                if budget_amount > 0:
                     hp_cancelled = HPPositionCancelled(
                         hp_id=hp_id,
-                        coin=buy.data.config.coin,
-                        quantity=unfilled_quantity,
+                        coin="USDC",  # The currency being unlocked (budget currency)
+                        quantity=budget_amount,  # Amount of USDC budget to unlock
                         position_type="BUY",
                     )
                     self._send_hp_event_to_portfolio(
@@ -1353,11 +1362,12 @@ class StrategyExecutor:
             logger.info("Cancelling fully bought position: %s", hp_id)
 
             # Send HP buy position cancelled event to portfolio
-            total_quantity = sum(order.realized_quantity for order in buy.orders)
+            # For fully bought position cancellations, we need to unlock any remaining USDC budget
+            budget_amount = strategy.get_remaining_quantity_buy()
             hp_cancelled = HPPositionCancelled(
                 hp_id=hp_id,
-                coin=buy.data.config.coin,
-                quantity=total_quantity,
+                coin="USDC",  # The currency being unlocked (budget currency)
+                quantity=budget_amount,  # Amount of USDC budget to unlock
                 position_type="BUY",
             )
             self._send_hp_event_to_portfolio(

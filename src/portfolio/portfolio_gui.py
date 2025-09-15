@@ -25,6 +25,7 @@ from src.identifiers import (
     HPSellPositionPartiallyFilled,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
+    HPBuyOrdersPlaced,
     HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo
@@ -1064,6 +1065,9 @@ class PortfolioUI(BoxLayout):
         if data.name == EventName.HP_SELL_POSITION_COMPLETED:
             assert isinstance(data.content, HPSellPositionCompleted)
             await self.handle_hp_sell_completed(data.content)
+        if data.name == EventName.HP_BUY_ORDERS_PLACED:
+            assert isinstance(data.content, HPBuyOrdersPlaced)
+            await self.handle_hp_buy_orders_placed(data.content)
         if data.name == EventName.HP_BUY_POSITION_FILLED:
             assert isinstance(data.content, HPBuyPositionFilled)
             await self.handle_hp_buy_filled(data.content)
@@ -1228,6 +1232,36 @@ class PortfolioUI(BoxLayout):
 
         # Lock quantities using FIFO (lowest buy price first)
         await self._lock_quantities_fifo(event.coin, event.quantity)
+
+        # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
+        if not self.test_mode:
+            self._rebuild_coin_list_with_lots()
+            self.ids.coin_list.refresh_from_data()
+
+    async def handle_hp_buy_orders_placed(self, event: HPBuyOrdersPlaced):
+        """Handle HP buy orders placement - lock budget in end currency (usually USDC)."""
+        logger.info(
+            f"HP Buy Orders Placed: {event.hp_id} - {event.coin} budget:{event.budget_amount} {event.end_currency}"
+        )
+
+        # Find the parent coin (end currency, usually USDC)
+        parent_coin = None
+        for coin in self.coin_list_data:
+            if (
+                not coin.get("is_lot_row", False)
+                and coin["symbol"] == event.end_currency
+            ):
+                parent_coin = coin
+                break
+
+        if not parent_coin:
+            logger.warning(
+                f"Parent coin {event.end_currency} not found for HP buy budget locking"
+            )
+            return
+
+        # Lock budget using FIFO (lowest buy price first) - same as sell position locking
+        await self._lock_quantities_fifo(event.end_currency, event.budget_amount)
 
         # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
@@ -1690,13 +1724,13 @@ class PortfolioUI(BoxLayout):
                 f"[PORTFOLIO CANCELLATION] Completed unlock operation for {event.coin}"
             )
         elif event.position_type == "BUY":
-            # For buy positions, we typically don't lock quantities in inventory,
-            # but we may need to adjust cash balances if buy orders were placed
-            # In most cases, buy cancellations don't affect portfolio inventory directly
-            # but this logs the cancellation for tracking
+            # For buy positions, unlock the budget that was locked when orders were placed
             logger.info(
-                f"Buy position cancelled: {event.hp_id} - {event.quantity} {event.coin}. "
-                f"No inventory unlock needed as buy positions don't lock coin quantities."
+                f"[PORTFOLIO CANCELLATION] Processing BUY cancellation for {event.coin}"
+            )
+            await self._unlock_quantities_fifo(event.coin, event.quantity)
+            logger.info(
+                f"[PORTFOLIO CANCELLATION] Completed budget unlock operation for {event.coin}"
             )
 
         # Refresh UI (skip in test mode to avoid Kivy widget access)

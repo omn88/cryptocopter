@@ -95,6 +95,16 @@ class HPBuyPositionPartiallyFilled:
 
 
 @dataclass
+class HPBuyOrdersPlaced:
+    """Event data for when HP buy orders are placed (locks budget in inventory)."""
+
+    hp_id: str
+    coin: str
+    budget_amount: float
+    end_currency: str  # Usually USDC
+
+
+@dataclass
 class HPPositionCancelled:
     """Event data for when an HP position is cancelled (unlocks quantities)."""
 
@@ -147,6 +157,7 @@ class EventName(Enum):
     HP_SELL_POSITION_PARTIALLY_FILLED = "HP_SELL_POSITION_PARTIALLY_FILLED"
     HP_SELL_POSITION_COMPLETED = "HP_SELL_POSITION_COMPLETED"
     HP_BUY_POSITION_CREATED = "HP_BUY_POSITION_CREATED"
+    HP_BUY_ORDERS_PLACED = "HP_BUY_ORDERS_PLACED"
     HP_BUY_POSITION_FILLED = "HP_BUY_POSITION_FILLED"
     HP_BUY_POSITION_PARTIALLY_FILLED = "HP_BUY_POSITION_PARTIALLY_FILLED"
     HP_POSITION_CANCELLED = "HP_POSITION_CANCELLED"
