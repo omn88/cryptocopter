@@ -1873,7 +1873,9 @@ class HPSimulator:
 
         return strategy
 
-    async def open_first_sell_position_from_two_hop_trade(self):
+    async def open_first_sell_position_from_two_hop_trade(
+        self, quantity: float = 1000.0
+    ):
         assert len(self.back.strategies) == 0
 
         coin = "AXL"
@@ -1884,7 +1886,7 @@ class HPSimulator:
                 coin=coin,
                 buy_price=0.2928,
                 sell_price=1.14,
-                quantity=1000.0,
+                quantity=quantity,
                 end_currency="PLN",
                 symbol_info=self.back.symbols_info[f"{coin}USDT"],
             ),
@@ -1919,23 +1921,24 @@ class HPSimulator:
         assert self.front.hp_list_data[0]["state"] == State.BOUGHT.value
         assert self.front.hp_list_data[0]["coin"] == f"{coin}USD"
         assert self.front.hp_list_data[0]["hp_id"] == "1000"
-        assert (
-            self.front.hp_list_data[0]["buy_price"] == "0.2928"
-        ), self.front.hp_list_data[0]["buy_price"]
-        assert self.front.hp_list_data[0]["quantity"] == "1000.0"
-        assert self.front.hp_list_data[0]["quantity_usd"] == "292.8"
+        assert self.front.hp_list_data[0]["buy_price"] == "0.2928"
+        assert self.front.hp_list_data[0]["quantity"] == str(quantity)
+        assert self.front.hp_list_data[0]["quantity_usd"] == str(
+            quantity * float(self.front.hp_list_data[0]["buy_price"])
+        )
         assert self.front.hp_list_data[0]["sell_price"] == "1.14"
 
         logger.info("HP LIST: %s", self.front.hp_list_data)
-        assert (
-            self.front.hp_list_data[0]["expected_return"] == "847.2"
+        assert self.front.hp_list_data[0]["expected_return"] == str(
+            quantity * float(self.front.hp_list_data[0]["sell_price"])
+            - quantity * float(self.front.hp_list_data[0]["buy_price"])
         ), f"ER: {self.front.hp_list_data[0]['expected_return']}"
         assert self.front.hp_list_data[0]["current_price"] == "0.0"
         assert self.front.hp_list_data[0]["net"] == "0.0"
 
         sell_order = strategy.sell.current_position.sell_order
 
-        assert sell_order.quantity == 1000
+        assert sell_order.quantity == quantity
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
         assert sell_order.order_id == 0
@@ -1972,7 +1975,7 @@ class HPSimulator:
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
-        assert sell_order.quantity == 1000
+        assert sell_order.quantity == 1000.0
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
 

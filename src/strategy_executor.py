@@ -1196,26 +1196,25 @@ class StrategyExecutor:
                     )
 
         # Send HP sell position created event to portfolio for quantity locking
-        # CRITICAL FIX: Send event for both new positions AND restored ones to ensure quantities are locked
-        hp_sell_created = HPSellPositionCreated(
-            hp_id=parent_hp_id,
-            coin=config.coin,
-            quantity=config.quantity,
-            buy_price=config.buy_price,  # Use buy price from config
-            sell_price=config.sell_price,  # Use sell price from config
-            end_currency=config.end_currency,  # Use end currency from config
-        )
-        self._send_hp_event_to_portfolio(
-            EventName.HP_SELL_POSITION_CREATED, hp_sell_created
-        )
-
-        if is_restoration:
+        # CRITICAL FIX: Only send event for new positions, not restored ones (inventory already locked from previous session)
+        if not is_restoration:
+            hp_sell_created = HPSellPositionCreated(
+                hp_id=parent_hp_id,
+                coin=config.coin,
+                quantity=config.quantity,
+                buy_price=config.buy_price,  # Use buy price from config
+                sell_price=config.sell_price,  # Use sell price from config
+                end_currency=config.end_currency,  # Use end currency from config
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+            )
             logger.info(
-                f"Sent HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} to lock {config.quantity} {config.coin}"
+                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
             )
         else:
             logger.info(
-                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
+                f"Skipped HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} - inventory already locked from previous session"
             )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
