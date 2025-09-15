@@ -309,6 +309,81 @@ class HPPositionSell:
         except AssertionError as error:
             logger.error("Error: %s", error)
 
+    async def recalculate_multihop_prices(self) -> None:
+        """Recalculate leg prices using current market data before execution.
+
+        This ensures both legs use fresh market prices at execution time
+        rather than stale prices from position creation time.
+        """
+        if len(self.sell_positions) != 2:
+            logger.debug("Not a multihop trade, skipping price recalculation")
+            return  # Not a multihop trade
+
+        # Get symbol info for both legs
+        leg1_position = self.sell_positions[0]
+        leg2_position = self.sell_positions[1]
+        leg1_info = leg1_position.config.symbol_info
+        leg2_info = leg2_position.config.symbol_info
+
+        # Get current market price for leg2
+        current_leg2_price = self.price_resolver.latest_prices.get(leg2_info.symbol)
+        if not current_leg2_price:
+            logger.warning(
+                f"Missing current price for {leg2_info.symbol}, skipping recalculation"
+            )
+            return
+
+        # Store old prices for logging
+        old_leg1_price = leg1_position.sell_order.price
+        old_leg2_price = leg2_position.sell_order.price
+
+        # Recalculate leg1 price based on current leg2 price
+        sell_price = self.original_position.config.sell_price
+        current_price_in_quote = sell_price / leg2_info.adjust_price(current_leg2_price)
+        current_leg1_price = leg1_info.adjust_price(current_price_in_quote)
+
+        # Calculate leg1 quantity and stable amount
+        leg1_quantity = leg1_info.adjust_quantity(
+            self.original_position.config.quantity
+        )
+        leg1_quantity_stable = round(leg1_quantity * current_leg1_price, 8)
+
+        # Recalculate leg2 price and quantity
+        current_leg2_price_adjusted = leg2_info.adjust_price(current_leg2_price)
+        leg2_quantity = leg2_info.adjust_quantity(leg1_quantity_stable)
+
+        # Update leg1 position with fresh prices
+        leg1_position.sell_order.price = current_leg1_price
+        leg1_position.sell_order.quantity_stable = leg1_quantity_stable
+        leg1_position.config.sell_price = current_leg1_price
+        leg1_position.config.buy_price = (
+            self.original_position.config.buy_price / current_leg2_price
+        )
+
+        # Update leg2 position with fresh prices
+        leg2_position.sell_order.price = current_leg2_price_adjusted
+        leg2_position.sell_order.quantity = leg2_quantity
+        leg2_position.config.sell_price = current_leg2_price
+        leg2_position.config.buy_price = current_leg2_price
+
+        logger.info(
+            "[MULTIHOP PRICE RECALC] Updated prices before execution - "
+            "Leg1: %s -> %s (symbol: %s), Leg2: %s -> %s (symbol: %s)",
+            old_leg1_price,
+            current_leg1_price,
+            leg1_info.symbol,
+            old_leg2_price,
+            current_leg2_price_adjusted,
+            leg2_info.symbol,
+        )
+        logger.info(
+            "[MULTIHOP PRICE RECALC] Updated quantities - "
+            "Leg1: %s stable: %s, Leg2: %s",
+            leg1_quantity,
+            leg1_quantity_stable,
+            leg2_quantity,
+        )
+
     async def cancel_position(self) -> None:
         assert isinstance(self.current_position, SellPosition)
 
