@@ -913,6 +913,14 @@ class HpStrategy:
             self.send_sell_position_to_ui()
             return
 
+        # Recalculate prices for multihop trades before execution
+        if hasattr(self.sell, "sell_positions") and len(self.sell.sell_positions) > 1:
+            logger.info(
+                "Recalculating multihop prices before execution for position %s",
+                self.sell.current_position.config.hp_id,
+            )
+            await self.sell.recalculate_multihop_prices()
+
         logger.info(
             "Sending %s SELL", self.sell.current_position.config.symbol_info.symbol
         )
