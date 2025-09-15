@@ -4,6 +4,7 @@ import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
+from copy import deepcopy
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.enums import (
@@ -490,6 +491,7 @@ class StrategyExecutor:
                 return strategy
 
             # Priority 5: Converting
+            # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol_info = self.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)
@@ -524,6 +526,7 @@ class StrategyExecutor:
                             return strategy
 
             # Priority 4: Converting
+            # Use USDT symbol for convert operations - ending with USDT indicates conversion
             symbol_info = self.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)
@@ -1016,7 +1019,14 @@ class StrategyExecutor:
             parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
             strategy_data.config.hp_id = parent_hp_id
         else:
-            parent_hp_id = strategy_data.config.hp_id
+            # For restored positions, extract parent ID for strategy registration
+            full_hp_id = strategy_data.config.hp_id
+            if "_CONVERT" in full_hp_id:
+                parent_hp_id = full_hp_id.split("_CONVERT")[0]
+            elif "_SELL" in full_hp_id:
+                parent_hp_id = full_hp_id.split("_SELL")[0]
+            else:
+                parent_hp_id = full_hp_id
         logger.info(
             "Setting up NEW SELL position with config: %s", strategy_data.config
         )
@@ -1186,26 +1196,25 @@ class StrategyExecutor:
                     )
 
         # Send HP sell position created event to portfolio for quantity locking
-        # CRITICAL FIX: Send event for both new positions AND restored ones to ensure quantities are locked
-        hp_sell_created = HPSellPositionCreated(
-            hp_id=parent_hp_id,
-            coin=config.coin,
-            quantity=config.quantity,
-            buy_price=config.buy_price,  # Use buy price from config
-            sell_price=config.sell_price,  # Use sell price from config
-            end_currency=config.end_currency,  # Use end currency from config
-        )
-        self._send_hp_event_to_portfolio(
-            EventName.HP_SELL_POSITION_CREATED, hp_sell_created
-        )
-
-        if is_restoration:
+        # CRITICAL FIX: Only send event for new positions, not restored ones (inventory already locked from previous session)
+        if not is_restoration:
+            hp_sell_created = HPSellPositionCreated(
+                hp_id=parent_hp_id,
+                coin=config.coin,
+                quantity=config.quantity,
+                buy_price=config.buy_price,  # Use buy price from config
+                sell_price=config.sell_price,  # Use sell price from config
+                end_currency=config.end_currency,  # Use end currency from config
+            )
+            self._send_hp_event_to_portfolio(
+                EventName.HP_SELL_POSITION_CREATED, hp_sell_created
+            )
             logger.info(
-                f"Sent HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} to lock {config.quantity} {config.coin}"
+                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
             )
         else:
             logger.info(
-                f"Sent HP_SELL_POSITION_CREATED event for new position {parent_hp_id} to lock {config.quantity} {config.coin}"
+                f"Skipped HP_SELL_POSITION_CREATED event for restored position {parent_hp_id} - inventory already locked from previous session"
             )
 
         strategy.worker_task = asyncio.create_task(strategy.worker())
@@ -1415,39 +1424,101 @@ class StrategyExecutor:
             ):
                 # Handle sell positions that are in NEW state (just created, not actively selling yet)
                 logger.info(f"Cancelling NEW sell position: {hp_id}")
-                sell_order_qty = sell.current_position.sell_order.quantity
 
-                # Send HP sell position cancelled event to portfolio
-                hp_cancelled = HPPositionCancelled(
-                    hp_id=hp_id,
-                    coin=sell.current_position.config.coin,
-                    quantity=sell_order_qty,
-                    position_type="SELL",
-                )
-                self._send_hp_event_to_portfolio(
-                    EventName.HP_POSITION_CANCELLED, hp_cancelled
-                )
-                logger.info(
-                    f"Sent manual HP sell cancellation event for NEW position: {hp_id}"
-                )
+                # Check if this is a multihop sell (multiple sell_positions)
+                if hasattr(sell, "sell_positions") and len(sell.sell_positions) > 1:
+                    logger.info(
+                        f"Detected multihop sell with {len(sell.sell_positions)} positions"
+                    )
 
-                # Close the sell position
-                sell.current_position.state_info.state = State.CLOSED
-                sell.current_position.state_info.ui_state = UiState.CLOSED
+                    # Cancel ALL positions in the multihop sell by iterating through each position
+                    for position in sell.sell_positions:
+                        # Set this position as current position temporarily for cancellation
+                        original_current = sell.current_position
+                        sell.current_position = position
 
-                # Update database
-                await self.db.upsert_sell_price_level(
-                    data=sell.current_position, strategy_state=State.CLOSED
-                )
+                        # Cancel position using position_sell logic
+                        await sell.cancel_position()
 
-                # Send UI update
-                self.send_sell_position_to_ui(
-                    config=sell.current_position.config,
-                    state_info=sell.current_position.state_info,
-                    state=sell.current_position.state_info.state,
-                )
+                        # Send HP sell position cancelled event to portfolio for each position
+                        hp_cancelled = HPPositionCancelled(
+                            hp_id=position.config.hp_id,
+                            coin=position.config.coin,
+                            quantity=position.sell_order.quantity,
+                            position_type="SELL",
+                        )
+                        self._send_hp_event_to_portfolio(
+                            EventName.HP_POSITION_CANCELLED, hp_cancelled
+                        )
+                        logger.info(
+                            f"Sent manual HP sell cancellation event for multihop position: {position.config.hp_id}"
+                        )
 
-                logger.info(f"Successfully cancelled NEW sell position: {hp_id}")
+                        # Update database for each position
+                        await self.db.upsert_sell_price_level(
+                            data=position, strategy_state=State.CLOSED
+                        )
+
+                        logger.info(
+                            f"Successfully cancelled multihop sell position: {position.config.hp_id}"
+                        )
+
+                    # Restore original current position
+                    sell.current_position = original_current
+
+                    # Now close the parent position (original_position) and strategy
+                    strategy.state = State.CLOSED
+                    sell.original_position.state_info.state = State.CLOSED
+                    sell.original_position.state_info.ui_state = UiState.CLOSED
+
+                    # Update parent position in database - use original_position which is the actual parent (1000)
+                    await self.db.upsert_sell_price_level(
+                        data=sell.original_position, strategy_state=State.CLOSED
+                    )
+
+                    # Remove strategy from active strategies to prevent recovery
+                    if base_hp_id in self.strategies:
+                        del self.strategies[base_hp_id]
+
+                    logger.info(
+                        f"Successfully cancelled all multihop sell positions and closed parent strategy: {hp_id}"
+                    )
+                else:
+                    # Single sell position cancellation
+                    sell_order_qty = sell.current_position.sell_order.quantity
+
+                    # Send HP sell position cancelled event to portfolio
+                    hp_cancelled = HPPositionCancelled(
+                        hp_id=hp_id,
+                        coin=sell.current_position.config.coin,
+                        quantity=sell_order_qty,
+                        position_type="SELL",
+                    )
+                    self._send_hp_event_to_portfolio(
+                        EventName.HP_POSITION_CANCELLED, hp_cancelled
+                    )
+                    logger.info(
+                        f"Sent manual HP sell cancellation event for NEW position: {hp_id}"
+                    )
+
+                    # Close the sell position
+                    sell.current_position.state_info.state = State.CLOSED
+                    sell.current_position.state_info.ui_state = UiState.CLOSED
+
+                    # Update database
+                    await self.db.upsert_sell_price_level(
+                        data=sell.current_position, strategy_state=State.CLOSED
+                    )
+
+                    # Send UI update
+                    self.send_sell_position_to_ui(
+                        config=sell.current_position.config,
+                        state_info=sell.current_position.state_info,
+                        state=sell.current_position.state_info.state,
+                    )
+
+                    logger.info(f"Successfully cancelled NEW sell position: {hp_id}")
+
                 return
             else:
                 logger.warning(

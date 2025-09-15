@@ -885,8 +885,8 @@ async def portfolio_hp_backend_setup(
 
     yield portfolio_ui, hp_gui, strategy_executor_fixture
 
-    # Cleanup strategies
-    for strategy in strategy_executor_fixture.strategies.values():
+    if strategy_executor_fixture.strategies:
+        strategy = strategy_executor_fixture.strategies["1000"]
         strategy.stop_event.set()
         await wait_for_condition(condition_func=lambda: not strategy.worker_active)
 

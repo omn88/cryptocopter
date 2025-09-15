@@ -490,9 +490,29 @@ class HpStrategy:
                 hasattr(self.sell.current_position, "sell_order")
                 and self.sell.current_position.sell_order
             ):
-                sell_realized_quantity = (
-                    self.sell.current_position.sell_order.realized_quantity
-                )
+                # For convert positions, handle realized_quantity based on state
+                if (
+                    hasattr(self.sell.current_position, "sell_type")
+                    and self.sell.current_position.sell_type == SellType.CONVERT
+                ):
+                    # For convert positions, check if the position is completed (SOLD state)
+                    if (
+                        hasattr(self.sell.current_position, "state_info")
+                        and self.sell.current_position.state_info.state == State.SOLD
+                    ):
+                        # After completion, show the actual realized quantity
+                        sell_realized_quantity = (
+                            self.sell.current_position.sell_order.realized_quantity
+                        )
+                    else:
+                        # During initialization and processing, use 0.0 as parent realized_quantity
+                        # since it represents what has been actually sold, not the inventory quantity
+                        sell_realized_quantity = 0.0
+                else:
+                    # For regular positions, use the actual realized quantity
+                    sell_realized_quantity = (
+                        self.sell.current_position.sell_order.realized_quantity
+                    )
 
         # Calculate expected quantity from budget and price configuration
         # For DCA mode, this is the total across all orders
@@ -601,13 +621,22 @@ class HpStrategy:
         )
 
         # Set specific child ID for sell operations
-        parent_id = str(self.sell.current_position.config.hp_id)
-        # For two-hop trades (child positions), keep the original ID (e.g., 1000a)
-        # For regular trades, append _SELL suffix (e.g., 1000_SELL)
-        if self.sell.current_position.config.is_child:
-            hp_update.hp_id = parent_id
+        full_hp_id = str(self.sell.current_position.config.hp_id)
+
+        # For convert and two-hop positions, the suffix is already added during position creation
+        # so we just use the full ID as-is. For regular sell positions, we need to add _SELL suffix.
+        if (
+            self.sell.current_position.config.is_child
+            or self.sell.current_position.sell_type == SellType.CONVERT
+        ):
+            # Use the existing ID - suffix already added during position creation
+            hp_update.hp_id = full_hp_id
         else:
-            hp_update.hp_id = f"{parent_id}_SELL"
+            # For regular sell positions, extract parent ID and add _SELL suffix
+            if "_SELL" in full_hp_id:
+                hp_update.hp_id = full_hp_id  # Already has _SELL suffix
+            else:
+                hp_update.hp_id = f"{full_hp_id}_SELL"
 
         # Add sell state information for UI sell child state processing
         hp_update.sell_state = self.sell.current_position.state_info.state.value

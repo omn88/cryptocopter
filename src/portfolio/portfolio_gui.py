@@ -682,6 +682,16 @@ class PortfolioUI(BoxLayout):
             # Complete sell - remove the entire HP inventory item
             parent_coin["lots"].remove(lot_to_update)
             self.inventory.remove(inventory_item_to_update)
+
+            # CRITICAL FIX: Delete inventory item from database
+            try:
+                await self.db.delete_inventory_item(inventory_item_to_update.id)
+                logger.debug(
+                    f"Deleted inventory item from database: {inventory_item_to_update.id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to delete inventory item from database: {e}")
+
             logger.info(
                 f"Removed HP lot {lot_id_to_find} completely (sold {quantity_sold})"
             )
@@ -692,6 +702,16 @@ class PortfolioUI(BoxLayout):
             inventory_item_to_update.available_quantity = (
                 new_quantity  # Assume all available for now
             )
+
+            # CRITICAL FIX: Persist updated inventory item to database
+            try:
+                await self.db.update_inventory_item(inventory_item_to_update)
+                logger.debug(
+                    f"Persisted partial sell update to database: {inventory_item_to_update.id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist partial sell update to database: {e}")
+
             logger.info(
                 f"Reduced HP lot {lot_id_to_find} from {inventory_item_to_update.quantity + quantity_sold} to {new_quantity}"
             )
@@ -1370,6 +1390,17 @@ class PortfolioUI(BoxLayout):
             existing_item.available_quantity += filled_quantity
             existing_item.buy_price = weighted_avg_price
 
+            # CRITICAL FIX: Persist updated inventory item to database
+            try:
+                await self.db.update_inventory_item(existing_item)
+                logger.debug(
+                    f"Persisted updated inventory item to database: {inventory_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to persist updated inventory item to database: {e}"
+                )
+
             logger.info(
                 f"Updated existing HP item {inventory_id}: new qty={existing_item.quantity}, weighted avg price=${weighted_avg_price:.2f}"
             )
@@ -1388,8 +1419,18 @@ class PortfolioUI(BoxLayout):
                 notes=f"HP buy position {hp_id}",
             )
 
-            # Add to main inventory list
+            # Add to main inventory list and save to database
             self.inventory.append(new_lot)
+
+            # CRITICAL FIX: Persist new inventory item to database
+            try:
+                await self.db.insert_inventory_item(new_lot)
+                logger.debug(
+                    f"Persisted new inventory item to database: {inventory_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist new inventory item to database: {e}")
+
             logger.info(
                 f"Created new HP item {inventory_id}: qty={filled_quantity}, price=${buy_price}"
             )
@@ -1538,6 +1579,17 @@ class PortfolioUI(BoxLayout):
             existing_item.available_quantity += event.quantity_bought
             existing_item.buy_price = weighted_avg_price
 
+            # CRITICAL FIX: Persist updated inventory item to database
+            try:
+                await self.db.update_inventory_item(existing_item)
+                logger.debug(
+                    f"Persisted updated inventory item to database: {inventory_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to persist updated inventory item to database: {e}"
+                )
+
             logger.info(
                 f"Updated existing HP item {inventory_id}: new qty={existing_item.quantity}, weighted avg price=${weighted_avg_price:.2f}"
             )
@@ -1556,8 +1608,18 @@ class PortfolioUI(BoxLayout):
                 notes=f"HP buy position {event.hp_id}",
             )
 
-            # Add to main inventory list
+            # Add to main inventory list and save to database
             self.inventory.append(new_lot)
+
+            # CRITICAL FIX: Persist new inventory item to database
+            try:
+                await self.db.insert_inventory_item(new_lot)
+                logger.debug(
+                    f"Persisted new inventory item to database: {inventory_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist new inventory item to database: {e}")
+
             logger.info(
                 f"Created new HP item {inventory_id}: qty={event.quantity_bought}, price=${event.buy_price}"
             )
@@ -1797,5 +1859,16 @@ class PortfolioUI(BoxLayout):
                     locked_quantity=0.0,
                 )
                 self.inventory.append(new_inventory_item)
+
+                # CRITICAL FIX: Persist new inventory item to database
+                try:
+                    await self.db.insert_inventory_item(new_inventory_item)
+                    logger.debug(
+                        f"Persisted new {currency} inventory item to database: {new_inventory_item.id}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to persist new {currency} inventory item to database: {e}"
+                    )
 
             logger.info(f"Created new {currency} entry with {amount}")

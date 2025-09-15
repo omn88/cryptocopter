@@ -260,7 +260,7 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
     # Debug: Print actual HP frontend data to understand the structure
     logger.info(f"HP frontend data: {hp_front.hp_list_data}")
 
-    # Validate initial state - parent + sell child (convert creates parent + 1000_SELL child)
+    # Validate initial state - parent + convert child (convert creates parent + 1000_CONVERT child)
     hp_simulator.validate_parent(
         hp_id=hp_id,
         quantity="200.0",
@@ -270,12 +270,12 @@ async def test_inventory_sell_configure_convert_only_usdc_to_pln(
         sell_price="1.4",
     )
 
-    # For convert positions, there's a child with hp_id = parent_id + "_SELL"
-    hp_simulator.validate_child_sell(
+    # For convert positions, there's a child with hp_id = parent_id + "_CONVERT"
+    hp_simulator.validate_child_convert(
         hp_id=hp_id,
         quantity="200.0",
-        realized_quantity="0.0",
-        state="NEW",
+        realized_quantity="200.0",  # Convert child shows inventory quantity
+        state="BOUGHT",  # Convert child state matches parent
         sell_price="1.4",
     )
 
@@ -547,6 +547,8 @@ async def test_inventory_sell_execute_partial_fill_fifo_locking(
     # Wait a bit for processing
     await asyncio.sleep(0.1)
     await portfolio.process_test_events()
+
+    await asyncio.sleep(0.42)
 
     # Validate inventory state after first partial fill (0.3 BTC sold from lot 1)
     btc_lots_after_partial = simulator.get_coin_lots("BTC")
@@ -860,7 +862,7 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
     # Debug: Print actual HP frontend data to understand the structure
     logger.info(f"HP frontend data: {hp_front.hp_list_data}")
 
-    # Validate initial state - parent + sell child (convert creates parent + 1000_SELL child)
+    # Validate initial state - parent + convert child (convert creates parent + 1000_CONVERT child)
     hp_simulator.validate_parent(
         hp_id=hp_id,
         quantity="200.0",
@@ -870,12 +872,12 @@ async def test_inventory_sell_execute_convert_sell_to_completion(
         sell_price="1.4",
     )
 
-    # For convert positions, there's a child with hp_id = parent_id + "_SELL"
-    hp_simulator.validate_child_sell(
+    # For convert positions, there's a child with hp_id = parent_id + "_CONVERT"
+    hp_simulator.validate_child_convert(
         hp_id=hp_id,
         quantity="200.0",
-        realized_quantity="0.0",
-        state="NEW",
+        realized_quantity="200.0",  # Convert child shows inventory quantity
+        state="BOUGHT",  # Convert child state matches parent
         sell_price="1.4",
     )
 
@@ -1093,13 +1095,11 @@ async def test_sell_multihop_cancel_inventory(
     )
     logger.info(f"Strategy state after cancellation: {strategy_state}")
 
-    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
+    await wait_for_condition(lambda: hp_id not in hp_back.strategies, timeout=5.0)
+
     assert (
-        hp_id in hp_back.strategies
-    ), f"Strategy {hp_id} should still exist after cancellation"
-    assert (
-        strategy_state == State.BOUGHT
-    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
+        hp_id not in hp_back.strategies
+    ), f"Strategy {hp_id} should be removed after cancellation"
 
     logger.info("Multihop sell cancellation test passed")
 

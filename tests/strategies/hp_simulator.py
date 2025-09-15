@@ -1873,7 +1873,9 @@ class HPSimulator:
 
         return strategy
 
-    async def open_first_sell_position_from_two_hop_trade(self):
+    async def open_first_sell_position_from_two_hop_trade(
+        self, quantity: float = 1000.0
+    ):
         assert len(self.back.strategies) == 0
 
         coin = "AXL"
@@ -1884,7 +1886,7 @@ class HPSimulator:
                 coin=coin,
                 buy_price=0.2928,
                 sell_price=1.14,
-                quantity=1000.0,
+                quantity=quantity,
                 end_currency="PLN",
                 symbol_info=self.back.symbols_info[f"{coin}USDT"],
             ),
@@ -1919,23 +1921,24 @@ class HPSimulator:
         assert self.front.hp_list_data[0]["state"] == State.BOUGHT.value
         assert self.front.hp_list_data[0]["coin"] == f"{coin}USD"
         assert self.front.hp_list_data[0]["hp_id"] == "1000"
-        assert (
-            self.front.hp_list_data[0]["buy_price"] == "0.2928"
-        ), self.front.hp_list_data[0]["buy_price"]
-        assert self.front.hp_list_data[0]["quantity"] == "1000.0"
-        assert self.front.hp_list_data[0]["quantity_usd"] == "292.8"
+        assert self.front.hp_list_data[0]["buy_price"] == "0.2928"
+        assert self.front.hp_list_data[0]["quantity"] == str(quantity)
+        assert self.front.hp_list_data[0]["quantity_usd"] == str(
+            quantity * float(self.front.hp_list_data[0]["buy_price"])
+        )
         assert self.front.hp_list_data[0]["sell_price"] == "1.14"
 
         logger.info("HP LIST: %s", self.front.hp_list_data)
-        assert (
-            self.front.hp_list_data[0]["expected_return"] == "847.2"
+        assert self.front.hp_list_data[0]["expected_return"] == str(
+            quantity * float(self.front.hp_list_data[0]["sell_price"])
+            - quantity * float(self.front.hp_list_data[0]["buy_price"])
         ), f"ER: {self.front.hp_list_data[0]['expected_return']}"
         assert self.front.hp_list_data[0]["current_price"] == "0.0"
         assert self.front.hp_list_data[0]["net"] == "0.0"
 
         sell_order = strategy.sell.current_position.sell_order
 
-        assert sell_order.quantity == 1000
+        assert sell_order.quantity == quantity
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
         assert sell_order.order_id == 0
@@ -1972,7 +1975,7 @@ class HPSimulator:
         assert strategy.sell.current_position.state_info.state == State.NEW
         assert sell_order.order_id == 112800750, f"Order ID: {sell_order.order_id}"
         assert sell_order.status == ORDER_STATUS_NEW
-        assert sell_order.quantity == 1000
+        assert sell_order.quantity == 1000.0
         assert sell_order.price == 0.00000356
         assert sell_order.realized_quantity == 0.0
 
@@ -2591,3 +2594,71 @@ class HPSimulator:
             assert (
                 actual_buy_state == expected_buy_state
             ), f"Buy state: expected {expected_buy_state}, got {actual_buy_state}"
+
+    def validate_child_convert(
+        self,
+        hp_id,
+        quantity,
+        realized_quantity,
+        state,
+        sell_price=None,
+        quantity_usd=None,
+        current_price=None,
+        net=None,
+        net_percent=None,
+    ):
+        """
+        Comprehensive validation for child CONVERT in the frontend UI data.
+        Child CONVERT realized_quantity represents inventory quantity being sold.
+        """
+        hp_list_data = self.front.hp_list_data
+        convert_child_id = f"{hp_id}_CONVERT"
+        convert_child = next(
+            (item for item in hp_list_data if item["hp_id"] == convert_child_id), None
+        )
+        assert (
+            convert_child is not None
+        ), f"CONVERT child with hp_id {convert_child_id} not found"
+
+        # Core attributes - always validated
+        assert (
+            convert_child["quantity"] == quantity
+        ), f"CONVERT child quantity: expected {quantity}, got {convert_child['quantity']}"
+        assert (
+            convert_child["realized_quantity"] == realized_quantity
+        ), f"CONVERT child realized_quantity: expected {realized_quantity}, got {convert_child['realized_quantity']}"
+        assert (
+            convert_child["state"] == state
+        ), f"CONVERT child state: expected {state}, got {convert_child['state']}"
+        assert (
+            convert_child["side"] == "SELL"
+        ), f"CONVERT child side: expected SELL, got {convert_child['side']}"
+        assert (
+            convert_child["is_child"] == True
+        ), f"CONVERT child is_child: expected True, got {convert_child['is_child']}"
+
+        # Optional attributes - only validated if provided
+        if sell_price is not None:
+            assert (
+                convert_child["sell_price"] == sell_price
+            ), f"CONVERT child sell_price: expected {sell_price}, got {convert_child['sell_price']}"
+
+        if quantity_usd is not None:
+            assert (
+                convert_child["quantity_usd"] == quantity_usd
+            ), f"CONVERT child quantity_usd: expected {quantity_usd}, got {convert_child['quantity_usd']}"
+
+        if current_price is not None:
+            assert (
+                convert_child["current_price"] == current_price
+            ), f"CONVERT child current_price: expected {current_price}, got {convert_child['current_price']}"
+
+        if net is not None:
+            assert (
+                convert_child["net"] == net
+            ), f"CONVERT child net: expected {net}, got {convert_child['net']}"
+
+        if net_percent is not None:
+            assert (
+                convert_child["net_percent"] == net_percent
+            ), f"CONVERT child net_percent: expected {net_percent}, got {convert_child['net_percent']}"

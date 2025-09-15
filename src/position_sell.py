@@ -2,6 +2,7 @@ import asyncio
 import logging
 import queue
 from typing import List
+from dataclasses import replace
 from binance.enums import (
     TIME_IN_FORCE_GTC,
     ORDER_STATUS_PARTIALLY_FILLED,
@@ -154,6 +155,8 @@ class HPPositionSell:
             )
             return [sell_position]
 
+        # Symbol ends with USDT - this is a convert operation
+        # Keep the original config (with clean parent HP ID) for the position
         sell_position = SellPosition(
             config=self.original_position.config,
             state_info=self.original_position.state_info,
@@ -164,6 +167,12 @@ class HPPositionSell:
             ),
             sell_type=SellType.CONVERT,
         )
+        # Add _CONVERT suffix only if not already present (to handle recovery cases)
+        original_hp_id = str(self.original_position.config.hp_id)
+        if not original_hp_id.endswith("_CONVERT"):
+            sell_position.config.hp_id = f"{original_hp_id}_CONVERT"
+        else:
+            sell_position.config.hp_id = original_hp_id
         return [sell_position]
 
     def _build_2hop_positions(
