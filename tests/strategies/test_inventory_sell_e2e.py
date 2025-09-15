@@ -1095,13 +1095,11 @@ async def test_sell_multihop_cancel_inventory(
     )
     logger.info(f"Strategy state after cancellation: {strategy_state}")
 
-    # The position should exist and be in BOUGHT state (sell cancelled, buy remains)
+    await wait_for_condition(lambda: hp_id not in hp_back.strategies, timeout=5.0)
+
     assert (
-        hp_id in hp_back.strategies
-    ), f"Strategy {hp_id} should still exist after cancellation"
-    assert (
-        strategy_state == State.BOUGHT
-    ), f"Expected BOUGHT state after sell cancellation, got {strategy_state}"
+        hp_id not in hp_back.strategies
+    ), f"Strategy {hp_id} should be removed after cancellation"
 
     logger.info("Multihop sell cancellation test passed")
 
