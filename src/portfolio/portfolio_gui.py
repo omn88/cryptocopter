@@ -1117,7 +1117,11 @@ class PortfolioUI(BoxLayout):
         parent_coins = [
             coin for coin in self.coin_list_data if not coin.get("is_lot_row", False)
         ]
-        parent_coins.sort(key=lambda x: float(x["total_usd"]), reverse=True)
+        # Defensive: ensure all coins have total_usd field before sorting
+        for coin in parent_coins:
+            if "total_usd" not in coin:
+                coin["total_usd"] = "0.00"
+        parent_coins.sort(key=lambda x: float(x.get("total_usd", "0.00")), reverse=True)
 
         # Rebuild list maintaining expansion states
         new_coin_list = []
@@ -1196,7 +1200,7 @@ class PortfolioUI(BoxLayout):
 
         # Update saldo labels
         self.saldo_usd_label = round(
-            sum([float(coin["total_usd"]) for coin in parent_coins]), 2
+            sum([float(coin.get("total_usd", "0.00")) for coin in parent_coins]), 2
         )
         if last_btc_price:
             self.saldo_btc_label = round(self.saldo_usd_label / last_btc_price, 8)
