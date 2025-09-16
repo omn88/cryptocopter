@@ -21,6 +21,7 @@ from src.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPBuyData,
+    HPBuyOrdersPlaced,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
@@ -399,8 +400,6 @@ class HpStrategy:
 
         logger.info("HP update buy price: %s", buy_price)
 
-        # logger.info("BUY PRICE: %s", buy_price)
-
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
 
         quantity_usd = symbol_info.adjust_price(
@@ -431,10 +430,6 @@ class HpStrategy:
         # Calculate total bought quantity across all cycles by querying database
         if self.buy.orders:
             try:
-                # Get all filled buy orders for this HP from database to get cumulative total
-                import asyncio
-                from src.database.trading_database import TradingDatabase
-
                 db = TradingDatabase()
 
                 # Try different approaches for async call in sync context
@@ -653,7 +648,7 @@ class HpStrategy:
 
     def calculate_trigger_send_orders_price_buy(self):
 
-        logger.info(self.buy.orders)
+        # logger.info(self.buy.orders)
 
         price = (
             self.buy.data.config.symbol_info.adjust_price(
@@ -722,7 +717,8 @@ class HpStrategy:
 
     async def send_buy_orders(self, *args, **kwargs) -> None:
         logger.info("Sending %s BUY", self.buy.data.config.symbol_info.symbol)
-        self.balance -= self.get_remaining_quantity_buy()
+        budget_amount = self.get_remaining_quantity_buy()
+        self.balance -= budget_amount
 
         self.buy.prepare_orders()
         self.buy.orders = await self.buy.open_position()
@@ -749,6 +745,18 @@ class HpStrategy:
         await self.db.upsert_buy_price_level(
             data=self.buy.data, strategy_state=self.state
         )
+
+        hp_orders_placed = HPBuyOrdersPlaced(
+            hp_id=str(self.buy.data.config.hp_id),
+            coin=self.buy.data.config.coin,
+            budget_amount=budget_amount,
+            end_currency="USDC",  # Default to USDC for budget locking
+        )
+        self._send_portfolio_event(EventName.HP_BUY_ORDERS_PLACED, hp_orders_placed)
+        logger.info(
+            f"Sent HP buy orders placed event to lock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+        )
+
         self.send_buy_position_to_ui()
 
     def conditions_for_cancelling_unfilled_buy_orders(self, *args, **kwargs) -> bool:
@@ -774,18 +782,22 @@ class HpStrategy:
     async def cancel_unfilled_buy_orders(self, *args, **kwargs) -> None:
         logger.info("Cancelling %s", self.buy.data.state_info.side.value)
         logger.info("Orders: %s", self.buy.orders)
-        self.balance += self.get_remaining_quantity_buy()
+        budget_amount = self.get_remaining_quantity_buy()
+        self.balance += budget_amount
         await self.buy.cancel_position()
 
         # Send HP position cancelled event to portfolio (for buy cancellations)
-        total_quantity = sum(order.quantity for order in self.buy.orders)
+        # For buy orders, we need to unlock the budget amount (USDC), not the coin quantity
         hp_cancelled = HPPositionCancelled(
             hp_id=self.buy.data.config.hp_id,
-            coin=self.buy.data.config.coin,
-            quantity=total_quantity,
+            coin="USDC",  # The currency being unlocked (budget currency)
+            quantity=budget_amount,  # Amount of USDC budget to unlock
             position_type="BUY",
         )
         self._send_portfolio_event(EventName.HP_POSITION_CANCELLED, hp_cancelled)
+        logger.info(
+            f"Sent HP buy cancellation event to unlock {budget_amount} USDC budget for position {self.buy.data.config.hp_id}"
+        )
 
         self.buy.data.state_info.state = State.NEW
 
@@ -1979,8 +1991,6 @@ class HpStrategy:
                 event = self.worker_queue.get_nowait()
                 assert isinstance(event, Event)
 
-                # logger.info("New event: %s", event)
-
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
                     self.ticker_update = event.content
@@ -2002,15 +2012,10 @@ class HpStrategy:
                     logger.info(
                         f"[WORKER QUEUE] Processing signal: {self.signal_update}"
                     )
-                    logger.info(f"[WORKER QUEUE] Current state: {self.state}")
                     await self.process_signal()  # pylint: disable=no-member
-                    logger.info(
-                        f"[WORKER QUEUE] After process_signal, state: {self.state}"
-                    )
 
                 self.worker_queue.task_done()
             except queue.Empty:
-                # logger.info("Queue empty, waiting 0.1s")
                 await asyncio.sleep(0.1)
         logger.info("Stop event IS SET, worker closed")
         self.worker_active = False
