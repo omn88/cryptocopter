@@ -4,7 +4,6 @@ import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
-from copy import deepcopy
 from typing import Dict, List, Optional
 from decouple import Config, RepositoryEnv
 from binance.enums import (
@@ -38,7 +37,6 @@ from src.identifiers import (
     HPSellPositionCreated,
     HPBuyPositionCreated,
     HPSellPositionCompleted,
-    HPBuyPositionFilled,
     HPPositionCancelled,
 )
 from src.common.symbol_info import SymbolInfo

@@ -21,6 +21,7 @@ from src.identifiers import (
     ExecutionReport,
     HPBuyConfig,
     HPBuyData,
+    HPBuyOrdersPlaced,
     HPBuyPositionFilled,
     HPBuyPositionPartiallyFilled,
     HPPositionCancelled,
@@ -399,8 +400,6 @@ class HpStrategy:
 
         logger.info("HP update buy price: %s", buy_price)
 
-        # logger.info("BUY PRICE: %s", buy_price)
-
         quantity = symbol_info.adjust_quantity(self.calculate_remaining_quantity())
 
         quantity_usd = symbol_info.adjust_price(
@@ -431,10 +430,6 @@ class HpStrategy:
         # Calculate total bought quantity across all cycles by querying database
         if self.buy.orders:
             try:
-                # Get all filled buy orders for this HP from database to get cumulative total
-                import asyncio
-                from src.database.trading_database import TradingDatabase
-
                 db = TradingDatabase()
 
                 # Try different approaches for async call in sync context
@@ -653,7 +648,7 @@ class HpStrategy:
 
     def calculate_trigger_send_orders_price_buy(self):
 
-        logger.info(self.buy.orders)
+        # logger.info(self.buy.orders)
 
         price = (
             self.buy.data.config.symbol_info.adjust_price(
@@ -750,9 +745,6 @@ class HpStrategy:
         await self.db.upsert_buy_price_level(
             data=self.buy.data, strategy_state=self.state
         )
-
-        # Send portfolio event to lock budget in inventory
-        from src.identifiers import HPBuyOrdersPlaced
 
         hp_orders_placed = HPBuyOrdersPlaced(
             hp_id=str(self.buy.data.config.hp_id),
@@ -1999,8 +1991,6 @@ class HpStrategy:
                 event = self.worker_queue.get_nowait()
                 assert isinstance(event, Event)
 
-                # logger.info("New event: %s", event)
-
                 if EventName.TICKER == event.name:
                     assert isinstance(event.content, TickerUpdate)
                     self.ticker_update = event.content
@@ -2022,15 +2012,10 @@ class HpStrategy:
                     logger.info(
                         f"[WORKER QUEUE] Processing signal: {self.signal_update}"
                     )
-                    logger.info(f"[WORKER QUEUE] Current state: {self.state}")
                     await self.process_signal()  # pylint: disable=no-member
-                    logger.info(
-                        f"[WORKER QUEUE] After process_signal, state: {self.state}"
-                    )
 
                 self.worker_queue.task_done()
             except queue.Empty:
-                # logger.info("Queue empty, waiting 0.1s")
                 await asyncio.sleep(0.1)
         logger.info("Stop event IS SET, worker closed")
         self.worker_active = False
