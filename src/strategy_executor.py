@@ -102,6 +102,12 @@ class StrategyExecutor:
         self._websocket_error_count = 0
         self._last_websocket_error_time = 0
         self._websocket_error_suppression_time = 600  # 10 minutes
+
+        # BinanceClient restart tracking for circuit breaker pattern
+        self._restart_count = 0
+        self._last_restart_time = 0
+        self._restart_base_delay = 60  # Start with 1 minute delay
+        self._max_restart_delay = 3600  # Maximum 1 hour delay
         self.loop = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
@@ -321,17 +327,42 @@ class StrategyExecutor:
             ):
                 is_unrecoverable = True
 
-        # If unrecoverable, restart websocket client with infinite retry
+        # If unrecoverable, restart websocket client with circuit breaker pattern
         if is_unrecoverable:
-            logger.error(
-                "Unrecoverable websocket error detected: %s. Restarting BinanceClient and resubscribing all strategies.",
-                error_msg,
+            # Calculate delay using circuit breaker pattern
+            self._restart_count += 1
+            time_since_last_restart = current_time - self._last_restart_time
+
+            # If it's been more than 10 minutes since last restart, reset counter
+            if time_since_last_restart > 600:
+                self._restart_count = 1
+
+            # Calculate progressive delay: base_delay * (restart_count ^ 1.5), capped at max
+            restart_delay = min(
+                self._restart_base_delay * (self._restart_count**1.5),
+                self._max_restart_delay,
             )
+
+            logger.error(
+                "Unrecoverable websocket error detected: %s. Restart #%d. "
+                "Waiting %.1f seconds before restarting to allow network to stabilize...",
+                error_msg,
+                self._restart_count,
+                restart_delay,
+            )
+
+            # Wait before attempting restart to let network stabilize
+            await asyncio.sleep(restart_delay)
+            self._last_restart_time = time.time()  # Update after the delay
+
             retry_count = 0
             while True:
                 try:
                     # Stop current client if exists
-                    logger.info("Attempting to restart BinanceClient...")
+                    logger.info(
+                        "Attempting to restart BinanceClient (restart #%d)...",
+                        self._restart_count,
+                    )
                     if self.client:
                         try:
                             await self.client.close_connection()
@@ -353,16 +384,24 @@ class StrategyExecutor:
                     # Resubscribe all strategies
                     await self._resubscribe_all_strategies()
                     logger.info("Resubscription after restart complete.")
+
+                    # Reset restart count on successful restart
+                    if retry_count == 0:  # Only reset if first attempt succeeded
+                        logger.info(
+                            "WebSocket client restart successful. Circuit breaker reset."
+                        )
+                        # Don't reset _restart_count here - keep it for progressive delay
                     break
                 except Exception as e:
                     retry_count += 1
+                    restart_retry_delay = min(30, 2**retry_count)
                     logger.error(
                         "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
                         retry_count,
                         e,
-                        min(30, 2**retry_count),
+                        restart_retry_delay,
                     )
-                    await asyncio.sleep(min(30, 2**retry_count))
+                    await asyncio.sleep(restart_retry_delay)
             return
 
         # Check if this is a keepalive timeout error (legacy logic)
