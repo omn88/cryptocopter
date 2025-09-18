@@ -5,7 +5,6 @@ import queue
 import logging
 import time
 from typing import Any, Dict, List, Set, Optional
-import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -26,7 +25,6 @@ from src.identifiers import (
     Event,
     EventName,
     HPSellData,
-    InventoryItem,
     RemoveRecord,
     State,
     StateInfo,

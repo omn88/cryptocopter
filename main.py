@@ -17,6 +17,7 @@ import warnings
 import kivy_config  # noinspection PyUnresolvedReferences
 import logging_config  # noinspection PyUnresolvedReferences
 import logging
+from typing import NoReturn
 from decouple import Config, RepositoryEnv
 from src.identifiers import BinanceClient
 from src.common.symbol_info import fetch_symbol_info
@@ -44,14 +45,16 @@ window_height = 640  # Set your desired height
 Window.size = (window_width, window_height)
 
 
-async def main():
+async def main() -> None:
     """
     The main function of the module.
 
     This function creates an instance of AsyncApp and starts the application's main event loop.
 
     Returns:
-        None"""  # Initialize SQLite database
+        None
+    """
+    # Initialize SQLite database
     db = TradingDatabase()  # Uses default "trading.db" file
 
     client = BinanceClient(

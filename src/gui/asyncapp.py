@@ -18,6 +18,7 @@ from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.tabbedpanel import TabbedPanelItem
+from kivy.uix.widget import Widget
 from src.identifiers import (
     SubscriptionInfo,
     SubscriptionTarget,
@@ -86,10 +87,10 @@ class AsyncApp(App):
         self.strategies: Dict = {}
         self.dynamic_spinners: Dict = {}
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
 
-    def build(self):
+    def build(self) -> Widget:
         """Builds the application.
 
         Returns:
@@ -101,7 +102,7 @@ class AsyncApp(App):
         self.root = Builder.load_file("src/gui/asyncapp.kv")
         return self.root
 
-    def on_start(self):
+    def on_start(self) -> None:
         self.setup_portfolio_manager()
         asyncio.create_task(self.load_all_active_strategies())
 
@@ -148,7 +149,7 @@ class AsyncApp(App):
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
-    async def load_all_active_strategies(self):
+    async def load_all_active_strategies(self) -> None:
         active_strategies = await self.db.fetch_all_active_strategies()
         if not active_strategies:
             logger.info("No active strategy found")
@@ -162,12 +163,16 @@ class AsyncApp(App):
                 strat = {}
                 strat["name"] = strategy_name
                 self.active_strategies.append(strat)
-                self.setup_hp_manager(
-                    strategy_id=strategy.get("strategy_id"),
-                    symbols_info=self.symbols_info,
-                )
+                strategy_id = strategy.get("strategy_id")
+                if strategy_id is not None:
+                    self.setup_hp_manager(
+                        strategy_id=strategy_id,
+                        symbols_info=self.symbols_info,
+                    )
 
-    def setup_hp_manager(self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]):
+    def setup_hp_manager(
+        self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]
+    ) -> None:
 
         logger.info("Setting up HP Manager with strategy ID: %s", strategy_id)
         Builder.load_file("src/gui/hp_manager/hpfront.kv")
@@ -225,7 +230,7 @@ class AsyncApp(App):
 
         logger.info("HP Manager setup complete.")
 
-    def start_strategy(self):
+    def start_strategy(self) -> None:
         """Starts a new strategy."""
         asyncio.create_task(self.on_start_strategy())
 
@@ -254,15 +259,15 @@ class AsyncApp(App):
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
-    def cancel_all_strategies(self):
+    def cancel_all_strategies(self) -> None:
         asyncio.create_task(self.shutdown())
 
-    def on_stop(self):
+    def on_stop(self) -> None:
         """Override the on_stop method to handle application shutdown."""
         logger.info("Application is shutting down. Cleaning up resources.")
-        self.shutdown()
+        asyncio.create_task(self.shutdown())
 
-    def shutdown(self):
+    async def shutdown(self) -> None:
         """Handle the shutdown process for gracefully stopping all systems and resources."""
         # First, cancel all running strategies
         if self.trading_systems:
@@ -273,17 +278,19 @@ class AsyncApp(App):
                 system.stop()
 
         logger.info("Stop portfolio")
-        self.portfolio.stop()
+        if self.portfolio:
+            self.portfolio.stop()
 
-        # Stop the broker        logger.info("Stopping the broker...")
+        # Stop the broker
+        logger.info("Stopping the broker...")
         self.broker.stop()
 
         logger.info("All systems stopped successfully. Application exiting.")
 
-    def on_strategy_change(self, strategy_name):
+    def on_strategy_change(self, strategy_name: str) -> None:
         self.log_spinner_change("Strategy", strategy_name)
 
-    def log_spinner_change(self, spinner, new_value):
+    def log_spinner_change(self, spinner: str, new_value: str) -> None:
         """Logs a message when a spinner value changes.
 
         Args:
