@@ -1124,6 +1124,7 @@ class HpStrategy:
         hp_buy_filled = HPBuyPositionFilled(
             hp_id=self.buy.data.config.hp_id,
             coin=self.buy.data.config.coin,
+            symbol=self.buy.data.config.symbol_info.symbol,
             quantity_bought=total_quantity_bought,
             buy_price=average_buy_price,
             total_cost=total_cost,

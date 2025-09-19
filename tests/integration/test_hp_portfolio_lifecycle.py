@@ -57,6 +57,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         quantity_bought=0.3,
         buy_price=50000.0,  # Same as mock_inventory BTC price
         total_cost=15000.0,
+        symbol="BTCUSDC",
     )
 
     await portfolio_ui.handle_hp_buy_filled(hp_buy_same_price)
@@ -94,6 +95,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         quantity_bought=0.2,
         buy_price=51000.0,  # Different price - should create new child lot
         total_cost=10200.0,
+        symbol="BTCUSDC",
     )
 
     await portfolio_ui.handle_hp_buy_filled(hp_buy_different_price)
@@ -121,6 +123,7 @@ async def test_complete_hp_lifecycle_portfolio_communication(portfolio_ui: Portf
         quantity_bought=0.1,
         buy_price=51000.0,  # Same as step 2 - should update existing lot at this price
         total_cost=5100.0,
+        symbol="BTCUSDC",
     )
 
     await portfolio_ui.handle_hp_buy_filled(hp_buy_same_different_price)
