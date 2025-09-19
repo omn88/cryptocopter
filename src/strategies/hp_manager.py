@@ -1702,12 +1702,17 @@ class HpStrategy:
         )
 
         # Send fill event to portfolio for inventory updates
-        if self.portfolio_event_callback:
+        # Only send PARTIALLY_FILLED if not all orders are filled (to avoid duplicate with FILLED event)
+        all_orders_filled = all(
+            order.status == ORDER_STATUS_FILLED for order in self.buy.orders
+        )
+
+        if self.portfolio_event_callback and not all_orders_filled:
             self.portfolio_event_callback(
                 EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
                 HPBuyPositionPartiallyFilled(
                     hp_id=self.buy.data.config.hp_id,
-                    coin=self.buy.data.config.symbol_info.symbol,
+                    coin=self.buy.data.config.coin,
                     filled_quantity=self.execution_report.last_executed_quantity,
                     total_filled=self.execution_report.cumulative_filled_quantity,
                     buy_price=self.execution_report.price,
@@ -1758,7 +1763,7 @@ class HpStrategy:
                 EventName.HP_BUY_POSITION_PARTIALLY_FILLED,
                 HPBuyPositionPartiallyFilled(
                     hp_id=self.buy.data.config.hp_id,
-                    coin=self.buy.data.config.symbol_info.symbol,
+                    coin=self.buy.data.config.coin,
                     filled_quantity=self.execution_report.last_executed_quantity,
                     total_filled=self.execution_report.cumulative_filled_quantity,
                     buy_price=self.execution_report.price,
