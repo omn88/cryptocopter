@@ -59,6 +59,31 @@ class MockBroker:
         else:
             logger.warning("No error handler set")
 
+    async def simulate_connection_closed_ok_error(self):
+        """Simulate ConnectionClosedOK error (server going away) - should now trigger circuit breaker"""
+        if self._error_handler:
+            error_msg = {
+                "e": "error",
+                "type": "ConnectionClosedOK",
+                "m": "received 1001 (going away); then sent 1001 (going away)",
+            }
+            logger.info("Simulating ConnectionClosedOK (going away) error...")
+            await self._error_handler(error_msg)
+        else:
+            logger.warning("No error handler set")
+
+    async def simulate_ticker_timeout_error(self):
+        """Simulate ticker timeout error from backup circuit breaker"""
+        if self._error_handler:
+            error_msg = {
+                "type": "TickerTimeoutError",
+                "m": "Ticker silent for 320.5 seconds - backup circuit breaker activated",
+            }
+            logger.info("Simulating ticker timeout error...")
+            await self._error_handler(error_msg)
+        else:
+            logger.warning("No error handler set")
+
 
 async def test_websocket_error_handling(strategy_executor_fixture):
     """Test the WebSocket error handling functionality with circuit breaker pattern."""
@@ -144,8 +169,36 @@ async def test_websocket_error_handling(strategy_executor_fixture):
             expected_delay_3,
         )
 
+        # Test 5: Verify new ConnectionClosedOK error triggers circuit breaker
+        logger.info(
+            "Test 5: Testing ConnectionClosedOK error triggers circuit breaker..."
+        )
+        restart_count_before = strategy_executor._restart_count
+
+        await mock_broker.simulate_connection_closed_ok_error()
+
+        # Verify restart count increased (should now trigger circuit breaker instead of legacy handling)
+        assert strategy_executor._restart_count == restart_count_before + 1
+        logger.info(
+            "✓ ConnectionClosedOK error correctly triggered circuit breaker (restart count: %d)",
+            strategy_executor._restart_count,
+        )
+
+        # Test 6: Verify ticker timeout error triggers circuit breaker
+        logger.info("Test 6: Testing ticker timeout error triggers circuit breaker...")
+        restart_count_before = strategy_executor._restart_count
+
+        await mock_broker.simulate_ticker_timeout_error()
+
+        # Verify restart count increased
+        assert strategy_executor._restart_count == restart_count_before + 1
+        logger.info(
+            "✓ Ticker timeout error correctly triggered circuit breaker (restart count: %d)",
+            strategy_executor._restart_count,
+        )
+
         # Verify the circuit breaker resets after time gap
-        logger.info("Test 5: Verifying circuit breaker reset after time gap...")
+        logger.info("Test 7: Verifying circuit breaker reset after time gap...")
         original_last_restart = strategy_executor._last_restart_time
         strategy_executor._last_restart_time = (
             original_last_restart - 700
