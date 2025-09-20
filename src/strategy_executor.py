@@ -4,7 +4,7 @@ import os
 import queue
 import threading
 import time  # Add time import for WebSocket error handling
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from decouple import Config, RepositoryEnv
 from binance.enums import (
     ORDER_STATUS_CANCELED,
@@ -108,12 +108,13 @@ class StrategyExecutor:
         self._last_restart_time = 0
         self._restart_base_delay = 60  # Start with 1 minute delay
         self._max_restart_delay = 3600  # Maximum 1 hour delay
-        self.loop = None
+
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
         self.thread.start()
 
-    def start_loop(self):
+    def start_loop(self) -> None:
         """Starts the asyncio loop in a new thread."""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -189,95 +190,9 @@ class StrategyExecutor:
             except queue.Empty:
                 await asyncio.sleep(0.1)
 
-    def _restore_current_sell_position_for_multihop(self, strategy: HpStrategy):
-        """
-        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
-        """
-        sell_positions = strategy.sell.sell_positions
-        if sell_positions and len(sell_positions) == 2:
-            first_leg = sell_positions[0]
-            second_leg = sell_positions[1]
-            if first_leg.sell_order.status == ORDER_STATUS_FILLED:
-                # Advance current_position to the second leg
-                strategy.sell.current_position = second_leg
-                logger.info(
-                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
-                    second_leg.config.hp_id,
-                )
-
-    async def _restore_all_child_sell_positions_for_multihop(
-        self, strategy: HpStrategy
-    ):
-        """
-        For two-hop sells, after recovery, restore both child sell positions (e.g., hp_id ending with 'a' and 'b') from DB.
-        Set their orders and state, and set current_position to the correct child based on the status of the child positions in the DB.
-        """
-        sell_positions = strategy.sell.sell_positions
-        if not (sell_positions and len(sell_positions) == 2):
-            return
-
-        # Restore each child sell position's order from DB (as before)
-        for pos in sell_positions:
-            orders = await self.db.fetch_orders_for_price_level(
-                hp_id=pos.config.hp_id, side=PositionSide.SHORT.value
-            )
-            if orders:
-                order_dict = orders[0]
-                pos.sell_order.order_id = order_dict["order_id"]
-                pos.sell_order.quantity = order_dict["quantity"]
-                pos.sell_order.precision = pos.config.symbol_info.precision
-                pos.sell_order.price_precision = pos.config.symbol_info.price_precision
-                pos.sell_order.price = order_dict["price"]
-                pos.sell_order.quantity_stable = order_dict["quantity_stable"]
-                pos.sell_order.realized_quantity = order_dict["realized_quantity"]
-                pos.sell_order.status = order_dict["status"]
-                logger.info(
-                    "[Recovery] Patched sell order for child %s: %s",
-                    pos.config.hp_id,
-                    pos.sell_order,
-                )
-            else:
-                logger.info(
-                    "[Recovery] No sell orders found in DB for child %s",
-                    pos.config.hp_id,
-                )
-
-        # Set current_position based on child leg order status
-        first_leg = sell_positions[0]
-        second_leg = sell_positions[1]
-        first_status = first_leg.sell_order.status
-        second_status = second_leg.sell_order.status
-
-        if first_status == ORDER_STATUS_FILLED:
-            strategy.sell.current_position = second_leg
-            logger.info(
-                "[Recovery] Set current_position to second leg after first leg FILLED: %s",
-                second_leg.config.hp_id,
-            )
-        elif first_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
-            strategy.sell.current_position = first_leg
-            logger.info(
-                "[Recovery] Set current_position to first leg (open): %s",
-                first_leg.config.hp_id,
-            )
-        elif second_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
-            strategy.sell.current_position = second_leg
-            logger.info(
-                "[Recovery] Set current_position to second leg (open): %s",
-                second_leg.config.hp_id,
-            )
-        else:
-            # Fallback: set to 'b' if present
-            for pos in sell_positions:
-                if pos.config.hp_id.endswith("b"):
-                    strategy.sell.current_position = pos
-                    logger.info(
-                        "[Recovery] Fallback: Set current_position to child leg 'b': %s",
-                        pos.config.hp_id,
-                    )
-                    break
-
-    def _send_hp_event_to_portfolio(self, event_name: EventName, event_data):
+    def _send_hp_event_to_portfolio(
+        self, event_name: EventName, event_data: Any
+    ) -> None:
         """Send HP events to portfolio for quantity management."""
         if self.portfolio_ui_queue is None:
             logger.warning(
@@ -300,7 +215,7 @@ class StrategyExecutor:
                 f"[STRATEGY EXECUTOR] Failed to send HP event to portfolio: {e}"
             )
 
-    async def _handle_websocket_error(self, error_msg):
+    async def _handle_websocket_error(self, error_msg: str) -> None:
         """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
         current_time = time.time()
 
@@ -437,7 +352,7 @@ class StrategyExecutor:
         # Handle other WebSocket errors normally
         logger.error("WebSocket error: %s", error_msg)
 
-    async def _resubscribe_all_strategies(self):
+    async def _resubscribe_all_strategies(self) -> None:
         """Resubscribe all active strategies after excessive reconnections"""
         logger.info("Resubscribing all active strategy WebSocket streams...")
 
@@ -570,7 +485,7 @@ class StrategyExecutor:
             return strategy
         return []
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
 
@@ -584,7 +499,7 @@ class StrategyExecutor:
         self.thread.join()
         logger.info("Strategy executor thread finished")
 
-    async def close_position(self, close_data: HPClose):
+    async def close_position(self, close_data: HPClose) -> None:
         self.broker.unsubscribe(system_id=close_data.config.hp_id)
         strategy = self.strategies.get(close_data.config.hp_id)
 
@@ -900,7 +815,7 @@ class StrategyExecutor:
         state_info: StateInfo,
         state: State,
         buy_orders: List[Order],
-    ):
+    ) -> None:
         total_quant = sum(order.realized_quantity for order in buy_orders)
         orders_total_quantity = sum(order.quantity for order in buy_orders)
         # Calculate expected quantity from budget and price configuration
@@ -964,7 +879,7 @@ class StrategyExecutor:
 
     def send_sell_position_to_ui(
         self, config: HPSellConfig, state_info: StateInfo, state: State
-    ):
+    ) -> None:
         # Get the correct buy_price - if sell config has 0.0, look up from existing buy position
         buy_price = config.buy_price
         if buy_price == 0.0 and config.hp_id in self.strategies:
@@ -1056,9 +971,8 @@ class StrategyExecutor:
         strategy_data: SellPosition,
         sell_strategy: List[SymbolInfo],
         is_restoration: bool = False,
-    ) -> (
-        None
-    ):  # For restoration, preserve existing HP ID; for new positions, generate new one
+    ) -> None:
+        # For restoration, preserve existing HP ID; for new positions, generate new one
         if not is_restoration:
             parent_hp_id = generate_hp_id(hp_list=list(self.strategies.keys()))
             strategy_data.config.hp_id = parent_hp_id
@@ -1990,3 +1904,91 @@ class StrategyExecutor:
         except Exception as e:
             logger.error("Failed to get strategy state for HP %s: %s", hp_id, e)
             return None
+
+    def _restore_current_sell_position_for_multihop(self, strategy: HpStrategy) -> None:
+        """
+        If this is a two-hop sell, and the first leg is FILLED, advance current_position to the second leg.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if sell_positions and len(sell_positions) == 2:
+            first_leg = sell_positions[0]
+            second_leg = sell_positions[1]
+            if first_leg.sell_order.status == ORDER_STATUS_FILLED:
+                # Advance current_position to the second leg
+                strategy.sell.current_position = second_leg
+                logger.info(
+                    "[Recovery] Advanced current_position to second leg after first leg FILLED: %s",
+                    second_leg.config.hp_id,
+                )
+
+    async def _restore_all_child_sell_positions_for_multihop(
+        self, strategy: HpStrategy
+    ):
+        """
+        For two-hop sells, after recovery, restore both child sell positions (e.g., hp_id ending with 'a' and 'b') from DB.
+        Set their orders and state, and set current_position to the correct child based on the status of the child positions in the DB.
+        """
+        sell_positions = strategy.sell.sell_positions
+        if not (sell_positions and len(sell_positions) == 2):
+            return
+
+        # Restore each child sell position's order from DB (as before)
+        for pos in sell_positions:
+            orders = await self.db.fetch_orders_for_price_level(
+                hp_id=pos.config.hp_id, side=PositionSide.SHORT.value
+            )
+            if orders:
+                order_dict = orders[0]
+                pos.sell_order.order_id = order_dict["order_id"]
+                pos.sell_order.quantity = order_dict["quantity"]
+                pos.sell_order.precision = pos.config.symbol_info.precision
+                pos.sell_order.price_precision = pos.config.symbol_info.price_precision
+                pos.sell_order.price = order_dict["price"]
+                pos.sell_order.quantity_stable = order_dict["quantity_stable"]
+                pos.sell_order.realized_quantity = order_dict["realized_quantity"]
+                pos.sell_order.status = order_dict["status"]
+                logger.info(
+                    "[Recovery] Patched sell order for child %s: %s",
+                    pos.config.hp_id,
+                    pos.sell_order,
+                )
+            else:
+                logger.info(
+                    "[Recovery] No sell orders found in DB for child %s",
+                    pos.config.hp_id,
+                )
+
+        # Set current_position based on child leg order status
+        first_leg = sell_positions[0]
+        second_leg = sell_positions[1]
+        first_status = first_leg.sell_order.status
+        second_status = second_leg.sell_order.status
+
+        if first_status == ORDER_STATUS_FILLED:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg after first leg FILLED: %s",
+                second_leg.config.hp_id,
+            )
+        elif first_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = first_leg
+            logger.info(
+                "[Recovery] Set current_position to first leg (open): %s",
+                first_leg.config.hp_id,
+            )
+        elif second_status in [ORDER_STATUS_NEW, "PARTIALLY_FILLED", "SUBMITTED"]:
+            strategy.sell.current_position = second_leg
+            logger.info(
+                "[Recovery] Set current_position to second leg (open): %s",
+                second_leg.config.hp_id,
+            )
+        else:
+            # Fallback: set to 'b' if present
+            for pos in sell_positions:
+                if pos.config.hp_id.endswith("b"):
+                    strategy.sell.current_position = pos
+                    logger.info(
+                        "[Recovery] Fallback: Set current_position to child leg 'b': %s",
+                        pos.config.hp_id,
+                    )
+                    break

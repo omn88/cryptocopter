@@ -69,6 +69,9 @@ class PortfolioUI(BoxLayout):
         self._hp_currency_processed: set[str] = (
             set()
         )  # Track HP IDs that have already added currency
+        self._hp_locked_amounts: Dict[str, Dict[str, float]] = (
+            {}
+        )  # Track locked amounts by HP ID and currency
         self.hp_manager: Optional[HpFront] = (
             None  # Reference to HP manager for sell functionality
         )
@@ -1267,6 +1270,14 @@ class PortfolioUI(BoxLayout):
         # Lock budget using FIFO (lowest buy price first) - same as sell position locking
         await self._lock_quantities_fifo(event.end_currency, event.budget_amount)
 
+        # Track the locked amount for this HP ID and currency for later unlocking
+        if event.hp_id not in self._hp_locked_amounts:
+            self._hp_locked_amounts[event.hp_id] = {}
+        self._hp_locked_amounts[event.hp_id][event.end_currency] = event.budget_amount
+        logger.debug(
+            f"Tracking locked amount: HP {event.hp_id} -> {event.budget_amount} {event.end_currency}"
+        )
+
         # Refresh UI to show locked quantities (skip in test mode to avoid Kivy widget access)
         if not self.test_mode:
             self._rebuild_coin_list_with_lots()
@@ -1704,9 +1715,209 @@ class PortfolioUI(BoxLayout):
             self._rebuild_coin_list_with_lots()
             self.ids.coin_list.refresh_from_data()
 
+        # Reduce quote currency inventory by the amount spent (total_cost)
+        # Extract quote currency from the symbol (e.g., ETHUSDC -> USDC)
+        quote_currency = self._extract_quote_currency_for_coin(event.coin, event.symbol)
+        await self._reduce_spent_currency_and_unlock_remaining(
+            quote_currency, event.total_cost, event.hp_id
+        )
+
         logger.info(
             f"Added {event.quantity_bought} {event.coin} to portfolio from HP buy"
         )
+
+    def _extract_quote_currency_for_coin(self, coin: str, symbol: str) -> str:
+        """Extract the quote currency from the trading symbol by removing the coin part."""
+        # For symbol like ETHUSDC, remove ETH to get USDC
+        # For symbol like BTCUSDT, remove BTC to get USDT
+        if symbol.startswith(coin):
+            quote_currency = symbol[len(coin) :]
+            logger.debug(
+                f"Extracted quote currency '{quote_currency}' from symbol '{symbol}' for coin '{coin}'"
+            )
+            return quote_currency
+
+        # Fallback to USDC if we can't extract properly
+        logger.warning(
+            f"Could not extract quote currency from symbol '{symbol}' for coin '{coin}', defaulting to USDC"
+        )
+        return "USDC"
+
+    async def _reduce_spent_currency(self, currency: str, amount: float):
+        """Reduce spent currency (like USDC) from portfolio - mirrors _add_received_currency."""
+        logger.info(f"Reducing spent currency from portfolio: {amount} {currency}")
+
+        # Find existing currency in coin_list_data
+        existing_currency = None
+        for coin_data in self.coin_list_data:
+            if (
+                not coin_data.get("is_lot_row", False)
+                and coin_data["symbol"] == currency
+            ):
+                existing_currency = coin_data
+                break
+
+        # Find existing currency in inventory
+        existing_inventory = None
+        if hasattr(self, "inventory") and self.inventory:
+            for item in self.inventory:
+                if item.coin == currency:
+                    existing_inventory = item
+                    break
+
+        if existing_currency:
+            # Reduce from existing currency in coin_list_data
+            current_qty = float(existing_currency.get("quantity", 0))
+            current_locked = float(existing_currency.get("locked_qty", 0))
+
+            new_total = max(0, current_qty - amount)
+            new_locked = max(0, current_locked - amount)
+
+            existing_currency["quantity"] = str(new_total)
+            existing_currency["locked_qty"] = str(new_locked)
+
+            # Also update inventory if it exists
+            if existing_inventory:
+                existing_inventory.quantity = max(
+                    0, existing_inventory.quantity - amount
+                )
+                existing_inventory.locked_quantity = max(
+                    0, existing_inventory.locked_quantity - amount
+                )
+
+                # Update database
+                try:
+                    await self.db.update_inventory_item(existing_inventory)
+                    logger.debug(
+                        f"Updated {currency} inventory item {existing_inventory.id} in database"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update {currency} inventory item in database: {e}"
+                    )
+
+            logger.info(
+                f"Reduced {amount} {currency} from existing balance. New total: {new_total}, locked: {new_locked}"
+            )
+        else:
+            logger.warning(
+                f"{currency} not found in portfolio - cannot reduce {amount}"
+            )
+            return
+
+    async def _reduce_spent_currency_and_unlock_remaining(
+        self, currency: str, actual_spent: float, hp_id: str
+    ):
+        """
+        Reduce spent currency and unlock remaining locked amount for completed HP buy.
+
+        This method:
+        1. Reduces total currency by the actual amount spent
+        2. Unlocks ALL locked amounts for this HP ID (since the trade is complete)
+
+        Args:
+            currency: The quote currency (e.g., USDC)
+            actual_spent: The actual amount spent on the trade
+            hp_id: The HP ID to unlock remaining budget for
+        """
+        logger.info(
+            f"Processing HP buy completion: {actual_spent} {currency} spent for HP {hp_id}"
+        )
+
+        # Check if we have locked amount tracking for this HP ID
+        locked_amount = 0.0
+        if (
+            hp_id in self._hp_locked_amounts
+            and currency in self._hp_locked_amounts[hp_id]
+        ):
+            locked_amount = self._hp_locked_amounts[hp_id][currency]
+            logger.debug(
+                f"Found tracked locked amount: {locked_amount} {currency} for HP {hp_id}"
+            )
+        else:
+            logger.warning(
+                f"No locked amount tracking found for HP {hp_id} and currency {currency}"
+            )
+
+        # Find existing currency in coin_list_data
+        existing_currency = None
+        for coin_data in self.coin_list_data:
+            if (
+                not coin_data.get("is_lot_row", False)
+                and coin_data["symbol"] == currency
+            ):
+                existing_currency = coin_data
+                break
+
+        # Find existing currency in inventory
+        existing_inventory = None
+        if hasattr(self, "inventory") and self.inventory:
+            for item in self.inventory:
+                if item.coin == currency:
+                    existing_inventory = item
+                    break
+
+        if existing_currency:
+            current_total = float(existing_currency.get("quantity", 0))
+            current_locked = float(existing_currency.get("locked_qty", 0))
+
+            # Reduce total by actual amount spent
+            new_total = max(0, current_total - actual_spent)
+
+            # Unlock the full locked amount for this HP (since trade is complete)
+            remaining_to_unlock = locked_amount if locked_amount > 0 else actual_spent
+            new_locked = max(0, current_locked - remaining_to_unlock)
+
+            # Calculate new available quantity (total - locked)
+            new_available = new_total - new_locked
+
+            existing_currency["quantity"] = str(new_total)
+            existing_currency["locked_qty"] = str(new_locked)
+            existing_currency["available_qty"] = str(new_available)
+
+            logger.info(
+                f"HP {hp_id} completed - {currency}: spent {actual_spent}, unlocked {remaining_to_unlock}"
+            )
+            current_available = float(existing_currency.get("available_qty", 0))
+            logger.info(
+                f"{currency} updated: total {current_total:.2f} -> {new_total:.2f}, locked {current_locked:.2f} -> {new_locked:.2f}, available {current_available:.2f} -> {new_available:.2f}"
+            )
+
+            # Also update inventory if it exists
+            if existing_inventory:
+                existing_inventory.quantity = max(
+                    0, existing_inventory.quantity - actual_spent
+                )
+                existing_inventory.locked_quantity = max(
+                    0, existing_inventory.locked_quantity - remaining_to_unlock
+                )
+
+                # Update database
+                try:
+                    await self.db.update_inventory_item(existing_inventory)
+                    logger.debug(
+                        f"Updated {currency} inventory item {existing_inventory.id} in database"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update {currency} inventory item in database: {e}"
+                    )
+
+            # Clean up tracking for this HP ID
+            if hp_id in self._hp_locked_amounts:
+                if currency in self._hp_locked_amounts[hp_id]:
+                    del self._hp_locked_amounts[hp_id][currency]
+                if not self._hp_locked_amounts[
+                    hp_id
+                ]:  # Remove HP ID if no currencies left
+                    del self._hp_locked_amounts[hp_id]
+                logger.debug(f"Cleaned up locked amount tracking for HP {hp_id}")
+
+        else:
+            logger.warning(
+                f"{currency} not found in portfolio - cannot process HP completion for {hp_id}"
+            )
+            return
 
     async def handle_hp_position_cancelled(self, event: HPPositionCancelled):
         """Handle HP position cancellation - unlock quantities that were locked."""

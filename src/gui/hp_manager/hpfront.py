@@ -5,7 +5,6 @@ import queue
 import logging
 import time
 from typing import Any, Dict, List, Set, Optional
-import uuid
 from kivy.properties import (
     ListProperty,
     ObjectProperty,
@@ -26,7 +25,6 @@ from src.identifiers import (
     Event,
     EventName,
     HPSellData,
-    InventoryItem,
     RemoveRecord,
     State,
     StateInfo,
@@ -1690,10 +1688,24 @@ Enter sell price to create sell order:"""
         logger.info("Cancel sell send to the config queue: %s", config)
 
     def _has_sell_child(self, hp_id: str) -> bool:
-        """Check if HP has a sell child"""
+        """Check if HP has an active sell child (excludes cancelled/closed positions)"""
         for item in self.hp_list_data:
             if item.get("hp_id") == f"{hp_id}_SELL":
-                return True
+                # Check if the sell child is in an active state
+                state = item.get("state", "")
+                # Only count as "has sell child" if it's in an active selling state
+                # Exclude NEW state after cancellation (should be CLOSED/CANCELLED but sometimes shows as NEW)
+                if state in ["SELLING", "PARTIALLY_SOLD"]:
+                    return True
+                # For NEW state, check if there are actual orders (not just a cancelled position)
+                elif state == "NEW":
+                    # If realized_quantity > 0, it means there was actual selling activity
+                    realized_quantity = float(item.get("realized_quantity", 0))
+                    if realized_quantity > 0:
+                        return True
+                    # If realized_quantity is 0 and state is NEW, it's likely a cancelled position
+                    # that should not block the sell button
+                    return False
         return False
 
     def _get_parent_realized_quantity(self, hp_id: str) -> float:
@@ -1883,11 +1895,20 @@ Enter sell price to create sell order:"""
 
     def _get_sorted_hp_list(self):
         # Apply state filtering first
-        filtered_data = [
-            hp
-            for hp in self.hp_list_data
-            if hp.get("state", "") in self.hp_state_filter
-        ]
+        filtered_data = []
+        for hp in self.hp_list_data:
+            if hp.get("state", "") in self.hp_state_filter:
+                # Additional filter: exclude cancelled sell children
+                # (sell children with state NEW and no realized quantity)
+                if (
+                    hp.get("side") == "SELL"
+                    and hp.get("is_child", False)
+                    and hp.get("state") == "NEW"
+                    and float(hp.get("realized_quantity", 0)) == 0
+                ):
+                    # This is likely a cancelled sell position - exclude it
+                    continue
+                filtered_data.append(hp)
 
         # Separate parents and children
         parents = [

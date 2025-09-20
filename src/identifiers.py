@@ -77,6 +77,7 @@ class HPBuyPositionFilled:
 
     hp_id: str
     coin: str
+    symbol: str
     quantity_bought: float
     buy_price: float
     total_cost: float
