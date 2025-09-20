@@ -49,6 +49,22 @@ class WebSocketConfig:
             max_errors_before_resubscribe=10,
         )
 
+    @classmethod
+    def create_ultra_robust_config(cls) -> "WebSocketConfig":
+        """Create a configuration for very unstable network conditions"""
+        return cls(
+            connection_timeout=120,  # 2 minutes for initial connection
+            read_timeout=30,  # Longer read timeout
+            keepalive_timeout=180,  # 3 minutes before considering connection dead
+            initial_reconnect_delay=10,  # Start with 10 second delay
+            max_reconnect_delay=1800,  # 30 minutes max delay
+            max_reconnect_attempts=50,  # Many more attempts
+            health_check_interval=45,  # Check every 45 seconds
+            message_timeout_threshold=300,  # 5 minutes before timeout warning
+            error_suppression_time=1800,  # 30 minutes suppression
+            max_errors_before_resubscribe=5,  # Lower threshold for resubscribe
+        )
+
     def log_config(self):
         """Log the current configuration"""
         logger.debug("WebSocket Configuration:")
@@ -64,3 +80,6 @@ DEFAULT_CONFIG = WebSocketConfig()
 
 # Robust configuration for production environments with poor connectivity
 ROBUST_CONFIG = WebSocketConfig.create_robust_config()
+
+# Ultra-robust configuration for very unstable network conditions
+ULTRA_ROBUST_CONFIG = WebSocketConfig.create_ultra_robust_config()

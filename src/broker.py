@@ -24,7 +24,7 @@ from src.identifiers import (
     TickerUpdate,
     BinanceClient,
 )
-from src.common.websocket_config import ROBUST_CONFIG
+from src.common.websocket_config import ROBUST_CONFIG, ULTRA_ROBUST_CONFIG
 
 logger = logging.getLogger("broker")
 
@@ -57,10 +57,11 @@ class BrokerSpot:
         self._last_keepalive_error_log = 0  # Connection health monitoring
         self._connection_health_task: Optional[asyncio.Task] = None
         self._last_message_time: Dict[str, float] = {}
-        self._connection_timeout = ROBUST_CONFIG.message_timeout_threshold
+        self._connection_timeout = ULTRA_ROBUST_CONFIG.message_timeout_threshold
 
-        # Use robust WebSocket configuration
-        self._ws_config = ROBUST_CONFIG
+        # Use ultra-robust WebSocket configuration for unstable networks
+        self._ws_config = ULTRA_ROBUST_CONFIG
+        logger.info("Using ultra-robust WebSocket configuration for network stability")
         self._ws_config.log_config()
 
         self.thread.start()
@@ -94,7 +95,7 @@ class BrokerSpot:
                     socket_manager.ticker_socket(),
                     self.stop_producers_event,
                     self.handle_ticker_message,
-                    reconnect_attempts=10,
+                    reconnect_attempts=self._ws_config.max_reconnect_attempts,
                 )
             ),
             self.loop.create_task(
@@ -102,7 +103,7 @@ class BrokerSpot:
                     socket_manager.user_socket(),
                     self.stop_producers_event,
                     self.handle_user_message,
-                    reconnect_attempts=10,
+                    reconnect_attempts=self._ws_config.max_reconnect_attempts,
                 )
             ),
         ]
@@ -171,11 +172,11 @@ class BrokerSpot:
                                     )
                                     last_warning_time[connection_type] = current_time
 
-                await asyncio.sleep(30)  # Check every 30 seconds
+                await asyncio.sleep(self._ws_config.health_check_interval)
 
             except Exception as e:
                 logger.error("Error in connection health monitor: %s", e)
-                await asyncio.sleep(30)
+                await asyncio.sleep(self._ws_config.health_check_interval)
 
         logger.info("Connection health monitor stopped")
 
@@ -258,8 +259,15 @@ class BrokerSpot:
                 for attempt in range(reconnect_attempts):
                     if stop_event.is_set():
                         return
-                    await asyncio.sleep(2**attempt)
-                    logger.info("Reconnecting attempt %d...", attempt + 1)
+                    # Use configuration-based delay with exponential backoff
+                    delay = min(
+                        self._ws_config.initial_reconnect_delay * (2**attempt),
+                        self._ws_config.max_reconnect_delay,
+                    )
+                    logger.info(
+                        "Reconnecting attempt %d in %.1f seconds...", attempt + 1, delay
+                    )
+                    await asyncio.sleep(delay)
 
             except Exception as e:
                 logger.exception("Unexpected error in handle_socket: %s", e)

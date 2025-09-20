@@ -163,12 +163,15 @@ class AsyncApp(App):
                 strat = {}
                 strat["name"] = strategy_name
                 self.active_strategies.append(strat)
-                strategy_id = strategy.get("strategy_id")
+                strategy_id = strategy.get("id")  # Use 'id' field from database
                 if strategy_id is not None:
+                    logger.info(f"Restoring HP Manager with strategy_id: {strategy_id}")
                     self.setup_hp_manager(
                         strategy_id=strategy_id,
                         symbols_info=self.symbols_info,
                     )
+                else:
+                    logger.error("No strategy ID found for HP Manager recovery")
 
     def setup_hp_manager(
         self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]

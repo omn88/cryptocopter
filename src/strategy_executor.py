@@ -100,8 +100,20 @@ class StrategyExecutor:
 
         # WebSocket error handling attributes
         self._websocket_error_count = 0
-        self._last_websocket_error_time = 0
+        self._last_websocket_error_time = 0.0
         self._websocket_error_suppression_time = 600  # 10 minutes
+
+        # BinanceClient restart tracking for circuit breaker pattern
+        self._restart_count = 0
+        self._last_restart_time = 0.0
+        self._restart_base_delay = 60  # Start with 1 minute delay
+        self._max_restart_delay = 3600  # Maximum 1 hour delay
+
+        # Ticker timeout monitoring for backup circuit breaker
+        self._max_ticker_silence_duration = 300  # 5 minutes max silence before restart
+        self._ticker_timeout_check_interval = 60  # Check every minute
+        self._ticker_timeout_task: Optional[asyncio.Task[None]] = None
+
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.start_loop)
@@ -139,6 +151,12 @@ class StrategyExecutor:
         # Set up WebSocket error handling (for both test and real mode)
         if hasattr(self.broker, "set_error_handler"):
             self.broker.set_error_handler(self._handle_websocket_error)
+
+        # Start ticker timeout monitoring task
+        if not self.test_mode:  # Only in production mode
+            self._ticker_timeout_task = asyncio.create_task(
+                self._monitor_ticker_timeout()
+            )
 
         while not self.stop_event.is_set():
             try:
@@ -208,7 +226,9 @@ class StrategyExecutor:
                 f"[STRATEGY EXECUTOR] Failed to send HP event to portfolio: {e}"
             )
 
-    async def _handle_websocket_error(self, error_msg: str) -> None:
+    async def _handle_websocket_error(
+        self, error_msg: Union[str, Dict[str, Any]]
+    ) -> None:
         """Handle WebSocket errors, especially keepalive timeouts and unrecoverable failures."""
         current_time = time.time()
 
@@ -217,6 +237,9 @@ class StrategyExecutor:
             "BinanceWebsocketUnableToConnect",
             "BinanceWebsocketClosed",
             "ConnectionClosedError",
+            "ConnectionClosedOK",  # Server-initiated disconnections (e.g., "going away")
+            "ConnectionClosed",  # Generic connection closed errors
+            "TickerTimeoutError",  # Backup circuit breaker for silent ticker streams
         ]
         unrecoverable_msgs = [
             "Max reconnections",
@@ -224,6 +247,10 @@ class StrategyExecutor:
             "Cannot connect to host",
             "Temporary failure in name resolution",
             "getaddrinfo failed",
+            "going away",  # WebSocket close code 1001
+            "abnormal closure",  # WebSocket close code 1006
+            "received 1001",  # Explicit check for going away code
+            "received 1006",  # Explicit check for abnormal closure
         ]
 
         is_unrecoverable = False
@@ -235,17 +262,42 @@ class StrategyExecutor:
             ):
                 is_unrecoverable = True
 
-        # If unrecoverable, restart websocket client with infinite retry
+        # If unrecoverable, restart websocket client with circuit breaker pattern
         if is_unrecoverable:
-            logger.error(
-                "Unrecoverable websocket error detected: %s. Restarting BinanceClient and resubscribing all strategies.",
-                error_msg,
+            # Calculate delay using circuit breaker pattern
+            self._restart_count += 1
+            time_since_last_restart = current_time - self._last_restart_time
+
+            # If it's been more than 10 minutes since last restart, reset counter
+            if time_since_last_restart > 600:
+                self._restart_count = 1
+
+            # Calculate progressive delay: base_delay * (restart_count ^ 1.5), capped at max
+            restart_delay = min(
+                self._restart_base_delay * (self._restart_count**1.5),
+                self._max_restart_delay,
             )
+
+            logger.error(
+                "Unrecoverable websocket error detected: %s. Restart #%d. "
+                "Waiting %.1f seconds before restarting to allow network to stabilize...",
+                error_msg,
+                self._restart_count,
+                restart_delay,
+            )
+
+            # Wait before attempting restart to let network stabilize
+            await asyncio.sleep(restart_delay)
+            self._last_restart_time = time.time()  # Update after the delay
+
             retry_count = 0
             while True:
                 try:
                     # Stop current client if exists
-                    logger.info("Attempting to restart BinanceClient...")
+                    logger.info(
+                        "Attempting to restart BinanceClient (restart #%d)...",
+                        self._restart_count,
+                    )
                     if self.client:
                         try:
                             await self.client.close_connection()
@@ -267,16 +319,24 @@ class StrategyExecutor:
                     # Resubscribe all strategies
                     await self._resubscribe_all_strategies()
                     logger.info("Resubscription after restart complete.")
+
+                    # Reset restart count on successful restart
+                    if retry_count == 0:  # Only reset if first attempt succeeded
+                        logger.info(
+                            "WebSocket client restart successful. Circuit breaker reset."
+                        )
+                        # Don't reset _restart_count here - keep it for progressive delay
                     break
                 except Exception as e:
                     retry_count += 1
+                    restart_retry_delay = min(30, 2**retry_count)
                     logger.error(
                         "Websocket restart attempt #%d failed: %s. Retrying in %d seconds...",
                         retry_count,
                         e,
-                        min(30, 2**retry_count),
+                        restart_retry_delay,
                     )
-                    await asyncio.sleep(min(30, 2**retry_count))
+                    await asyncio.sleep(restart_retry_delay)
             return
 
         # Check if this is a keepalive timeout error (legacy logic)
@@ -311,6 +371,50 @@ class StrategyExecutor:
 
         # Handle other WebSocket errors normally
         logger.error("WebSocket error: %s", error_msg)
+
+    async def _monitor_ticker_timeout(self) -> None:
+        """Monitor for ticker timeout and trigger circuit breaker if no ticker data for too long."""
+        logger.info(
+            "Starting ticker timeout monitoring (max silence: %d seconds)",
+            self._max_ticker_silence_duration,
+        )
+
+        while not self.stop_event.is_set():
+            try:
+                await asyncio.sleep(self._ticker_timeout_check_interval)
+
+                if self.stop_event.is_set():
+                    break
+
+                # Check if broker reports ticker timeout
+                if hasattr(self.broker, "_last_ticker_time") and hasattr(
+                    self.broker, "_ticker_timeout_threshold"
+                ):
+                    time_since_ticker = time.time() - self.broker._last_ticker_time
+                    if time_since_ticker > self._max_ticker_silence_duration:
+                        logger.error(
+                            "Backup circuit breaker triggered: ticker silent for %.1f seconds "
+                            "(max: %d seconds). Forcing WebSocket restart...",
+                            time_since_ticker,
+                            self._max_ticker_silence_duration,
+                        )
+
+                        # Trigger circuit breaker by simulating an unrecoverable error
+                        timeout_error = {
+                            "type": "TickerTimeoutError",
+                            "m": f"Ticker silent for {time_since_ticker:.1f} seconds - backup circuit breaker activated",
+                        }
+                        await self._handle_websocket_error(timeout_error)
+                        return  # Exit monitoring after triggering restart
+
+            except asyncio.CancelledError:
+                logger.info("Ticker timeout monitoring task cancelled")
+                break
+            except Exception as e:
+                logger.error("Error in ticker timeout monitoring: %s", e)
+                await asyncio.sleep(10)  # Wait before retrying
+
+        logger.info("Ticker timeout monitoring stopped")
 
     async def _resubscribe_all_strategies(self) -> None:
         """Resubscribe all active strategies after excessive reconnections"""
@@ -448,6 +552,11 @@ class StrategyExecutor:
     def stop(self) -> None:
         logger.info("Stopping strategy executor, stop event SET.")
         self.stop_event.set()
+
+        # Cancel ticker timeout monitoring task if it exists
+        if self._ticker_timeout_task and not self._ticker_timeout_task.done():
+            self._ticker_timeout_task.cancel()
+            logger.info("Cancelled ticker timeout monitoring task")
 
         if self.client:
             try:

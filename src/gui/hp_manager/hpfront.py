@@ -1693,18 +1693,15 @@ Enter sell price to create sell order:"""
             if item.get("hp_id") == f"{hp_id}_SELL":
                 # Check if the sell child is in an active state
                 state = item.get("state", "")
-                # Only count as "has sell child" if it's in an active selling state
-                # Exclude NEW state after cancellation (should be CLOSED/CANCELLED but sometimes shows as NEW)
+                # Count as "has sell child" for clearly active states
                 if state in ["SELLING", "PARTIALLY_SOLD"]:
                     return True
-                # For NEW state, check if there are actual orders (not just a cancelled position)
+                # For NEW state, assume it's active (legitimate new sell position)
+                # The main issue was with the list filtering, not this check
                 elif state == "NEW":
-                    # If realized_quantity > 0, it means there was actual selling activity
-                    realized_quantity = float(item.get("realized_quantity", 0))
-                    if realized_quantity > 0:
-                        return True
-                    # If realized_quantity is 0 and state is NEW, it's likely a cancelled position
-                    # that should not block the sell button
+                    return True
+                # Only exclude clearly inactive states
+                elif state in ["CLOSED", "CANCELLED", "SOLD"]:
                     return False
         return False
 
@@ -1895,20 +1892,28 @@ Enter sell price to create sell order:"""
 
     def _get_sorted_hp_list(self):
         # Apply state filtering first
-        filtered_data = []
-        for hp in self.hp_list_data:
-            if hp.get("state", "") in self.hp_state_filter:
-                # Additional filter: exclude cancelled sell children
-                # (sell children with state NEW and no realized quantity)
-                if (
-                    hp.get("side") == "SELL"
-                    and hp.get("is_child", False)
-                    and hp.get("state") == "NEW"
-                    and float(hp.get("realized_quantity", 0)) == 0
-                ):
-                    # This is likely a cancelled sell position - exclude it
-                    continue
-                filtered_data.append(hp)
+        logger.info(f"[FILTERING] Current hp_state_filter: {self.hp_state_filter}")
+        logger.info(f"[FILTERING] Total hp_list_data items: {len(self.hp_list_data)}")
+
+        # Log all items before filtering
+        for item in self.hp_list_data:
+            if item.get("hp_id", "").startswith("1000"):
+                logger.info(
+                    f"[FILTERING] Item {item.get('hp_id')}: state={item.get('state')}, is_child={item.get('is_child')}, side={item.get('side')}"
+                )
+
+        filtered_data = [
+            hp
+            for hp in self.hp_list_data
+            if hp.get("state", "") in self.hp_state_filter
+        ]
+
+        logger.info(f"[FILTERING] After state filter: {len(filtered_data)} items")
+        for item in filtered_data:
+            if item.get("hp_id", "").startswith("1000"):
+                logger.info(
+                    f"[FILTERING] Filtered item {item.get('hp_id')}: state={item.get('state')}, is_child={item.get('is_child')}, side={item.get('side')}"
+                )
 
         # Separate parents and children
         parents = [
@@ -1931,6 +1936,13 @@ Enter sell price to create sell order:"""
             if hp.get("is_child", False) and "_" in hp.get("hp_id", "")
         ]
 
+        logger.info(f"[FILTERING] Regular children found: {len(regular_children)}")
+        for child in regular_children:
+            if child.get("hp_id", "").startswith("1000"):
+                logger.info(
+                    f"[FILTERING] Regular child: {child.get('hp_id')}, parent_hp_id: {child.get('parent_hp_id')}"
+                )
+
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x.get("hp_id", "0"))):
             # Find children for this parent
@@ -1951,6 +1963,14 @@ Enter sell price to create sell order:"""
                 if c.get("parent_hp_id") == parent_id
                 or c.get("hp_id", "").startswith(f"{parent_id}_")
             ]
+
+            logger.info(
+                f"[FILTERING] Parent {parent_id}: multihop={len(parent_multihop_children)}, regular={len(parent_regular_children)}"
+            )
+            for child in parent_regular_children:
+                logger.info(
+                    f"[FILTERING] Regular child for {parent_id}: {child.get('hp_id')}"
+                )
 
             all_children = parent_multihop_children + parent_regular_children
 
