@@ -196,7 +196,12 @@ class AsyncApp(App):
             content=front_end,
         )
         # Store a reference to the strategy
-        strategy_info = {"name": strategy_name, "tab": tab, "backend": back_end, "frontend": front_end}
+        strategy_info = {
+            "name": strategy_name,
+            "tab": tab,
+            "backend": back_end,
+            "frontend": front_end,
+        }
         self.active_strategies.append(strategy_info)
         # Add a new tab for the strategy as default
         self.root.add_widget(tab)
