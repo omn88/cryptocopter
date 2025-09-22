@@ -99,7 +99,6 @@ class AsyncApp(App):
         self.setup_portfolio_manager()
         # Always setup HP Manager as default strategy
         self.setup_hp_manager()
-        asyncio.create_task(self.load_all_active_strategies())
 
     def setup_portfolio_manager(self) -> None:
         # Load the portfolio UI from portfolio.kv
@@ -196,8 +195,9 @@ class AsyncApp(App):
             text=strategy_name,
             content=front_end,
         )
-        # Store a reference to the tab
-        self.active_strategies["name"] = strategy_name
+        # Store a reference to the strategy
+        strategy_info = {"name": strategy_name, "tab": tab, "backend": back_end, "frontend": front_end}
+        self.active_strategies.append(strategy_info)
         # Add a new tab for the strategy as default
         self.root.add_widget(tab)
         # Make HP Manager the default active tab
