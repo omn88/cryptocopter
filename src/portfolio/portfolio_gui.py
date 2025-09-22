@@ -30,6 +30,7 @@ from src.identifiers import (
 )
 from src.common.symbol_info import SymbolInfo
 from src.database import TradingDatabase
+from src.portfolio.usd_price_resolver import UsdPriceResolver
 
 logger = logging.getLogger("portfolio_gui_handler")
 
@@ -47,7 +48,7 @@ class PortfolioUI(BoxLayout):
     def __init__(
         self,
         ui_queue: queue.Queue,
-        symbols_info: Dict[str, SymbolInfo],
+        price_resolver: UsdPriceResolver,
         db: TradingDatabase,
         test_mode: bool = False,
         **kwargs,
@@ -60,7 +61,7 @@ class PortfolioUI(BoxLayout):
             object.__init__(self)
 
         self.ui_queue = ui_queue
-        self.symbols_info = symbols_info
+        self.price_resolver = price_resolver
         self.coin_list_data = []
         self.inventory: List[InventoryItem] = []
         self.db = db
@@ -992,8 +993,10 @@ class PortfolioUI(BoxLayout):
         if avg_price > 0 and coin_symbol:
             try:
                 symbol_key = f"{coin_symbol}USDT"
-                if symbol_key in self.symbols_info:
-                    return self.symbols_info[symbol_key].adjust_price(avg_price)
+                if symbol_key in self.price_resolver.symbols_info:
+                    return self.price_resolver.symbols_info[symbol_key].adjust_price(
+                        avg_price
+                    )
             except (KeyError, AttributeError):
                 # Fallback to original precision if symbol info not available
                 pass
@@ -1094,7 +1097,9 @@ class PortfolioUI(BoxLayout):
             if not coin.get("is_lot_row", False) and symbol in price_updates.msg:
                 price = price_updates.msg[symbol]
                 coin["price_usd"] = str(
-                    self.symbols_info[f"{symbol}USDT"].adjust_price(price)
+                    self.price_resolver.symbols_info[f"{symbol}USDT"].adjust_price(
+                        price
+                    )
                 )
                 total_in_usd = round(float(coin["quantity"]) * price, 2)
                 coin["total_usd"] = str(total_in_usd)

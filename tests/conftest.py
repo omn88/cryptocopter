@@ -8,7 +8,6 @@ import kivy_config
 
 # Suppress aiosqlite debug logging in tests
 import logging
-from collections import defaultdict
 
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
@@ -19,25 +18,7 @@ from src.position_buy import HPPositionBuy
 from src.position_sell import HPPositionSell
 from src.strategy_executor import StrategyExecutor
 from src.database.recovery_service import RecoveryService
-from tests.strategies.hp_manager_helpers import (
-    wait_for_condition,
-    get_hp_positions_by_type,
-    get_parent_hp_positions,
-    get_child_hp_positions,
-    get_buy_positions,
-    has_active_buy_positions,
-    has_idle_buy_positions,
-    has_active_sell_positions,
-    has_idle_sell_positions,
-    wait_for_active_buy_positions,
-    wait_for_no_idle_buy_positions,
-    wait_for_idle_buy_positions,
-    wait_for_no_active_buy_positions,
-    wait_for_active_sell_positions,
-    wait_for_no_idle_sell_positions,
-    wait_for_idle_sell_positions,
-    wait_for_no_active_sell_positions,
-)
+from tests.strategies.hp_manager_helpers import wait_for_condition
 
 import asyncio
 import logging
@@ -63,12 +44,6 @@ from src.identifiers import (
     State,
     StateInfo,
     InventoryItem,
-    Event,
-    EventName,
-    HPSellPositionCreated,
-    HPSellPositionCompleted,
-    HPBuyPositionFilled,
-    HPPositionCancelled,
 )
 from src.strategies.hp_manager import HpStrategy
 from src.portfolio.portfolio_gui import PortfolioUI
@@ -153,7 +128,6 @@ def strategy_executor_fixture(
         db=test_db,
         broker=mock_broker,
         ui_queue=ui_queue,
-        symbols_info=symbols_info,
         inventory=mock_inventory,
         test_mode=True,
         price_resolver=price_resolver,
@@ -212,7 +186,6 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
             config_queue=mock_config_queue,
             db=AsyncMock(),
             ui_queue=queue.Queue(),
-            symbols_info=symbols_info,
             test_mode=True,
             price_resolver=price_resolver,
             portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
@@ -270,7 +243,9 @@ async def frontend_backend_setup(
     hp_gui.config_queue = strategy_executor_fixture.config_queue
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
-    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
+    hp_gui.price_resolver.symbols_info = (
+        strategy_executor_fixture.price_resolver.symbols_info
+    )
 
     # Debug: Verify queue objects are the same
     logger.info(
@@ -345,7 +320,6 @@ async def crash_recovery_factory(
             db=test_db,  # Always use the same database
             broker=mock_broker,
             ui_queue=ui_queue,
-            symbols_info=symbols_info,
             inventory=mock_inventory,
             price_resolver=price_resolver,
             test_mode=True,
@@ -362,7 +336,6 @@ async def crash_recovery_factory(
                 config_queue=config_queue,
                 db=test_db,  # Always use the same database
                 ui_queue=ui_queue,
-                symbols_info=symbols_info,
                 test_mode=True,
                 price_resolver=price_resolver,
                 portfolio_queue=queue.Queue(),  # Use a mock queue for portfolio updates
@@ -373,7 +346,6 @@ async def crash_recovery_factory(
         frontend.config_queue = backend.config_queue
         backend.ui_queue = frontend.ui_queue
         frontend.db = backend.db
-        frontend.symbols_info = backend.symbols_info
 
         # Track for cleanup
         created_instances.extend([frontend, backend])
@@ -813,9 +785,9 @@ def mock_inventory():
 
 
 @pytest.fixture
-def portfolio_ui(test_db, mock_inventory):
+def portfolio_ui(test_db: TradingDatabase, mock_async_client, mock_inventory):
     """Create portfolio UI for testing with test mode enabled."""
-    ui_queue = queue.Queue()
+    ui_queue: queue.Queue = queue.Queue()
 
     # Use comprehensive symbols_info that includes USDC
     symbols_info = {
@@ -831,9 +803,13 @@ def portfolio_ui(test_db, mock_inventory):
         ),  # Add USDC symbol
     }
 
+    price_resolver = UsdPriceResolver(
+        client=mock_async_client, symbols_info=symbols_info
+    )
+
     portfolio = PortfolioUI(
         ui_queue=ui_queue,
-        symbols_info=symbols_info,
+        price_resolver=price_resolver,
         db=test_db,
         test_mode=True,  # Enable test mode to suppress UI refresh calls
     )
@@ -872,7 +848,6 @@ async def portfolio_hp_backend_setup(
     hp_gui.config_queue = strategy_executor_fixture.config_queue
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
-    hp_gui.symbols_info = strategy_executor_fixture.symbols_info
 
     # Connect portfolio to HP manager (for sell button functionality)
     portfolio_ui.hp_manager = hp_gui
@@ -977,7 +952,7 @@ async def portfolio_crash_recovery_factory(
         # Create Portfolio UI with real database persistence
         portfolio_ui = PortfolioUI(
             ui_queue=portfolio_ui_queue,
-            symbols_info=symbols_info,
+            price_resolver=price_resolver,
             db=test_db,  # Always use same database for persistence across crashes
             test_mode=True,
         )
@@ -990,7 +965,6 @@ async def portfolio_crash_recovery_factory(
             db=test_db,  # Always use same database
             broker=mock_broker,
             ui_queue=ui_queue,
-            symbols_info=symbols_info,
             inventory=mock_inventory,
             price_resolver=price_resolver,
             test_mode=True,
@@ -1006,7 +980,6 @@ async def portfolio_crash_recovery_factory(
                 config_queue=config_queue,
                 db=test_db,  # Always use same database
                 ui_queue=ui_queue,
-                symbols_info=symbols_info,
                 test_mode=True,
                 price_resolver=price_resolver,
                 portfolio_queue=portfolio_ui_queue,
@@ -1019,7 +992,6 @@ async def portfolio_crash_recovery_factory(
         hp_frontend.config_queue = strategy_executor.config_queue
         strategy_executor.ui_queue = hp_frontend.ui_queue
         hp_frontend.db = strategy_executor.db
-        hp_frontend.symbols_info = strategy_executor.symbols_info
 
         # Portfolio <-> HP connection for sell operations
         portfolio_ui.hp_manager = hp_frontend

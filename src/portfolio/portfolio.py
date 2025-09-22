@@ -9,7 +9,6 @@ import time
 from typing import Dict, List, Optional
 import uuid
 from decouple import Config, RepositoryEnv
-from src.common.symbol_info import SymbolInfo
 from src.database.trading_database import TradingDatabase
 from src.identifiers import (
     AccountPosition,
@@ -39,7 +38,6 @@ class PortfolioManager:
         self,
         broker: BrokerSpot,
         ui_queue: queue.Queue,
-        symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
         db: TradingDatabase,
     ):
@@ -51,7 +49,6 @@ class PortfolioManager:
         self.btc_saldo = 0.0
         self.usd_saldo = 0.0
         self.price_resolver = price_resolver
-        self.symbols_info = symbols_info
         self.db = db
         self.inventory: List[InventoryItem] = []  # In-memory inventory
         self.inventory_manager = (

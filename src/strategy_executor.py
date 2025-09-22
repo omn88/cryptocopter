@@ -76,7 +76,6 @@ class StrategyExecutor:
         self,
         db: TradingDatabase,
         broker: BrokerSpot,
-        symbols_info: Dict[str, SymbolInfo],
         ui_queue: queue.Queue,
         inventory: List[InventoryItem],
         price_resolver: UsdPriceResolver,
@@ -91,7 +90,6 @@ class StrategyExecutor:
         self.config_queue: queue.Queue = queue.Queue()
         self.strategies: Dict[str, HpStrategy] = {}
         self.recovery_service: Optional[RecoveryService] = None
-        self.symbols_info = symbols_info
         self.inventory = inventory
         self.inventory_manager = InventoryManager(inventory)  # Create inventory manager
         self.supported_quotes = ["USDC", "PLN", "BTC", "BNB", "USDT"]
@@ -476,74 +474,79 @@ class StrategyExecutor:
 
         if end_currency == "PLN":
             # Priority 1: Direct pair to PLN
-            if f"{coin}PLN" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}PLN"])
+            if f"{coin}PLN" in self.price_resolver.symbols_info:
+                strategy.append(self.price_resolver.symbols_info[f"{coin}PLN"])
                 return strategy
 
             # Priority 2: coinUSDC + USDCPLN
-            if f"{coin}USDC" in self.symbols_info and "USDCPLN" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}USDC"])
-                strategy.append(self.symbols_info["USDCPLN"])
+            if (
+                f"{coin}USDC" in self.price_resolver.symbols_info
+                and "USDCPLN" in self.price_resolver.symbols_info
+            ):
+                strategy.append(self.price_resolver.symbols_info[f"{coin}USDC"])
+                strategy.append(self.price_resolver.symbols_info["USDCPLN"])
                 return strategy
 
             # Priority 3: coinBTC + BTCPLN
             if (
                 coin not in delisted_coins
-                and f"{coin}BTC" in self.symbols_info
-                and "BTCPLN" in self.symbols_info
+                and f"{coin}BTC" in self.price_resolver.symbols_info
+                and "BTCPLN" in self.price_resolver.symbols_info
             ):
-                strategy.append(self.symbols_info[f"{coin}BTC"])
-                strategy.append(self.symbols_info["BTCPLN"])
+                strategy.append(self.price_resolver.symbols_info[f"{coin}BTC"])
+                strategy.append(self.price_resolver.symbols_info["BTCPLN"])
                 return strategy
 
             # Priority 4: coinBNB + BNBPLN
             if (
                 coin not in delisted_coins
-                and f"{coin}BNB" in self.symbols_info
-                and "BNBPLN" in self.symbols_info
+                and f"{coin}BNB" in self.price_resolver.symbols_info
+                and "BNBPLN" in self.price_resolver.symbols_info
             ):
-                strategy.append(self.symbols_info[f"{coin}BNB"])
-                strategy.append(self.symbols_info["BNBPLN"])
+                strategy.append(self.price_resolver.symbols_info[f"{coin}BNB"])
+                strategy.append(self.price_resolver.symbols_info["BNBPLN"])
                 return strategy
 
             # Priority 5: Converting
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol_info = self.symbols_info[f"{coin}USDT"]
+            symbol_info = self.price_resolver.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)
             return strategy
 
         if end_currency == "USDC":
             # Priority 1: coinUSDC
-            if f"{coin}USDC" in self.symbols_info:
-                strategy.append(self.symbols_info[f"{coin}USDC"])
+            if f"{coin}USDC" in self.price_resolver.symbols_info:
+                strategy.append(self.price_resolver.symbols_info[f"{coin}USDC"])
                 return strategy
 
             # Priority 2: coinBTC + BTCUSDC
             if (
                 coin not in delisted_coins
-                and f"{coin}BTC" in self.symbols_info
-                and "BTCUSDC" in self.symbols_info
+                and f"{coin}BTC" in self.price_resolver.symbols_info
+                and "BTCUSDC" in self.price_resolver.symbols_info
             ):
-                strategy.append(self.symbols_info[f"{coin}BTC"])
-                strategy.append(self.symbols_info["BTCUSDC"])
+                strategy.append(self.price_resolver.symbols_info[f"{coin}BTC"])
+                strategy.append(self.price_resolver.symbols_info["BTCUSDC"])
                 return strategy
 
             # Priority 3: Exotic coinXYZ + XYZUSDC
             if coin not in delisted_coins:
-                for pair in self.symbols_info:
+                for pair in self.price_resolver.symbols_info:
                     if pair.startswith(coin):
                         quote = pair.replace(coin, "")
                         if quote in delisted_coins:
                             continue
-                        if f"{quote}USDC" in self.symbols_info:
-                            strategy.append(self.symbols_info[pair])
-                            strategy.append(self.symbols_info[f"{quote}USDC"])
+                        if f"{quote}USDC" in self.price_resolver.symbols_info:
+                            strategy.append(self.price_resolver.symbols_info[pair])
+                            strategy.append(
+                                self.price_resolver.symbols_info[f"{quote}USDC"]
+                            )
                             return strategy
 
             # Priority 4: Converting
             # Use USDT symbol for convert operations - ending with USDT indicates conversion
-            symbol_info = self.symbols_info[f"{coin}USDT"]
+            symbol_info = self.price_resolver.symbols_info[f"{coin}USDT"]
             symbol_info.is_convert_only = True
             strategy.append(symbol_info)
             return strategy
@@ -1664,7 +1667,9 @@ class StrategyExecutor:
 
             # Create recovery service with the same database instance
             self.recovery_service = RecoveryService(
-                symbols_info=self.symbols_info, client=self.client, database=self.db
+                symbols_info=self.price_resolver.symbols_info,
+                client=self.client,
+                database=self.db,
             )
             logger.info("Recovery service created successfully")
 

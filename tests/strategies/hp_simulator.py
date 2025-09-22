@@ -1888,7 +1888,7 @@ class HPSimulator:
                 sell_price=1.14,
                 quantity=quantity,
                 end_currency="PLN",
-                symbol_info=self.back.symbols_info[f"{coin}USDT"],
+                symbol_info=self.back.price_resolver.symbols_info[f"{coin}USDT"],
             ),
             state_info=StateInfo(side=PositionSide.SHORT),
         )

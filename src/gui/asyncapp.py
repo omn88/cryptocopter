@@ -4,7 +4,7 @@ This module contains the `AsyncApp` class, which is responsible for creating and
             if strategy.get("name") == "HPManager":
                 logger.info("Found instance of HPManager, restoring last known state.")
                 self.setup_hp_manager(
-                    strategy_id=strategy.get("strategy_id"), symbols_info=self.symbols_info
+                    strategy_id=strategy.get("strategy_id"), symbols_info=self.price_resolver.symbols_info
                 )`StrategyTab` for each trading strategy. It also sets up a logging handler
 for each strategy.
 """
@@ -62,7 +62,6 @@ class AsyncApp(App):
         self,
         client: BinanceClient,
         db: TradingDatabase,
-        symbols_info: Dict[str, SymbolInfo],
         price_resolver: UsdPriceResolver,
         **kwargs,
     ):
@@ -76,16 +75,13 @@ class AsyncApp(App):
         super(AsyncApp, self).__init__(**kwargs)
         self.client = client
         self.db = db
-        self.symbols_info = symbols_info
         self.price_resolver = price_resolver
-        self.main_ui_queue: asyncio.Queue = asyncio.Queue()
         self.broker: BrokerSpot = BrokerSpot()
         self.portfolio: Optional[PortfolioManager] = None
         self.portfolio_ui: Optional[PortfolioUI] = (
             None  # Reference to portfolio UI for HP manager integration
         )
         self.strategies: Dict = {}
-        self.dynamic_spinners: Dict = {}
 
     def __str__(self) -> str:
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -122,12 +118,12 @@ class AsyncApp(App):
                 queue=ui_queue,
             ),
         )
+        logger.info("Subscribed portfolio to broker price updates.")
 
         # Set up backend for PortfolioManager
         self.portfolio = PortfolioManager(
             broker=self.broker,
             ui_queue=ui_queue,
-            symbols_info=self.symbols_info,
             price_resolver=self.price_resolver,
             db=self.db,
         )
@@ -135,7 +131,7 @@ class AsyncApp(App):
         # Set up frontend UI for PortfolioManager
         self.portfolio_ui = PortfolioUI(
             ui_queue=ui_queue,
-            symbols_info=self.symbols_info,
+            price_resolver=self.price_resolver,
             db=self.db,
         )
 
@@ -168,7 +164,7 @@ class AsyncApp(App):
                     logger.info(f"Restoring HP Manager with strategy_id: {strategy_id}")
                     self.setup_hp_manager(
                         strategy_id=strategy_id,
-                        symbols_info=self.symbols_info,
+                        symbols_info=self.price_resolver.symbols_info,
                     )
                 else:
                     logger.error("No strategy ID found for HP Manager recovery")
@@ -192,7 +188,6 @@ class AsyncApp(App):
         )
         assert self.portfolio is not None
         back_end = StrategyExecutor(
-            symbols_info=self.symbols_info,
             db=self.db,
             broker=self.broker,
             ui_queue=ui_queue,
@@ -258,7 +253,7 @@ class AsyncApp(App):
             strategy_id = await self.db.save_strategy(strategy)
 
             self.setup_hp_manager(
-                strategy_id=strategy_id, symbols_info=self.symbols_info
+                strategy_id=strategy_id, symbols_info=self.price_resolver.symbols_info
             )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 

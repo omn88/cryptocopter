@@ -184,7 +184,9 @@ class InventorySellSimulator:
             sell_price=sell_price,
             quantity=sell_quantity,
             end_currency=end_currency,
-            symbol_info=self.strategy_executor.symbols_info[f"{coin}USDT"],
+            symbol_info=self.strategy_executor.price_resolver.symbols_info[
+                f"{coin}USDT"
+            ],
         )
 
         sell_data = HPSellData(

@@ -33,7 +33,6 @@ from src.identifiers import (
     Mode,
     PositionSide,
 )
-from src.common.symbol_info import SymbolInfo
 from src.gui.identifiers.spot import (
     HPGuiDataBuy,
     HPGuiDataSell,
@@ -79,7 +78,6 @@ class HpFront(BoxLayout):
         strategy_id: str,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
-        symbols_info: Dict[str, SymbolInfo],
         db: TradingDatabase,
         price_resolver: UsdPriceResolver,
         portfolio_queue: queue.Queue,
@@ -87,19 +85,20 @@ class HpFront(BoxLayout):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.symbols_info = symbols_info
         self.client = client
         self.strategy_id = strategy_id
         self.ui_queue = ui_queue
         self.config_queue = config_queue
         self.db = db
+        self.price_resolver = price_resolver
+        self.portfolio_queue = portfolio_queue
         self.bind(hp_list_data=self._update_hp_list_view)
-        self.symbols = [symbol for symbol, _ in self.symbols_info.items()]
+        self.symbols = [
+            symbol for symbol, _ in self.price_resolver.symbols_info.items()
+        ]
         self.test_mode = test_mode
         self.stop_event: asyncio.Event = asyncio.Event()
         self.ui_queue_closed = False
-        self.price_resolver = price_resolver
-        self.portfolio_queue = portfolio_queue
 
         # Initialize task references for proper cleanup
         self.queue_task: Optional[asyncio.Task] = None
@@ -263,7 +262,7 @@ Side: {side}"""
             self.hp_manager.remove_hp_callback = self.remove_hp
 
             # Set symbols_info and client for HP manager integration
-            self.hp_manager.symbols_info = self.symbols_info
+            self.hp_manager.symbols_info = self.price_resolver.symbols_info
             self.hp_manager.client = self.client
 
             # Update with current data
@@ -285,14 +284,14 @@ Side: {side}"""
 
     def _create_buy_hp_from_config(self, config: HPConfiguration):
         """Create Buy HP from unified configuration."""
-        if not self.symbols_info.get(config.symbol):
+        if not self.price_resolver.symbols_info.get(config.symbol):
             logger.error(f"Symbol info not found for {config.symbol}")
             return
 
         new_hp = HPBuyData(
             config=HPBuyConfig(
                 coin=config.coin,
-                symbol_info=self.symbols_info[config.symbol],
+                symbol_info=self.price_resolver.symbols_info[config.symbol],
                 price_low=config.price_low or 0.0,
                 price_high=config.price_high or 0.0,
                 budget=config.budget or 1000.0,
