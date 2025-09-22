@@ -480,10 +480,7 @@ class StrategyExecutor:
                 return strategy
 
             # Priority 2: coinUSDC + USDCPLN
-            if (
-                f"{coin}USDC" in symbols_info
-                and "USDCPLN" in symbols_info
-            ):
+            if f"{coin}USDC" in symbols_info and "USDCPLN" in symbols_info:
                 strategy.append(symbols_info[f"{coin}USDC"])
                 strategy.append(symbols_info["USDCPLN"])
                 return strategy
