@@ -30,7 +30,6 @@ from .models import (
     OrderStatus,
     Position,
     Order,
-    Strategy,
     PositionType,
     PositionStatus,
     TradeType,
@@ -165,19 +164,7 @@ class TradingDatabase:
         """Create all necessary tables."""
         cursor = conn.cursor()
 
-        # Strategies table
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS strategies (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                status TEXT NOT NULL DEFAULT 'ACTIVE',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """
-        )  # Positions table - the core of our recovery system
+        # Positions table - the core of our recovery system
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS positions (
@@ -309,30 +296,6 @@ class TradingDatabase:
                 yield conn
         except Exception as e:
             raise DatabaseConnectionError(f"Failed to connect to database: {e}") from e
-
-    async def save_strategy(self, strategy: Strategy) -> str:
-        """Save a strategy to the database."""
-        try:
-            async with self.get_connection() as conn:
-                await conn.execute(
-                    """
-                    INSERT OR REPLACE INTO strategies
-                    (id, name, description, status, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        strategy.id,
-                        strategy.name,
-                        strategy.description,
-                        strategy.status,
-                        strategy.created_at.isoformat(),
-                        datetime.now().isoformat(),
-                    ),
-                )
-                await conn.commit()
-                return strategy.id
-        except Exception as e:
-            raise DatabaseError(f"Failed to save strategy: {e}") from e
 
     async def save_position(self, position: Position) -> str:
         """
@@ -870,39 +833,6 @@ class TradingDatabase:
     # ========================================================================
     # Legacy compatibility methods - To be implemented via TDD
     # ========================================================================
-
-    async def fetch_all_active_strategies(self) -> List[Dict[str, Any]]:
-        """
-        Fetch all active strategies (async).
-
-        Returns:
-            List of strategy dictionaries
-        """
-        try:
-            async with self.get_connection() as conn:
-                cursor = await conn.execute(
-                    """
-                    SELECT * FROM strategies WHERE status = 'ACTIVE' ORDER BY created_at ASC
-                    """
-                )
-                rows = await cursor.fetchall()
-                strategies = []
-                for row in rows:
-                    strategies.append(
-                        {
-                            "id": row["id"],
-                            "name": row["name"],
-                            "description": row["description"],
-                            "status": row["status"],
-                            "created_at": row["created_at"],
-                            "updated_at": row["updated_at"],
-                        }
-                    )
-                logger.info("Fetched %d active strategies", len(strategies))
-                return strategies
-        except Exception as e:
-            logger.error("Failed to fetch active strategies: %s", e)
-            return []
 
     async def fetch_orders_for_price_level(
         self, hp_id: str, side: str

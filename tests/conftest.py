@@ -807,6 +807,7 @@ def portfolio_ui(test_db: TradingDatabase, mock_async_client, mock_inventory):
 
     portfolio = PortfolioUI(
         ui_queue=ui_queue,
+        strategy_config_queue=queue.Queue(),
         price_resolver=price_resolver,
         db=test_db,
         test_mode=True,  # Enable test mode to suppress UI refresh calls
@@ -847,8 +848,8 @@ async def portfolio_hp_backend_setup(
     strategy_executor_fixture.ui_queue = hp_gui.ui_queue
     hp_gui.db = strategy_executor_fixture.db
 
-    # Connect portfolio to HP manager (for sell button functionality)
-    portfolio_ui.hp_manager = hp_gui
+    # Connect portfolio to strategy executor config queue (for sell button functionality)
+    portfolio_ui.strategy_config_queue = strategy_executor_fixture.config_queue
 
     # CRITICAL: Connect strategy executor to real portfolio for HP event processing
     strategy_executor_fixture.portfolio_ui_queue = portfolio_ui.ui_queue
@@ -950,6 +951,7 @@ async def portfolio_crash_recovery_factory(
         # Create Portfolio UI with real database persistence
         portfolio_ui = PortfolioUI(
             ui_queue=portfolio_ui_queue,
+            strategy_config_queue=config_queue,
             price_resolver=price_resolver,
             db=test_db,  # Always use same database for persistence across crashes
             test_mode=True,
@@ -990,8 +992,9 @@ async def portfolio_crash_recovery_factory(
         strategy_executor.ui_queue = hp_frontend.ui_queue
         hp_frontend.db = strategy_executor.db
 
-        # Portfolio <-> HP connection for sell operations
-        portfolio_ui.hp_manager = hp_frontend
+        # Portfolio <-> Strategy executor connection for sell operations
+        portfolio_ui.strategy_config_queue = strategy_executor.config_queue
+        portfolio_ui.symbols_info = strategy_executor.price_resolver.symbols_info
 
         # CRITICAL: Connect strategy executor to portfolio for HP event processing
         strategy_executor.portfolio_ui_queue = portfolio_ui.ui_queue

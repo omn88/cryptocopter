@@ -25,9 +25,7 @@ from src.identifiers import (
     SubscriptionType,
     BinanceClient,
 )
-from src.database.models import Strategy
 from src.portfolio.portfolio import PortfolioManager
-from src.common.symbol_info import SymbolInfo
 from src.gui.hp_manager.hpfront import HpFront
 from src.portfolio.portfolio_gui import PortfolioUI
 from src.database import TradingDatabase
@@ -81,7 +79,6 @@ class AsyncApp(App):
         self.portfolio_ui: Optional[PortfolioUI] = (
             None  # Reference to portfolio UI for HP manager integration
         )
-        self.strategies: Dict = {}
 
     def __str__(self) -> str:
         return f"AsyncApp instance with {len(self.strategy_tabs)} strategy tabs and {len(self.trading_systems)} trading systems"
@@ -100,6 +97,8 @@ class AsyncApp(App):
 
     def on_start(self) -> None:
         self.setup_portfolio_manager()
+        # Always setup HP Manager as default strategy
+        self.setup_hp_manager()
         asyncio.create_task(self.load_all_active_strategies())
 
     def setup_portfolio_manager(self) -> None:
@@ -131,6 +130,7 @@ class AsyncApp(App):
         # Set up frontend UI for PortfolioManager
         self.portfolio_ui = PortfolioUI(
             ui_queue=ui_queue,
+            strategy_config_queue=queue.Queue(),
             price_resolver=self.price_resolver,
             db=self.db,
         )
@@ -145,28 +145,11 @@ class AsyncApp(App):
         )  # Add the tab to the root tab panel
         self.root.add_widget(tab)
 
-    async def load_all_active_strategies(self) -> None:
-        active_strategies = await self.db.fetch_all_active_strategies()
-        if not active_strategies:
-            logger.info("No active strategy found")
-            return
-        logger.info("Current active strategies: %s", active_strategies)
-
-        for strategy in active_strategies:
-            strategy_name = strategy.get("name")
-            if strategy_name == "HP Manager":
-                logger.info("Found instance of HPManager, restoring last known state.")
-                strat = {}
-                strat["name"] = strategy_name
-                self.active_strategies.append(strat)
-                strategy_id = strategy.get("id")  # Use 'id' field from database
-                if strategy_id is not None:
-                    logger.info(f"Restoring HP Manager with strategy_id: {strategy_id}")
-                    self.setup_hp_manager(strategy_id=strategy_id)
-                else:
-                    logger.error("No strategy ID found for HP Manager recovery")
-
-    def setup_hp_manager(self, strategy_id: str) -> None:
+    def setup_hp_manager(self, strategy_id: Optional[str] = None) -> None:
+        # Use existing strategy ID or generate new one
+        strategy_name = "HPManager"
+        if strategy_id is None:
+            strategy_id = "hp_manager_default"
 
         logger.info("Setting up HP Manager with strategy ID: %s", strategy_id)
         Builder.load_file("src/gui/hp_manager/hpfront.kv")
@@ -206,18 +189,19 @@ class AsyncApp(App):
 
         front_end.initialize()
 
-        # Set HP manager reference in portfolio for sell functionality
         if self.portfolio_ui:
-            self.portfolio_ui.set_hp_manager_reference(front_end, self)
+            self.portfolio_ui.strategy_config_queue = back_end.config_queue
 
         tab = TabbedPanelItem(
-            text="HPManager",
+            text=strategy_name,
             content=front_end,
         )
         # Store a reference to the tab
-        self.strategies["HPManager"] = tab
-        # Add a new tab for the strategy
+        self.active_strategies["name"] = strategy_name
+        # Add a new tab for the strategy as default
         self.root.add_widget(tab)
+        # Make HP Manager the default active tab
+        self.root.switch_to(tab)
 
         logger.info("HP Manager setup complete.")
 
@@ -237,17 +221,6 @@ class AsyncApp(App):
                         strategy_name,
                     )
                     return
-            strat = {}
-            strat["name"] = strategy_name
-            self.active_strategies.append(strat)
-            logger.info("Starting HP manager strategy")
-
-            strategy = Strategy(name="HP Manager", description="HP Manager")
-            strategy_id = await self.db.save_strategy(strategy)
-
-            self.setup_hp_manager(
-                strategy_id=strategy_id, symbols_info=self.price_resolver.symbols_info
-            )
             self.root.ids.strategy_spinner.text = "Choose Strategy"
 
     def cancel_all_strategies(self) -> None:

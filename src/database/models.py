@@ -65,18 +65,6 @@ class OrderStatus(Enum):
 
 
 @dataclass
-class Strategy:
-    """Trading strategy record."""
-
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = ""
-    description: str = ""
-    status: str = "ACTIVE"
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
 class Position:
     """
     Core position record that can represent both buy and sell positions.

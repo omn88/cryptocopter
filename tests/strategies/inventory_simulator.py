@@ -313,13 +313,13 @@ class InventorySellSimulator:
 
     def verify_connections(self):
         """Verify that portfolio, HP manager, and strategy executor are properly connected."""
-        # Verify portfolio has hp_manager reference
+        # Verify portfolio has strategy_config_queue reference
         assert hasattr(
-            self.portfolio, "hp_manager"
-        ), "Portfolio should have hp_manager reference"
+            self.portfolio, "strategy_config_queue"
+        ), "Portfolio should have strategy_config_queue reference"
         assert (
-            self.portfolio.hp_manager is self.hp_manager
-        ), "Portfolio should reference the correct HP manager"
+            self.portfolio.strategy_config_queue is self.strategy_executor.config_queue
+        ), "Portfolio should reference the correct strategy executor config queue"
 
         # Verify HP manager has portfolio_queue (not direct portfolio reference)
         assert hasattr(
