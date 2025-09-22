@@ -75,7 +75,6 @@ class HpFront(BoxLayout):
     def __init__(
         self,
         client: BinanceClient,
-        strategy_id: str,
         config_queue: queue.Queue,
         ui_queue: queue.Queue,
         db: TradingDatabase,
@@ -86,7 +85,6 @@ class HpFront(BoxLayout):
     ):
         super().__init__(**kwargs)
         self.client = client
-        self.strategy_id = strategy_id
         self.ui_queue = ui_queue
         self.config_queue = config_queue
         self.db = db

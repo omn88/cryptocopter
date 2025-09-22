@@ -162,16 +162,11 @@ class AsyncApp(App):
                 strategy_id = strategy.get("id")  # Use 'id' field from database
                 if strategy_id is not None:
                     logger.info(f"Restoring HP Manager with strategy_id: {strategy_id}")
-                    self.setup_hp_manager(
-                        strategy_id=strategy_id,
-                        symbols_info=self.price_resolver.symbols_info,
-                    )
+                    self.setup_hp_manager(strategy_id=strategy_id)
                 else:
                     logger.error("No strategy ID found for HP Manager recovery")
 
-    def setup_hp_manager(
-        self, strategy_id: str, symbols_info: Dict[str, SymbolInfo]
-    ) -> None:
+    def setup_hp_manager(self, strategy_id: str) -> None:
 
         logger.info("Setting up HP Manager with strategy ID: %s", strategy_id)
         Builder.load_file("src/gui/hp_manager/hpfront.kv")
@@ -202,8 +197,6 @@ class AsyncApp(App):
 
         front_end = HpFront(
             client=self.client,
-            strategy_id=strategy_id,
-            symbols_info=symbols_info,
             config_queue=back_end.config_queue,
             db=self.db,
             ui_queue=ui_queue,

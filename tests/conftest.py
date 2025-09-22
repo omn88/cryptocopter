@@ -182,7 +182,6 @@ async def hp_gui(mock_async_client) -> AsyncGenerator:
 
         gui = HpFront(
             client=mock_async_client,
-            strategy_id="test_strategy",
             config_queue=mock_config_queue,
             db=AsyncMock(),
             ui_queue=queue.Queue(),
@@ -332,7 +331,6 @@ async def crash_recovery_factory(
         with patch("kivy.base.EventLoop.ensure_window"):
             frontend = HpFront(
                 client=mock_async_client,
-                strategy_id=f"test_strategy{instance_name}",
                 config_queue=config_queue,
                 db=test_db,  # Always use the same database
                 ui_queue=ui_queue,
@@ -976,7 +974,6 @@ async def portfolio_crash_recovery_factory(
         with patch("kivy.base.EventLoop.ensure_window"):
             hp_frontend = HpFront(
                 client=mock_async_client,
-                strategy_id=f"test_strategy_{instance_name}",
                 config_queue=config_queue,
                 db=test_db,  # Always use same database
                 ui_queue=ui_queue,
