@@ -1890,29 +1890,12 @@ Enter sell price to create sell order:"""
         )
 
     def _get_sorted_hp_list(self):
-        # Apply state filtering first
-        logger.info(f"[FILTERING] Current hp_state_filter: {self.hp_state_filter}")
-        logger.info(f"[FILTERING] Total hp_list_data items: {len(self.hp_list_data)}")
-
-        # Log all items before filtering
-        for item in self.hp_list_data:
-            if item.get("hp_id", "").startswith("1000"):
-                logger.info(
-                    f"[FILTERING] Item {item.get('hp_id')}: state={item.get('state')}, is_child={item.get('is_child')}, side={item.get('side')}"
-                )
 
         filtered_data = [
             hp
             for hp in self.hp_list_data
             if hp.get("state", "") in self.hp_state_filter
         ]
-
-        logger.info(f"[FILTERING] After state filter: {len(filtered_data)} items")
-        for item in filtered_data:
-            if item.get("hp_id", "").startswith("1000"):
-                logger.info(
-                    f"[FILTERING] Filtered item {item.get('hp_id')}: state={item.get('state')}, is_child={item.get('is_child')}, side={item.get('side')}"
-                )
 
         # Separate parents and children
         parents = [
@@ -1935,13 +1918,6 @@ Enter sell price to create sell order:"""
             if hp.get("is_child", False) and "_" in hp.get("hp_id", "")
         ]
 
-        logger.info(f"[FILTERING] Regular children found: {len(regular_children)}")
-        for child in regular_children:
-            if child.get("hp_id", "").startswith("1000"):
-                logger.info(
-                    f"[FILTERING] Regular child: {child.get('hp_id')}, parent_hp_id: {child.get('parent_hp_id')}"
-                )
-
         sorted_list = []
         for parent in sorted(parents, key=lambda x: int(x.get("hp_id", "0"))):
             # Find children for this parent
@@ -1962,14 +1938,6 @@ Enter sell price to create sell order:"""
                 if c.get("parent_hp_id") == parent_id
                 or c.get("hp_id", "").startswith(f"{parent_id}_")
             ]
-
-            logger.info(
-                f"[FILTERING] Parent {parent_id}: multihop={len(parent_multihop_children)}, regular={len(parent_regular_children)}"
-            )
-            for child in parent_regular_children:
-                logger.info(
-                    f"[FILTERING] Regular child for {parent_id}: {child.get('hp_id')}"
-                )
 
             all_children = parent_multihop_children + parent_regular_children
 
